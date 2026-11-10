@@ -40,17 +40,26 @@ func (s *Service) PublishDisplay(
 	id uuid.UUID,
 	requestID *uuid.UUID,
 ) (Display, error) {
-	display, err := s.publishDisplay(ctx, principal, id, requestID)
+	display, err := s.publishDisplay(ctx, principal, id, DisplayKindDevice, requestID)
 	if err != nil {
 		return Display{}, serializationConflict(err)
 	}
 	return display, nil
 }
 
+// publishedAudit names the audit event of a publication by the kind of display.
+func publishedAudit(kind DisplayKind) (action, resource string) {
+	if kind == DisplayKindWebEmbed {
+		return "signage_web_embed.published", webEmbedResource
+	}
+	return "signage_display.published", "signage_display"
+}
+
 func (s *Service) publishDisplay(
 	ctx context.Context,
 	principal authorization.Principal,
 	id uuid.UUID,
+	kind DisplayKind,
 	requestID *uuid.UUID,
 ) (Display, error) {
 	if !principal.Has(authorization.SignagePublish) {
@@ -62,10 +71,7 @@ func (s *Service) publishDisplay(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
-	current, err := q.GetSignageDisplayForUpdate(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Display{}, apperror.NotFound
-	}
+	current, err := lockDisplayOfKind(ctx, q, id, kind)
 	if err != nil {
 		return Display{}, err
 	}
@@ -75,6 +81,13 @@ func (s *Service) publishDisplay(
 	draft := displayDraft{
 		ID: id, Name: current.Name, AspectRatio: aspectRatioOf(current.AspectWidth, current.AspectHeight),
 		VisibleFromOutside: current.VisibleFromOutside,
+	}
+	if kind == DisplayKindWebEmbed {
+		media, err := embedMediaOf(ctx, q, []uuid.UUID{id})
+		if err != nil {
+			return Display{}, err
+		}
+		draft.EmbedMedia = media[id]
 	}
 	if current.GroupID != nil {
 		contents, err := loadGroupContent(ctx, q, []uuid.UUID{*current.GroupID})
@@ -100,19 +113,11 @@ func (s *Service) publishDisplay(
 	if err := s.storePublication(ctx, q, principal, id, manifests[id]); err != nil {
 		return Display{}, err
 	}
-	if err := writeAudit(
-		ctx,
-		tx,
-		principal,
-		"signage_display.published",
-		"signage_display",
-		id,
-		requestID,
-		[]string{"revision"},
-	); err != nil {
+	action, resource := publishedAudit(kind)
+	if err := writeAudit(ctx, tx, principal, action, resource, id, requestID, []string{"revision"}); err != nil {
 		return Display{}, err
 	}
-	result, err := s.getDisplay(ctx, q, id)
+	result, err := s.getDisplayOfKind(ctx, q, id, kind)
 	if err != nil {
 		return Display{}, err
 	}

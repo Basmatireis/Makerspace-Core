@@ -239,6 +239,14 @@ const (
 	WhenManyStack  WhenMany = "stack"
 )
 
+// DisplayKind tells a screen with a managed device from a web embed, which other websites show in an iframe.
+type DisplayKind string
+
+const (
+	DisplayKindDevice   DisplayKind = "device"
+	DisplayKindWebEmbed DisplayKind = "web_embed"
+)
+
 // DisplayStatus is whether a display is reachable.
 type DisplayStatus string
 

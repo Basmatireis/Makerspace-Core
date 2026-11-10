@@ -874,6 +874,19 @@ func (q *Queries) DisableOrderItemGuards(ctx context.Context) error {
 	return err
 }
 
+const disableSignageWebEmbeds = `-- name: DisableSignageWebEmbeds :exec
+UPDATE signage_web_embeds
+SET enabled = false,
+    embed_key = translate(encode(uuid_send(gen_random_uuid()) || substring(uuid_send(gen_random_uuid()) FROM 1 FOR 8), 'base64'), '+/', '-_')
+`
+
+// Staging must not serve the production screens on other websites: every web embed is switched off and gets a new
+// random key (24 random bytes, base64url), so the production embed codes do not work against staging.
+func (q *Queries) DisableSignageWebEmbeds(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, disableSignageWebEmbeds)
+	return err
+}
+
 const enableCashCountGuards = `-- name: EnableCashCountGuards :exec
 ALTER TABLE cash_counts ENABLE TRIGGER USER
 `

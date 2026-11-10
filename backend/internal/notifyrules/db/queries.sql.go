@@ -313,6 +313,19 @@ func (q *Queries) CountInvoiceRequestEventsSince(ctx context.Context, since time
 	return column_1, err
 }
 
+const countJobRunTimelapsesSince = `-- name: CountJobRunTimelapsesSince :one
+SELECT count(*)::bigint FROM machine_run_timelapses t
+JOIN machine_runs r ON r.id = t.run_id
+WHERE r.job_id IS NOT NULL AND r.deleted_at IS NULL AND t.created_at >= $1
+`
+
+func (q *Queries) CountJobRunTimelapsesSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countJobRunTimelapsesSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countJobsCreatedSince = `-- name: CountJobsCreatedSince :one
 SELECT count(*)::bigint FROM machine_jobs WHERE deleted_at IS NULL AND created_at >= $1::timestamptz
 `
@@ -1204,7 +1217,7 @@ func (q *Queries) GetRuleForUpdate(ctx context.Context, id uuid.UUID) (Notificat
 
 const getRunEventFacts = `-- name: GetRunEventFacts :one
 
-SELECT r.id, r.display_id, r.outcome, r.state, r.started_at, r.ended_at, m.id AS machine_id, m.name AS machine_name,
+SELECT r.id, r.display_id, r.source, r.outcome, r.state, r.started_at, r.ended_at, m.id AS machine_id, m.name AS machine_name,
        j.id AS job_id, j.title AS job_title, j.operator_person_id, j.customer_person_id, j.customer_organization_id
 FROM machine_runs r
 JOIN machines m ON m.id = r.machine_id
@@ -1215,6 +1228,7 @@ WHERE r.id = $1
 type GetRunEventFactsRow struct {
 	ID                     uuid.UUID
 	DisplayID              string
+	Source                 string
 	Outcome                *string
 	State                  *string
 	StartedAt              pgtype.Timestamptz
@@ -1235,6 +1249,7 @@ func (q *Queries) GetRunEventFacts(ctx context.Context, id uuid.UUID) (GetRunEve
 	err := row.Scan(
 		&i.ID,
 		&i.DisplayID,
+		&i.Source,
 		&i.Outcome,
 		&i.State,
 		&i.StartedAt,
@@ -1248,6 +1263,22 @@ func (q *Queries) GetRunEventFacts(ctx context.Context, id uuid.UUID) (GetRunEve
 		&i.CustomerOrganizationID,
 	)
 	return i, err
+}
+
+const getRunPrintName = `-- name: GetRunPrintName :one
+SELECT COALESCE(NULLIF(btrim(f.original_filename), ''), NULLIF(btrim(r.file_name), ''), r.display_id)::text AS name
+FROM machine_runs r
+LEFT JOIN print_artifacts pa ON pa.id = r.artifact_id
+LEFT JOIN files f ON f.id = pa.original_file_id
+WHERE r.id = $1
+`
+
+// What a print is called without a job title: the 3MF's original file name, the printer's file name, or the run's number.
+func (q *Queries) GetRunPrintName(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getRunPrintName, id)
+	var name string
+	err := row.Scan(&name)
+	return name, err
 }
 
 const getSpoolEventFacts = `-- name: GetSpoolEventFacts :one
@@ -1300,6 +1331,50 @@ func (q *Queries) GetSurveyResponseEventFacts(ctx context.Context, id uuid.UUID)
 	row := q.db.QueryRow(ctx, getSurveyResponseEventFacts, id)
 	var i GetSurveyResponseEventFactsRow
 	err := row.Scan(&i.SurveyName, &i.Anonymous)
+	return i, err
+}
+
+const getTimelapseEventFacts = `-- name: GetTimelapseEventFacts :one
+SELECT r.id, r.display_id, r.outcome, r.state, m.id AS machine_id, m.name AS machine_name,
+       j.title AS job_title, j.display_id AS job_display_id, j.operator_person_id, j.customer_person_id,
+       j.customer_organization_id
+FROM machine_runs r
+JOIN machines m ON m.id = r.machine_id
+JOIN machine_jobs j ON j.id = r.job_id AND j.deleted_at IS NULL
+WHERE r.id = $1 AND r.deleted_at IS NULL AND r.source = 'recorded'
+`
+
+type GetTimelapseEventFactsRow struct {
+	ID                     uuid.UUID
+	DisplayID              string
+	Outcome                *string
+	State                  *string
+	MachineID              uuid.UUID
+	MachineName            string
+	JobTitle               *string
+	JobDisplayID           string
+	OperatorPersonID       *uuid.UUID
+	CustomerPersonID       *uuid.UUID
+	CustomerOrganizationID *uuid.UUID
+}
+
+// A recorded run with a live job whose timelapse was stored; runs or jobs in the recycle bin are left out.
+func (q *Queries) GetTimelapseEventFacts(ctx context.Context, id uuid.UUID) (GetTimelapseEventFactsRow, error) {
+	row := q.db.QueryRow(ctx, getTimelapseEventFacts, id)
+	var i GetTimelapseEventFactsRow
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayID,
+		&i.Outcome,
+		&i.State,
+		&i.MachineID,
+		&i.MachineName,
+		&i.JobTitle,
+		&i.JobDisplayID,
+		&i.OperatorPersonID,
+		&i.CustomerPersonID,
+		&i.CustomerOrganizationID,
+	)
 	return i, err
 }
 
@@ -1665,7 +1740,7 @@ const insertSignageRuleNotice = `-- name: InsertSignageRuleNotice :execrows
 INSERT INTO signage_rule_notices (id, firing_id, display_id, title, body, tone, starts_at, ends_at)
 SELECT $1, $2, d.id, $3, $4, $5, $6,
        $7
-FROM signage_displays d WHERE d.id = $8
+FROM signage_displays d WHERE d.id = $8 AND d.kind = 'device'
 `
 
 type InsertSignageRuleNoticeParams struct {
@@ -2232,9 +2307,10 @@ func (q *Queries) ListExistingDeviceIDs(ctx context.Context, ids []string) ([]uu
 }
 
 const listExistingDisplayIDs = `-- name: ListExistingDisplayIDs :many
-SELECT id FROM signage_displays WHERE id = ANY($1::text[]::uuid[])
+SELECT id FROM signage_displays WHERE id = ANY($1::text[]::uuid[]) AND kind = 'device'
 `
 
+// Only screens with a device take rule notices; web embeds show public information only.
 func (q *Queries) ListExistingDisplayIDs(ctx context.Context, ids []string) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listExistingDisplayIDs, ids)
 	if err != nil {
@@ -3010,6 +3086,36 @@ ORDER BY person_id
 
 func (q *Queries) ListPeopleWithEnabledAccount(ctx context.Context, personIds []string) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listPeopleWithEnabledAccount, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var person_id uuid.UUID
+		if err := rows.Scan(&person_id); err != nil {
+			return nil, err
+		}
+		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPeopleWithPasswordAccount = `-- name: ListPeopleWithPasswordAccount :many
+SELECT DISTINCT a.person_id
+FROM accounts a
+JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password' AND i.disabled_at IS NULL
+JOIN password_credentials pc ON pc.auth_identity_id = i.id
+WHERE a.person_id = ANY($1::text[]::uuid[]) AND a.status = 'enabled'
+ORDER BY a.person_id
+`
+
+// People who can sign in with a password: an enabled account with a usable password identity.
+func (q *Queries) ListPeopleWithPasswordAccount(ctx context.Context, personIds []string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPeopleWithPasswordAccount, personIds)
 	if err != nil {
 		return nil, err
 	}

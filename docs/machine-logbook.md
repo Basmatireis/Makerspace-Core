@@ -319,6 +319,12 @@ Downloads need `machine_jobs.read` (the existing `/print-artifacts/...` endpoint
 - `GET /machine-runs/{runId}/previews/{previewId}/content`: a PNG or JPEG preview of the run's 3MF, `inline` for `img` elements; 404 unless the preview belongs to the run's artifact.
 - `GET /machine-runs/{runId}/timelapse/content`: the video (`video/mp4`) as an attachment named `R-YYYY-NNNNNN-timelapse.mp4`. Single HTTP Range requests are answered with 206 (416 when unsatisfiable) on local storage, so a `video` element can seek; S3 storage streams the whole body with `Accept-Ranges: none`. Playing it in a `video` element needs `media-src 'self'` (or a matching `default-src`) in the frontend CSP.
 
+### Print page
+
+A standalone page for one recorded run (frontend route `/prints/{runId}`, outside the staff shell, after the normal sign-in), linked from notification e-mails such as `timelapse_ready`. `GET /print-pages/{runId}` (`PrintPage`) returns the run number, the title (job title, else the 3MF's original file name, the printer's file name or the run number), machine name, start, end, duration, outcome, the timelapse (size, type, `expiresAt`) and `timelapseStatus` (without the connector's `detail`), the 3MF (file name, size) and its previews (id, role, plate number, primary), plus `viewerIsStaff`. It never carries material, quantities, prices, the operator, who started the print or the recipient. The content comes from `GET /print-pages/{runId}/timelapse/content` (Range support like the run page), `…/file/content` (3MF attachment) and `…/previews/{previewId}/content` (only previews of the run's 3MF); every response is `Cache-Control: no-store`.
+
+Who may open it is decided in `runrecordings` (`MayOpenPrintPage`): the person who is currently the job's recipient (a person; the session's person must equal `machine_jobs.customer_person_id`) and anyone holding `machine_jobs.read`. Everybody else, unknown runs, manual runs, runs without a job and runs or jobs in the recycle bin all get the same 404 `not_found`, so the page never reveals that a run exists. A job for an organization is visible to staff only; when the recipient changes, the former recipient loses access at once.
+
 ### Interface
 
 The run and job detail pages share one layout: a compact facts bar (runtime, material, outcome and machine or customer, everything else behind "Details") and a side column with the preview tile.

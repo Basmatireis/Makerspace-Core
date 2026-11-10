@@ -109,6 +109,8 @@ type Server struct {
 	surveyLinkSubmits *ratelimit.Limiter
 	// calendarFeedReads bounds reads of the public calendar feeds per client address.
 	calendarFeedReads *ratelimit.Limiter
+	// signageEmbedReads bounds requests to the public web embed endpoints per client address.
+	signageEmbedReads *ratelimit.Limiter
 	// notifyRules owns the notification categories, consents and rules.
 	notifyRules *notifyrules.Service
 	// notifyDispatcher delivers rule-based notifications for events and the ones that waited.
@@ -145,6 +147,9 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 	// One event source raises the system events of every service inside the caller's transaction; the central
 	// notification rules decide who is told what.
 	notifyDispatcher := notifyrules.NewDispatcher(pool, location)
+	if cfg.PublicBaseURL != nil {
+		notifyDispatcher.WithPublicBaseURL(cfg.PublicBaseURL.String())
+	}
 	notificationEmitter := notifyrules.NewSystemEvents(notifyDispatcher)
 	openDaysService, err := opendays.NewService(pool, notificationEmitter, cfg)
 	if err != nil {
@@ -229,7 +234,8 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 	attendanceService := attendance.NewService(pool, authService, labRulesService, surveyService).
 		WithNotifications(notificationEmitter)
 	visitorService.SetAttendance(attendanceService)
-	runRecordingsService := runrecordings.NewService(pool, fileService, machineLogbook, timelapseMaxBytes(cfg))
+	runRecordingsService := runrecordings.NewService(pool, fileService, machineLogbook, timelapseMaxBytes(cfg)).
+		WithNotifications(notificationEmitter)
 	auditRetention, eventSignupRetention := cfg.AuditRetention, cfg.EventSignupRetention
 	privacycatalog.RegisterBuiltinHandlers(privacyService, runRecordingsService, privacy.LegacyPeriods{
 		AuditRetention:       &auditRetention,
@@ -283,6 +289,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		surveyLinkSubmits:  ratelimit.New(surveyLinkSubmitsPerWindow, surveyLinkWindow),
 		calendarFeed:       calendarFeedService,
 		calendarFeedReads:  ratelimit.New(calendarFeedReadsPerWindow, calendarFeedWindow),
+		signageEmbedReads:  ratelimit.New(signageEmbedRequestsPerWindow, signageEmbedWindow),
 		attendance:         attendanceService,
 		noticeMail:         inbox.NewMailDelivery(pool, noticeMailer{notifier}),
 	}, nil

@@ -20,6 +20,9 @@ type Querier interface {
 	GetConnectorRunTarget(ctx context.Context, arg GetConnectorRunTargetParams) (GetConnectorRunTargetRow, error)
 	GetConnectorRunTargetForUpdate(ctx context.Context, arg GetConnectorRunTargetForUpdateParams) (GetConnectorRunTargetForUpdateRow, error)
 	GetOpenRunCommand(ctx context.Context, arg GetOpenRunCommandParams) (MachineRunCommand, error)
+	// A recorded run with its job for the run's print page. Manual runs, runs without a job and runs or jobs in the
+	// recycle bin are left out; the page never reads material, prices, the operator or the recipient's name.
+	GetPrintPageRun(ctx context.Context, runID uuid.UUID) (GetPrintPageRunRow, error)
 	GetRecordingSettings(ctx context.Context) (RunRecordingSetting, error)
 	GetRunArtifactFile(ctx context.Context, runID uuid.UUID) (GetRunArtifactFileRow, error)
 	// Locks the run so concurrent requests for it are counted exactly.

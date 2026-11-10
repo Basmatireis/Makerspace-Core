@@ -26,6 +26,11 @@ const (
 	MaxStreamsPerDeviceMachine = 4
 	MaxStreamsPerDevice        = 20
 	MaxSessionsPerConnector    = 32
+	// MaxEmbedSessionsPerConnector is the share of a connector's sessions that web embeds together may use, so the
+	// makerspace's own displays always find room.
+	MaxEmbedSessionsPerConnector = MaxSessionsPerConnector / 2
+	// MaxEmbedSessionsPerClient bounds the sessions one client address holds of one web embed.
+	MaxEmbedSessionsPerClient = 2
 	// maxSessions and maxControlChannels bound the hub's memory independently of the per-client limits.
 	maxSessions        = 1024
 	maxControlChannels = 256
@@ -108,11 +113,27 @@ var ErrCameraOffline = apperror.New(
 	"The local service of this camera is not connected",
 )
 
+// ErrViewerLimit answers a web embed viewer while the embed's viewer limit is reached; the page shows its fallback.
+var ErrViewerLimit = apperror.New(
+	http.StatusConflict,
+	"camera_busy",
+	"Too many people are watching this camera here right now",
+)
+
 func streamLimit(message string) error {
 	return apperror.RateLimited("camera_stream_limit", message, limitRetryAfter)
 }
 
 type deviceMachine struct{ device, machine uuid.UUID }
+
+type embedClient struct {
+	embed  uuid.UUID
+	client string
+}
+
+func embedClientOf(viewer Viewer) embedClient {
+	return embedClient{embed: viewer.DeviceID, client: viewer.Client}
+}
 
 // Hub is the relay's in-memory state. Its zero value is not usable; call NewHub.
 type Hub struct {
@@ -129,6 +150,10 @@ type Hub struct {
 	byDevice        map[uuid.UUID]int
 	byDeviceMachine map[deviceMachine]int
 	byConnector     map[uuid.UUID]int
+	// embedsByConnector and byEmbedClient count web embed sessions only; like the other counters they are bounded by
+	// maxSessions.
+	embedsByConnector map[uuid.UUID]int
+	byEmbedClient     map[embedClient]int
 	// running counts the control channels and relays that are being served, so Wait can return once all ended.
 	running sync.WaitGroup
 }
@@ -146,6 +171,9 @@ func NewHub(cfg Config, logger *slog.Logger) *Hub {
 		byDevice:        map[uuid.UUID]int{},
 		byDeviceMachine: map[deviceMachine]int{},
 		byConnector:     map[uuid.UUID]int{},
+
+		embedsByConnector: map[uuid.UUID]int{},
+		byEmbedClient:     map[embedClient]int{},
 	}
 }
 

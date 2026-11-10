@@ -7,6 +7,7 @@ import {
   getSignageDisplayGroupPreview,
   getSignageDisplayPreview,
   getSignageScene,
+  getSignageWebEmbed,
   listSignageAnnouncementTemplates,
   listSignageAnnouncements,
   listSignageAssets,
@@ -16,6 +17,7 @@ import {
   listSignageMachines,
   listSignageRules,
   listSignageScenes,
+  listSignageWebEmbeds,
 } from '../../api/generated/signage/signage';
 
 export const signageKeys = {
@@ -36,6 +38,8 @@ export const signageKeys = {
   group: (id: string) => [...signageKeys.all, 'group', id] as const,
   groupRules: (id: string) => [...signageKeys.all, 'group-rules', id] as const,
   groupPreview: (id: string) => [...signageKeys.all, 'group-preview', id] as const,
+  embeds: () => [...signageKeys.all, 'embeds'] as const,
+  embed: (id: string) => [...signageKeys.all, 'embed', id] as const,
 };
 
 export const scenesQuery = () =>
@@ -116,7 +120,7 @@ export const groupQuery = (id: string) =>
     refetchInterval: 30_000,
   });
 /** The rules and the version every rule write quotes, of a display (its own, or its group's while it is a member) or of a group. */
-export const ownerRulesQuery = (owner: { kind: 'display' | 'group'; id: string }, enabled = true) =>
+export const ownerRulesQuery = (owner: { kind: 'display' | 'group' | 'embed'; id: string }, enabled = true) =>
   queryOptions({
     queryKey: (owner.kind === 'group'
       ? signageKeys.groupRules(owner.id)
@@ -132,4 +136,18 @@ export const groupPreviewQuery = (groupId: string, enabled = true) =>
     queryFn: ({ signal }) => getSignageDisplayGroupPreview(groupId, { signal }),
     refetchInterval: 10_000,
     enabled,
+  });
+
+/** Web embeds: displays without a device that show a screen inside other websites. */
+export const embedsQuery = () =>
+  queryOptions({
+    queryKey: signageKeys.embeds(),
+    queryFn: ({ signal }) => listSignageWebEmbeds({ signal }),
+    refetchInterval: 30_000,
+  });
+export const embedQuery = (id: string) =>
+  queryOptions({
+    queryKey: signageKeys.embed(id),
+    queryFn: ({ signal }) => getSignageWebEmbed(id, { signal }),
+    refetchInterval: 30_000,
   });

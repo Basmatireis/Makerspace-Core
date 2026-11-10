@@ -51,6 +51,7 @@ import {
   OrganizationDetailPage,
   OrganizationsPage,
   PINEnrollmentPage,
+  PrintPage,
   PaymentDetailPage,
   PaymentsPage,
   PricingPage,
@@ -76,6 +77,8 @@ import {
   SignageDisplaysPage,
   SignageMediaPage,
   SignageSceneEditorPage,
+  SignageWebEmbedDetailPage,
+  SignageWebEmbedsPage,
   StatisticsPage,
   SupervisorStaffingPage,
   SurveyAdminPage,
@@ -166,6 +169,17 @@ export function App() {
               <ColorSchemeRoot>
                 <ProtectedRoute>
                   <LabRulesConfirmPage />
+                </ProtectedRoute>
+              </ColorSchemeRoot>
+            }
+          />
+          {/* Opened from the "timelapse ready" notification and e-mail: needs a session but not the application shell. */}
+          <Route
+            path="/prints/:runId"
+            element={
+              <ColorSchemeRoot>
+                <ProtectedRoute>
+                  <PrintPage />
                 </ProtectedRoute>
               </ColorSchemeRoot>
             }
@@ -388,6 +402,22 @@ export function App() {
               element={
                 <PermissionRoute allOf={['signage.read']}>
                   <SignageGroupDetailPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="signage/embeds"
+              element={
+                <PermissionRoute allOf={['signage.read']}>
+                  <SignageWebEmbedsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="signage/embeds/:embedId"
+              element={
+                <PermissionRoute allOf={['signage.read']}>
+                  <SignageWebEmbedDetailPage />
                 </PermissionRoute>
               }
             />

@@ -13,6 +13,33 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addSignageWebEmbedLoads = `-- name: AddSignageWebEmbedLoads :exec
+UPDATE signage_web_embeds
+SET last_loaded_at = GREATEST(COALESCE(last_loaded_at, $1::timestamptz), $1::timestamptz),
+    loads_count = CASE WHEN loads_day = $2::date THEN loads_count + $3::int ELSE $3::int END,
+    loads_day = $2::date
+WHERE display_id = $4 AND (loads_day IS NULL OR loads_day <= $2::date)
+`
+
+type AddSignageWebEmbedLoadsParams struct {
+	LastLoadedAt time.Time
+	Day          pgtype.Date
+	Loads        int32
+	DisplayID    uuid.UUID
+}
+
+// Adds page loads counted in memory to the bucket of their UTC day, starting a new bucket on another day. A batch of
+// an older day than the stored bucket is dropped; last_loaded_at only moves forward.
+func (q *Queries) AddSignageWebEmbedLoads(ctx context.Context, arg AddSignageWebEmbedLoadsParams) error {
+	_, err := q.db.Exec(ctx, addSignageWebEmbedLoads,
+		arg.LastLoadedAt,
+		arg.Day,
+		arg.Loads,
+		arg.DisplayID,
+	)
+	return err
+}
+
 const bumpSignageDisplayGroupVersion = `-- name: BumpSignageDisplayGroupVersion :one
 UPDATE signage_display_groups SET version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2 RETURNING version
@@ -223,15 +250,16 @@ func (q *Queries) CreateSignageAsset(ctx context.Context, arg CreateSignageAsset
 
 const createSignageDisplay = `-- name: CreateSignageDisplay :one
 
-INSERT INTO signage_displays (id, managed_device_id, name, location, aspect_width, aspect_height, visible_from_outside, allow_camera_outside, group_id)
-VALUES ($1, $2, $3, $4, $5, $6,
-        $7, $8, $9)
+INSERT INTO signage_displays (id, kind, managed_device_id, name, location, aspect_width, aspect_height, visible_from_outside, allow_camera_outside, group_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        $8, $9, $10)
 RETURNING id
 `
 
 type CreateSignageDisplayParams struct {
 	ID                 uuid.UUID
-	ManagedDeviceID    uuid.UUID
+	Kind               string
+	ManagedDeviceID    *uuid.UUID
 	Name               string
 	Location           string
 	AspectWidth        int16
@@ -242,9 +270,11 @@ type CreateSignageDisplayParams struct {
 }
 
 // Displays ----------------------------------------------------------------------------------------------------
+// A display of kind device has a managed device; a web embed has none.
 func (q *Queries) CreateSignageDisplay(ctx context.Context, arg CreateSignageDisplayParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, createSignageDisplay,
 		arg.ID,
+		arg.Kind,
 		arg.ManagedDeviceID,
 		arg.Name,
 		arg.Location,
@@ -410,6 +440,24 @@ func (q *Queries) CreateSignageTemplate(ctx context.Context, arg CreateSignageTe
 	return i, err
 }
 
+const createSignageWebEmbed = `-- name: CreateSignageWebEmbed :exec
+
+INSERT INTO signage_web_embeds (display_id, embed_key, allowed_origins)
+VALUES ($1, $2, $3::text[])
+`
+
+type CreateSignageWebEmbedParams struct {
+	DisplayID      uuid.UUID
+	EmbedKey       string
+	AllowedOrigins []string
+}
+
+// Web embeds --------------------------------------------------------------------------------------------------
+func (q *Queries) CreateSignageWebEmbed(ctx context.Context, arg CreateSignageWebEmbedParams) error {
+	_, err := q.db.Exec(ctx, createSignageWebEmbed, arg.DisplayID, arg.EmbedKey, arg.AllowedOrigins)
+	return err
+}
+
 const deleteEndedAnnouncementsOfTemplate = `-- name: DeleteEndedAnnouncementsOfTemplate :exec
 DELETE FROM signage_announcements WHERE template_id = $1 AND ends_at IS NOT NULL AND ends_at <= $2::timestamptz
 `
@@ -543,7 +591,8 @@ func (q *Queries) DeleteSignageDefaultScenes(ctx context.Context, arg DeleteSign
 }
 
 const deleteSignageDisplay = `-- name: DeleteSignageDisplay :one
-DELETE FROM signage_displays WHERE id = $1 AND version = $2 RETURNING managed_device_id
+DELETE FROM signage_displays WHERE id = $1 AND version = $2 AND kind = 'device'
+RETURNING managed_device_id::uuid
 `
 
 type DeleteSignageDisplayParams struct {
@@ -667,6 +716,24 @@ DELETE FROM signage_announcement_template_fields WHERE template_id = $1
 func (q *Queries) DeleteSignageTemplateFields(ctx context.Context, templateID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteSignageTemplateFields, templateID)
 	return err
+}
+
+const deleteSignageWebEmbedDisplay = `-- name: DeleteSignageWebEmbedDisplay :one
+DELETE FROM signage_displays WHERE id = $1 AND version = $2 AND kind = 'web_embed'
+RETURNING id
+`
+
+type DeleteSignageWebEmbedDisplayParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+// Deletes a web embed's display; its embed row, rules, default list, publications and announcement targets cascade.
+func (q *Queries) DeleteSignageWebEmbedDisplay(ctx context.Context, arg DeleteSignageWebEmbedDisplayParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, deleteSignageWebEmbedDisplay, arg.ID, arg.ExpectedVersion)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getLatestSignagePublication = `-- name: GetLatestSignagePublication :one
@@ -824,7 +891,7 @@ func (q *Queries) GetSignageAssetForUpdate(ctx context.Context, id uuid.UUID) (G
 const getSignageDisplayByDevice = `-- name: GetSignageDisplayByDevice :one
 SELECT d.id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.revoked_at, md.revoked_at AS device_revoked_at
 FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
-WHERE d.managed_device_id = $1
+WHERE d.managed_device_id = $1 AND d.kind = 'device'
 `
 
 type GetSignageDisplayByDeviceRow struct {
@@ -839,7 +906,7 @@ type GetSignageDisplayByDeviceRow struct {
 	DeviceRevokedAt    pgtype.Timestamptz
 }
 
-func (q *Queries) GetSignageDisplayByDevice(ctx context.Context, managedDeviceID uuid.UUID) (GetSignageDisplayByDeviceRow, error) {
+func (q *Queries) GetSignageDisplayByDevice(ctx context.Context, managedDeviceID *uuid.UUID) (GetSignageDisplayByDeviceRow, error) {
 	row := q.db.QueryRow(ctx, getSignageDisplayByDevice, managedDeviceID)
 	var i GetSignageDisplayByDeviceRow
 	err := row.Scan(
@@ -857,17 +924,18 @@ func (q *Queries) GetSignageDisplayByDevice(ctx context.Context, managedDeviceID
 }
 
 const getSignageDisplayForUpdate = `-- name: GetSignageDisplayForUpdate :one
-SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.group_id,
+SELECT d.id, d.kind, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.group_id,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
                  FROM signage_default_scenes ds WHERE ds.display_id = d.id), '[]'::jsonb)::text AS default_scenes,
        d.revoked_at, md.revoked_at AS device_revoked_at, d.version
-FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
+FROM signage_displays d LEFT JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.id = $1 FOR UPDATE OF d
 `
 
 type GetSignageDisplayForUpdateRow struct {
 	ID                 uuid.UUID
-	ManagedDeviceID    uuid.UUID
+	Kind               string
+	ManagedDeviceID    *uuid.UUID
 	Name               string
 	Location           string
 	AspectWidth        int16
@@ -886,6 +954,7 @@ func (q *Queries) GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) 
 	var i GetSignageDisplayForUpdateRow
 	err := row.Scan(
 		&i.ID,
+		&i.Kind,
 		&i.ManagedDeviceID,
 		&i.Name,
 		&i.Location,
@@ -958,7 +1027,7 @@ func (q *Queries) GetSignageDisplayGroupForUpdate(ctx context.Context, id uuid.U
 }
 
 const getSignageDisplayView = `-- name: GetSignageDisplayView :one
-SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.group_id,
+SELECT d.id, d.kind, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.group_id,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
                  FROM signage_default_scenes ds WHERE ds.display_id = d.id), '[]'::jsonb)::text AS default_scenes,
        d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
@@ -967,14 +1036,15 @@ SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_h
        COALESCE((SELECT revision FROM signage_publications WHERE display_id = d.id ORDER BY revision DESC LIMIT 1), 0)::int AS published_revision,
        COALESCE((SELECT published_at FROM signage_publications WHERE display_id = d.id ORDER BY revision DESC LIMIT 1), 'epoch'::timestamptz)::timestamptz AS published_at
 FROM signage_displays d
-JOIN managed_devices md ON md.id = d.managed_device_id
+LEFT JOIN managed_devices md ON md.id = d.managed_device_id
 LEFT JOIN signage_display_states s ON s.display_id = d.id
 WHERE d.id = $1
 `
 
 type GetSignageDisplayViewRow struct {
 	ID                 uuid.UUID
-	ManagedDeviceID    uuid.UUID
+	Kind               string
+	ManagedDeviceID    *uuid.UUID
 	Name               string
 	Location           string
 	AspectWidth        int16
@@ -1005,6 +1075,7 @@ func (q *Queries) GetSignageDisplayView(ctx context.Context, id uuid.UUID) (GetS
 	var i GetSignageDisplayViewRow
 	err := row.Scan(
 		&i.ID,
+		&i.Kind,
 		&i.ManagedDeviceID,
 		&i.Name,
 		&i.Location,
@@ -1205,6 +1276,55 @@ func (q *Queries) GetSignageTimelapse(ctx context.Context, runID uuid.UUID) (Get
 		&i.Sha256,
 		&i.SizeBytes,
 		&i.FileID,
+	)
+	return i, err
+}
+
+const getSignageWebEmbedByKey = `-- name: GetSignageWebEmbedByKey :one
+SELECT e.display_id, e.embed_key, e.allowed_origins::text[] AS allowed_origins, e.open_directly, e.enabled,
+       e.camera_enabled, e.camera_machine_ids::text[] AS camera_machine_ids, e.camera_viewer_limit,
+       e.timelapse_enabled, e.timelapse_count, e.timelapse_max_age_days,
+       d.name, d.aspect_width, d.aspect_height
+FROM signage_web_embeds e JOIN signage_displays d ON d.id = e.display_id
+WHERE e.embed_key = $1
+`
+
+type GetSignageWebEmbedByKeyRow struct {
+	DisplayID           uuid.UUID
+	EmbedKey            string
+	AllowedOrigins      []string
+	OpenDirectly        bool
+	Enabled             bool
+	CameraEnabled       bool
+	CameraMachineIds    []string
+	CameraViewerLimit   int16
+	TimelapseEnabled    bool
+	TimelapseCount      int16
+	TimelapseMaxAgeDays int16
+	Name                string
+	AspectWidth         int16
+	AspectHeight        int16
+}
+
+// The embed behind a public embed key together with what its public endpoints need of the display.
+func (q *Queries) GetSignageWebEmbedByKey(ctx context.Context, embedKey string) (GetSignageWebEmbedByKeyRow, error) {
+	row := q.db.QueryRow(ctx, getSignageWebEmbedByKey, embedKey)
+	var i GetSignageWebEmbedByKeyRow
+	err := row.Scan(
+		&i.DisplayID,
+		&i.EmbedKey,
+		&i.AllowedOrigins,
+		&i.OpenDirectly,
+		&i.Enabled,
+		&i.CameraEnabled,
+		&i.CameraMachineIds,
+		&i.CameraViewerLimit,
+		&i.TimelapseEnabled,
+		&i.TimelapseCount,
+		&i.TimelapseMaxAgeDays,
+		&i.Name,
+		&i.AspectWidth,
+		&i.AspectHeight,
 	)
 	return i, err
 }
@@ -1571,20 +1691,24 @@ func (q *Queries) ListLiveSignageAnnouncements(ctx context.Context, now time.Tim
 const listLiveSignageAnnouncementsForDisplay = `-- name: ListLiveSignageAnnouncementsForDisplay :many
 SELECT a.id, a.template_id, a.all_displays, a.starts_at, a.ends_at, a.created_by_account_id, a.version, a.created_at, a.updated_at FROM signage_announcements a
 WHERE a.starts_at <= $1::timestamptz AND (a.ends_at IS NULL OR a.ends_at > $1::timestamptz)
-  AND (a.all_displays
-       OR EXISTS (SELECT 1 FROM signage_announcement_displays ad WHERE ad.announcement_id = a.id AND ad.display_id = $2)
-       OR EXISTS (SELECT 1 FROM signage_announcement_groups ag JOIN signage_displays d ON d.group_id = ag.group_id
-                  WHERE ag.announcement_id = a.id AND d.id = $2))
+  AND (($2::boolean AND a.all_displays)
+       OR EXISTS (SELECT 1 FROM signage_announcement_displays ad WHERE ad.announcement_id = a.id AND ad.display_id = $3)
+       OR ($2::boolean
+           AND EXISTS (SELECT 1 FROM signage_announcement_groups ag JOIN signage_displays d ON d.group_id = ag.group_id
+                       WHERE ag.announcement_id = a.id AND d.id = $3)))
 ORDER BY a.starts_at, a.id
 `
 
 type ListLiveSignageAnnouncementsForDisplayParams struct {
-	Now       time.Time
-	DisplayID uuid.UUID
+	Now        time.Time
+	Broadcasts bool
+	DisplayID  uuid.UUID
 }
 
+// Announcements in force for one display. Without broadcasts (web embeds) only announcements that name the display
+// itself count, never those for all displays or for its group.
 func (q *Queries) ListLiveSignageAnnouncementsForDisplay(ctx context.Context, arg ListLiveSignageAnnouncementsForDisplayParams) ([]SignageAnnouncement, error) {
-	rows, err := q.db.Query(ctx, listLiveSignageAnnouncementsForDisplay, arg.Now, arg.DisplayID)
+	rows, err := q.db.Query(ctx, listLiveSignageAnnouncementsForDisplay, arg.Now, arg.Broadcasts, arg.DisplayID)
 	if err != nil {
 		return nil, err
 	}
@@ -2143,7 +2267,7 @@ func (q *Queries) ListSignageDisplayIDs(ctx context.Context, ids []string) ([]uu
 }
 
 const listSignageDisplayViews = `-- name: ListSignageDisplayViews :many
-SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.group_id,
+SELECT d.id, d.kind, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.group_id,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
                  FROM signage_default_scenes ds WHERE ds.display_id = d.id), '[]'::jsonb)::text AS default_scenes,
        d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
@@ -2152,14 +2276,16 @@ SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_h
        COALESCE((SELECT revision FROM signage_publications WHERE display_id = d.id ORDER BY revision DESC LIMIT 1), 0)::int AS published_revision,
        COALESCE((SELECT published_at FROM signage_publications WHERE display_id = d.id ORDER BY revision DESC LIMIT 1), 'epoch'::timestamptz)::timestamptz AS published_at
 FROM signage_displays d
-JOIN managed_devices md ON md.id = d.managed_device_id
+LEFT JOIN managed_devices md ON md.id = d.managed_device_id
 LEFT JOIN signage_display_states s ON s.display_id = d.id
+WHERE d.kind = $1
 ORDER BY lower(d.name), d.id
 `
 
 type ListSignageDisplayViewsRow struct {
 	ID                 uuid.UUID
-	ManagedDeviceID    uuid.UUID
+	Kind               string
+	ManagedDeviceID    *uuid.UUID
 	Name               string
 	Location           string
 	AspectWidth        int16
@@ -2185,8 +2311,9 @@ type ListSignageDisplayViewsRow struct {
 	PublishedAt        time.Time
 }
 
-func (q *Queries) ListSignageDisplayViews(ctx context.Context) ([]ListSignageDisplayViewsRow, error) {
-	rows, err := q.db.Query(ctx, listSignageDisplayViews)
+// Displays of one kind: devices (the Displays page) or web embeds.
+func (q *Queries) ListSignageDisplayViews(ctx context.Context, kind string) ([]ListSignageDisplayViewsRow, error) {
+	rows, err := q.db.Query(ctx, listSignageDisplayViews, kind)
 	if err != nil {
 		return nil, err
 	}
@@ -2196,6 +2323,7 @@ func (q *Queries) ListSignageDisplayViews(ctx context.Context) ([]ListSignageDis
 		var i ListSignageDisplayViewsRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.Kind,
 			&i.ManagedDeviceID,
 			&i.Name,
 			&i.Location,
@@ -2232,15 +2360,16 @@ func (q *Queries) ListSignageDisplayViews(ctx context.Context) ([]ListSignageDis
 }
 
 const listSignageGroupMembers = `-- name: ListSignageGroupMembers :many
-SELECT d.id, d.group_id::uuid AS group_id, d.name, d.aspect_width, d.aspect_height, d.visible_from_outside,
+SELECT d.id, d.kind, d.group_id::uuid AS group_id, d.name, d.aspect_width, d.aspect_height, d.visible_from_outside,
        (d.revoked_at IS NOT NULL OR md.revoked_at IS NOT NULL)::boolean AS revoked
-FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
+FROM signage_displays d LEFT JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.group_id = ANY($1::text[]::uuid[])
 ORDER BY lower(d.name), d.id
 `
 
 type ListSignageGroupMembersRow struct {
 	ID                 uuid.UUID
+	Kind               string
 	GroupID            uuid.UUID
 	Name               string
 	AspectWidth        int16
@@ -2249,7 +2378,7 @@ type ListSignageGroupMembersRow struct {
 	Revoked            bool
 }
 
-// Member displays of groups by name, with what a group publication and the pending-change diff need.
+// Member displays and web embeds of groups by name, with what a group publication and the pending-change diff need.
 func (q *Queries) ListSignageGroupMembers(ctx context.Context, groupIds []string) ([]ListSignageGroupMembersRow, error) {
 	rows, err := q.db.Query(ctx, listSignageGroupMembers, groupIds)
 	if err != nil {
@@ -2261,6 +2390,7 @@ func (q *Queries) ListSignageGroupMembers(ctx context.Context, groupIds []string
 		var i ListSignageGroupMembersRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.Kind,
 			&i.GroupID,
 			&i.Name,
 			&i.AspectWidth,
@@ -2862,6 +2992,67 @@ func (q *Queries) ListSignageTimelapses(ctx context.Context, arg ListSignageTime
 	return items, nil
 }
 
+const listSignageWebEmbeds = `-- name: ListSignageWebEmbeds :many
+SELECT e.display_id, e.embed_key, e.allowed_origins::text[] AS allowed_origins, e.open_directly, e.enabled,
+       e.camera_enabled, e.camera_machine_ids::text[] AS camera_machine_ids, e.camera_viewer_limit,
+       e.timelapse_enabled, e.timelapse_count, e.timelapse_max_age_days, e.last_loaded_at, e.loads_day, e.loads_count
+FROM signage_web_embeds e
+WHERE cardinality($1::text[]) = 0 OR e.display_id = ANY($1::text[]::uuid[])
+ORDER BY e.display_id
+`
+
+type ListSignageWebEmbedsRow struct {
+	DisplayID           uuid.UUID
+	EmbedKey            string
+	AllowedOrigins      []string
+	OpenDirectly        bool
+	Enabled             bool
+	CameraEnabled       bool
+	CameraMachineIds    []string
+	CameraViewerLimit   int16
+	TimelapseEnabled    bool
+	TimelapseCount      int16
+	TimelapseMaxAgeDays int16
+	LastLoadedAt        pgtype.Timestamptz
+	LoadsDay            pgtype.Date
+	LoadsCount          int32
+}
+
+func (q *Queries) ListSignageWebEmbeds(ctx context.Context, ids []string) ([]ListSignageWebEmbedsRow, error) {
+	rows, err := q.db.Query(ctx, listSignageWebEmbeds, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSignageWebEmbedsRow{}
+	for rows.Next() {
+		var i ListSignageWebEmbedsRow
+		if err := rows.Scan(
+			&i.DisplayID,
+			&i.EmbedKey,
+			&i.AllowedOrigins,
+			&i.OpenDirectly,
+			&i.Enabled,
+			&i.CameraEnabled,
+			&i.CameraMachineIds,
+			&i.CameraViewerLimit,
+			&i.TimelapseEnabled,
+			&i.TimelapseCount,
+			&i.TimelapseMaxAgeDays,
+			&i.LastLoadedAt,
+			&i.LoadsDay,
+			&i.LoadsCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockSignageScenesForShare = `-- name: LockSignageScenesForShare :many
 SELECT id, aspect_width, aspect_height FROM signage_scenes WHERE id = ANY($1::text[]::uuid[]) ORDER BY id FOR SHARE
 `
@@ -2995,6 +3186,21 @@ func (q *Queries) SetSignageRulePosition(ctx context.Context, arg SetSignageRule
 		arg.DisplayID,
 		arg.GroupID,
 	)
+	return err
+}
+
+const setSignageWebEmbedKey = `-- name: SetSignageWebEmbedKey :exec
+UPDATE signage_web_embeds SET embed_key = $1 WHERE display_id = $2
+`
+
+type SetSignageWebEmbedKeyParams struct {
+	EmbedKey  string
+	DisplayID uuid.UUID
+}
+
+// The caller holds the display's row lock.
+func (q *Queries) SetSignageWebEmbedKey(ctx context.Context, arg SetSignageWebEmbedKeyParams) error {
+	_, err := q.db.Exec(ctx, setSignageWebEmbedKey, arg.EmbedKey, arg.DisplayID)
 	return err
 }
 
@@ -3255,6 +3461,45 @@ func (q *Queries) UpdateSignageTemplate(ctx context.Context, arg UpdateSignageTe
 		&i.BodyCss,
 	)
 	return i, err
+}
+
+const updateSignageWebEmbed = `-- name: UpdateSignageWebEmbed :exec
+UPDATE signage_web_embeds
+SET allowed_origins = $1::text[], open_directly = $2, enabled = $3,
+    camera_enabled = $4, camera_machine_ids = $5::text[]::uuid[],
+    camera_viewer_limit = $6, timelapse_enabled = $7,
+    timelapse_count = $8, timelapse_max_age_days = $9
+WHERE display_id = $10
+`
+
+type UpdateSignageWebEmbedParams struct {
+	AllowedOrigins      []string
+	OpenDirectly        bool
+	Enabled             bool
+	CameraEnabled       bool
+	CameraMachineIds    []string
+	CameraViewerLimit   int16
+	TimelapseEnabled    bool
+	TimelapseCount      int16
+	TimelapseMaxAgeDays int16
+	DisplayID           uuid.UUID
+}
+
+// The caller holds the display's row lock.
+func (q *Queries) UpdateSignageWebEmbed(ctx context.Context, arg UpdateSignageWebEmbedParams) error {
+	_, err := q.db.Exec(ctx, updateSignageWebEmbed,
+		arg.AllowedOrigins,
+		arg.OpenDirectly,
+		arg.Enabled,
+		arg.CameraEnabled,
+		arg.CameraMachineIds,
+		arg.CameraViewerLimit,
+		arg.TimelapseEnabled,
+		arg.TimelapseCount,
+		arg.TimelapseMaxAgeDays,
+		arg.DisplayID,
+	)
+	return err
 }
 
 const upsertSignageDisplayState = `-- name: UpsertSignageDisplayState :exec

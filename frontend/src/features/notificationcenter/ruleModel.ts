@@ -380,6 +380,8 @@ function pruneSet(set: NotificationConditionSet, allowed: Set<string>): Notifica
 /** Drops everything that no longer fits after the trigger or the loop changed. */
 export function pruneDefinition(catalog: NotificationCatalog, definition: Definition): Definition {
   const next = clone(definition);
+  // Machine scope exists only for triggers whose events concern one machine each.
+  if (!contextOf(catalog, next).trigger?.machineScope) delete next.trigger.machines;
   const ifKeys = new Set(fieldGroups(catalog, next, 'if').flatMap((group) => group.fields.map((f) => f.key)));
   const filterKeys = new Set(fieldGroups(catalog, next, 'filter').flatMap((group) => group.fields.map((f) => f.key)));
   next.conditions = pruneSet(next.conditions, ifKeys);
@@ -480,12 +482,21 @@ export function toInput(draft: RuleDraft): NotificationRuleInput {
 }
 
 /** Problems found before sending; the server validates again and has the last word. */
-export function validateDraft(catalog: NotificationCatalog, draft: RuleDraft, personal = false): string[] {
+export const machinesMissingProblem = 'Choose at least one machine, or switch to All machines.';
+
+export function validateDraft(
+  catalog: NotificationCatalog,
+  draft: RuleDraft,
+  personal = false,
+  /** "Selected machines" is chosen but no machine is. */
+  machinesMissing = false,
+): string[] {
   const problems: string[] = [];
   const { definition } = draft;
   const ctx = contextOf(catalog, definition);
   if (!draft.name.trim()) problems.push(personal ? 'Give the subscription a name.' : 'Give the rule a name.');
   if (!personal && !draft.categoryId) problems.push('Choose a category.');
+  if (machinesMissing) problems.push(machinesMissingProblem);
   if (!definition.actions.length) problems.push('Add at least one action under Then.');
   const check = (action: Action, where: string) => {
     // A subscription always notifies its owner, so there is nothing to choose.

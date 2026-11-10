@@ -480,7 +480,15 @@ func (s *Server) signagePlayerDisplay(ctx context.Context) (signage.PlayerDispla
 	return s.signage.PlayerDisplayFor(ctx, device.ID)
 }
 
+// signagePlayerBase is the path prefix of the player endpoints; manifests and live data point their asset, timelapse
+// and camera URLs below the prefix of whoever asks (a player or a web embed).
+const signagePlayerBase = apiBasePath + "/signage/player"
+
 func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerManifest, error) {
+	return signageManifestDTO(manifest, signagePlayerBase)
+}
+
+func signageManifestDTO(manifest signage.Manifest, base string) (openapi.SignagePlayerManifest, error) {
 	rules := make([]openapi.SignagePlayerRule, 0, len(manifest.Rules))
 	for _, rule := range manifest.Rules {
 		var match nullable.Nullable[openapi.SignageMachineMatch]
@@ -537,7 +545,7 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 			Width: nullableValue(
 				asset.Width,
 			), Height: nullableValue(asset.Height), DurationMs: nullableValue(asset.DurationMs),
-			Url: apiBasePath + "/signage/player/assets/" + asset.ID.String() + "/" + asset.SHA256,
+			Url: base + "/assets/" + asset.ID.String() + "/" + asset.SHA256,
 		})
 	}
 	return openapi.SignagePlayerManifest{
@@ -687,6 +695,10 @@ func signageCalendarBlockDTO(block *signage.CalendarBlock) nullable.Nullable[ope
 }
 
 func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
+	return signageLiveDTO(live, signagePlayerBase)
+}
+
+func signageLiveDTO(live signage.LiveData, base string) openapi.SignagePlayerLive {
 	machines := make([]openapi.SignagePlayerLiveMachine, 0, len(live.Machines))
 	for _, machine := range live.Machines {
 		machines = append(machines, openapi.SignagePlayerLiveMachine{
@@ -725,7 +737,10 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 	for _, stream := range live.Streams {
 		streams = append(
 			streams,
-			openapi.SignagePlayerStream{MachineId: stream.MachineID, Path: cameraStreamPath(stream.MachineID)},
+			openapi.SignagePlayerStream{
+				MachineId: stream.MachineID,
+				Path:      base + "/cameras/" + stream.MachineID.String() + "/stream",
+			},
 		)
 	}
 	return openapi.SignagePlayerLive{
@@ -735,12 +750,15 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 		Announcements: announcements,
 		RuleNotices:   &ruleNotices,
 		OpenDays:      openDays, Events: events, Calendar: signageCalendarBlockDTO(live.Calendar), Streams: streams,
-		Timelapses: signageTimelapsesDTO(live.Timelapses),
+		Timelapses: signageTimelapsesDTO(live.Timelapses, base),
 	}
 }
 
 // signageTimelapsesDTO is null while the publication has no timelapse widget.
-func signageTimelapsesDTO(clips []signage.LiveTimelapse) nullable.Nullable[[]openapi.SignagePlayerTimelapse] {
+func signageTimelapsesDTO(
+	clips []signage.LiveTimelapse,
+	base string,
+) nullable.Nullable[[]openapi.SignagePlayerTimelapse] {
 	if clips == nil {
 		return nullable.NewNullNullable[[]openapi.SignagePlayerTimelapse]()
 	}
@@ -753,7 +771,7 @@ func signageTimelapsesDTO(clips []signage.LiveTimelapse) nullable.Nullable[[]ope
 			EndedAt:     clip.EndedAt,
 			Sha256:      clip.SHA256,
 			SizeBytes:   clip.SizeBytes,
-			Url:         apiBasePath + "/signage/player/timelapses/" + clip.RunID.String() + "/" + clip.SHA256,
+			Url:         base + "/timelapses/" + clip.RunID.String() + "/" + clip.SHA256,
 		})
 	}
 	return nullable.NewNullableWithValue(items)
