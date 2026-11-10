@@ -56,6 +56,8 @@ import {
   draftFromRule,
   pruneDefinition,
   toInput,
+  contextOf,
+  machinesMissingProblem,
   validateDraft,
   type Definition,
   type RuleDraft,
@@ -95,6 +97,7 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
   const form = useForm<RuleDraft>({ defaultValues: initial });
   const draft = form.watch();
   const [problems, setProblems] = useState<string[]>([]);
+  const [machinesFor, setMachinesFor] = useState<string>();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmRun, setConfirmRun] = useState(false);
   const notify = useNotify();
@@ -180,10 +183,27 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
     recipe(next);
     form.setValue('definition', options?.prune ? pruneDefinition(catalog, next) : next, { shouldDirty: true });
   };
-  const stepProps: StepProps = { catalog, definition: draft.definition, lookup, edit, personal };
+  const stepProps: StepProps = {
+    catalog,
+    definition: draft.definition,
+    lookup,
+    edit,
+    personal,
+    machineScope: {
+      choosingFor: machinesFor,
+      setChoosingFor: setMachinesFor,
+      invalid: problems.includes(machinesMissingProblem),
+    },
+  };
 
   const submit = form.handleSubmit((values) => {
-    const found = validateDraft(catalog, values, personal);
+    const trigger = values.definition.trigger;
+    const machinesMissing =
+      trigger.type === 'event' &&
+      Boolean(contextOf(catalog, values.definition).trigger?.machineScope) &&
+      machinesFor === trigger.event &&
+      !trigger.machines?.length;
+    const found = validateDraft(catalog, values, personal, machinesMissing);
     setProblems(found);
     if (found.length) {
       window.scrollTo({ top: 0, behavior: 'smooth' });

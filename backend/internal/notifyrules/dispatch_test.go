@@ -3,6 +3,7 @@ package notifyrules
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -131,6 +132,24 @@ func TestStopsOnRecipient(t *testing.T) {
 	for stop, want := range map[string]bool{"opened": true, "acknowledged": true, "seen": true, "error_cleared": false} {
 		if stopsOnRecipient(stop) != want {
 			t.Errorf("stopsOnRecipient(%q) = %v", stop, !want)
+		}
+	}
+}
+
+func TestFillActionNeverCutsAPrintPageAddress(t *testing.T) {
+	d := &Dispatcher{publicBaseURL: "https://makerspace.example.org"}
+	address := d.printPageAddress(uuid.MustParse("0192f3a4-7b1c-7d2e-8f3a-123456789abc"))
+	for cutAt := len(address) - 40; cutAt <= len(address)+1; cutAt++ {
+		// The address straddles the body limit at every position from inside the host to just past its end.
+		body := strings.Repeat("a", MaxBodyLength-1-cutAt) + address + " tail"
+		ev := Event{Placeholders: map[string]string{"body": body}}
+		action, _ := fillAction(Action{Title: "t", Body: "{body}"}, ev, "r")
+		if strings.Contains(action.Body, "/prints/") && !d.printPagePattern().MatchString(action.Body) {
+			t.Fatalf("cut %d left a partial address: %q", cutAt, action.Body[len(action.Body)-60:])
+		}
+		mail := d.newMailTexts(action, "", "rule")
+		if strings.Contains(mail.plainBody, "/prints/") || strings.Contains(mail.plainBody, "makerspace.example") {
+			t.Fatalf("cut %d: the plain mail keeps address pieces: %q", cutAt, mail.plainBody[len(mail.plainBody)-60:])
 		}
 	}
 }

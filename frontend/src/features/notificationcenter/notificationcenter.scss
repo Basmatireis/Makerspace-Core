@@ -719,3 +719,9 @@
   flex: 0 0 9rem;
   color: theme.$text-secondary;
 }
+
+.nc-machine-scope {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+}

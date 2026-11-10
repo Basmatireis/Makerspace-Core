@@ -219,6 +219,7 @@ export const EventSignupManagementPage = lazy(() =>
     default: EventSignupManagementPage,
   })),
 );
+export const PrintPage = lazy(() => import('../features/printpage/PrintPage'));
 export const LabRulesConfirmPage = lazy(() => import('../features/laborordnung/confirm/LabRulesConfirmPage'));
 export const VisitorKioskPage = lazy(() =>
   import('../features/kiosk/VisitorKioskPage').then(({ VisitorKioskPage }) => ({

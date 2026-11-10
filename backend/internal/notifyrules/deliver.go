@@ -285,12 +285,16 @@ func (d *Dispatcher) deliver(
 			return err
 		}
 	}
-	mailLink := optionalText(mailPath(in.Link))
+	mail := d.newMailTexts(in.Action, in.Link, runtime.Name)
+	signIn, err := d.passwordHolders(ctx, q, mail, mailPeople)
+	if err != nil {
+		return err
+	}
 	for _, person := range mailPeople {
 		person := person
+		subject, body, link := mail.forRecipient(signIn[person])
 		if err = q.InsertRuleMail(ctx, notifyrulesdb.InsertRuleMailParams{
-			ID: ids.New(), PersonID: &person, Subject: Clip(in.Action.Title, MaxTitleLength),
-			Body: Clip(in.Action.Body, MaxBodyLength), Link: mailLink, FiringID: &in.FiringID,
+			ID: ids.New(), PersonID: &person, Subject: subject, Body: body, Link: link, FiringID: &in.FiringID,
 		}); err != nil {
 			return fmt.Errorf("queue rule mail: %w", err)
 		}
@@ -301,14 +305,16 @@ func (d *Dispatcher) deliver(
 		if err != nil {
 			return err
 		}
+		// An organization is reached at its contact address and never signs in.
+		subject, body, link := mail.forRecipient(false)
 		for _, organization := range organizations {
 			if !on {
 				break
 			}
 			organization := organization
 			if err = q.InsertRuleMail(ctx, notifyrulesdb.InsertRuleMailParams{
-				ID: ids.New(), OrganizationID: &organization, Subject: Clip(in.Action.Title, MaxTitleLength),
-				Body: Clip(in.Action.Body, MaxBodyLength), Link: mailLink, FiringID: &in.FiringID,
+				ID: ids.New(), OrganizationID: &organization, Subject: subject, Body: body, Link: link,
+				FiringID: &in.FiringID,
 			}); err != nil {
 				return fmt.Errorf("queue rule mail: %w", err)
 			}
@@ -433,4 +439,75 @@ func mailPath(link string) string {
 		return link
 	}
 	return ""
+}
+
+// mailTexts are the texts of one action's e-mail in both variants: as written, for people who can sign in with a
+// password, and without the print page, for everybody else.
+type mailTexts struct {
+	subject, body           string
+	link                    *string
+	plainSubject, plainBody string
+	plainLink               *string
+	// printPage says the texts or the link point to a print page, so the variants differ.
+	printPage bool
+}
+
+func (d *Dispatcher) newMailTexts(action Action, link, ruleName string) mailTexts {
+	texts := mailTexts{
+		subject: Clip(action.Title, MaxTitleLength), body: Clip(action.Body, MaxBodyLength),
+		link: optionalText(mailPath(link)),
+	}
+	pattern := d.printPagePattern()
+	texts.printPage = (texts.link != nil && isPrintPageLink(*texts.link)) ||
+		pattern.MatchString(action.Title) || pattern.MatchString(action.Body)
+	if !texts.printPage {
+		texts.plainSubject, texts.plainBody, texts.plainLink = texts.subject, texts.body, texts.link
+		return texts
+	}
+	subject, body, plainLink := d.mailWithoutPrintPage(action.Title, action.Body, texts.link)
+	if subject == "" {
+		subject = singleLine(ruleName)
+	}
+	if body == "" {
+		body = subject
+	}
+	texts.plainSubject, texts.plainBody = Clip(subject, MaxTitleLength), Clip(body, MaxBodyLength)
+	texts.plainLink = plainLink
+	return texts
+}
+
+// forRecipient returns the subject, body and link for a recipient who can, or cannot, sign in with a password.
+func (m mailTexts) forRecipient(canSignIn bool) (string, string, *string) {
+	if canSignIn {
+		return m.subject, m.body, m.link
+	}
+	return m.plainSubject, m.plainBody, m.plainLink
+}
+
+// passwordHolders lists which of the people can sign in with a password, looked up only when the mail points to a
+// print page.
+func (d *Dispatcher) passwordHolders(
+	ctx context.Context,
+	q *store,
+	mail mailTexts,
+	people []uuid.UUID,
+) (map[uuid.UUID]bool, error) {
+	holders := map[uuid.UUID]bool{}
+	if !mail.printPage {
+		for _, person := range people {
+			holders[person] = true
+		}
+		return holders, nil
+	}
+	if len(people) == 0 {
+		return holders, nil
+	}
+	found, err := q.ListPeopleWithPasswordAccount(ctx, uuidStrings(people))
+	if err != nil {
+		return nil, fmt.Errorf("load password sign-ins: %w", err)
+	}
+	for _, person := range found {
+		holders[person] = true
+	}
+	return holders, nil
 }
