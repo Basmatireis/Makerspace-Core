@@ -12,7 +12,6 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -22,17 +21,17 @@ const (
 	managedDeviceTokenHeader  = "X-Managed-Device-Token"
 )
 
-// cameraStreamPath is the relative URL of a machine's camera websocket, as SignagePlayerLive.streams offers it.
-func cameraStreamPath(machineID uuid.UUID) string {
-	return apiBasePath + "/signage/player/cameras/" + machineID.String() + "/stream"
-}
-
 // websocketUpgrade is the response of a websocket operation once every check before the upgrade passed: visiting it
 // upgrades the raw request and serves the connection until it ends. It writes nothing through the generated
 // response path, because the connection belongs to the websocket after the upgrade.
 type websocketUpgrade func(w http.ResponseWriter)
 
 func (u websocketUpgrade) VisitStreamSignagePlayerCameraResponse(w http.ResponseWriter) error {
+	u(w)
+	return nil
+}
+
+func (u websocketUpgrade) VisitStreamSignageEmbedCameraResponse(w http.ResponseWriter) error {
 	u(w)
 	return nil
 }

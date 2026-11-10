@@ -35,6 +35,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/runrecordings"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -95,6 +96,7 @@ type Application struct {
 	Handler       http.Handler
 	runBackground func(context.Context)
 	relay         *camerarelay.Hub
+	flushCounters func(context.Context) error
 }
 
 // RunBackground runs the scheduled jobs. It blocks until ctx is cancelled and is meant for one goroutine.
@@ -103,6 +105,10 @@ func (a *Application) RunBackground(ctx context.Context) { a.runBackground(ctx) 
 // CloseConnections ends the camera relay's websockets and refuses new ones. http.Server.Shutdown
 // does not track hijacked connections, so the server calls this when shutdown starts.
 func (a *Application) CloseConnections() { a.relay.Close() }
+
+// FlushCounters writes counters kept in memory (the page loads of signage web embeds); the server calls it once
+// more after shutdown, best effort.
+func (a *Application) FlushCounters(ctx context.Context) error { return a.flushCounters(ctx) }
 
 // WaitConnections blocks until every websocket closed by CloseConnections has ended, or ctx ends.
 func (a *Application) WaitConnections(ctx context.Context) error { return a.relay.Wait(ctx) }
@@ -132,6 +138,13 @@ func NewApplicationWithRelay(
 		return nil, err
 	}
 	jobs := scheduler.New(pool, logger)
+	jobs.Add(scheduler.Job{
+		ID: "signage.embed_loads", Interval: signage.EmbedLoadsFlushInterval,
+		Run: func(ctx context.Context) (scheduler.Summary, error) {
+			written, err := server.signage.FlushEmbedLoads(ctx)
+			return scheduler.Summary{"loads": written}, err
+		},
+	})
 	jobs.Add(scheduler.Job{
 		ID: "runrecordings.maintenance", Interval: runrecordings.MaintenanceInterval, RunAtStart: true,
 		Run: func(ctx context.Context) (scheduler.Summary, error) {
@@ -216,7 +229,11 @@ func NewApplicationWithRelay(
 			return summary, err
 		},
 	})
-	return &Application{Handler: handler, runBackground: jobs.Run, relay: relay}, nil
+	flush := func(ctx context.Context) error {
+		_, err := server.signage.FlushEmbedLoads(ctx)
+		return err
+	}
+	return &Application{Handler: handler, runBackground: jobs.Run, relay: relay, flushCounters: flush}, nil
 }
 
 func newHandler(server *Server, logger *slog.Logger) (http.Handler, error) {
@@ -334,7 +351,7 @@ func newHandler(server *Server, logger *slog.Logger) (http.Handler, error) {
 func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isSignagePlayerPath(r.URL.Path) || isSignagePairingPath(r.URL.Path) || isDevicePairingPath(r.URL.Path) ||
-			isRunTimelapsePath(r.URL.Path) {
+			isRunTimelapsePath(r.URL.Path) || isSignageEmbedPath(r.URL.Path) {
 			// The generated request objects carry neither cookies nor Range headers; these handlers read them from the raw request.
 			r = r.WithContext(context.WithValue(r.Context(), httpRequestContextKey, r))
 		}
@@ -1151,6 +1168,11 @@ func isSignagePlayerPath(path string) bool {
 func isSignagePlayerDownloadPath(path string) bool {
 	return strings.HasPrefix(path, apiBasePath+"/signage/player/assets/") ||
 		strings.HasPrefix(path, apiBasePath+"/signage/player/timelapses/")
+}
+
+// isSignageEmbedPath matches the public web embed endpoints, whose handlers read Range and websocket headers.
+func isSignageEmbedPath(path string) bool {
+	return strings.HasPrefix(path, apiBasePath+"/public/signage/embeds/")
 }
 
 func isSignagePairingPath(path string) bool {

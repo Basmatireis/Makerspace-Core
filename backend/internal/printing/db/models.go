@@ -2086,7 +2086,7 @@ type SignageDefaultScene struct {
 
 type SignageDisplay struct {
 	ID                 uuid.UUID
-	ManagedDeviceID    uuid.UUID
+	ManagedDeviceID    *uuid.UUID
 	Name               string
 	Location           string
 	VisibleFromOutside bool
@@ -2098,6 +2098,7 @@ type SignageDisplay struct {
 	AspectWidth        int16
 	AspectHeight       int16
 	GroupID            *uuid.UUID
+	Kind               string
 }
 
 type SignageDisplayGroup struct {
@@ -2198,6 +2199,24 @@ type SignageScene struct {
 	AspectHeight      int16
 	FontFamily        string
 	FontAssetID       *uuid.UUID
+}
+
+type SignageWebEmbed struct {
+	DisplayID           uuid.UUID
+	DisplayKind         string
+	EmbedKey            string
+	AllowedOrigins      []string
+	OpenDirectly        bool
+	Enabled             bool
+	CameraEnabled       bool
+	CameraMachineIds    []uuid.UUID
+	CameraViewerLimit   int16
+	TimelapseEnabled    bool
+	TimelapseCount      int16
+	TimelapseMaxAgeDays int16
+	LastLoadedAt        pgtype.Timestamptz
+	LoadsDay            pgtype.Date
+	LoadsCount          int32
 }
 
 type StaffingExcusal struct {

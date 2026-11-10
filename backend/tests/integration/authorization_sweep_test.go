@@ -421,7 +421,7 @@ func sweepString(schema *openapi3.Schema) string {
 	// Patterns are not interpreted; the first of a few shapes the contract uses that satisfies the schema wins.
 	candidates := []string{
 		"sweep", "1", "000000", "1.0.0", "sweep.example", strings.Repeat("a", 43), strings.Repeat("a", 64),
-		"#000000", "00:00", "https://example.test/sweep",
+		"#000000", "00:00", "https://example.test/sweep", "https://example.test",
 	}
 	for _, candidate := range candidates {
 		candidate = sweepFitLength(schema, candidate)

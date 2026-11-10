@@ -10,45 +10,53 @@ export const VIDEO_TIMEOUT_MS = 30_000;
 export type AssetLoader = (asset: Pick<SignagePlayerAsset, 'id' | 'kind' | 'url'>) => Promise<'ready' | 'slow'>;
 
 /** Fonts are neither images nor videos: fetching the bytes warms the HTTP cache for the @font-face that uses them. */
-async function loadFont(asset: Pick<SignagePlayerAsset, 'id' | 'url'>): Promise<'ready'> {
-  const response = await fetch(asset.url, { credentials: 'same-origin' });
+async function loadFont(
+  asset: Pick<SignagePlayerAsset, 'id' | 'url'>,
+  credentials: RequestCredentials,
+): Promise<'ready'> {
+  const response = await fetch(asset.url, { credentials });
   if (!response.ok) throw new Error(`Asset ${asset.id} answered ${response.status}`);
   await response.arrayBuffer();
   return 'ready';
 }
 
-export const loadAsset: AssetLoader = (asset) =>
-  asset.kind === 'font'
-    ? loadFont(asset)
-    : new Promise((resolve, reject) => {
-        const isVideo = asset.kind === 'video';
-        const element = isVideo ? document.createElement('video') : new Image();
-        let timer = 0;
-        const finish = (outcome: 'ready' | 'slow' | Error) => {
-          clearTimeout(timer);
-          element.onerror = null;
+/** Devices send their cookie (`same-origin`); web embeds are public and send none (`omit`). */
+export const createAssetLoader =
+  (credentials: RequestCredentials): AssetLoader =>
+  (asset) =>
+    asset.kind === 'font'
+      ? loadFont(asset, credentials)
+      : new Promise((resolve, reject) => {
+          const isVideo = asset.kind === 'video';
+          const element = isVideo ? document.createElement('video') : new Image();
+          let timer = 0;
+          const finish = (outcome: 'ready' | 'slow' | Error) => {
+            clearTimeout(timer);
+            element.onerror = null;
+            if (element instanceof HTMLVideoElement) {
+              element.oncanplaythrough = null;
+              element.removeAttribute('src');
+              element.load();
+            } else element.onload = null;
+            if (outcome instanceof Error) reject(outcome);
+            else resolve(outcome);
+          };
+          element.onerror = () => finish(new Error(`Asset ${asset.id} could not be loaded`));
+          timer = window.setTimeout(
+            () => finish(isVideo ? 'slow' : new Error(`Asset ${asset.id} timed out`)),
+            isVideo ? VIDEO_TIMEOUT_MS : IMAGE_TIMEOUT_MS,
+          );
           if (element instanceof HTMLVideoElement) {
-            element.oncanplaythrough = null;
-            element.removeAttribute('src');
-            element.load();
-          } else element.onload = null;
-          if (outcome instanceof Error) reject(outcome);
-          else resolve(outcome);
-        };
-        element.onerror = () => finish(new Error(`Asset ${asset.id} could not be loaded`));
-        timer = window.setTimeout(
-          () => finish(isVideo ? 'slow' : new Error(`Asset ${asset.id} timed out`)),
-          isVideo ? VIDEO_TIMEOUT_MS : IMAGE_TIMEOUT_MS,
-        );
-        if (element instanceof HTMLVideoElement) {
-          element.preload = 'auto';
-          element.muted = true;
-          element.oncanplaythrough = () => finish('ready');
-        } else {
-          element.onload = () => finish('ready');
-        }
-        element.src = asset.url;
-      });
+            element.preload = 'auto';
+            element.muted = true;
+            element.oncanplaythrough = () => finish('ready');
+          } else {
+            element.onload = () => finish('ready');
+          }
+          element.src = asset.url;
+        });
+
+export const loadAsset = createAssetLoader('same-origin');
 
 /** Runs `task` over `items` with at most `limit` in flight; resolves with every outcome in order. */
 export async function settleLimited<T, R>(
