@@ -6,7 +6,17 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Added
 
-- **Signage web embeds.** A signage screen can be shown in an iframe on other websites: it lists the websites that may frame it, shows only public information, and shows cameras and timelapses only when switched on for it. Embeds are managed under `/signage/web-embeds` with the existing signage permissions and served by public endpoints under `/public/signage/embeds/{embedKey}` (migration 00129). See `docs/signage.md`.
+- **Signage web embeds.** A signage screen can be shown in an iframe on other websites: it lists the websites that may frame it, shows only public information, and shows cameras and timelapses only when switched on for it. Embeds are managed under `/signage/web-embeds` with the existing signage permissions and served by public endpoints under `/public/signage/embeds/{embedKey}` (migration 00130). See `docs/signage.md`.
+- **Signage screen editor.** A screen (formerly scene) is a set of freely positioned blocks on a fixed grid, each with one widget and its own box style. The new editor (Signage › Screens) has a canvas with snapping, a palette, a block list, toolbars and properties panels, autosaves drafts, offers undo and redo and has no Save button. Layout templates, zones and custom layouts are gone: migration 00131 converts every stored screen (and, in memory, older publications) so displays look as before and nothing becomes a pending change. Manifests are version 4: players refetch cached older ones. The player bundles the IBM Plex fonts and its service worker precaches them; image and video pickers can upload in place. See [docs/signage.md](docs/signage.md).
+
+### Upgrade notes
+
+- **Migrations 00130 (signage web embeds) and 00131 (signage scene blocks).** 00131 converts every stored scene into blocks; see `docs/signage.md`.
+
+## [0.18.2] - 2026-11-10
+
+### Added
+
 - **Membership roles.** Every person is a Supervisor, Trainee or Visitor (system roles with fixed names; their permissions stay editable). New people start as Visitor whichever way they are created. The Leitung changes the membership on the staffing page; becoming a Visitor frees the person's upcoming open days.
 - **Staffing rules.** One place (People › Staffing › Rules) for the minimum per semester of supervisors and trainees, the trainee ready-after count, the warning window (default 14 days), whether timeslots or open days count, the default sign-up deadline and exceptions per extra role. The Leitung can excuse a person from the minimum of a semester with a reason that only dashboard readers see.
 - **Timeslots and weekly series.** An open day has one or more timeslots, each with its own supervisor and trainee places, and places can be restricted to extra roles. Weekly series create the days of a period, can be edited from a date on, and a day edited on its own leaves its series and can rejoin it. Overlapping open days are refused. A new period can copy the series of an earlier one.
@@ -31,7 +41,6 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Open-day view follows you.** The List/Calendar choice of the open-day pages is stored on the account and restored on every device (#55).
 - **Open-day notifications.** New notification trigger "An open-day schedule is published or changed" and the ready-made subscription "Reminder for my upcoming open-day slot" (#47).
 - **Recommended retention decisions.** Every data category except stored files comes with a recommended retention decision (trigger, period, action, purpose, legal basis and reason), seeded as a complete draft ready for approval. Nothing takes effect until a decision is approved and activated. See the table in `docs/privacy-and-retention.md`.
-- **Signage screen editor.** A screen (formerly scene) is a set of freely positioned blocks on a fixed grid, each with one widget and its own box style. The new editor (Signage › Screens) has a canvas with snapping, a palette, a block list, toolbars and properties panels, autosaves drafts, offers undo and redo and has no Save button. Layout templates, zones and custom layouts are gone: migration 00130 converts every stored screen (and, in memory, older publications) so displays look as before and nothing becomes a pending change. Manifests are version 4: players refetch cached older ones. The player bundles the IBM Plex fonts and its service worker precaches them; image and video pickers can upload in place. See [docs/signage.md](docs/signage.md).
 - **Print page.** Each recorded print has its own page at `/prints/{runId}` with title, printer, times, outcome, the timelapse, the 3MF previews and downloads, without material, prices or names. The job's recipient (a person) and staff with `machine_jobs.read` can open it after signing in; anyone else gets "not found" (`GET /print-pages/{runId}` and its content endpoints).
 - **Timelapse notifications.** New trigger "A print's timelapse is ready" (`timelapse_ready`) when a connector's timelapse of a run with a job is stored, with the `{printPage}` placeholder (also on `run_finished`). E-mails link to the print page only for recipients who can sign in with a password; organizations and people without a password get the mail without the link.
 - **Machine scope for notification rules.** Rules on triggers about a machine (printer errors, finished runs, filament changes, timelapses, new jobs) can be limited to some machines (`definition.trigger.machines`; empty means all; the catalog marks these triggers with `machineScope`).
@@ -45,7 +54,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
-- **Visits are anonymized at check-out.** A visit keeps its person only while the person is in the lab. Check-out (at the kiosk, by tapping a name, by a supervisor) adds the visit to the daily statistics, sets the person's last visit date and deletes the visit in the same transaction; voiding deletes an open visit. Ordinary check-ins and check-outs are no longer audited, corrections are audited without the visit or the person. `GET /visits` lists open visits only, and the statistics come from the daily totals, so `uniqueVisitors` is the sum of the daily unique visitors. Surveys use their own check-out reference, and expired tablet offers are deleted (migration 00131).
+- **Visits are anonymized at check-out.** A visit keeps its person only while the person is in the lab. Check-out (at the kiosk, by tapping a name, by a supervisor) adds the visit to the daily statistics, sets the person's last visit date and deletes the visit in the same transaction; voiding deletes an open visit. Ordinary check-ins and check-outs are no longer audited, corrections are audited without the visit or the person. `GET /visits` lists open visits only, and the statistics come from the daily totals, so `uniqueVisitors` is the sum of the daily unique visitors. Surveys use their own check-out reference, and expired tablet offers are deleted (migration 00129).
 - **Privacy links where data is collected.** The kiosk, the public event signup, the public survey and the consent question and cards link the imprint and privacy policy; a legal page opened from one of them returns there.
 - **Timelapses follow the camera rule.** On a display visible from outside, timelapses are shown only when cameras may be shown outside (`allowCameraOutside`); otherwise the widget stays empty and the clip endpoint answers 404.
 - Excusal reasons and training notes say not to enter health details.
@@ -81,7 +90,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Upgrade notes
 
-- **Back up the database before upgrading.** Migration 00131 deletes completed visits (after adding them to the daily statistics) and the check-in and check-out audit events. This cannot be undone.
+- **Back up the database before upgrading.** Migration 00129 deletes completed visits (after adding them to the daily statistics) and the check-in and check-out audit events. This cannot be undone.
 - **Migration 00109 (membership roles and staffing rules).** Creates `staffing_rules`, `staffing_rule_exceptions` and `staffing_excusals`; marks or creates the Supervisor, Trainee and Visitor roles (a role already using such a name becomes "<name> (custom)"), gives each person the membership their former staffing-level roles implied, turns role minimum overrides of the remaining extra roles into exceptions, and adds the triggers that guarantee one membership per person. Drops `open_day_requirements`, `roles.staffing_level`, `roles.min_open_days_per_semester` and the visitor enrollment `initial_role_id`. Review the roles list after upgrading.
 - **Migration 00110 (timeslots and series).** New `open_day_timeslots`, `open_day_series` (with timeslot and role tables); requirements and assignments reference a timeslot, and every existing day becomes one timeslot.
 - **Migration 00111 (calendar feeds).** New `calendar_feeds` (digest only) and the new notification kinds; data category `calendar.feeds`.
@@ -94,6 +103,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Migrations 00121-00125.** 00121 splits `inventory.manage`: every grant becomes one grant of each of the four new permissions (scope, assurance and devices kept). 00122 grants `web.sign_in` to every role except master (always allowed) and the Visitor role. 00123 drops `orders.fulfillment_mode` and adds `machine_jobs.billing_revision` and `order_items.source_billing_revision` (orders outdated before the upgrade stay outdated until refreshed). 00124 adds `account_preferences`. 00125 lets printer slot mounts hold customer filament.
 - **Breaking API changes.** `inventory.manage` is no longer a permission id. `fulfillmentMode` is removed from orders and is refused on `POST /orders` and `PATCH /orders/{orderId}`. Web sign-in answers 403 `web_sign_in_not_permitted` for accounts without `web.sign_in`. New endpoints `GET /me/preferences`, `PUT /me/preferences/{key}`, `POST /printer-slots/{slotId}/mount-customer-filament` and `POST /machine-runs/{runId}/usages/{usageId}/customer-material`; `PrinterSlot` gains `mountKind` and the customer filament fields.
 - Visitors who used the web app lose access with this version; give a role `web.sign_in` in the role editor if some of them still need it.
+- **Migrations 00126-00129.** 00126 clears role lists carried over to open-day places, 00127 deletes the seeded notification rules, 00128 adds kiosk pairing requests, 00129 anonymizes completed visits (see above).
 - **Retention drafts.** A draft that was seeded from a legacy default and never edited is replaced by the recommended decision on the first read of the privacy registry; edited drafts, later versions and configured opt-outs (`AUDIT_RETENTION=0`, `EVENT_SIGNUP_RETENTION=0`) are kept. Review the drafts before approving them. Once a policy is active, a daily `admin cleanup` applies it, so check that the scheduled cleanup and the active policies agree before activating.
 
 ## [0.18.1] - 2026-11-06
@@ -918,6 +928,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.18.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.18.1...v0.18.2
 [0.18.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.16.3...v0.17.0
