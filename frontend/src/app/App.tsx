@@ -71,7 +71,6 @@ import {
   DevicesSessionsPage,
   SignageAnnouncementsPage,
   SignageContentPage,
-  SignageCustomLayoutEditorPage,
   SignageDisplayDetailPage,
   SignageGroupDetailPage,
   SignageDisplaysPage,
@@ -413,22 +412,6 @@ export function App() {
               element={
                 <PermissionRoute allOf={['signage.read']}>
                   <SignageSceneEditorPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="signage/layouts/new"
-              element={
-                <PermissionRoute allOf={['signage.read', 'signage.content.manage']}>
-                  <SignageCustomLayoutEditorPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="signage/layouts/:layoutId"
-              element={
-                <PermissionRoute allOf={['signage.read']}>
-                  <SignageCustomLayoutEditorPage />
                 </PermissionRoute>
               }
             />

@@ -2,9 +2,8 @@
 @use '@carbon/styles/scss/type' as *;
 @use '@carbon/styles/scss/theme' as theme;
 
-// Admin editors added with custom layouts and rich text: widget style and rich text fields, fonts in Media, and the layout
-// editor. Carbon components carry the controls; this file holds layout glue and the two drawing surfaces (grid cells and
-// free rectangles), which Carbon has no equivalent for.
+// Admin editors for rich text and widget styles, and fonts in Media. Carbon components carry the controls; this file holds
+// layout glue only.
 
 // Rich text, style and placeholder fields ---------------------------------------------------------------------------------------------
 .sg-code textarea,
@@ -71,42 +70,6 @@ textarea.sg-code {
   line-height: 1.3;
 }
 
-// Custom layouts ----------------------------------------------------------------------------------------------------------------------
-.sg-layout-thumb {
-  inline-size: 5.5rem;
-  padding-block: $spacing-02;
-}
-.sg-layout-thumb .sg-sketch {
-  max-inline-size: none;
-}
-.sg-sketch--free {
-  position: relative;
-  display: block;
-}
-.sg-sketch--free .sg-sketch__zone {
-  position: absolute;
-  box-sizing: border-box;
-}
-.sg-layout-editor {
-  display: grid;
-  grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
-  gap: $spacing-06;
-  align-items: start;
-  margin-block-end: $spacing-05;
-}
-.sg-layout-editor > * {
-  min-inline-size: 0;
-}
-@media (max-width: 65.98rem) {
-  .sg-layout-editor {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.sg-layout-readonly {
-  display: grid;
-  gap: $spacing-05;
-  max-inline-size: 36rem;
-}
 .sg-panel {
   padding: $spacing-05;
   background: theme.$layer-01;
