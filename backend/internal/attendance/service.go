@@ -43,7 +43,6 @@ type LabRules interface {
 }
 type PostVisitSurveyTrigger interface {
 	CreatePostVisitInvitations(context.Context, pgx.Tx, uuid.UUID, uuid.UUID) error
-	CancelPostVisitInvitations(context.Context, pgx.Tx, uuid.UUID) error
 	// OfferAtCheckOut may offer a survey on the tablet after a self check-out; it returns nil when nothing is offered.
 	OfferAtCheckOut(ctx context.Context, tx pgx.Tx, personID, visitID, deviceID uuid.UUID) (*surveys.Offer, error)
 }
@@ -81,6 +80,47 @@ func (s *Service) notifyCheckOut(ctx context.Context, tx pgx.Tx, visitID uuid.UU
 		return nil
 	}
 	return s.notices.CheckOut(ctx, tx, visitID)
+}
+
+// afterCheckIn records the new occupancy as a candidate for today's peak and raises the check-in trigger.
+func (s *Service) afterCheckIn(ctx context.Context, tx pgx.Tx, visitID uuid.UUID) error {
+	if err := attendancedb.New(tx).RecordPeakOccupancy(ctx); err != nil {
+		return err
+	}
+	return s.notifyCheckIn(ctx, tx, visitID)
+}
+
+// checkOut closes an open visit. The occupancy just before it leaves is a candidate for today's peak.
+func checkOut(
+	ctx context.Context,
+	q *attendancedb.Queries,
+	params attendancedb.CheckOutVisitParams,
+) (attendancedb.CheckOutVisitRow, error) {
+	if err := q.RecordPeakOccupancy(ctx); err != nil {
+		return attendancedb.CheckOutVisitRow{}, err
+	}
+	row, err := q.CheckOutVisit(ctx, params)
+	if err != nil {
+		return attendancedb.CheckOutVisitRow{}, databaseError(err)
+	}
+	return row, nil
+}
+
+// archive raises the check-out trigger while the visit still exists, then rolls it into the daily statistics, records
+// the person's last visit date and deletes it, all in the check-out's transaction. After this nothing about the
+// visit is linked to the person any more.
+func (s *Service) archive(ctx context.Context, tx pgx.Tx, visitID uuid.UUID) error {
+	if err := s.notifyCheckOut(ctx, tx, visitID); err != nil {
+		return err
+	}
+	archived, err := attendancedb.New(tx).ArchiveCheckedOutVisit(ctx, visitID)
+	if err != nil {
+		return err
+	}
+	if archived != 1 {
+		return fmt.Errorf("archive visit %s: %d rows", visitID, archived)
+	}
+	return nil
 }
 
 func NewService(
@@ -376,20 +416,8 @@ func (s *Service) checkIn(
 	if err != nil {
 		return Visit{}, databaseError(err)
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &accountID,
-			Action:         "visit.checked_in",
-			ResourceType:   "visit",
-			ResourceID:     &row.ID,
-			RequestID:      requestID,
-		},
-	); err != nil {
-		return Visit{}, err
-	}
-	if err = s.notifyCheckIn(ctx, tx, row.ID); err != nil {
+	// Ordinary check-ins are not audited: the visit itself is the record while the person is here.
+	if err = s.afterCheckIn(ctx, tx, row.ID); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -451,36 +479,26 @@ func (s *Service) verifiedCheckOut(
 		return Visit{}, err
 	}
 	method, assurance, accountID := verified.Method, string(verified.Assurance), verified.AccountID
-	row, err := q.CheckOutVisit(ctx, attendancedb.CheckOutVisitParams{VisitID: current.ID, CheckOutDeviceID: &device.ID,
+	row, err := checkOut(ctx, q, attendancedb.CheckOutVisitParams{VisitID: current.ID, CheckOutDeviceID: &device.ID,
 		CheckOutMethod: &method, CheckOutAssurance: &assurance, CheckedOutByAccountID: &accountID})
 	if err != nil {
-		return Visit{}, databaseError(err)
+		return Visit{}, err
 	}
+	// The invitation and the tablet offer of this check-out share a fresh reference instead of the visit ID, which
+	// appears in URLs and logs and must not lead to the person once the visit is gone.
+	checkOutRef := ids.New()
 	if s.surveys != nil {
-		if err = s.surveys.CreatePostVisitInvitations(ctx, tx, row.PersonID, row.ID); err != nil {
+		if err = s.surveys.CreatePostVisitInvitations(ctx, tx, row.PersonID, checkOutRef); err != nil {
 			return Visit{}, err
 		}
 	}
 	var offer *surveys.Offer
 	if s.surveys != nil && kiosk.OfferSurveysAtCheckout {
-		if offer, err = s.surveys.OfferAtCheckOut(ctx, tx, row.PersonID, row.ID, device.ID); err != nil {
+		if offer, err = s.surveys.OfferAtCheckOut(ctx, tx, row.PersonID, checkOutRef, device.ID); err != nil {
 			return Visit{}, err
 		}
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &accountID,
-			Action:         "visit.checked_out",
-			ResourceType:   "visit",
-			ResourceID:     &row.ID,
-			RequestID:      requestID,
-		},
-	); err != nil {
-		return Visit{}, err
-	}
-	if err = s.notifyCheckOut(ctx, tx, row.ID); err != nil {
+	if err = s.archive(ctx, tx, row.ID); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -516,26 +534,23 @@ func (s *Service) PublicCheckOut(
 		return Visit{}, err
 	}
 	method := "public_tap"
-	row, err := q.CheckOutVisit(
+	row, err := checkOut(
 		ctx,
+		q,
 		attendancedb.CheckOutVisitParams{VisitID: visitID, CheckOutDeviceID: &device.ID, CheckOutMethod: &method},
 	)
 	if err != nil {
-		return Visit{}, databaseError(err)
+		return Visit{}, err
 	}
+	// The invitation and the tablet offer of this check-out share a fresh reference instead of the visit ID, which
+	// appears in URLs and logs and must not lead to the person once the visit is gone.
+	checkOutRef := ids.New()
 	if s.surveys != nil {
-		if err = s.surveys.CreatePostVisitInvitations(ctx, tx, row.PersonID, row.ID); err != nil {
+		if err = s.surveys.CreatePostVisitInvitations(ctx, tx, row.PersonID, checkOutRef); err != nil {
 			return Visit{}, err
 		}
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{Action: "visit.public_checkout", ResourceType: "visit", ResourceID: &row.ID, RequestID: requestID},
-	); err != nil {
-		return Visit{}, err
-	}
-	if err = s.notifyCheckOut(ctx, tx, row.ID); err != nil {
+	if err = s.archive(ctx, tx, row.ID); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -605,20 +620,7 @@ func (s *Service) SupervisedCheckIn(
 	if err != nil {
 		return Visit{}, databaseError(err)
 	}
-	if err = audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &accountID,
-			Action:         "visit.supervised_check_in",
-			ResourceType:   "visit",
-			ResourceID:     &row.ID,
-			RequestID:      requestID,
-		},
-	); err != nil {
-		return Visit{}, err
-	}
-	if err = s.notifyCheckIn(ctx, tx, row.ID); err != nil {
+	if err = s.afterCheckIn(ctx, tx, row.ID); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -648,8 +650,9 @@ func (s *Service) SupervisedCheckOut(
 		return Visit{}, err
 	}
 	method, assurance, accountID := "supervisor", string(principal.Assurance), principal.AccountID
-	row, err := q.CheckOutVisit(
+	row, err := checkOut(
 		ctx,
+		q,
 		attendancedb.CheckOutVisitParams{
 			VisitID:               visitID,
 			CheckOutMethod:        &method,
@@ -658,13 +661,18 @@ func (s *Service) SupervisedCheckOut(
 		},
 	)
 	if err != nil {
-		return Visit{}, databaseError(err)
+		return Visit{}, err
 	}
+	// The invitation and the tablet offer of this check-out share a fresh reference instead of the visit ID, which
+	// appears in URLs and logs and must not lead to the person once the visit is gone.
+	checkOutRef := ids.New()
 	if s.surveys != nil {
-		if err = s.surveys.CreatePostVisitInvitations(ctx, tx, row.PersonID, row.ID); err != nil {
+		if err = s.surveys.CreatePostVisitInvitations(ctx, tx, row.PersonID, checkOutRef); err != nil {
 			return Visit{}, err
 		}
 	}
+	// Someone checking out another person is a correction by the team: audited, but without the visit, which is
+	// deleted below.
 	if err = audit.Write(
 		ctx,
 		tx,
@@ -672,13 +680,12 @@ func (s *Service) SupervisedCheckOut(
 			ActorAccountID: &accountID,
 			Action:         "visit.supervised_check_out",
 			ResourceType:   "visit",
-			ResourceID:     &row.ID,
 			RequestID:      requestID,
 		},
 	); err != nil {
 		return Visit{}, err
 	}
-	if err = s.notifyCheckOut(ctx, tx, row.ID); err != nil {
+	if err = s.archive(ctx, tx, row.ID); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -719,26 +726,18 @@ func (s *Service) Void(
 	if current.Version != expectedVersion {
 		return Visit{}, apperror.StaleWrite
 	}
-	if VisitStatus(current.Status) == VisitVoided {
-		return Visit{}, apperror.New(
-			http.StatusConflict,
-			"visit_already_voided",
-			"The attendance record is already voided",
-		)
+	// Only open visits exist; voiding one deletes it, and neither the visit nor the reason is kept.
+	if VisitStatus(current.Status) != VisitCheckedIn {
+		return Visit{}, apperror.NotFound
 	}
-	row, err := q.VoidVisit(
+	row, err := q.VoidOpenVisit(
 		ctx,
-		attendancedb.VoidVisitParams{VisitID: visitID, ExpectedVersion: expectedVersion, CorrectionReason: &reason},
+		attendancedb.VoidOpenVisitParams{VisitID: visitID, ExpectedVersion: expectedVersion},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Visit{}, apperror.StaleWrite
 	} else if err != nil {
 		return Visit{}, databaseError(err)
-	}
-	if s.surveys != nil {
-		if err = s.surveys.CancelPostVisitInvitations(ctx, tx, visitID); err != nil {
-			return Visit{}, err
-		}
 	}
 	actor := principal.AccountID
 	if err = audit.Write(
@@ -748,9 +747,7 @@ func (s *Service) Void(
 			ActorAccountID: &actor,
 			Action:         "visit.voided",
 			ResourceType:   "visit",
-			ResourceID:     &row.ID,
 			RequestID:      requestID,
-			ChangedFields:  []string{"status", "correctionReason"},
 		},
 	); err != nil {
 		return Visit{}, err
@@ -758,27 +755,18 @@ func (s *Service) Void(
 	if err = tx.Commit(ctx); err != nil {
 		return Visit{}, err
 	}
-	return visitFromVoid(row), nil
+	visit := visitFromVoid(row)
+	visit.Status, visit.CorrectionReason = VisitVoided, &reason
+	return visit, nil
 }
 
-func (s *Service) List(
-	ctx context.Context,
-	principal authorization.Principal,
-	currentlyHere bool,
-	from, to *time.Time,
-) ([]Visit, error) {
+// List returns the visits of the people who are in the lab right now; completed visits are not kept.
+func (s *Service) List(ctx context.Context, principal authorization.Principal) ([]Visit, error) {
 	if !principal.Has(authorization.AttendanceRead) {
 		return nil, apperror.PermissionDenied
 	}
 	rows, err := attendancedb.New(s.pool).
-		ListVisits(
-			ctx,
-			attendancedb.ListVisitsParams{
-				CurrentlyHere: currentlyHere,
-				FromTime:      nullableTime(from),
-				ToTime:        nullableTime(to),
-			},
-		)
+		ListVisits(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -849,7 +837,7 @@ func visitFromCheckout(row attendancedb.CheckOutVisitRow) Visit {
 		Version:           row.Version,
 	}
 }
-func visitFromVoid(row attendancedb.VoidVisitRow) Visit {
+func visitFromVoid(row attendancedb.VoidOpenVisitRow) Visit {
 	return Visit{
 		ID:                row.ID,
 		PersonID:          row.PersonID,
@@ -885,12 +873,6 @@ func timePtr(value pgtype.Timestamptz) *time.Time {
 	}
 	v := value.Time.UTC()
 	return &v
-}
-func nullableTime(value *time.Time) pgtype.Timestamptz {
-	if value == nil {
-		return pgtype.Timestamptz{}
-	}
-	return pgtype.Timestamptz{Time: value.UTC(), Valid: true}
 }
 func numericString(value pgtype.Numeric) string {
 	if !value.Valid {

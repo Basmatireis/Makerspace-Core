@@ -49,12 +49,13 @@ export function VoidVisitDialog({ visit, onClose }: { visit: Visit | null; onClo
       <ModalBody>
         <Stack gap={5}>
           <p>
-            The visit will be marked void and removed from current presence. Pending post-visit survey invitations are
-            cancelled. The correction and its audit history remain recorded.
+            The visit is deleted and does not count in the statistics. The audit log records that you voided a visit,
+            but not whose.
           </p>
           <TextArea
             id="void-visit-reason"
             labelText="Correction reason"
+            helperText="Confirms the correction; it is not stored."
             maxLength={500}
             value={reason}
             onChange={(event) => setReason(event.target.value)}

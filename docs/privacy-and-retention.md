@@ -39,7 +39,7 @@ The table lists every built-in category. Legacy defaults are the behaviour that 
 | `auth.sessions` | Sessions and sign-in state | `identity` | account | expired, 0 (`admin cleanup`) |
 | `auth.pending_state` | Pending sign-in and enrollment state | `identity` | account | none |
 | `scim.mappings` | SCIM provisioning mappings | `identity` | person | none |
-| `attendance.visits` | Visits | `attendance` | person | completed, 90 days, anonymize (`admin cleanup`) |
+| `attendance.visits` | Visits | `attendance` | person | completed, 90 days, anonymize (`admin cleanup`); nothing left since check-out deletes the visit |
 | `surveys.invitations` | Survey invitations | `attendance` | person | expired, 7 days, unlink (`admin cleanup`) |
 | `surveys.responses` | Survey responses | `attendance` | person | none |
 | `events.external_signups` | External event sign-ups | `events` | person | completed, 180 days, redact (`EVENT_SIGNUP_RETENTION`) |
@@ -170,7 +170,7 @@ Every category below has a retention handler that applies its action inside the 
 | `auth.sessions` | Expired or revoked sessions, no grace period | `admin cleanup` |
 | `auth.pending_state` | Pending sign-in, passkey challenge, OIDC flow and kiosk enrollment context state (new handler, no legacy period) | Engine |
 | `surveys.invitations` | Seven days after expiry; delivery identity is unlinked | `admin cleanup` |
-| `attendance.visits` | 90 days after completion; completed visits roll up into daily statistics first; open visits are never removed | `admin cleanup` |
+| `attendance.visits` | None in practice: check-out rolls the visit into daily statistics and deletes it, keeping only `people.last_visit_on`; open visits are never removed | Check-out |
 | `audit.events` | 365 days (`8760h`) | `AUDIT_RETENTION`, `--audit-before` |
 | `events.external_signups` | 180 days after completion or cancellation; contact snapshot and management-token digest are erased | `EVENT_SIGNUP_RETENTION` |
 | `inbox.notifications` | 90 days | Scheduler (formerly lazy sweep on read) |

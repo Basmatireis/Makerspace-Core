@@ -57,6 +57,7 @@ var MergeReferences = []MergeReference{
 	{"staffing_excusals", "person_id", "people", ruleDeduplicated},
 	{"survey_ask_cooldowns", "person_id", "people", ruleAskCooldown},
 	{"survey_invitations", "person_id", "people", ruleMoved},
+	{"survey_offers", "person_id", "people", ruleMoved},
 	{"survey_responses", "identified_person_id", "people", ruleSurveyPreserv},
 	{"training_records", "person_id", "people", ruleDeduplicated},
 	{"visits", "person_id", "people", ruleConflict},

@@ -8,11 +8,14 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
-	ArchiveExpiredVisitDetail(ctx context.Context, beforeTime pgtype.Timestamptz) (int64, error)
+	// Rolls a just checked-out visit into the UTC daily statistics, records the person's last visit date and deletes the
+	// visit. The person counts as a unique visitor of the check-in day unless their last visit already was on that day.
+	ArchiveCheckedOutVisit(ctx context.Context, visitID uuid.UUID) (int64, error)
+	// Completed visits come from the UTC daily statistics of every day the period touches; open visits are added live.
+	// Unique visitors are the sum of the daily unique visitors.
 	AttendanceStatistics(ctx context.Context, arg AttendanceStatisticsParams) (AttendanceStatisticsRow, error)
 	CheckOutVisit(ctx context.Context, arg CheckOutVisitParams) (CheckOutVisitRow, error)
 	CreateVisit(ctx context.Context, arg CreateVisitParams) (CreateVisitRow, error)
@@ -25,10 +28,15 @@ type Querier interface {
 	GetVisitByIDForUpdate(ctx context.Context, id uuid.UUID) (GetVisitByIDForUpdateRow, error)
 	ListPublicPresence(ctx context.Context) ([]ListPublicPresenceRow, error)
 	ListTerminalCapabilities(ctx context.Context, managedDeviceID uuid.UUID) ([]string, error)
-	ListVisits(ctx context.Context, arg ListVisitsParams) ([]ListVisitsRow, error)
+	// Only open visits exist: check-out deletes the visit.
+	ListVisits(ctx context.Context) ([]ListVisitsRow, error)
 	LockEnabledAttendanceAccount(ctx context.Context, arg LockEnabledAttendanceAccountParams) (uuid.UUID, error)
 	LockPerson(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
-	VoidVisit(ctx context.Context, arg VoidVisitParams) (VoidVisitRow, error)
+	// How many people are in the lab right now, as a candidate for today's (UTC) peak. Called after every check-in and
+	// before every check-out is archived.
+	RecordPeakOccupancy(ctx context.Context) error
+	// A correction removes an open visit entirely: it never counted, so it adds nothing to the statistics.
+	VoidOpenVisit(ctx context.Context, arg VoidOpenVisitParams) (VoidOpenVisitRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

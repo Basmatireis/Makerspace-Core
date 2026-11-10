@@ -309,9 +309,18 @@ JOIN roles r ON r.id = pr.role_id AND r.system_key = 'supervisor'
 WHERE ap.last_visible_at > sqlc.arg(since);
 
 -- name: ListLastVisits :many
-SELECT person_id, max(checked_in_at)::timestamptz AS last_visit FROM visits
-WHERE status <> 'voided' AND person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[])
-GROUP BY person_id;
+-- The day of the last visit (UTC midnight): today while the person is checked in, otherwise the date kept at their
+-- last check-out. No visit history is kept.
+SELECT p.id AS person_id,
+    (COALESCE(
+        (SELECT max(v.checked_in_at AT TIME ZONE 'UTC')::date FROM visits v
+         WHERE v.person_id = p.id AND v.status = 'checked_in'),
+        p.last_visit_on
+    )::timestamp AT TIME ZONE 'UTC')::timestamptz AS last_visit
+FROM people p
+WHERE p.id = ANY(sqlc.arg(person_ids)::text[]::uuid[])
+  AND (p.last_visit_on IS NOT NULL OR EXISTS (
+      SELECT 1 FROM visits v WHERE v.person_id = p.id AND v.status = 'checked_in'));
 
 -- name: ListPeopleSignedUpBetween :many
 SELECT DISTINCT a.person_id
@@ -740,16 +749,12 @@ WHERE r.firing_id = ANY(sqlc.arg(firing_ids)::text[]::uuid[])
 ORDER BY r.firing_id, r.step, lower(p.last_name), lower(p.first_name), r.channel;
 
 -- name: GetVisitEventFacts :one
--- The facts of a visit for the check-in and check-out triggers. first_visit is true when the person has no earlier
--- visit that still counts.
+-- The facts of a visit for the check-in and check-out triggers. first_visit is true when the person has no completed
+-- visit yet: check-out records the last visit date after this runs.
 SELECT v.person_id, v.checked_in_at, v.checked_out_at, v.check_in_method, v.check_out_method, v.admission_decision,
        p.first_name, p.last_name,
        din.name AS check_in_device, dout.name AS check_out_device,
-       NOT EXISTS (
-           SELECT 1 FROM visits earlier
-           WHERE earlier.person_id = v.person_id AND earlier.id <> v.id AND earlier.status <> 'voided'
-             AND earlier.checked_in_at < v.checked_in_at
-       ) AS first_visit
+       (p.last_visit_on IS NULL)::boolean AS first_visit
 FROM visits v
 JOIN people p ON p.id = v.person_id
 LEFT JOIN managed_devices din ON din.id = v.check_in_device_id
@@ -837,10 +842,14 @@ WHERE r.id = sqlc.arg(id);
 SELECT kind, reference, due_at, subject_person_id FROM privacy_subject_requests WHERE id = sqlc.arg(id);
 
 -- name: CountVisitsSince :one
-SELECT count(*)::bigint FROM visits WHERE status <> 'voided' AND checked_in_at >= sqlc.arg(since)::timestamptz;
+-- Completed visits come from the UTC daily statistics, so the first day counts in full.
+SELECT ((SELECT COALESCE(sum(visitor_count), 0) FROM attendance_daily_statistics
+         WHERE day >= (sqlc.arg(since)::timestamptz AT TIME ZONE 'UTC')::date)
+    + (SELECT count(*) FROM visits WHERE status = 'checked_in' AND checked_in_at >= sqlc.arg(since)::timestamptz))::bigint;
 
 -- name: CountCheckOutsSince :one
-SELECT count(*)::bigint FROM visits WHERE status = 'checked_out' AND checked_out_at >= sqlc.arg(since)::timestamptz;
+SELECT COALESCE(sum(completed_visit_count), 0)::bigint FROM attendance_daily_statistics
+WHERE day >= (sqlc.arg(since)::timestamptz AT TIME ZONE 'UTC')::date;
 
 -- name: CountAccountsCreatedSince :one
 SELECT count(*)::bigint FROM accounts WHERE created_at >= sqlc.arg(since)::timestamptz;

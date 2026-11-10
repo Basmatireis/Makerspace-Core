@@ -258,7 +258,8 @@ func (q *Queries) CountCentralRules(ctx context.Context) (int64, error) {
 }
 
 const countCheckOutsSince = `-- name: CountCheckOutsSince :one
-SELECT count(*)::bigint FROM visits WHERE status = 'checked_out' AND checked_out_at >= $1::timestamptz
+SELECT COALESCE(sum(completed_visit_count), 0)::bigint FROM attendance_daily_statistics
+WHERE day >= ($1::timestamptz AT TIME ZONE 'UTC')::date
 `
 
 func (q *Queries) CountCheckOutsSince(ctx context.Context, since time.Time) (int64, error) {
@@ -461,9 +462,12 @@ func (q *Queries) CountTrainingRecordsSince(ctx context.Context, since time.Time
 }
 
 const countVisitsSince = `-- name: CountVisitsSince :one
-SELECT count(*)::bigint FROM visits WHERE status <> 'voided' AND checked_in_at >= $1::timestamptz
+SELECT ((SELECT COALESCE(sum(visitor_count), 0) FROM attendance_daily_statistics
+         WHERE day >= ($1::timestamptz AT TIME ZONE 'UTC')::date)
+    + (SELECT count(*) FROM visits WHERE status = 'checked_in' AND checked_in_at >= $1::timestamptz))::bigint
 `
 
+// Completed visits come from the UTC daily statistics, so the first day counts in full.
 func (q *Queries) CountVisitsSince(ctx context.Context, since time.Time) (int64, error) {
 	row := q.db.QueryRow(ctx, countVisitsSince, since)
 	var column_1 int64
@@ -1318,11 +1322,7 @@ const getVisitEventFacts = `-- name: GetVisitEventFacts :one
 SELECT v.person_id, v.checked_in_at, v.checked_out_at, v.check_in_method, v.check_out_method, v.admission_decision,
        p.first_name, p.last_name,
        din.name AS check_in_device, dout.name AS check_out_device,
-       NOT EXISTS (
-           SELECT 1 FROM visits earlier
-           WHERE earlier.person_id = v.person_id AND earlier.id <> v.id AND earlier.status <> 'voided'
-             AND earlier.checked_in_at < v.checked_in_at
-       ) AS first_visit
+       (p.last_visit_on IS NULL)::boolean AS first_visit
 FROM visits v
 JOIN people p ON p.id = v.person_id
 LEFT JOIN managed_devices din ON din.id = v.check_in_device_id
@@ -1344,8 +1344,8 @@ type GetVisitEventFactsRow struct {
 	FirstVisit        bool
 }
 
-// The facts of a visit for the check-in and check-out triggers. first_visit is true when the person has no earlier
-// visit that still counts.
+// The facts of a visit for the check-in and check-out triggers. first_visit is true when the person has no completed
+// visit yet: check-out records the last visit date after this runs.
 func (q *Queries) GetVisitEventFacts(ctx context.Context, id uuid.UUID) (GetVisitEventFactsRow, error) {
 	row := q.db.QueryRow(ctx, getVisitEventFacts, id)
 	var i GetVisitEventFactsRow
@@ -2531,9 +2531,16 @@ func (q *Queries) ListKioskPersonNotices(ctx context.Context, arg ListKioskPerso
 }
 
 const listLastVisits = `-- name: ListLastVisits :many
-SELECT person_id, max(checked_in_at)::timestamptz AS last_visit FROM visits
-WHERE status <> 'voided' AND person_id = ANY($1::text[]::uuid[])
-GROUP BY person_id
+SELECT p.id AS person_id,
+    (COALESCE(
+        (SELECT max(v.checked_in_at AT TIME ZONE 'UTC')::date FROM visits v
+         WHERE v.person_id = p.id AND v.status = 'checked_in'),
+        p.last_visit_on
+    )::timestamp AT TIME ZONE 'UTC')::timestamptz AS last_visit
+FROM people p
+WHERE p.id = ANY($1::text[]::uuid[])
+  AND (p.last_visit_on IS NOT NULL OR EXISTS (
+      SELECT 1 FROM visits v WHERE v.person_id = p.id AND v.status = 'checked_in'))
 `
 
 type ListLastVisitsRow struct {
@@ -2541,6 +2548,8 @@ type ListLastVisitsRow struct {
 	LastVisit time.Time
 }
 
+// The day of the last visit (UTC midnight): today while the person is checked in, otherwise the date kept at their
+// last check-out. No visit history is kept.
 func (q *Queries) ListLastVisits(ctx context.Context, personIds []string) ([]ListLastVisitsRow, error) {
 	rows, err := q.db.Query(ctx, listLastVisits, personIds)
 	if err != nil {

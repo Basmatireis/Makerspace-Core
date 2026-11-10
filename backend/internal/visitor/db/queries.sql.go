@@ -249,7 +249,7 @@ func (q *Queries) CreateVisitorPasswordIdentity(ctx context.Context, arg CreateV
 const createVisitorPerson = `-- name: CreateVisitorPerson :one
 INSERT INTO people (id, first_name, last_name, email, phone, profile_image_file_id, profile_image_source, member_since)
 VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $6::uuid IS NULL THEN NULL ELSE 'terminal_capture' END, $7)
-RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since, last_visit_on
 `
 
 type CreateVisitorPersonParams struct {
@@ -287,6 +287,7 @@ func (q *Queries) CreateVisitorPerson(ctx context.Context, arg CreateVisitorPers
 		&i.ProfileImageFileID,
 		&i.ProfileImageSource,
 		&i.MemberSince,
+		&i.LastVisitOn,
 	)
 	return i, err
 }

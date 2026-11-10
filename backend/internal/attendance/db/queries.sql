@@ -61,15 +61,15 @@ WITH updated AS (
 )
 SELECT updated.*, p.first_name, p.last_name FROM updated JOIN people p ON p.id = updated.person_id;
 
--- name: VoidVisit :one
-WITH updated AS (
-  UPDATE visits SET status = 'voided', correction_reason = sqlc.arg(correction_reason),
-    version = version + 1, updated_at = now()
+-- name: VoidOpenVisit :one
+-- A correction removes an open visit entirely: it never counted, so it adds nothing to the statistics.
+WITH deleted AS (
+  DELETE FROM visits
   WHERE visits.id = sqlc.arg(visit_id) AND visits.version = sqlc.arg(expected_version)
-    AND visits.status <> 'voided'
+    AND visits.status = 'checked_in'
   RETURNING *
 )
-SELECT updated.*, p.first_name, p.last_name FROM updated JOIN people p ON p.id = updated.person_id;
+SELECT deleted.*, p.first_name, p.last_name FROM deleted JOIN people p ON p.id = deleted.person_id;
 
 -- name: ListPublicPresence :many
 SELECT v.id, v.checked_in_at, p.first_name, left(p.last_name, 1)::text AS last_initial
@@ -78,87 +78,99 @@ WHERE v.status = 'checked_in'
 ORDER BY lower(p.first_name), lower(p.last_name), v.checked_in_at, v.id;
 
 -- name: ListVisits :many
+-- Only open visits exist: check-out deletes the visit.
 SELECT v.*, p.first_name, p.last_name
 FROM visits v JOIN people p ON p.id = v.person_id
-WHERE (NOT sqlc.arg(currently_here)::boolean OR v.status = 'checked_in')
-  AND (sqlc.narg(from_time)::timestamptz IS NULL OR v.checked_in_at >= sqlc.narg(from_time))
-  AND (sqlc.narg(to_time)::timestamptz IS NULL OR v.checked_in_at < sqlc.narg(to_time))
+WHERE v.status = 'checked_in'
 ORDER BY v.checked_in_at DESC, v.id DESC
 LIMIT 500;
 
 -- name: AttendanceStatistics :one
-WITH relevant AS (
-  SELECT * FROM visits
-  WHERE status <> 'voided' AND checked_in_at < sqlc.arg(to_time)
-    AND COALESCE(checked_out_at, now()) > sqlc.arg(from_time)
-), points AS (
-  SELECT GREATEST(checked_in_at, sqlc.arg(from_time)) AS at, 1::bigint AS delta FROM relevant
-  UNION ALL
-  SELECT LEAST(COALESCE(checked_out_at, sqlc.arg(to_time)), sqlc.arg(to_time)) AS at, -1::bigint AS delta
-  FROM relevant WHERE COALESCE(checked_out_at, sqlc.arg(to_time)) < sqlc.arg(to_time)
-), occupancy AS (
-  SELECT sum(sum(delta)) OVER (ORDER BY at) AS value FROM points GROUP BY at
+-- Completed visits come from the UTC daily statistics of every day the period touches; open visits are added live.
+-- Unique visitors are the sum of the daily unique visitors.
+WITH days AS (
+  SELECT * FROM attendance_daily_statistics
+  WHERE day >= (sqlc.arg(from_time)::timestamptz AT TIME ZONE 'UTC')::date
+    AND day <= ((sqlc.arg(to_time)::timestamptz - interval '1 microsecond') AT TIME ZONE 'UTC')::date
+), open_visits AS (
+  SELECT v.checked_in_at, p.last_visit_on FROM visits v JOIN people p ON p.id = v.person_id
+  WHERE v.status = 'checked_in'
+), open_in_period AS (
+  SELECT * FROM open_visits
+  WHERE checked_in_at < sqlc.arg(to_time)::timestamptz AND now() > sqlc.arg(from_time)::timestamptz
 )
 SELECT
-  (SELECT count(*) FROM visits counts WHERE counts.status <> 'voided' AND counts.checked_in_at >= sqlc.arg(from_time) AND counts.checked_in_at < sqlc.arg(to_time))::bigint AS visitor_count,
-  (SELECT count(DISTINCT uniques.person_id) FROM visits uniques WHERE uniques.status <> 'voided' AND uniques.checked_in_at >= sqlc.arg(from_time) AND uniques.checked_in_at < sqlc.arg(to_time))::bigint AS unique_visitors,
-  COALESCE((SELECT sum(extract(epoch FROM (LEAST(COALESCE(checked_out_at, sqlc.arg(to_time)), sqlc.arg(to_time)) - GREATEST(checked_in_at, sqlc.arg(from_time))))) / 3600 FROM relevant), 0)::numeric AS visitor_hours,
-  COALESCE((SELECT max(value) FROM occupancy), 0)::bigint AS peak_occupancy,
-  (SELECT count(*) FROM visits current_visits WHERE current_visits.status = 'checked_in')::bigint AS current_occupancy,
-  COALESCE((SELECT avg(extract(epoch FROM (completed.checked_out_at - completed.checked_in_at))) / 60 FROM visits completed
-    WHERE completed.status = 'checked_out' AND completed.checked_out_at >= sqlc.arg(from_time) AND completed.checked_out_at < sqlc.arg(to_time)), 0)::numeric AS average_completed_visit_minutes;
+  ((SELECT COALESCE(sum(visitor_count), 0) FROM days)
+    + (SELECT count(*) FROM open_in_period WHERE checked_in_at >= sqlc.arg(from_time)::timestamptz))::bigint AS visitor_count,
+  ((SELECT COALESCE(sum(daily_unique_visitors), 0) FROM days)
+    + (SELECT count(*) FROM open_in_period WHERE checked_in_at >= sqlc.arg(from_time)::timestamptz
+         AND (last_visit_on IS NULL OR last_visit_on < (checked_in_at AT TIME ZONE 'UTC')::date)))::bigint AS unique_visitors,
+  (((SELECT COALESCE(sum(visitor_seconds), 0) FROM days)
+    + (SELECT COALESCE(sum(extract(epoch FROM LEAST(now(), sqlc.arg(to_time)::timestamptz)
+         - GREATEST(checked_in_at, sqlc.arg(from_time)::timestamptz))), 0) FROM open_in_period)) / 3600)::numeric AS visitor_hours,
+  GREATEST(
+    (SELECT COALESCE(max(peak_occupancy), 0) FROM days),
+    CASE WHEN now() >= sqlc.arg(from_time)::timestamptz AND now() < sqlc.arg(to_time)::timestamptz
+      THEN (SELECT count(*) FROM open_visits) ELSE 0 END
+  )::bigint AS peak_occupancy,
+  (SELECT count(*) FROM open_visits)::bigint AS current_occupancy,
+  COALESCE((SELECT sum(completed_visit_seconds)::numeric / NULLIF(sum(completed_visit_count), 0) / 60 FROM days), 0)::numeric
+    AS average_completed_visit_minutes;
 
--- name: ArchiveExpiredVisitDetail :execrows
-WITH expired AS (
-  DELETE FROM visits
-  WHERE (status = 'checked_out' AND checked_out_at < sqlc.arg(before_time))
-     OR (status = 'voided' AND updated_at < sqlc.arg(before_time))
-  RETURNING *
+-- name: ArchiveCheckedOutVisit :one
+-- Rolls a just checked-out visit into the UTC daily statistics, records the person's last visit date and deletes the
+-- visit. The person counts as a unique visitor of the check-in day unless their last visit already was on that day.
+WITH visit AS (
+  DELETE FROM visits WHERE visits.id = sqlc.arg(visit_id) AND visits.status = 'checked_out' RETURNING *
+), previous AS (
+  SELECT p.last_visit_on FROM people p JOIN visit ON visit.person_id = p.id
+), touched AS (
+  UPDATE people p SET last_visit_on = GREATEST(p.last_visit_on, (visit.checked_in_at AT TIME ZONE 'UTC')::date)
+  FROM visit WHERE p.id = visit.person_id
+  RETURNING p.id
 ), segments AS (
-  SELECT e.*,
-    day_start::date AS day,
-    GREATEST(e.checked_in_at, day_start) AS segment_start,
-    LEAST(e.checked_out_at, day_start + interval '1 day') AS segment_end
-  FROM expired e
+  SELECT v.checked_in_at, v.checked_out_at, day_start,
+    (day_start AT TIME ZONE 'UTC')::date AS day,
+    GREATEST(v.checked_in_at, day_start) AS segment_start,
+    LEAST(v.checked_out_at, day_start + interval '24 hours') AS segment_end,
+    (SELECT last_visit_on FROM previous) AS last_visit_on
+  FROM visit v
   CROSS JOIN LATERAL generate_series(
-    date_trunc('day', e.checked_in_at),
-    date_trunc('day', e.checked_out_at),
-    interval '1 day'
+    date_trunc('day', v.checked_in_at, 'UTC'),
+    date_trunc('day', v.checked_out_at, 'UTC'),
+    interval '24 hours'
   ) day_start
-  WHERE e.status = 'checked_out'
-), base AS (
+), inserted AS (
+  INSERT INTO attendance_daily_statistics (day, visitor_count, daily_unique_visitors, visitor_seconds,
+    completed_visit_count, completed_visit_seconds, peak_occupancy)
   SELECT day,
-    count(*) FILTER (WHERE checked_in_at >= day::timestamptz AND checked_in_at < day::timestamptz + interval '1 day')::bigint AS visitor_count,
-    count(DISTINCT person_id) FILTER (WHERE checked_in_at >= day::timestamptz AND checked_in_at < day::timestamptz + interval '1 day')::bigint AS daily_unique_visitors,
-    COALESCE(sum(extract(epoch FROM segment_end - segment_start)), 0)::bigint AS visitor_seconds,
-    count(*) FILTER (WHERE checked_out_at >= day::timestamptz AND checked_out_at < day::timestamptz + interval '1 day')::bigint AS completed_visit_count,
-    COALESCE(sum(extract(epoch FROM checked_out_at - checked_in_at)) FILTER (WHERE checked_out_at >= day::timestamptz AND checked_out_at < day::timestamptz + interval '1 day'), 0)::bigint AS completed_visit_seconds
-  FROM segments GROUP BY day
-), points AS (
-  SELECT day, segment_start AS at, 1::bigint AS delta FROM segments WHERE segment_end > segment_start
-  UNION ALL
-  SELECT day, segment_end AS at, -1::bigint AS delta FROM segments WHERE segment_end > segment_start
-), point_totals AS (
-  SELECT day, at, sum(delta)::bigint AS delta FROM points GROUP BY day, at
-), occupancy AS (
-  SELECT day, sum(delta) OVER (PARTITION BY day ORDER BY at) AS value FROM point_totals
-), aggregated AS (
-  SELECT b.*, COALESCE(max(o.value), 0)::bigint AS peak_occupancy
-  FROM base b LEFT JOIN occupancy o ON o.day = b.day
-  GROUP BY b.day, b.visitor_count, b.daily_unique_visitors, b.visitor_seconds,
-    b.completed_visit_count, b.completed_visit_seconds
+    CASE WHEN checked_in_at >= day_start AND checked_in_at < day_start + interval '24 hours' THEN 1 ELSE 0 END,
+    CASE WHEN checked_in_at >= day_start AND checked_in_at < day_start + interval '24 hours'
+      AND (last_visit_on IS NULL OR last_visit_on < day) THEN 1 ELSE 0 END,
+    GREATEST(extract(epoch FROM segment_end - segment_start), 0)::bigint,
+    CASE WHEN checked_out_at >= day_start AND checked_out_at < day_start + interval '24 hours' THEN 1 ELSE 0 END,
+    CASE WHEN checked_out_at >= day_start AND checked_out_at < day_start + interval '24 hours'
+      THEN GREATEST(extract(epoch FROM checked_out_at - checked_in_at), 0)::bigint ELSE 0 END,
+    1
+  FROM segments
+  ON CONFLICT (day) DO UPDATE SET
+    visitor_count = attendance_daily_statistics.visitor_count + EXCLUDED.visitor_count,
+    daily_unique_visitors = attendance_daily_statistics.daily_unique_visitors + EXCLUDED.daily_unique_visitors,
+    visitor_seconds = attendance_daily_statistics.visitor_seconds + EXCLUDED.visitor_seconds,
+    completed_visit_count = attendance_daily_statistics.completed_visit_count + EXCLUDED.completed_visit_count,
+    completed_visit_seconds = attendance_daily_statistics.completed_visit_seconds + EXCLUDED.completed_visit_seconds,
+    peak_occupancy = GREATEST(attendance_daily_statistics.peak_occupancy, EXCLUDED.peak_occupancy),
+    updated_at = now()
+  RETURNING day
 )
-INSERT INTO attendance_daily_statistics(day, visitor_count, daily_unique_visitors, visitor_seconds,
-  completed_visit_count, completed_visit_seconds, peak_occupancy)
-SELECT day, visitor_count, daily_unique_visitors, visitor_seconds,
-  completed_visit_count, completed_visit_seconds, peak_occupancy
-FROM aggregated
+SELECT (SELECT count(*) FROM visit)::bigint AS archived;
+
+-- name: RecordPeakOccupancy :exec
+-- How many people are in the lab right now, as a candidate for today's (UTC) peak. Called after every check-in and
+-- before every check-out is archived.
+INSERT INTO attendance_daily_statistics (day, peak_occupancy)
+VALUES ((now() AT TIME ZONE 'UTC')::date, (SELECT count(*) FROM visits WHERE status = 'checked_in'))
 ON CONFLICT (day) DO UPDATE SET
-  visitor_count = attendance_daily_statistics.visitor_count + EXCLUDED.visitor_count,
-  daily_unique_visitors = attendance_daily_statistics.daily_unique_visitors + EXCLUDED.daily_unique_visitors,
-  visitor_seconds = attendance_daily_statistics.visitor_seconds + EXCLUDED.visitor_seconds,
-  completed_visit_count = attendance_daily_statistics.completed_visit_count + EXCLUDED.completed_visit_count,
-  completed_visit_seconds = attendance_daily_statistics.completed_visit_seconds + EXCLUDED.completed_visit_seconds,
   peak_occupancy = GREATEST(attendance_daily_statistics.peak_occupancy, EXCLUDED.peak_occupancy),
   updated_at = now();
 

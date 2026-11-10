@@ -25,7 +25,10 @@ export interface AttendanceStatistics {
   to: string;
   /** @minimum 0 */
   visitorCount: number;
-  /** @minimum 0 */
+  /**
+     * Sum of the daily unique visitors: a person who came on three days counts three times. No visit history is kept to count people across days.
+     * @minimum 0
+     */
   uniqueVisitors: number;
   visitorHours: Decimal;
   /** @minimum 0 */

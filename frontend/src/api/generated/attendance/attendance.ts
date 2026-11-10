@@ -23,7 +23,6 @@ import type {
   AttendancePinRequest,
   AttendanceStatistics,
   GetAttendanceStatisticsParams,
-  ListVisitsParams,
   PublicPresenceList,
   PublicSurvey,
   SubmitSurveyResponse,
@@ -475,24 +474,21 @@ export const terminalPublicCheckOut = async (visitId: UUIDv7, options?: Paramete
 );}
 
 
-export const getListVisitsUrl = (params?: ListVisitsParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getListVisitsUrl = () => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/api/v1/visits?${stringifiedParams}` : `/api/v1/visits`
+  return `/api/v1/visits`
 }
 
-export const listVisits = async (params?: ListVisitsParams, options?: Parameters<typeof apiFetch>[1]): Promise<VisitList> => {
+/**
+ * The visits of the people who are in the lab right now. Check-out rolls a visit into the daily statistics and
+ * deletes it, so completed visits are not kept and cannot be listed.
+ */
+export const listVisits = async ( options?: Parameters<typeof apiFetch>[1]): Promise<VisitList> => {
 
-  return apiFetch<VisitList>(getListVisitsUrl(params),
+  return apiFetch<VisitList>(getListVisitsUrl(),
   {
     ...options,
     method: 'GET'
@@ -569,6 +565,11 @@ export const getVoidVisitUrl = (visitId: UUIDv7,) => {
   return `/api/v1/visits/${visitId}/void`
 }
 
+/**
+ * Removes an open visit that should not count (for example a check-in by mistake). The visit is deleted and adds
+ * nothing to the statistics; the reason is required but not stored. Completed visits no longer exist (404). The
+ * audit event names the acting account but not the visit or the person.
+ */
 export const voidVisit = async (visitId: UUIDv7,
     voidVisitRequest: VoidVisitRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
@@ -611,6 +612,10 @@ export const getGetAttendanceStatisticsUrl = (params: GetAttendanceStatisticsPar
   return stringifiedParams.length > 0 ? `/api/v1/attendance/statistics?${stringifiedParams}` : `/api/v1/attendance/statistics`
 }
 
+/**
+ * Completed visits come from the non-identifying daily statistics (UTC days) of every day the period touches, so
+ * partial first and last days count in full; open visits are added live.
+ */
 export const getAttendanceStatistics = async (params: GetAttendanceStatisticsParams, options?: Parameters<typeof apiFetch>[1]): Promise<AttendanceStatistics> => {
 
   return apiFetch<AttendanceStatistics>(getGetAttendanceStatisticsUrl(params),

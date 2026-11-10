@@ -98,6 +98,10 @@ mutation and calls `Resolve(ctx, tx, token, reason)` when the thing the event wa
   pages use (current semester, counting rule, role exceptions, excusals); `unpaid` is the outstanding amount of the
   person's finalized orders that no active wiRef request covers. A rule that asks for a fact that cannot be loaded
   reaches nobody instead of everybody. Conditions on fields the context lacks are ignored.
+- No visit history is kept ([Visits are anonymized at check-out](kiosk-attendance-surveys.md#visits-are-anonymized-at-check-out)).
+  `lastVisit` counts whole days since the UTC date of the person's last visit (`people.last_visit_on`, or today while
+  checked in); the check-in field `e.firstVisit` is true while the person has no completed visit yet. The rule estimate
+  for `check_in` and `check_out` counts from the daily statistics.
 - Personal rules are subscriptions: they fire for the owner while the owner still holds the trigger's permission, and
   events about one person (`self` recipient) reach only that person's own rules.
 - A rule fires (one `notification_firings` row, one throttle window) when its conditions hold and at least one recipient

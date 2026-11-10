@@ -53,7 +53,7 @@ export function AttendancePage() {
             {canStats && stats.data && (
               <>
                 <StatTile value={stats.data.visitorCount} label="Visits in 30 days" />
-                <StatTile value={stats.data.uniqueVisitors} label="Unique visitors in 30 days" />
+                <StatTile value={stats.data.uniqueVisitors} label="Visitor days in 30 days" />
               </>
             )}
           </div>
