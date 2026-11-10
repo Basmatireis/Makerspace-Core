@@ -2,10 +2,17 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import type { CurrentUser, LoginRequest, PinLoginRequest, PermissionId } from '../../api/generated/models';
+import type {
+  CurrentUser,
+  EmailCodeLoginRequest,
+  LoginRequest,
+  PinLoginRequest,
+  PermissionId,
+} from '../../api/generated/models';
 import {
   getCurrentUser,
   login,
+  loginWithEmailCode,
   loginWithPin,
   logout,
   recordSessionActivity,
@@ -47,6 +54,17 @@ export function useLogin() {
   const queryClient = useQueryClient();
   return useSecretMutation((request: LoginRequest) => login(request), {
     // A 202 means the password was right but a second factor is still due: no session exists yet.
+    onSuccess: async (pending) => {
+      if (pending) return;
+      await queryClient.fetchQuery(currentUserQueryOptions());
+    },
+  });
+}
+
+export function useEmailCodeLogin() {
+  const queryClient = useQueryClient();
+  return useSecretMutation((request: EmailCodeLoginRequest) => loginWithEmailCode(request), {
+    // A 202 means the code was right but a second factor is still due: no session exists yet.
     onSuccess: async (pending) => {
       if (pending) return;
       await queryClient.fetchQuery(currentUserQueryOptions());

@@ -64,6 +64,9 @@ export function getPersonDetailAccess(
   const canRemovePasswordIdentity =
     Boolean(passwordIdentity) && hasPermission(currentUser, PermissionId.accountspasswordremoveall);
   const canRemovePINIdentity = Boolean(pinIdentity) && hasPermission(currentUser, PermissionId.accountspinremoveall);
+  // Needs a login email to send the codes to; the backend answers 422 login_email_required otherwise.
+  const canManageEmailCode =
+    Boolean(account?.loginEmail) && hasPermission(currentUser, PermissionId.accountsemail_codemanageall);
   const canRemoveOIDCIdentity = hasPermission(currentUser, PermissionId.identitiesoidcunlinkall);
   const hasAccountActions = canEditLoginEmail || canCreateAccount || canAssignRole;
   const hasCredentialActions = canSetPassword || canIssuePasswordReset || canInvite || canConfigurePIN;
@@ -107,6 +110,7 @@ export function getPersonDetailAccess(
     canRemovePasswordIdentity,
     canRemovePINIdentity,
     canRemoveOIDCIdentity,
+    canManageEmailCode,
     canEnableAccount: hasPermission(currentUser, PermissionId.accountsenable),
     hasAccountActions,
     hasCredentialActions,

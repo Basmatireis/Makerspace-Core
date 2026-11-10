@@ -126,3 +126,100 @@ describe('sign-in without the web.sign_in permission', () => {
     expect(screen.queryByText('The credentials are incorrect.')).not.toBeInTheDocument();
   });
 });
+
+describe('sign-in with an emailed code', () => {
+  it('mails a code, then signs in with it', async () => {
+    let signedIn = false;
+    const requested = vi.fn();
+    const login = vi.fn();
+    server.use(
+      http.post('*/api/v1/auth/email-code', async ({ request }) => {
+        requested(await request.json());
+        return new HttpResponse(null, { status: 202 });
+      }),
+      http.post('*/api/v1/auth/email-code/login', async ({ request }) => {
+        login(await request.json());
+        signedIn = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.get('*/api/v1/auth/me', () =>
+        signedIn
+          ? HttpResponse.json(currentUserFixture())
+          : HttpResponse.json({ code: 'unauthenticated', message: 'x' }, { status: 401 }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderRoute(<LoginPage />, '/login');
+
+    await user.click(await screen.findByRole('button', { name: 'Email code' }));
+    await user.type(screen.getByLabelText('Email'), 'visitor@example.test');
+    await user.click(screen.getByRole('button', { name: 'Email me a sign-in code' }));
+    const code = await screen.findByLabelText('Code');
+    expect(code).toHaveAttribute('autocomplete', 'one-time-code');
+    expect(requested).toHaveBeenCalledWith({ email: 'visitor@example.test' });
+    await user.type(code, '123456');
+    await user.click(screen.getByRole('button', { name: 'Sign in with code' }));
+
+    await waitFor(() => expect(login).toHaveBeenCalledWith({ email: 'visitor@example.test', code: '123456' }));
+  });
+
+  it('explains a wrong or expired code without revealing anything else', async () => {
+    server.use(
+      http.post('*/api/v1/auth/email-code', () => new HttpResponse(null, { status: 202 })),
+      http.post('*/api/v1/auth/email-code/login', () =>
+        HttpResponse.json({ code: 'invalid_credentials', message: 'Invalid' }, { status: 401 }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderRoute(<LoginPage />, '/login');
+
+    await user.click(await screen.findByRole('button', { name: 'Email code' }));
+    await user.type(screen.getByLabelText('Email'), 'visitor@example.test');
+    await user.click(screen.getByRole('button', { name: 'Email me a sign-in code' }));
+    await user.type(await screen.findByLabelText('Code'), '000000');
+    await user.click(screen.getByRole('button', { name: 'Sign in with code' }));
+
+    expect(await screen.findByText('The code is not correct or has expired.')).toBeInTheDocument();
+  });
+
+  it('asks for the second factor after a 202 like the password sign-in', async () => {
+    server.use(
+      http.post('*/api/v1/auth/email-code', () => new HttpResponse(null, { status: 202 })),
+      http.post('*/api/v1/auth/email-code/login', () =>
+        HttpResponse.json(
+          { status: 'second_factor_required', methods: ['totp'], expiresAt: '2099-01-01T00:00:00Z' },
+          { status: 202 },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    renderRoute(<LoginPage />, '/login');
+
+    await user.click(await screen.findByRole('button', { name: 'Email code' }));
+    await user.type(screen.getByLabelText('Email'), 'ada@example.test');
+    await user.click(screen.getByRole('button', { name: 'Email me a sign-in code' }));
+    await user.type(await screen.findByLabelText('Code'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Sign in with code' }));
+
+    expect(await screen.findByLabelText('Authentication code')).toBeInTheDocument();
+  });
+
+  it('refuses an invalid address in the browser without sending anything', async () => {
+    const requested = vi.fn();
+    server.use(
+      http.post('*/api/v1/auth/email-code', () => {
+        requested();
+        return new HttpResponse(null, { status: 202 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<LoginPage />, '/login');
+
+    await user.click(await screen.findByRole('button', { name: 'Email code' }));
+    await user.type(screen.getByLabelText('Email'), 'nope');
+    await user.click(screen.getByRole('button', { name: 'Email me a sign-in code' }));
+
+    expect(await screen.findByText('Enter a valid email address.')).toBeInTheDocument();
+    expect(requested).not.toHaveBeenCalled();
+  });
+});

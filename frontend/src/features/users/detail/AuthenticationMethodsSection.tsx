@@ -1,4 +1,4 @@
-import { OverflowMenu, OverflowMenuItem, Tag } from '@carbon/react';
+import { Button, OverflowMenu, OverflowMenuItem, Tag } from '@carbon/react';
 import type { AccountSummary } from '../../../api/generated/models';
 import { AuthenticationMethod, DetailSection } from '../PersonDetailComponents';
 import type { getPersonDetailAccess } from './personDetailAccess';
@@ -26,6 +26,7 @@ export function AuthenticationMethodsSection({
     canConfigurePIN,
     canRemovePINIdentity,
     canRemoveOIDCIdentity,
+    canManageEmailCode,
   } = access;
   return (
     <DetailSection
@@ -122,6 +123,24 @@ export function AuthenticationMethodsSection({
                   />
                 )}
               </OverflowMenu>
+            ) : undefined
+          }
+        />
+        <AuthenticationMethod
+          label="Email code"
+          status={account.emailCodeEnabled ? 'On' : 'Off'}
+          detail={account.loginEmail ? undefined : 'Needs a login email'}
+          active={account.emailCodeEnabled}
+          action={
+            canManageEmailCode ? (
+              <Button
+                kind="tertiary"
+                size="sm"
+                disabled={ctrl.emailCodeMutation.isPending}
+                onClick={() => ctrl.emailCodeMutation.mutate(!account.emailCodeEnabled)}
+              >
+                {account.emailCodeEnabled ? 'Turn off' : 'Turn on'}
+              </Button>
             ) : undefined
           }
         />

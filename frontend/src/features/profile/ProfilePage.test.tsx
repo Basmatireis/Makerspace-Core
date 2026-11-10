@@ -127,6 +127,48 @@ describe('Profile page', () => {
   });
 });
 
+describe('Profile email code sign-in', () => {
+  it('turns emailed-code sign-in on for a person holding the self permission', async () => {
+    const currentUser = currentUserFixture([PermissionId.accountsemail_codemanageself]);
+    let enabled = false;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)),
+      http.put('*/api/v1/auth/methods/email-code', () => {
+        enabled = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderRoute(<App />, '/profile');
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Turn on' }));
+    await waitFor(() => expect(enabled).toBe(true));
+  });
+
+  it('explains that a recent sign-in is needed when the backend refuses', async () => {
+    const currentUser = currentUserFixture([PermissionId.accountsemail_codemanageself]);
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)),
+      http.put('*/api/v1/auth/methods/email-code', () =>
+        HttpResponse.json({ code: 'fresh_authentication_required', message: 'Sign in again' }, { status: 403 }),
+      ),
+    );
+    renderRoute(<App />, '/profile');
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Turn on' }));
+    expect(await screen.findByText(/Sign in again with your password/)).toBeInTheDocument();
+  });
+
+  it('shows no switch without the self permission', async () => {
+    server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture())));
+    renderRoute(<App />, '/profile');
+
+    expect(await screen.findByRole('heading', { name: 'Profile' })).toBeInTheDocument();
+    expect(screen.queryByText('Email code sign-in')).not.toBeInTheDocument();
+  });
+});
+
 it('lets an OIDC-only account request reauthentication and link without a password', async () => {
   const current = currentUserFixture([PermissionId.identitiesoidclinkself]);
   current.account.passwordStatus = 'not_set';

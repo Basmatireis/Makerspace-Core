@@ -427,6 +427,46 @@ describe('User detail page', () => {
     expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
   });
 
+  it('switches sign-in with an emailed code for an account with accounts.email_code.manage.all only', async () => {
+    const account = accountFixture({ emailCodeEnabled: false });
+    let body: unknown;
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.accountsemail_codemanageall,
+          ]),
+        ),
+      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
+      http.put('*/api/v1/accounts/:accountId/email-code', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ ...account, emailCodeEnabled: true, version: account.version + 1 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/people/${otherPersonId}?tab=account-access`);
+
+    await user.click(await screen.findByRole('button', { name: 'Turn on' }));
+    await waitFor(() => expect(body).toEqual({ expectedVersion: account.version }));
+  });
+
+  it('hides the emailed-code switch without accounts.email_code.manage.all', async () => {
+    const account = accountFixture({ emailCodeEnabled: false });
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.peoplereadall, PermissionId.accountsread])),
+      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
+    );
+    renderRoute(<App />, `/people/${otherPersonId}?tab=account-access`);
+
+    expect(await screen.findByText('Email code')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Turn on' })).not.toBeInTheDocument();
+  });
+
   it('validates and submits direct PIN setup while preserving the setup-link alternative', async () => {
     const account = accountFixture({
       loginEmail: null,
