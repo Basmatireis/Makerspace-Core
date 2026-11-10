@@ -78,7 +78,10 @@ describe('snapMove', () => {
     expect(snapMove({ x: 12.4, y: 7.6, w: 50, h: 50 }, NO_TARGETS, 6, 0).rect).toMatchObject({ x: 12, y: 8 });
   });
   it('clamps to the API limits', () => {
-    expect(snapMove({ x: 999999, y: -999999, w: 50, h: 50 }, NO_TARGETS, 6).rect).toMatchObject({ x: 120000, y: -120000 });
+    expect(snapMove({ x: 999999, y: -999999, w: 50, h: 50 }, NO_TARGETS, 6).rect).toMatchObject({
+      x: 120000,
+      y: -120000,
+    });
   });
 });
 
