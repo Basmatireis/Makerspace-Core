@@ -402,6 +402,18 @@ export function Canvas(props: CanvasProps) {
                 })}
               />
             )}
+            {canEdit &&
+              !live &&
+              blocks
+                .filter((b) => b.widget.type === 'empty' && !b.hidden && !b.locked)
+                .map((b) => (
+                  <QuickPicks
+                    key={`quick-${b.id}`}
+                    block={b}
+                    style={px(geometry(b))}
+                    onPick={(type) => props.onQuickPick(b.id, type)}
+                  />
+                ))}
             {blocks
               .filter((b) => props.overflowIds.has(b.id) && !b.hidden)
               .map((b) => (
@@ -443,19 +455,6 @@ export function Canvas(props: CanvasProps) {
             )}
             {marquee && <div className="sg-canvas__marquee" style={px(marquee)} />}
             {ghost && props.dragType && <div className="sg-canvas__ghost" style={px(ghost)} />}
-            {canEdit &&
-              !live &&
-              blocks
-                .filter((b) => b.widget.type === 'empty' && !b.hidden && !b.locked)
-                .map((b) => (
-                  <QuickPicks
-                    key={`quick-${b.id}`}
-                    block={b}
-                    style={px(geometry(b))}
-                    compact={b.w * scale < 220 || b.h * scale < 120}
-                    onPick={(type) => props.onQuickPick(b.id, type)}
-                  />
-                ))}
             {editing && (
               <div
                 className="sg-canvas__edit-layer"
@@ -545,33 +544,39 @@ function GuideLine({ guide, grid, scale }: { guide: Guide; grid: { width: number
   );
 }
 
+/**
+ * Fills an empty block with the choice of what it shows. Small blocks keep only the icons (their labels stay as the
+ * accessible names); the space between the buttons still selects and moves the block.
+ */
 function QuickPicks({
   block,
   style,
-  compact,
   onPick,
 }: {
   block: SignageBlock;
   style: CSSProperties;
-  compact: boolean;
   onPick: (type: WidgetType) => void;
 }) {
   return (
     <div className="sg-quick" style={style}>
-      {compact ? (
-        <span className="sg-quick__label">Empty</span>
-      ) : (
-        <div className="sg-quick__panel" role="group" aria-label={`Choose what ${block.name} shows`} data-canvas-ui>
-          <span className="sg-quick__label">Choose what this block shows</span>
-          <div className="sg-quick__items">
-            {QUICK_PICKS.map((type) => (
-              <Button key={type} kind="ghost" size="sm" renderIcon={WIDGET_ICONS[type]} onClick={() => onPick(type)}>
-                {WIDGET_LABELS[type]}
-              </Button>
-            ))}
-          </div>
+      <div className="sg-quick__panel" role="group" aria-label={`Choose what ${block.name} shows`} data-canvas-ui>
+        <span className="sg-quick__label">What should {block.name} show?</span>
+        <div className="sg-quick__items">
+          {QUICK_PICKS.map((type) => (
+            <Button
+              key={type}
+              kind="ghost"
+              size="sm"
+              className="sg-quick__item"
+              renderIcon={WIDGET_ICONS[type]}
+              title={WIDGET_LABELS[type]}
+              onClick={() => onPick(type)}
+            >
+              <span className="sg-quick__text">{WIDGET_LABELS[type]}</span>
+            </Button>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }

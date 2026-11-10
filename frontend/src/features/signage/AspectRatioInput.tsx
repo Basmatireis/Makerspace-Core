@@ -2,7 +2,7 @@ import { IconButton, NumberInput } from '@carbon/react';
 import { ArrowsHorizontal } from '@carbon/icons-react';
 import { ratioOfParts, ratioPartsError, shapeName, type RatioParts } from './aspectFields';
 
-/** Screen shape as two number fields (width : height) with a swap button and the shape name as a live hint. */
+/** Screen shape as two number fields (width : height) with a swap button and the shape name as a live hint beside them. */
 export function AspectRatioInput({
   id,
   labelText = 'Shape of the display (width : height)',
@@ -56,10 +56,10 @@ export function AspectRatioInput({
         >
           <ArrowsHorizontal />
         </IconButton>
+        <span id={hintId} role="status" className={error ? 'sg-ratio__hint sg-ratio__hint--error' : 'sg-ratio__hint'}>
+          {hint}
+        </span>
       </div>
-      <p id={hintId} role="status" className={error ? 'sg-ratio__hint sg-ratio__hint--error' : 'sg-ratio__hint'}>
-        {hint}
-      </p>
     </fieldset>
   );
 }

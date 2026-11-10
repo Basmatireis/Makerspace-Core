@@ -148,13 +148,15 @@ describe('Widget fields', () => {
     await user.click(screen.getByLabelText('Next weeks'));
     fireEvent.change(screen.getByLabelText('Weeks to show'), { target: { value: '9' } });
     expect(seen.current).toMatchObject({ view: 'weeks', weeks: 6 });
-    await user.click(screen.getByRole('switch', { name: 'Holidays' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Holidays' }));
     await user.click(screen.getByRole('switch', { name: 'Week numbers' }));
-    fireEvent.change(screen.getByLabelText('Events colour'), { target: { value: '#AA00FF' } });
+    await user.click(screen.getByRole('switch', { name: 'Colour legend' }));
+    fireEvent.change(screen.getByLabelText('Choose events colour'), { target: { value: '#aa00ff' } });
     fireEvent.change(screen.getByLabelText('Title (optional)'), { target: { value: 'Coming up' } });
     expect(seen.current).toMatchObject({
       showHolidays: false,
       showWeekNumbers: true,
+      hideLegend: true,
       title: 'Coming up',
       colors: { event: '#aa00ff', holiday: '#fa4d56' },
     });

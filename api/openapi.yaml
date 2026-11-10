@@ -23616,6 +23616,7 @@ components:
         showWeekNumbers: {type: boolean}
         title: {type: string, maxLength: 200, description: Heading; empty hides it.}
         showCompetencies: {type: boolean, description: "Weeks view: adds the planned competencies to open days, the first two and +N; absent means false."}
+        hideLegend: {type: boolean, description: "Leaves out the colour legend below the calendar; absent means false (legend shown)."}
     SignageTimelapseWidget:
       type: object
       additionalProperties: false

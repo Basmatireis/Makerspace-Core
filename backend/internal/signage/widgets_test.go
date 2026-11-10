@@ -129,3 +129,18 @@ func TestShowCompetenciesIsOptionalAndOnlyForOpenDays(t *testing.T) {
 		t.Fatal("non-boolean showCompetencies accepted")
 	}
 }
+
+func TestCalendarHideLegendIsOptional(t *testing.T) {
+	base := `{"type":"calendar","view":"month","weeks":4,"showHolidays":true,"showBreaks":true,"showOpenDays":true,` +
+		`"showEvents":true,"colors":{"holiday":"#111111","break":"#222222","openDay":"#333333","event":"#444444"},` +
+		`"showWeekNumbers":false`
+	canonical, _, err := ValidateWidget("main", []byte(base+`,"hideLegend":true}`))
+	if err != nil || !strings.Contains(string(canonical), `"hideLegend":true`) {
+		t.Fatalf("flag lost: %s (%v)", canonical, err)
+	}
+	// Existing calendars stay byte-for-byte the same: the flag is omitted while false.
+	canonical, _, err = ValidateWidget("main", []byte(base+`,"hideLegend":false}`))
+	if err != nil || strings.Contains(string(canonical), "hideLegend") {
+		t.Fatalf("false flag kept: %s (%v)", canonical, err)
+	}
+}

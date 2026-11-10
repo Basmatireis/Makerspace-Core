@@ -45,7 +45,7 @@ export function MediaPage() {
   return (
     <PageShell title="Media" width="wide" breadcrumbs={[{ label: 'Signage' }]} actions={upload}>
       <div className="sg-stack">
-        <div className="sg-toolbar">
+        <div className="sg-media-filters">
           <Search
             id="media-search"
             labelText="Search media"

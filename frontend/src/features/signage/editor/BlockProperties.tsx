@@ -51,7 +51,7 @@ function NameField({
   );
 }
 
-/** Properties of one selected block: content, position and size, then the style sections. */
+/** Properties of one selected block: content, text, position and size, then the other style sections. */
 export function BlockProperties({
   draft,
   block,
@@ -86,6 +86,7 @@ export function BlockProperties({
       value={block[field]}
       min={min}
       max={max}
+      hideSteppers
       onChange={(v) => geometry({ [field]: v }, field)}
     />
   );
@@ -93,16 +94,6 @@ export function BlockProperties({
     <>
       <AccordionItem title="Content" open>
         <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
-          <NameField
-            block={block}
-            canEdit={canEdit}
-            onName={(name) =>
-              emit(
-                updateBlocks(draft.blocks, [id], (b) => ({ ...b, name })),
-                `${id}:name`,
-              )
-            }
-          />
           <Select
             id="bp-type"
             labelText="Shows"
@@ -113,6 +104,16 @@ export function BlockProperties({
               <SelectItem key={t} value={t} text={WIDGET_LABELS[t]} />
             ))}
           </Select>
+          <NameField
+            block={block}
+            canEdit={canEdit}
+            onName={(name) =>
+              emit(
+                updateBlocks(draft.blocks, [id], (b) => ({ ...b, name })),
+                `${id}:name`,
+              )
+            }
+          />
           <WidgetFields
             widget={block.widget}
             assets={assets}
@@ -128,27 +129,31 @@ export function BlockProperties({
           />
         </fieldset>
       </AccordionItem>
-      <AccordionItem title="Position and size" open>
-        <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
-          <div className="sg-props__pair">
-            {geometryField('x', 'X', -LIMITS.blockCoordinate, LIMITS.blockCoordinate)}
-            {geometryField('y', 'Y', -LIMITS.blockCoordinate, LIMITS.blockCoordinate)}
-            {geometryField('w', 'W', LIMITS.blockMinExtent, LIMITS.blockMaxExtent)}
-            {geometryField('h', 'H', LIMITS.blockMinExtent, LIMITS.blockMaxExtent)}
-          </div>
-          <p className="sg-secondary">
-            The screen is {grid.width} by {grid.height} units.
-          </p>
-          <p className="sg-section-title">Place on the screen</p>
-          <AlignTools run={run} disabled={block.locked} />
-          <SymmetryTools run={run} disabled={block.locked} />
-          {block.locked && <p className="sg-secondary">Unlock the block to move it with these tools.</p>}
-        </fieldset>
-      </AccordionItem>
       <BlockStyleFields
         blocks={[block]}
         canEdit={canEdit}
         onStyle={(partial, key) => emit(setStyle(draft.blocks, [id], partial), key && `${id}:${key}`)}
+        layout={
+          <AccordionItem title="Position and size" open>
+            <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
+              <div className="sg-props__quad">
+                {geometryField('x', 'X', -LIMITS.blockCoordinate, LIMITS.blockCoordinate)}
+                {geometryField('y', 'Y', -LIMITS.blockCoordinate, LIMITS.blockCoordinate)}
+                {geometryField('w', 'Width', LIMITS.blockMinExtent, LIMITS.blockMaxExtent)}
+                {geometryField('h', 'Height', LIMITS.blockMinExtent, LIMITS.blockMaxExtent)}
+              </div>
+              <p className="sg-props__help">
+                Units on a {grid.width} × {grid.height} screen.
+              </p>
+              <div className="sg-props__group">
+                <p className="sg-props__label">Place on the screen</p>
+                <AlignTools run={run} disabled={block.locked} />
+                <SymmetryTools run={run} disabled={block.locked} />
+                {block.locked && <p className="sg-props__help">Unlock the block to move it with these tools.</p>}
+              </div>
+            </fieldset>
+          </AccordionItem>
+        }
         textExtra={
           block.widget.type === 'text' ? (
             <Toggle
@@ -170,37 +175,41 @@ export function BlockProperties({
         }
         blockExtra={
           <>
-            <Toggle
-              id="bp-hidden"
-              size="sm"
-              labelText="Hidden on displays"
-              labelA="Shown"
-              labelB="Hidden"
-              disabled={!canEdit}
-              toggled={block.hidden}
-              onToggle={(hidden) => emit(updateBlocks(draft.blocks, [id], (b) => ({ ...b, hidden })))}
-            />
-            <Toggle
-              id="bp-locked"
-              size="sm"
-              labelText="Locked in the editor"
-              labelA="Unlocked"
-              labelB="Locked"
-              disabled={!canEdit}
-              toggled={block.locked}
-              onToggle={(locked) => emit(updateBlocks(draft.blocks, [id], (b) => ({ ...b, locked })))}
-            />
-            <Button
-              kind="tertiary"
-              size="sm"
-              disabled={!canEdit || sameTypeCount === 0}
-              onClick={() => emit(applyStyleToSameType(draft.blocks, id))}
-            >
-              Apply style to all {WIDGET_LABELS[type]} blocks
-            </Button>
-            <Button kind="ghost" size="sm" disabled={!canEdit} onClick={() => emit(resetStyle(draft.blocks, id))}>
-              Reset style
-            </Button>
+            <div className="sg-props__toggles">
+              <Toggle
+                id="bp-hidden"
+                size="sm"
+                labelText="Hidden on displays"
+                labelA="Shown"
+                labelB="Hidden"
+                disabled={!canEdit}
+                toggled={block.hidden}
+                onToggle={(hidden) => emit(updateBlocks(draft.blocks, [id], (b) => ({ ...b, hidden })))}
+              />
+              <Toggle
+                id="bp-locked"
+                size="sm"
+                labelText="Locked in the editor"
+                labelA="Unlocked"
+                labelB="Locked"
+                disabled={!canEdit}
+                toggled={block.locked}
+                onToggle={(locked) => emit(updateBlocks(draft.blocks, [id], (b) => ({ ...b, locked })))}
+              />
+            </div>
+            <div className="sg-props__buttons">
+              <Button
+                kind="tertiary"
+                size="sm"
+                disabled={!canEdit || sameTypeCount === 0}
+                onClick={() => emit(applyStyleToSameType(draft.blocks, id))}
+              >
+                Apply style to all {WIDGET_LABELS[type]} blocks
+              </Button>
+              <Button kind="ghost" size="sm" disabled={!canEdit} onClick={() => emit(resetStyle(draft.blocks, id))}>
+                Reset style
+              </Button>
+            </div>
           </>
         }
       />

@@ -707,6 +707,15 @@ describe('calendar widget', () => {
     expect(container.querySelector<HTMLElement>('.sg-cal__swatch')?.style.background).toBe('rgb(25, 128, 56)');
   });
 
+  it('leaves out the legend when hideLegend is set', async () => {
+    const { container } = render(
+      <SceneRenderer scene={scene({ main: widget({ hideLegend: true }) })} data={data({ calendar })} />,
+    );
+    await ready();
+    expect(container.querySelector('.sg-cal__day')).not.toBeNull();
+    expect(container.querySelector('.sg-cal__legend')).toBeNull();
+  });
+
   it('shows the colours of the widget on its entries', async () => {
     const { container } = render(<SceneRenderer scene={scene({ main: widget() })} data={data({ calendar })} />);
     await ready();

@@ -104,6 +104,7 @@ export function NumField({
   max,
   step = 1,
   helperText,
+  hideSteppers = false,
   onChange,
 }: {
   id: string;
@@ -114,6 +115,8 @@ export function NumField({
   max: number;
   step?: number;
   helperText?: string;
+  /** Leaves out the − and + buttons, for fields that share a row and would be too narrow for them. */
+  hideSteppers?: boolean;
   onChange: (value: number) => void;
 }) {
   const [typed, setTyped] = useState<string | null>(null);
@@ -127,6 +130,7 @@ export function NumField({
       max={max}
       step={step}
       allowEmpty
+      hideSteppers={hideSteppers}
       placeholder={mixed ? 'Mixed' : undefined}
       helperText={helperText}
       value={typed ?? (mixed || value === undefined ? '' : value)}
@@ -256,7 +260,7 @@ const NO_TEXT = ['empty', 'image', 'video', 'slideshow'];
 export type StyleChange = (partial: Partial<SignageBlockStyle>, key?: string) => void;
 
 /**
- * The style sections of the properties panel (Fill, Border and shadow, Text, Block) for one or several blocks. Fields whose
+ * The style sections of the properties panel (Text, Fill, Border and shadow, Block) for one or several blocks. Fields whose
  * value differs between the selected blocks show "Mixed". Rendered inside the panel's accordion.
  */
 export function BlockStyleFields({
@@ -265,14 +269,17 @@ export function BlockStyleFields({
   onStyle,
   textExtra,
   blockExtra,
+  layout,
 }: {
   blocks: readonly SignageBlock[];
   canEdit: boolean;
   onStyle: StyleChange;
-  /** Shown in the Text section right after the text size (the text widget's "shrink to fit"). */
+  /** Shown beside Uppercase at the end of the Text section (the text widget's "shrink to fit"). */
   textExtra?: ReactNode;
   /** Shown at the end of the Block section. */
   blockExtra?: ReactNode;
+  /** A section placed between Text and Fill (the single block's position and size). */
+  layout?: ReactNode;
 }) {
   const ids = blocks.map((b) => b.id);
   const single = blocks.length === 1;
@@ -281,10 +288,11 @@ export function BlockStyleFields({
   const fonts = (useQuery(assetsQuery()).data?.items ?? []).filter((asset) => asset.kind === 'font');
   const get = <K extends keyof SignageBlockStyle>(k: K) => sharedValue(blocks, ids, (b) => b.style[k]);
   const num = (
-    k: 'textSize' | 'letterSpacing' | 'borderWidth' | 'radius' | 'padding',
+    k: 'textSize' | 'letterSpacing' | 'lineHeight' | 'borderWidth' | 'radius' | 'padding',
     label: string,
     min: number,
     max: number,
+    { step = 1, inRow = false }: { step?: number; inRow?: boolean } = {},
   ) => {
     const v = get(k);
     return (
@@ -295,12 +303,14 @@ export function BlockStyleFields({
         mixed={v.mixed}
         min={min}
         max={max}
+        step={step}
+        hideSteppers={inRow}
         onChange={(next) => onStyle({ [k]: next }, `style.${k}`)}
       />
     );
   };
   const range = (
-    k: 'backgroundOpacity' | 'backgroundDim' | 'opacity' | 'lineHeight',
+    k: 'backgroundOpacity' | 'backgroundDim' | 'opacity',
     label: string,
     min: number,
     max: number,
@@ -354,8 +364,63 @@ export function BlockStyleFields({
   const fontAsset = get('fontAssetId');
   const bgAsset = get('backgroundAssetId');
 
+  const text = showText && (
+    <AccordionItem title="Text" open>
+      <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
+        <div className="sg-props__pair">
+          {num('textSize', 'Text size', 8, 400, { inRow: true })}
+          {pick('fontWeight', 'Weight', WEIGHTS)}
+        </div>
+        <PickField
+          id="bs-fontFamily"
+          label="Font"
+          value={family.value}
+          mixed={family.mixed}
+          items={FONT_FAMILIES}
+          onChange={(next) =>
+            onStyle({ fontFamily: next, fontAssetId: next === 'custom' ? (fontAsset.value ?? null) : null })
+          }
+        />
+        {family.value === 'custom' && (
+          <AssetPicker
+            id="bs-fontAssetId"
+            label="Uploaded font"
+            kind="font"
+            assets={fonts}
+            value={fontAsset.value ?? null}
+            disabledHint={fonts.length === 0 ? 'Upload a WOFF2 font under Media first.' : undefined}
+            onChange={(assetId) => onStyle({ fontAssetId: assetId })}
+          />
+        )}
+        {color('textColor', 'Text colour', 'Reset')}
+        <div className="sg-props__pair">
+          {num('lineHeight', 'Line height (%)', 80, 250, { step: 5, inRow: true })}
+          {num('letterSpacing', 'Letter spacing', -10, 50, { inRow: true })}
+        </div>
+        <div className="sg-props__pair">
+          {pick('align', 'Horizontal align', ALIGNS)}
+          {pick('verticalAlign', 'Vertical align', VERTICAL_ALIGNS)}
+        </div>
+        <div className="sg-props__toggles">
+          <Toggle
+            id="bs-uppercase"
+            size="sm"
+            labelText="Uppercase"
+            labelA="Off"
+            labelB="On"
+            toggled={get('uppercase').value === true}
+            onToggle={(uppercase) => onStyle({ uppercase })}
+          />
+          {textExtra}
+        </div>
+      </fieldset>
+    </AccordionItem>
+  );
+
   return (
     <>
+      {text}
+      {layout}
       <AccordionItem title="Fill">
         <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
           {color('backgroundColor', 'Background colour', 'None')}
@@ -380,60 +445,16 @@ export function BlockStyleFields({
       <AccordionItem title="Border and shadow">
         <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
           <div className="sg-props__pair">
-            {num('borderWidth', 'Border width', 0, 40)}
+            {num('borderWidth', 'Border width', 0, 40, { inRow: true })}
             {pick('borderStyle', 'Border style', BORDER_STYLES)}
           </div>
           {color('borderColor', 'Border colour', 'Reset')}
-          {num('radius', 'Corner radius', 0, 400)}
-          {pick('shadow', 'Shadow', SHADOWS)}
+          <div className="sg-props__pair">
+            {num('radius', 'Corner radius', 0, 400, { inRow: true })}
+            {pick('shadow', 'Shadow', SHADOWS)}
+          </div>
         </fieldset>
       </AccordionItem>
-      {showText && (
-        <AccordionItem title="Text" open>
-          <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
-            {num('textSize', 'Text size', 8, 400)}
-            {textExtra}
-            {color('textColor', 'Text colour', 'Reset')}
-            <PickField
-              id="bs-fontFamily"
-              label="Font"
-              value={family.value}
-              mixed={family.mixed}
-              items={FONT_FAMILIES}
-              onChange={(next) =>
-                onStyle({ fontFamily: next, fontAssetId: next === 'custom' ? (fontAsset.value ?? null) : null })
-              }
-            />
-            {family.value === 'custom' && (
-              <AssetPicker
-                id="bs-fontAssetId"
-                label="Uploaded font"
-                kind="font"
-                assets={fonts}
-                value={fontAsset.value ?? null}
-                disabledHint={fonts.length === 0 ? 'Upload a WOFF2 font under Media first.' : undefined}
-                onChange={(assetId) => onStyle({ fontAssetId: assetId })}
-              />
-            )}
-            {pick('fontWeight', 'Weight', WEIGHTS)}
-            {range('lineHeight', 'Line height', 80, 250)}
-            {num('letterSpacing', 'Letter spacing', -10, 50)}
-            <Toggle
-              id="bs-uppercase"
-              size="sm"
-              labelText="Uppercase"
-              labelA="Off"
-              labelB="On"
-              toggled={get('uppercase').value === true}
-              onToggle={(uppercase) => onStyle({ uppercase })}
-            />
-            <div className="sg-props__pair">
-              {pick('align', 'Horizontal alignment', ALIGNS)}
-              {pick('verticalAlign', 'Vertical alignment', VERTICAL_ALIGNS)}
-            </div>
-          </fieldset>
-        </AccordionItem>
-      )}
       <AccordionItem title="Block">
         <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
           {num('padding', 'Padding', 0, 400)}

@@ -48,7 +48,8 @@ function DayCell({ day, widget, limit }: { day: CalendarDay; widget: SignageCale
             }`}
             style={entryStyle}
           >
-            {entry.time !== '' && <span className="sg-cal__time">{entry.time}</span>} {entry.label}
+            {entry.time !== '' && <span className="sg-cal__time">{entry.time}</span>}
+            <span className="sg-cal__label">{entry.label}</span>
             {entry.competencies && <CompetencyChips labels={entry.competencies} limit={CALENDAR_COMPETENCIES} />}
           </span>
         );
@@ -102,7 +103,7 @@ export function CalendarWidget({ widget, data }: Props) {
           </Fragment>
         ))}
       </div>
-      {legend.length > 0 && (
+      {legend.length > 0 && widget.hideLegend !== true && (
         <ul className="sg-cal__legend" aria-label="Legend">
           {legend.map(([category]) => (
             <li key={category}>

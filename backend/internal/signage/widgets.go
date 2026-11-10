@@ -185,6 +185,8 @@ type calendarW struct {
 	Title           *string        `json:"title,omitempty"`
 	// ShowCompetencies adds the planned competencies to open days in the weeks view; absent keeps the previous look.
 	ShowCompetencies bool `json:"showCompetencies,omitempty"`
+	// HideLegend leaves out the colour legend; absent shows it as before.
+	HideLegend bool `json:"hideLegend,omitempty"`
 }
 
 // timelapseW is the slideshow of recent finished prints' timelapse videos.

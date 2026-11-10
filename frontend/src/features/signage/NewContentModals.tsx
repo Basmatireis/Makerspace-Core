@@ -1,4 +1,4 @@
-import { InlineNotification, Modal, RadioTile, Stack, TextInput, TileGroup } from '@carbon/react';
+import { InlineNotification, Modal, RadioTile, TextInput, TileGroup } from '@carbon/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -12,7 +12,7 @@ import { starterBlocks, starterZones, STARTERS } from './sceneStarters';
 
 type SceneFields = { name: string; ratio: RatioParts; starter: string };
 
-/** Miniature of a starter in the typed shape: landscape fills the tile width, portrait a fixed height. */
+/** Miniature of a starter in the typed shape inside a fixed frame: wide shapes fill its width, the others its height. */
 function StarterMiniature({
   zones,
   ratio,
@@ -21,22 +21,23 @@ function StarterMiniature({
   ratio: { width: number; height: number };
 }) {
   return (
-    <span
-      className={`sg-starter__mini ${ratio.width >= ratio.height ? 'sg-starter__mini--wide' : 'sg-starter__mini--tall'}`}
-      style={{ aspectRatio: `${ratio.width} / ${ratio.height}` }}
-      aria-hidden="true"
-    >
-      {zones.map(([x, y, w, h], index) => (
-        <i
-          key={index}
-          style={{
-            insetInlineStart: `${4 + x * 92}%`,
-            insetBlockStart: `${6 + y * 88}%`,
-            inlineSize: `${w * 92}%`,
-            blockSize: `${h * 88}%`,
-          }}
-        />
-      ))}
+    <span className="sg-starter__frame" aria-hidden="true">
+      <span
+        className={`sg-starter__mini ${ratio.width / ratio.height > 1.3 ? 'sg-starter__mini--wide' : 'sg-starter__mini--tall'}`}
+        style={{ aspectRatio: `${ratio.width} / ${ratio.height}` }}
+      >
+        {zones.map(([x, y, w, h], index) => (
+          <i
+            key={index}
+            style={{
+              insetInlineStart: `${4 + x * 92}%`,
+              insetBlockStart: `${6 + y * 88}%`,
+              inlineSize: `${w * 92}%`,
+              blockSize: `${h * 88}%`,
+            }}
+          />
+        ))}
+      </span>
     </span>
   );
 }
@@ -91,7 +92,7 @@ export function NewSceneModal({ onClose }: { onClose: () => void }) {
       onRequestSubmit={() => void submit()}
     >
       <form noValidate onSubmit={(event) => void submit(event)}>
-        <Stack gap={5}>
+        <div className="sg-new-screen">
           <TextInput
             id="screen-name"
             labelText="Name"
@@ -134,7 +135,7 @@ export function NewSceneModal({ onClose }: { onClose: () => void }) {
               subtitle={errorMessage(mutation.error)}
             />
           )}
-        </Stack>
+        </div>
         <button type="submit" hidden />
       </form>
     </Modal>

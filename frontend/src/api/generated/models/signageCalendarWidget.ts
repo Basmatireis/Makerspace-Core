@@ -47,4 +47,6 @@ export interface SignageCalendarWidget {
   title?: string;
   /** Weeks view: adds the planned competencies to open days, the first two and +N; absent means false. */
   showCompetencies?: boolean;
+  /** Leaves out the colour legend below the calendar; absent means false (legend shown). */
+  hideLegend?: boolean;
 }

@@ -501,7 +501,10 @@
   background: rgba(127, 127, 127, 0.08);
 }
 .sg-cal__day--outside {
-  opacity: 0.45;
+  background: rgba(127, 127, 127, 0.06);
+}
+.sg-cal__day--outside > * {
+  opacity: 0.55;
 }
 .sg-cal__day--today {
   outline: calc(var(--u) * 0.25) solid currentColor;
@@ -513,18 +516,17 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
+/* An entry is the time on its own line above the name, so neither is cut off in a narrow day cell. */
 .sg-cal__entry {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
   overflow: hidden;
-  padding: calc(var(--u) * 0.1) calc(var(--u) * 0.4);
+  padding: calc(var(--u) * 0.25) calc(var(--u) * 0.5);
   border-inline-start: calc(var(--u) * 0.4) solid currentColor;
-  font-size: calc(var(--u) * 1.4);
-  line-height: 1.15;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.sg-cal__entry--detailed {
-  white-space: normal;
+  border-radius: calc(var(--u) * 0.2);
+  font-size: calc(var(--u) * 1.5);
+  line-height: 1.2;
 }
 .sg-cal__entry--detailed .sg-chips {
   margin-block-start: calc(var(--u) * 0.2);
@@ -534,8 +536,22 @@
   opacity: 0.7;
 }
 .sg-cal__time {
+  overflow: hidden;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  opacity: 0.85;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Names wrap to at most two lines. */
+.sg-cal__label {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+.sg-cal__entry--detailed .sg-cal__label {
+  white-space: normal;
 }
 .sg-cal__more {
   font-size: calc(var(--u) * 1.2);
