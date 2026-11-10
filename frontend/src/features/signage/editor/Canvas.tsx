@@ -21,6 +21,7 @@ import { BlockToolbar, GroupToolbar, type BlockAction } from './BlockToolbar';
 import { DEFAULT_MARGIN, emptyBlockAt, fitSize, nudge, type ArrangeAction } from './blockOps';
 import { blockAt, isInlineText } from './canvasModel';
 import { PALETTE_MIME, QUICK_PICKS, WIDGET_ICONS } from './widgetIcons';
+import { clampZoom, type Zoom } from './zoom';
 import {
   NO_TARGETS,
   boundsOf,
@@ -33,8 +34,6 @@ import {
   type Rect,
 } from './snapping';
 import { InlineTextEditor, TextFormatBar } from './TextFormatBar';
-
-export type Zoom = 'fit' | 0.5 | 1;
 
 /** Screen pixels within which an edge snaps, and the pointer travel that starts a drag. */
 const SNAP_PX = 6;
@@ -73,6 +72,10 @@ export type CanvasProps = {
   canEdit: boolean;
   snapping: boolean;
   zoom: Zoom;
+  /** Ctrl or Command with the wheel, or a trackpad pinch, asks for a new scale. */
+  onZoom: (scale: number) => void;
+  /** The scale in effect, also while fitting. */
+  onScale: (scale: number) => void;
   showMargins: boolean;
   overflowIds: ReadonlySet<string>;
   onOverflow: (ids: string[]) => void;
@@ -103,6 +106,8 @@ export function Canvas(props: CanvasProps) {
   const [marquee, setMarquee] = useState<Rect | null>(null);
   const [ghost, setGhost] = useState<Rect | null>(null);
   const scale = zoom === 'fit' ? fitScale : zoom;
+  // Where the pointer was in grid units when zooming, so that point stays under the pointer at the new scale.
+  const anchorRef = useRef<{ gx: number; gy: number; clientX: number; clientY: number } | null>(null);
   const blocks = live?.blocks ?? draft.blocks;
   const byId = new Map(blocks.map((b) => [b.id, b]));
   const selected = selectedIds.map((id) => byId.get(id)).filter((b): b is SignageBlock => Boolean(b));
@@ -124,6 +129,46 @@ export function Canvas(props: CanvasProps) {
     observer.observe(wrap);
     return () => observer.disconnect();
   }, [grid.width, grid.height]);
+
+  const { onScale, onZoom } = props;
+  useEffect(() => onScale(scale), [scale, onScale]);
+
+  // Zoom towards the pointer. The listener is not passive so the page itself does not zoom or scroll.
+  const zoomRef = useRef({ scale, onZoom });
+  useLayoutEffect(() => {
+    zoomRef.current = { scale, onZoom };
+  });
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      const box = boxRef.current?.getBoundingClientRect();
+      const { scale: current, onZoom: zoomTo } = zoomRef.current;
+      const next = clampZoom(current * Math.exp(-event.deltaY * 0.01));
+      if (box && next !== current) {
+        anchorRef.current = {
+          gx: (event.clientX - box.left) / current,
+          gy: (event.clientY - box.top) / current,
+          clientX: event.clientX,
+          clientY: event.clientY,
+        };
+      }
+      zoomTo(next);
+    };
+    wrap.addEventListener('wheel', onWheel, { passive: false });
+    return () => wrap.removeEventListener('wheel', onWheel);
+  }, []);
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    const wrap = wrapRef.current;
+    const box = boxRef.current?.getBoundingClientRect();
+    if (!anchor || !wrap || !box) return;
+    anchorRef.current = null;
+    wrap.scrollLeft += box.left + anchor.gx * scale - anchor.clientX;
+    wrap.scrollTop += box.top + anchor.gy * scale - anchor.clientY;
+  }, [scale]);
 
   // Overflow is measured on the rendered blocks; rich text and fonts arrive later, so it is measured again shortly after.
   const { onOverflow } = props;

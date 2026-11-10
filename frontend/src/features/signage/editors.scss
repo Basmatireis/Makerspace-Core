@@ -369,7 +369,15 @@ textarea.sg-code {
   background: theme.$layer-01;
 }
 .sg-se__zoom {
-  inline-size: 14rem;
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+}
+.sg-se__zoom-value {
+  min-inline-size: 3.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  @include type-style('body-compact-01');
 }
 .sg-se__foot .cds--form-item {
   flex: 0 0 auto;

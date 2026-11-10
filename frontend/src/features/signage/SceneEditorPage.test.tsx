@@ -120,6 +120,20 @@ describe('Screen editor', () => {
     expect(screen.getByText('Nothing selected')).toBeInTheDocument();
   });
 
+  it('zooms in steps, back to fit and to 100 %', async () => {
+    mockSignage(editing);
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    const zoom = await screen.findByRole('group', { name: 'Zoom' });
+    const before = zoom.querySelector('.sg-se__zoom-value')!.textContent;
+    await user.click(within(zoom).getByRole('button', { name: /^Zoom in/ }));
+    expect(zoom.querySelector('.sg-se__zoom-value')!.textContent).not.toBe(before);
+    await user.click(within(zoom).getByRole('button', { name: '100 %' }));
+    expect(zoom.querySelector('.sg-se__zoom-value')).toHaveTextContent('100 %');
+    await user.click(within(zoom).getByRole('button', { name: 'Fit' }));
+    expect(zoom.querySelector('.sg-se__zoom-value')!.textContent).toBe(before);
+  });
+
   it('clears the selection on a click around the screen', async () => {
     mockSignage(editing);
     renderRoute(<App />, editor);

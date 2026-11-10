@@ -49,7 +49,10 @@ function DayCell({ day, widget, limit }: { day: CalendarDay; widget: SignageCale
             style={entryStyle}
           >
             {entry.time !== '' && <span className="sg-cal__time">{entry.time}</span>}
-            <span className="sg-cal__label">{entry.label}</span>
+            {/* Holiday names come from the Austrian calendar in German; the language lets the browser hyphenate them. */}
+            <span className="sg-cal__label" lang={entry.category === 'holiday' ? 'de' : undefined}>
+              {entry.label}
+            </span>
             {entry.competencies && (
               <CompetencyChips labels={entry.competencies} limit={CALENDAR_COMPETENCIES[widget.view]} />
             )}

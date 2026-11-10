@@ -487,6 +487,7 @@
   font-variant-numeric: tabular-nums;
 }
 .sg-cal__day {
+  container: sg-cal-day / size;
   display: flex;
   flex-direction: column;
   gap: calc(var(--u) * 0.2);
@@ -528,8 +529,25 @@
   font-size: calc(var(--u) * 1.5);
   line-height: 1.2;
 }
-.sg-cal__entry--detailed .sg-chips {
-  margin-block-start: calc(var(--u) * 0.2);
+/* Competencies in a calendar entry: a quiet line of names instead of outlined chips. */
+.sg-cal .sg-chips {
+  display: block;
+  overflow: hidden;
+  margin: 0;
+  font-size: 0.85em;
+  opacity: 0.8;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-cal .sg-chip {
+  display: inline;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: inherit;
+}
+.sg-cal .sg-chip + .sg-chip::before {
+  content: ' · ';
 }
 .sg-cal__entry--cancelled {
   text-decoration: line-through;
@@ -542,16 +560,46 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Names wrap to at most two lines. */
+/* Names wrap to at most two lines, long single words with a hyphen. */
 .sg-cal__label {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
-.sg-cal__entry--detailed .sg-cal__label {
-  white-space: normal;
+/*
+ * Small day cells, measured in lines of entry text. A full entry with competencies needs about five lines, without
+ * them four: first the competencies go, then entries become one line with the time first, then only the time stays.
+ */
+@container sg-cal-day (max-height: 5.2em) {
+  .sg-cal .sg-chips {
+    display: none;
+  }
+}
+@container sg-cal-day (max-height: 4.2em) {
+  .sg-cal__entry {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.35em;
+    padding-block: 0.1em;
+    white-space: nowrap;
+  }
+  .sg-cal__time {
+    flex: none;
+  }
+  .sg-cal__label {
+    display: block;
+    min-inline-size: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+@container sg-cal-day (max-height: 2.6em) or (max-width: 7em) {
+  .sg-cal__entry:has(.sg-cal__time) .sg-cal__label {
+    display: none;
+  }
 }
 .sg-cal__more {
   font-size: calc(var(--u) * 1.2);
