@@ -215,31 +215,23 @@ func (s *Service) buildManifests(
 		}
 	}
 	content := manifestContent{
-		scenes:        map[uuid.UUID]ManifestScene{},
-		assets:        map[uuid.UUID]ManifestAsset{},
-		customLayouts: map[uuid.UUID]ManifestCustomLayout{},
+		scenes: map[uuid.UUID]ManifestScene{},
+		assets: map[uuid.UUID]ManifestAsset{},
 	}
 	sceneRows, err := q.ListSignageScenesByIDs(ctx, uuidStrings(sortedIDs(sceneSet)))
 	if err != nil {
 		return nil, err
 	}
 	assetSet := map[uuid.UUID]struct{}{}
-	layoutSet := map[uuid.UUID]struct{}{}
 	for _, row := range sceneRows {
 		scene, err := sceneFromRow(row)
 		if err != nil {
 			return nil, err
 		}
-		zones := make(map[string]json.RawMessage, len(scene.Zones))
-		for key, widget := range scene.Zones {
-			zones[key] = widget
-		}
 		published := ManifestScene{
 			ID:                scene.ID,
 			Name:              scene.Name,
 			AspectRatio:       scene.AspectRatio,
-			LayoutID:          scene.LayoutID,
-			CustomLayoutID:    scene.CustomLayoutID,
 			BackgroundColor:   scene.BackgroundColor,
 			BackgroundAssetID: scene.BackgroundAssetID,
 			BackgroundFit:     scene.BackgroundFit,
@@ -247,7 +239,8 @@ func (s *Service) buildManifests(
 			Theme:             scene.Theme,
 			FontFamily:        scene.FontFamily,
 			FontAssetID:       scene.FontAssetID,
-			Zones:             zones, Version: scene.Version,
+			Blocks:            scene.Blocks,
+			Version:           scene.Version,
 		}
 		ids, err := sceneAssetIDs(published)
 		if err != nil {
@@ -256,28 +249,7 @@ func (s *Service) buildManifests(
 		for _, id := range ids {
 			assetSet[id] = struct{}{}
 		}
-		if scene.CustomLayoutID != nil {
-			layoutSet[*scene.CustomLayoutID] = struct{}{}
-		}
 		content.scenes[scene.ID] = published
-	}
-	if len(layoutSet) > 0 {
-		layoutRows, err := q.ListSignageCustomLayoutsByIDs(ctx, uuidStrings(sortedIDs(layoutSet)))
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range layoutRows {
-			layout, err := customLayoutFromRow(
-				row.ID, row.Name, row.Mode, row.Columns, row.Rows, row.Zones, 0, row.Version, row.CreatedAt, row.UpdatedAt,
-			)
-			if err != nil {
-				return nil, err
-			}
-			content.customLayouts[row.ID] = ManifestCustomLayout{
-				ID: layout.ID, Name: layout.Name, Mode: layout.Mode, Columns: layout.Columns, Rows: layout.Rows,
-				Zones: layout.Zones, Version: layout.Version,
-			}
-		}
 	}
 	if len(assetSet) > 0 {
 		assetRows, err := q.ListSignageAssetsByIDs(ctx, uuidStrings(sortedIDs(assetSet)))

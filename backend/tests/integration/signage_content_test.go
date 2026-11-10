@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -220,29 +221,55 @@ func (f signageFixture) insertRule(t *testing.T, displayID uuid.UUID, position i
 	return ruleID
 }
 
-func emptyZonesJSON(ids ...string) map[string]json.RawMessage {
-	zones := map[string]json.RawMessage{}
-	for _, id := range ids {
-		zones[id] = json.RawMessage(`{"type":"empty"}`)
-	}
-	return zones
+// testBlockStyle is the style of the test blocks: the default look.
+const testBlockStyle = `{"backgroundColor":null,"backgroundOpacity":100,"backgroundAssetId":null,"backgroundDim":0,` +
+	`"textColor":null,"borderWidth":0,"borderStyle":"solid","borderColor":null,"radius":0,"shadow":"none",` +
+	`"fontFamily":"inherit","fontAssetId":null,"fontWeight":"inherit","lineHeight":125,"letterSpacing":0,` +
+	`"uppercase":false,"textSize":32,"padding":0,"align":"start","verticalAlign":"start","opacity":100}`
+
+// sceneBlock is a block covering a 16:9 scene that shows the widget.
+func sceneBlock(id string, widget json.RawMessage) json.RawMessage {
+	return json.RawMessage(`{"id":"` + id + `","name":"Block ` + id + `","x":0,"y":0,"w":1920,"h":1080,` +
+		`"hidden":false,"locked":false,"widget":` + string(widget) + `,"style":` + testBlockStyle + `}`)
 }
 
-func sceneInput(name string, layout string) signage.SceneInput {
+// sceneBlocks is the JSON array of blocks.
+func sceneBlocks(blocks ...json.RawMessage) json.RawMessage {
+	parts := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		parts = append(parts, string(block))
+	}
+	return json.RawMessage("[" + strings.Join(parts, ",") + "]")
+}
+
+// widgetBlocks shows every widget in its own block: main, b2, b3, …
+func widgetBlocks(widgets ...json.RawMessage) json.RawMessage {
+	blocks := make([]json.RawMessage, 0, len(widgets))
+	for index, widget := range widgets {
+		id := "main"
+		if index > 0 {
+			id = "b" + strconv.Itoa(index+1)
+		}
+		blocks = append(blocks, sceneBlock(id, widget))
+	}
+	return sceneBlocks(blocks...)
+}
+
+func sceneInput(name string) signage.SceneInput {
 	return signage.SceneInput{
 		Name:            name,
 		AspectRatio:     signage.AspectRatio{Width: 16, Height: 9},
-		LayoutID:        layout,
 		BackgroundColor: "#101820",
 		BackgroundFit:   "cover",
 		BackgroundDim:   20,
 		Theme:           "dark",
+		Blocks:          json.RawMessage(`[]`),
 	}
 }
 
 func (f signageFixture) scene(t *testing.T, name string) signage.Scene {
 	t.Helper()
-	scene, err := f.service.CreateScene(testContext(t), f.admin, sceneInput(name, "full"), nil)
+	scene, err := f.service.CreateScene(testContext(t), f.admin, sceneInput(name), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,12 +358,6 @@ func TestSignagePermissionsAllowedAndDenied(t *testing.T) {
 	}
 	operations := []operation{
 		{
-			"list layouts",
-			reader,
-			[]authorization.Principal{nobody, content, override, manager},
-			func(p authorization.Principal) error { _, err := f.service.ListLayouts(ctx, p); return err },
-		},
-		{
 			"list assets",
 			reader,
 			[]authorization.Principal{nobody, content, override, manager},
@@ -387,7 +408,7 @@ func TestSignagePermissionsAllowedAndDenied(t *testing.T) {
 			content,
 			[]authorization.Principal{nobody, reader, override, manager},
 			func(p authorization.Principal) error {
-				_, err := f.service.CreateScene(ctx, p, sceneInput("Permission scene", "full"), nil)
+				_, err := f.service.CreateScene(ctx, p, sceneInput("Permission scene"), nil)
 				return err
 			},
 		},
@@ -396,7 +417,7 @@ func TestSignagePermissionsAllowedAndDenied(t *testing.T) {
 			content,
 			[]authorization.Principal{nobody, reader, override, manager},
 			func(p authorization.Principal) error {
-				_, err := f.service.UpdateScene(ctx, p, scene.ID, 99, sceneInput("Seed scene", "full"), nil)
+				_, err := f.service.UpdateScene(ctx, p, scene.ID, 99, sceneInput("Seed scene"), nil)
 				if apperror.IsCode(err, "stale_write") {
 					return nil
 				}
@@ -551,7 +572,7 @@ func TestSignagePermissionsAllowedAndDenied(t *testing.T) {
 		},
 	}
 	// Reference the asset so the allowed delete does not remove it before other checks.
-	referencing := sceneInput("Uses asset", "full")
+	referencing := sceneInput("Uses asset")
 	referencing.BackgroundAssetID = &asset.ID
 	if _, err := f.service.CreateScene(ctx, f.admin, referencing, nil); err != nil {
 		t.Fatal(err)
@@ -567,7 +588,7 @@ func TestSignagePermissionsAllowedAndDenied(t *testing.T) {
 		}
 	}
 	// Master is allowed everywhere without any grant.
-	if _, err := f.service.ListLayouts(ctx, f.admin); err != nil {
+	if _, err := f.service.ListScenes(ctx, f.admin); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -701,16 +722,14 @@ func TestSignageAssetsUploadValidationDownloadAndReferenceBlockedDelete(t *testi
 	}
 
 	// An asset used as a scene background or inside a widget cannot be deleted.
-	background := sceneInput("Background user", "full")
+	background := sceneInput("Background user")
 	background.BackgroundAssetID = &asset.ID
 	backgroundScene, err := f.service.CreateScene(ctx, f.admin, background, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	widgetScene := sceneInput("Widget user", "split")
-	widgetScene.Zones = map[string]json.RawMessage{
-		"left": json.RawMessage(`{"type":"video","mediaId":"` + video.ID.String() + `","fit":"cover"}`),
-	}
+	widgetScene := sceneInput("Widget user")
+	widgetScene.Blocks = widgetBlocks(json.RawMessage(`{"type":"video","mediaId":"` + video.ID.String() + `","fit":"cover"}`))
 	widgetUser, err := f.service.CreateScene(ctx, f.admin, widgetScene, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -781,84 +800,84 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 		t.Fatal(err)
 	}
 
-	input := sceneInput("Lobby", "split")
-	input.Zones = map[string]json.RawMessage{
-		"left": json.RawMessage(`{"type":"image","mediaId":"` + image.ID.String() + `","fit":"cover"}`),
-		"right": json.RawMessage(
-			`{"type":"status","machineIds":["` + machine.String() + `"],"showProgress":true,"showRemaining":false}`,
-		),
-	}
+	input := sceneInput("Lobby")
+	input.Blocks = sceneBlocks(
+		sceneBlock("left", json.RawMessage(`{"type":"image","mediaId":"`+image.ID.String()+`","fit":"cover","dim":0}`)),
+		sceneBlock("right", json.RawMessage(
+			`{"type":"status","machineIds":["`+machine.String()+`"],"showProgress":true,"showRemaining":false}`,
+		)),
+	)
 	scene, err := f.service.CreateScene(ctx, f.admin, input, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if scene.Version != 1 || scene.LayoutID != "split" || len(scene.Zones) != 2 || scene.BackgroundAssetID != nil {
+	if scene.Version != 1 || len(scene.Blocks) != 2 || scene.Blocks[0].ID != "left" || scene.BackgroundAssetID != nil {
 		t.Fatalf("scene = %#v", scene)
 	}
 	read, err := f.service.GetScene(ctx, f.admin, scene.ID)
-	if err != nil || string(read.Zones["left"]) != string(scene.Zones["left"]) {
+	if err != nil || string(read.Blocks[0].Widget) != string(scene.Blocks[0].Widget) || read.Blocks[1].ID != "right" {
 		t.Fatalf("read = %#v, %v", read, err)
 	}
-	blank, err := f.service.CreateScene(ctx, f.admin, sceneInput("Blank", "grid2x2"), nil)
-	if err != nil || len(blank.Zones) != 4 || string(blank.Zones["br"]) != `{"type":"empty"}` {
+	blank, err := f.service.CreateScene(ctx, f.admin, sceneInput("Blank"), nil)
+	if err != nil || len(blank.Blocks) != 0 {
 		t.Fatalf("blank scene = %#v, %v", blank, err)
 	}
 
 	invalid := map[string]struct {
 		change func(*signage.SceneInput)
 	}{
-		"unknown layout":        {func(i *signage.SceneInput) { i.LayoutID = "carousel" }},
-		"zero aspect ratio":     {func(i *signage.SceneInput) { i.AspectRatio = signage.AspectRatio{Width: 0, Height: 9} }},
-		"irreducible ratio":     {func(i *signage.SceneInput) { i.AspectRatio = signage.AspectRatio{Width: 1366, Height: 768} }},
-		"bad colour":            {func(i *signage.SceneInput) { i.BackgroundColor = "red" }},
-		"upper-case colour":     {func(i *signage.SceneInput) { i.BackgroundColor = "#ABCDEF" }},
-		"dim too high":          {func(i *signage.SceneInput) { i.BackgroundDim = 81 }},
-		"bad theme":             {func(i *signage.SceneInput) { i.Theme = "blue" }},
-		"empty name":            {func(i *signage.SceneInput) { i.Name = " " }},
-		"zone not in layout":    {func(i *signage.SceneInput) { i.Zones = emptyZonesJSON("main") }},
+		"blocks not an array": {func(i *signage.SceneInput) { i.Blocks = json.RawMessage(`{"main":{"type":"empty"}}`) }},
+		"duplicate block ids": {func(i *signage.SceneInput) {
+			i.Blocks = sceneBlocks(sceneBlock("a", json.RawMessage(`{"type":"empty"}`)), sceneBlock("a", json.RawMessage(`{"type":"empty"}`)))
+		}},
+		"zero aspect ratio": {func(i *signage.SceneInput) { i.AspectRatio = signage.AspectRatio{Width: 0, Height: 9} }},
+		"irreducible ratio": {func(i *signage.SceneInput) { i.AspectRatio = signage.AspectRatio{Width: 1366, Height: 768} }},
+		"bad colour":        {func(i *signage.SceneInput) { i.BackgroundColor = "red" }},
+		"upper-case colour": {func(i *signage.SceneInput) { i.BackgroundColor = "#ABCDEF" }},
+		"dim too high":      {func(i *signage.SceneInput) { i.BackgroundDim = 81 }},
+		"bad theme":         {func(i *signage.SceneInput) { i.Theme = "blue" }},
+		"empty name":        {func(i *signage.SceneInput) { i.Name = " " }},
+		"block style background missing": {func(i *signage.SceneInput) {
+			i.Blocks = json.RawMessage(strings.Replace(string(widgetBlocks(json.RawMessage(`{"type":"empty"}`))),
+				`"backgroundAssetId":null`, `"backgroundAssetId":"`+ids.New().String()+`"`, 1))
+		}},
+		"block style font is an image": {func(i *signage.SceneInput) {
+			i.Blocks = json.RawMessage(strings.Replace(string(widgetBlocks(json.RawMessage(`{"type":"empty"}`))),
+				`"fontFamily":"inherit","fontAssetId":null`, `"fontFamily":"custom","fontAssetId":"`+image.ID.String()+`"`, 1))
+		}},
 		"background is a video": {func(i *signage.SceneInput) { i.BackgroundAssetID = &video.ID }},
 		"background missing": {
 			func(i *signage.SceneInput) { missing := ids.New(); i.BackgroundAssetID = &missing },
 		},
 		"image widget uses video": {func(i *signage.SceneInput) {
-			i.Zones = map[string]json.RawMessage{
-				"left": json.RawMessage(`{"type":"image","mediaId":"` + video.ID.String() + `","fit":"cover"}`),
-			}
+			i.Blocks = widgetBlocks(json.RawMessage(`{"type":"image","mediaId":"` + video.ID.String() + `","fit":"cover","dim":0}`))
 		}},
 		"video widget uses image": {func(i *signage.SceneInput) {
-			i.Zones = map[string]json.RawMessage{
-				"left": json.RawMessage(`{"type":"video","mediaId":"` + image.ID.String() + `","fit":"cover"}`),
-			}
+			i.Blocks = widgetBlocks(json.RawMessage(`{"type":"video","mediaId":"` + image.ID.String() + `","fit":"cover"}`))
 		}},
 		"missing machine": {func(i *signage.SceneInput) {
-			i.Zones = map[string]json.RawMessage{
-				"left": json.RawMessage(
-					`{"type":"status","machineIds":["` + ids.New().
-						String() +
-						`"],"showProgress":true,"showRemaining":true}`,
-				),
-			}
+			i.Blocks = widgetBlocks(json.RawMessage(
+				`{"type":"status","machineIds":["` + ids.New().
+					String() +
+					`"],"showProgress":true,"showRemaining":true}`,
+			))
 		}},
 		"missing template": {func(i *signage.SceneInput) {
-			i.Zones = map[string]json.RawMessage{
-				"left": json.RawMessage(
-					`{"type":"announcement","templateIds":["` + ids.New().
-						String() +
-						`"],"style":"card","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":10}`,
-				),
-			}
+			i.Blocks = widgetBlocks(json.RawMessage(
+				`{"type":"announcement","templateIds":["` + ids.New().
+					String() +
+					`"],"style":"card","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":10}`,
+			))
 		}},
 		"http qr": {func(i *signage.SceneInput) {
-			i.Zones = map[string]json.RawMessage{
-				"left": json.RawMessage(`{"type":"qr","url":"http://insecure.example","caption":""}`),
-			}
+			i.Blocks = widgetBlocks(json.RawMessage(`{"type":"qr","url":"http://insecure.example","caption":""}`))
 		}},
 		"unknown widget field": {func(i *signage.SceneInput) {
-			i.Zones = map[string]json.RawMessage{"left": json.RawMessage(`{"type":"clock","mode":"time","script":"x"}`)}
+			i.Blocks = widgetBlocks(json.RawMessage(`{"type":"clock","mode":"time","script":"x"}`))
 		}},
 	}
 	for name, item := range invalid {
-		candidate := sceneInput("Candidate", "split")
+		candidate := sceneInput("Candidate")
 		item.change(&candidate)
 		if _, err := f.service.CreateScene(ctx, f.admin, candidate, nil); !apperror.IsCode(err, "validation_failed") {
 			t.Errorf("create %s: error = %v, want validation_failed", name, err)
@@ -873,12 +892,10 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_scenes`, 2)
 
 	// A widget that filters announcements by template makes the template undeletable.
-	filtered := sceneInput("Announcer", "full")
-	filtered.Zones = map[string]json.RawMessage{
-		"main": json.RawMessage(
-			`{"type":"announcement","templateIds":["` + template.ID.String() + `"],"style":"card","size":"m","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":10}`,
-		),
-	}
+	filtered := sceneInput("Announcer")
+	filtered.Blocks = widgetBlocks(json.RawMessage(
+		`{"type":"announcement","templateIds":["` + template.ID.String() + `"],"style":"card","whenNone":"empty","fallbackText":"","whenMany":"rotate","rotateSeconds":10}`,
+	))
 	announcer, err := f.service.CreateScene(ctx, f.admin, filtered, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -889,14 +906,15 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 	}
 
 	// Optimistic concurrency.
-	renamed := sceneInput("Lobby renamed", "split")
+	renamed := sceneInput("Lobby renamed")
+	renamed.Blocks = input.Blocks
 	updated, err := f.service.UpdateScene(ctx, f.admin, scene.ID, scene.Version, renamed, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.Version != 2 || updated.Name != "Lobby renamed" ||
-		string(updated.Zones["left"]) != string(scene.Zones["left"]) {
-		t.Fatalf("update without zones must keep widgets: %#v", updated)
+	if updated.Version != 2 || updated.Name != "Lobby renamed" || len(updated.Blocks) != 2 ||
+		string(updated.Blocks[0].Widget) != string(scene.Blocks[0].Widget) {
+		t.Fatalf("update must keep the sent blocks: %#v", updated)
 	}
 	if _, err := f.service.UpdateScene(ctx, f.admin, scene.ID, scene.Version, renamed, nil); !apperror.IsCode(
 		err,
@@ -920,26 +938,16 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 		t.Fatalf("zero version: %v", err)
 	}
 
-	// Changing the layout without new zones keeps widgets by position.
-	moved := sceneInput("Lobby renamed", "stack3")
-	remapped, err := f.service.UpdateScene(ctx, f.admin, scene.ID, updated.Version, moved, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if remapped.LayoutID != "stack3" || string(remapped.Zones["header"]) != string(updated.Zones["left"]) ||
-		string(remapped.Zones["main"]) != string(updated.Zones["right"]) ||
-		string(remapped.Zones["footer"]) != `{"type":"empty"}` {
-		t.Fatalf("remapped zones = %v", remapped.Zones)
-	}
-	if _, ok := remapped.Zones["left"]; ok {
-		t.Fatal("old zone ids survived the layout change")
-	}
-	// Explicit zones for a new layout are validated against it and replace the old ones.
-	explicit := sceneInput("Lobby renamed", "main_footer")
-	explicit.Zones = emptyZonesJSON("main", "footer")
-	replaced, err := f.service.UpdateScene(ctx, f.admin, scene.ID, remapped.Version, explicit, nil)
-	if err != nil || len(replaced.Zones) != 2 || string(replaced.Zones["main"]) != `{"type":"empty"}` {
-		t.Fatalf("explicit zones = %#v, %v", replaced, err)
+	// An update replaces every block; the array order is the stacking order.
+	reordered := sceneInput("Lobby renamed")
+	reordered.Blocks = sceneBlocks(
+		sceneBlock("right", json.RawMessage(`{"type":"clock","mode":"time"}`)),
+		sceneBlock("left", json.RawMessage(`{"type":"empty"}`)),
+	)
+	replaced, err := f.service.UpdateScene(ctx, f.admin, scene.ID, updated.Version, reordered, nil)
+	if err != nil || len(replaced.Blocks) != 2 || replaced.Blocks[0].ID != "right" ||
+		string(replaced.Blocks[1].Widget) != `{"type":"empty"}` {
+		t.Fatalf("replaced blocks = %#v, %v", replaced, err)
 	}
 
 	// A default scene list blocks scene deletion, and so does a rule's scene list.
@@ -1381,7 +1389,7 @@ func TestSignageMutationsAndAuditShareOneTransaction(t *testing.T) {
 	}
 	startsAt := time.Now()
 
-	if _, err := f.service.CreateScene(ctx, f.admin, sceneInput("Never", "full"), nil); err == nil {
+	if _, err := f.service.CreateScene(ctx, f.admin, sceneInput("Never"), nil); err == nil {
 		t.Fatal("scene committed without audit")
 	}
 	if _, err := f.service.UpdateScene(
@@ -1389,7 +1397,7 @@ func TestSignageMutationsAndAuditShareOneTransaction(t *testing.T) {
 		f.admin,
 		scene.ID,
 		scene.Version,
-		sceneInput("Renamed", "full"),
+		sceneInput("Renamed"),
 		nil,
 	); err == nil {
 		t.Fatal("scene update committed without audit")
@@ -1583,14 +1591,11 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 		return value
 	}
 
-	// Layouts.
-	response := send(viewerClient, viewerCSRF, http.MethodGet, "/signage/layouts", nil, nil)
+	// Scenes are readable with signage.read only.
+	response := send(viewerClient, viewerCSRF, http.MethodGet, "/signage/scenes", nil, nil)
 	assertStatus(t, response, http.StatusOK)
-	layouts := decode(response)["items"].([]any)
-	if len(layouts) != 9 {
-		t.Fatalf("layouts = %d", len(layouts))
-	}
-	response = send(outsiderClient, outsiderCSRF, http.MethodGet, "/signage/layouts", nil, nil)
+	response.Body.Close()
+	response = send(outsiderClient, outsiderCSRF, http.MethodGet, "/signage/scenes", nil, nil)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
 
@@ -1653,18 +1658,27 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
 
-	// Scenes through the union-typed zones schema.
+	// Scenes through the block schema with the union-typed widget.
+	block := func(id string, widget map[string]any) map[string]any {
+		var style map[string]any
+		if err := json.Unmarshal([]byte(testBlockStyle), &style); err != nil {
+			t.Fatal(err)
+		}
+		return map[string]any{
+			"id": id, "name": id, "x": 0, "y": 0, "w": 960, "h": 1080, "hidden": false, "locked": false,
+			"widget": widget, "style": style,
+		}
+	}
 	scene := map[string]any{
 		"name":            "Welcome",
 		"aspectRatio":     map[string]any{"width": 16, "height": 9},
-		"layoutId":        "split",
 		"backgroundColor": "#102030",
 		"backgroundFit":   "cover",
 		"backgroundDim":   10,
 		"theme":           "dark",
-		"zones": map[string]any{
-			"left":  map[string]any{"type": "image", "mediaId": assetID, "fit": "cover"},
-			"right": map[string]any{"type": "qr", "url": "https://makerspace.example/join", "caption": "Join"},
+		"blocks": []any{
+			block("left", map[string]any{"type": "image", "mediaId": assetID, "fit": "cover", "dim": 0}),
+			block("right", map[string]any{"type": "qr", "url": "https://makerspace.example/join", "caption": "Join"}),
 		},
 	}
 	response = send(viewerClient, viewerCSRF, http.MethodPost, "/signage/scenes", scene, nil)
@@ -1674,34 +1688,33 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	assertStatus(t, response, http.StatusCreated)
 	created := decode(response)
 	sceneID := created["id"].(string)
-	zones := created["zones"].(map[string]any)
-	if created["version"] != float64(1) || zones["left"].(map[string]any)["mediaId"] != assetID ||
-		zones["right"].(map[string]any)["url"] != "https://makerspace.example/join" {
+	if created["version"] != float64(1) || blockOf(created, "left")["widget"].(map[string]any)["mediaId"] != assetID ||
+		blockOf(created, "right")["widget"].(map[string]any)["url"] != "https://makerspace.example/join" {
 		t.Fatalf("created scene = %#v", created)
 	}
 	bad := map[string]any{}
 	for key, value := range scene {
 		bad[key] = value
 	}
-	bad["zones"] = map[string]any{"left": map[string]any{"type": "clock", "mode": "time", "html": "<b>"}}
+	bad["blocks"] = []any{block("left", map[string]any{"type": "clock", "mode": "time", "html": "<b>"})}
 	response = send(editorClient, editorCSRF, http.MethodPost, "/signage/scenes", bad, nil)
 	if response.StatusCode != http.StatusBadRequest && response.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("unknown widget field status = %d", response.StatusCode)
 	}
 	response.Body.Close()
-	bad["zones"] = map[string]any{"left": map[string]any{"type": "qr", "url": "http://plain.example", "caption": ""}}
+	bad["blocks"] = []any{block("left", map[string]any{"type": "qr", "url": "http://plain.example", "caption": ""})}
 	response = send(editorClient, editorCSRF, http.MethodPost, "/signage/scenes", bad, nil)
 	if response.StatusCode != http.StatusBadRequest && response.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("http QR status = %d", response.StatusCode)
 	}
 	response.Body.Close()
 
-	// Update without zones changes the layout and remaps by position; stale versions conflict.
+	// An update replaces the blocks; stale versions conflict.
 	update := map[string]any{
 		"expectedVersion": 1,
 		"name":            "Welcome",
 		"aspectRatio":     map[string]any{"width": 16, "height": 9},
-		"layoutId":        "stack3",
+		"blocks":          []any{scene["blocks"].([]any)[1], scene["blocks"].([]any)[0]},
 		"backgroundColor": "#102030",
 		"backgroundFit":   "cover",
 		"backgroundDim":   10,
@@ -1711,10 +1724,9 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	}
 	response = send(editorClient, editorCSRF, http.MethodPut, "/signage/scenes/"+sceneID, update, nil)
 	assertStatus(t, response, http.StatusOK)
-	moved := decode(response)["zones"].(map[string]any)
-	if moved["header"].(map[string]any)["type"] != "image" || moved["main"].(map[string]any)["type"] != "qr" ||
-		moved["footer"].(map[string]any)["type"] != "empty" {
-		t.Fatalf("remapped zones = %#v", moved)
+	moved := decode(response)["blocks"].([]any)
+	if len(moved) != 2 || moved[0].(map[string]any)["id"] != "right" || moved[1].(map[string]any)["id"] != "left" {
+		t.Fatalf("updated blocks = %#v", moved)
 	}
 	response = send(editorClient, editorCSRF, http.MethodPut, "/signage/scenes/"+sceneID, update, nil)
 	assertStatus(t, response, http.StatusConflict)

@@ -26,8 +26,7 @@ func itoa(value int) string {
 
 func TestTimelapseWidgetValidation(t *testing.T) {
 	first, second := ids.New(), ids.New()
-	canonical, refs, err := ValidateWidget("main", []byte(timelapseJSON("machines", []uuid.UUID{first, second}, 5, 30, 60,
-		`,"style":`+styleJSON("sans", "null"))))
+	canonical, refs, err := ValidateWidget("main", []byte(timelapseJSON("machines", []uuid.UUID{first, second}, 5, 30, 60, "")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +34,7 @@ func TestTimelapseWidgetValidation(t *testing.T) {
 		t.Fatalf("refs = %#v", refs)
 	}
 	for _, field := range []string{`"source":"machines"`, `"count":5`, `"maxAgeDays":30`, `"maxSeconds":60`, `"transition":"fade"`,
-		`"showCaption":true`, `"fit":"cover"`, `"style":{`} {
+		`"showCaption":true`, `"fit":"cover"`} {
 		if !strings.Contains(string(canonical), field) {
 			t.Fatalf("canonical %s lacks %s", canonical, field)
 		}
@@ -68,7 +67,7 @@ func TestTimelapseWidgetValidation(t *testing.T) {
 		"bad transition":        strings.Replace(valid, `"fade"`, `"slide"`, 1),
 		"bad fit":               strings.Replace(valid, `"cover"`, `"stretch"`, 1),
 		"unknown field":         strings.Replace(valid, `"fit":"cover"`, `"fit":"cover","jobName":"x"`, 1),
-		"bad style":             timelapseJSON("machines", []uuid.UUID{first}, 5, 30, 60, `,"style":{}`),
+		"widget style":          timelapseJSON("machines", []uuid.UUID{first}, 5, 30, 60, `,"style":{}`),
 	}
 	for name, raw := range bad {
 		t.Run(name, func(t *testing.T) {
@@ -82,9 +81,7 @@ func TestTimelapseWidgetValidation(t *testing.T) {
 // Timelapse machines are checked to exist but never join the live machine list or the cameras.
 func TestTimelapseMachinesStayOutOfLiveMachines(t *testing.T) {
 	machine := ids.New()
-	manifest := Manifest{Scenes: []ManifestScene{{Zones: map[string]json.RawMessage{
-		"main": json.RawMessage(timelapseJSON("machines", []uuid.UUID{machine}, 3, 7, 30, "")),
-	}}}}
+	manifest := manifestWith(timelapseJSON("machines", []uuid.UUID{machine}, 3, 7, 30, ""))
 	if got := ManifestMachineIDs(manifest); len(got) != 0 {
 		t.Fatalf("live machines = %v", got)
 	}
@@ -95,25 +92,20 @@ func TestTimelapseMachinesStayOutOfLiveMachines(t *testing.T) {
 
 func TestTimelapseNeedsMergeByMachinesAndAge(t *testing.T) {
 	first, second := ids.New(), ids.New()
-	zones := func(widgets ...string) map[string]json.RawMessage {
-		result := map[string]json.RawMessage{}
-		for index, widget := range widgets {
-			result[string(rune('a'+index))] = json.RawMessage(widget)
-		}
-		return result
-	}
-	manifest := Manifest{Scenes: []ManifestScene{
-		{Zones: zones(
-			timelapseJSON("machines", []uuid.UUID{first, second}, 2, 30, 60, ""),
-			timelapseJSON("machines", []uuid.UUID{second, first}, 5, 30, 60, ""),
-			timelapseJSON("machines", []uuid.UUID{first}, 4, 30, 60, ""),
-		)},
-		{Zones: zones(
-			timelapseJSON("all", nil, 3, 0, 60, ""),
-			timelapseJSON("all", nil, 3, 7, 60, ""),
-			`{"type":"clock","mode":"time"}`,
-		)},
-	}}
+	manifest := manifestWith(
+		timelapseJSON("machines", []uuid.UUID{first, second}, 2, 30, 60, ""),
+		timelapseJSON("machines", []uuid.UUID{second, first}, 5, 30, 60, ""),
+		timelapseJSON("machines", []uuid.UUID{first}, 4, 30, 60, ""),
+	)
+	manifest.Scenes = append(manifest.Scenes, manifestWith(
+		timelapseJSON("all", nil, 3, 0, 60, ""),
+		timelapseJSON("all", nil, 3, 7, 60, ""),
+		`{"type":"clock","mode":"time"}`,
+	).Scenes...)
+	// A hidden block is not shown, so its clips are not needed.
+	hidden := manifestWith(timelapseJSON("all", nil, 9, 1, 60, ""))
+	hidden.Scenes[0].Blocks[0].Hidden = true
+	manifest.Scenes = append(manifest.Scenes, hidden.Scenes...)
 	needs, present := timelapseNeedsOf(manifest)
 	if !present || len(needs) != 4 {
 		t.Fatalf("needs = %#v present=%v", needs, present)
@@ -127,7 +119,7 @@ func TestTimelapseNeedsMergeByMachinesAndAge(t *testing.T) {
 	if counts[2] != 5 {
 		t.Fatalf("the same machines and age must share the largest count: %#v", needs)
 	}
-	if _, present := timelapseNeedsOf(Manifest{Scenes: []ManifestScene{{Zones: zones(`{"type":"empty"}`)}}}); present {
+	if _, present := timelapseNeedsOf(manifestWith(`{"type":"empty"}`)); present {
 		t.Fatal("a publication without timelapse widget reports one")
 	}
 }

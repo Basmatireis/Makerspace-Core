@@ -506,7 +506,7 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 		{http.MethodGet, "/visitor-enrollment/state"}, {
 			http.MethodPost,
 			"/visitor-enrollment/context",
-		}, {http.MethodGet, "/signage/layouts"},
+		}, {http.MethodGet, "/signage/scenes"},
 	} {
 		e.expectCode(e.do(player, "", request.method, request.path, nil), http.StatusForbidden, "device_mode_denied")
 	}
@@ -1085,7 +1085,6 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	portrait, err := e.fixture.service.CreateScene(ctx, e.fixture.admin, signage.SceneInput{
 		Name:            "Portrait scene",
 		AspectRatio:     signage.AspectRatio{Width: 9, Height: 16},
-		LayoutID:        "full",
 		BackgroundColor: "#101820",
 		BackgroundFit:   "cover",
 		Theme:           "dark",
@@ -1437,7 +1436,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	// and a scene that only a default list shows counts too. An unreferenced scene may change.
 	onlyDefault := e.fixture.scene(t, "Default only")
 	e.pair(staff, "Default only display", sceneList(onlyDefault.ID))
-	onlyDefaultTurned := sceneInput(onlyDefault.Name, "full")
+	onlyDefaultTurned := sceneInput(onlyDefault.Name)
 	onlyDefaultTurned.AspectRatio = signage.AspectRatio{Width: 9, Height: 16}
 	if _, err := e.fixture.service.UpdateScene(
 		ctx, e.fixture.admin, onlyDefault.ID, onlyDefault.Version, onlyDefaultTurned, nil,
@@ -1448,7 +1447,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	turned := sceneInput(current.Name, "full")
+	turned := sceneInput(current.Name)
 	turned.AspectRatio = signage.AspectRatio{Width: 1080, Height: 1920}
 	_, err = e.fixture.service.UpdateScene(ctx, e.fixture.admin, scene.ID, current.Version, turned, nil)
 	var appErr *apperror.Error
@@ -1460,7 +1459,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	square := sceneInput(portraitNow.Name, "full")
+	square := sceneInput(portraitNow.Name)
 	square.AspectRatio = signage.AspectRatio{Width: 4, Height: 3}
 	if updated, err := e.fixture.service.UpdateScene(
 		ctx, e.fixture.admin, portrait.ID, portraitNow.Version, square, nil,
@@ -1527,15 +1526,15 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	}
 	unused := e.fixture.uploadImage(t, "unused.jpg")
 	mkScene := func(name, widget string) signage.Scene {
-		input := sceneInput(name, "full")
-		input.Zones = map[string]json.RawMessage{"main": json.RawMessage(widget)}
+		input := sceneInput(name)
+		input.Blocks = widgetBlocks(json.RawMessage(widget))
 		scene, err := svc.CreateScene(ctx, admin, input, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		return scene
 	}
-	sceneA := mkScene("Scene A", `{"type":"image","mediaId":"`+image.ID.String()+`","fit":"cover"}`)
+	sceneA := mkScene("Scene A", `{"type":"image","mediaId":"`+image.ID.String()+`","fit":"cover","dim":0}`)
 	sceneB := mkScene("Scene B", `{"type":"video","mediaId":"`+video.ID.String()+`","fit":"contain"}`)
 	sceneC := mkScene("Scene C", `{"type":"empty"}`)
 	defaults := sceneList(sceneA.ID)
@@ -1679,8 +1678,8 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	)
 
 	// Pending changes compare drafts with the latest publication by id and version.
-	input := sceneInput("Scene A renamed", "full")
-	input.Zones = map[string]json.RawMessage{"main": json.RawMessage(`{"type":"empty"}`)}
+	input := sceneInput("Scene A renamed")
+	input.Blocks = widgetBlocks(json.RawMessage(`{"type":"empty"}`))
 	if _, err = svc.UpdateScene(ctx, admin, sceneA.ID, sceneA.Version, input, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -1846,12 +1845,10 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	watched.report("printing", time.Now().UTC())
 	unwatched.report("printing", time.Now().UTC())
 
-	input := sceneInput("Status scene", "full")
-	input.Zones = map[string]json.RawMessage{
-		"main": json.RawMessage(
-			`{"type":"status","machineIds":["` + watched.machineID.String() + `"],"showProgress":true,"showRemaining":true}`,
-		),
-	}
+	input := sceneInput("Status scene")
+	input.Blocks = widgetBlocks(json.RawMessage(
+		`{"type":"status","machineIds":["` + watched.machineID.String() + `"],"showProgress":true,"showRemaining":true}`,
+	))
 	scene, err := svc.CreateScene(ctx, admin, input, nil)
 	if err != nil {
 		t.Fatal(err)

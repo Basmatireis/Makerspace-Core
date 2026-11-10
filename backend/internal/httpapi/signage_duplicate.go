@@ -47,18 +47,3 @@ func (s *Server) DuplicateSignageAnnouncementTemplate(
 	}
 	return openapi.DuplicateSignageAnnouncementTemplate201JSONResponse(signageTemplateDTO(template)), nil
 }
-
-func (s *Server) DuplicateSignageCustomLayout(
-	ctx context.Context,
-	r openapi.DuplicateSignageCustomLayoutRequestObject,
-) (openapi.DuplicateSignageCustomLayoutResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	layout, err := s.signage.DuplicateCustomLayout(ctx, p, r.CustomLayoutId, requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	return openapi.DuplicateSignageCustomLayout201JSONResponse(signageCustomLayoutDTO(layout)), nil
-}

@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -16,15 +15,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// RawWidget is the canonical JSON of one widget as stored in signage_scenes.zones.
+// RawWidget is the canonical JSON of one block's widget as stored in signage_scenes.blocks.
 type RawWidget = json.RawMessage
 
-var emptyWidget = RawWidget(`{"type":"empty"}`)
-
 const (
-	// maxZonesJSONBytes bounds the canonical widgets of one scene; rich text widgets may hold
-	// several tens of thousands of characters each.
-	maxZonesJSONBytes   = 1 << 20
 	maxSlideshowAssets  = 50
 	maxStatusMachines   = 20
 	maxWidgetTemplates  = 50
@@ -43,6 +37,7 @@ const (
 	maxTimelapseAgeDays = 365
 	minTimelapseSeconds = 5
 	maxTimelapseSeconds = 600
+	maxImageDim         = 90
 )
 
 // WidgetRefs lists the entities a set of widgets points at; the service verifies they exist.
@@ -86,38 +81,41 @@ type widgetType struct {
 
 type emptyW struct {
 	Type WidgetType `json:"type"`
-	styled
 }
-type mediaW struct {
+
+// imageW darkens the picture by Dim percent.
+type imageW struct {
 	Type    WidgetType `json:"type"`
 	MediaID *uuid.UUID `json:"mediaId"`
 	Fit     MediaFit   `json:"fit"`
-	styled
+	Dim     int        `json:"dim"`
+}
+type videoW struct {
+	Type    WidgetType `json:"type"`
+	MediaID *uuid.UUID `json:"mediaId"`
+	Fit     MediaFit   `json:"fit"`
 }
 type slideshowW struct {
 	Type     WidgetType  `json:"type"`
 	MediaIDs []uuid.UUID `json:"mediaIds"`
 	Seconds  int         `json:"seconds"`
-	styled
 }
+
+// textW takes its size and alignment from the block style; Fit shrinks the text until it fits the block.
 type textW struct {
-	Type  WidgetType `json:"type"`
-	Text  string     `json:"text"`
-	Size  TextSize   `json:"size"`
-	Align TextAlign  `json:"align"`
+	Type WidgetType `json:"type"`
+	Text string     `json:"text"`
 	richFields
-	styled
+	Fit bool `json:"fit"`
 }
 type qrW struct {
 	Type    WidgetType `json:"type"`
 	URL     string     `json:"url"`
 	Caption string     `json:"caption"`
-	styled
 }
 type clockW struct {
 	Type WidgetType `json:"type"`
 	Mode ClockMode  `json:"mode"`
-	styled
 }
 type cameraW struct {
 	Type            WidgetType     `json:"type"`
@@ -129,14 +127,14 @@ type cameraW struct {
 	Fallback        CameraFallback `json:"fallback"`
 	FallbackMediaID *uuid.UUID     `json:"fallbackMediaId"`
 	MachineIDs      []uuid.UUID    `json:"machineIds"`
-	styled
+	ShowLive        bool           `json:"showLive"`
+	ShowName        bool           `json:"showName"`
 }
 type statusW struct {
 	Type          WidgetType  `json:"type"`
 	MachineIDs    []uuid.UUID `json:"machineIds"`
 	ShowProgress  bool        `json:"showProgress"`
 	ShowRemaining bool        `json:"showRemaining"`
-	styled
 }
 
 // listW is the open days and events widget. Title nil keeps the previous heading, an empty
@@ -150,7 +148,6 @@ type listW struct {
 	// ShowCompetencies adds the planned competencies to each open day; absent keeps the previous look. Open days only.
 	ShowCompetencies bool `json:"showCompetencies,omitempty"`
 	richFields
-	styled
 }
 
 // agendaW merges open days and events by start time.
@@ -166,7 +163,6 @@ type agendaW struct {
 	// ShowCompetencies adds the planned competencies to open-day entries; absent keeps the previous look.
 	ShowCompetencies bool `json:"showCompetencies,omitempty"`
 	richFields
-	styled
 }
 
 type calendarColors struct {
@@ -189,7 +185,6 @@ type calendarW struct {
 	Title           *string        `json:"title,omitempty"`
 	// ShowCompetencies adds the planned competencies to open days in the weeks view; absent keeps the previous look.
 	ShowCompetencies bool `json:"showCompetencies,omitempty"`
-	styled
 }
 
 // timelapseW is the slideshow of recent finished prints' timelapse videos.
@@ -203,107 +198,17 @@ type timelapseW struct {
 	Transition  Transition      `json:"transition"`
 	ShowCaption bool            `json:"showCaption"`
 	Fit         MediaFit        `json:"fit"`
-	styled
 }
 
+// announcementW takes its title size from the block style's text size.
 type announcementW struct {
 	Type          WidgetType        `json:"type"`
 	TemplateIDs   []uuid.UUID       `json:"templateIds"`
 	Style         AnnouncementStyle `json:"style"`
-	Size          TextSize          `json:"size"`
 	WhenNone      WhenNone          `json:"whenNone"`
 	FallbackText  string            `json:"fallbackText"`
 	WhenMany      WhenMany          `json:"whenMany"`
 	RotateSeconds int               `json:"rotateSeconds"`
-	// BoxStyle is the zone box style. It is not called style like on the other widgets because
-	// `style` already selects the announcement presentation.
-	BoxStyle *WidgetStyle `json:"boxStyle,omitempty"`
-}
-
-func (w announcementW) styleOf() *WidgetStyle { return w.BoxStyle }
-
-// WidgetStyle is the optional style of a widget's zone box. Absent means the previous look; inside
-// the object every field is required (colours and the font asset may be null).
-type WidgetStyle struct {
-	TextColor         *string    `json:"textColor"`
-	BackgroundColor   *string    `json:"backgroundColor"`
-	BorderColor       *string    `json:"borderColor"`
-	BackgroundOpacity int        `json:"backgroundOpacity"`
-	Padding           int        `json:"padding"`
-	Radius            int        `json:"radius"`
-	BorderWidth       int        `json:"borderWidth"`
-	FontScale         int        `json:"fontScale"`
-	FontFamily        string     `json:"fontFamily"`
-	FontAssetID       *uuid.UUID `json:"fontAssetId"`
-	Align             string     `json:"align"`
-	VerticalAlign     string     `json:"verticalAlign"`
-}
-
-var (
-	styleKeys = []string{
-		"textColor", "backgroundColor", "borderColor", "backgroundOpacity", "padding", "radius", "borderWidth",
-		"fontScale", "fontFamily", "fontAssetId", "align", "verticalAlign",
-	}
-	styleNullableKeys = []string{"textColor", "backgroundColor", "borderColor", "fontAssetId"}
-	styleFontFamilies = []string{"inherit", "sans", "serif", "mono", "custom"}
-	styleAlignments   = []string{"inherit", "start", "center", "end"}
-)
-
-// UnmarshalJSON enforces what a plain struct decode cannot: no unknown fields and no missing ones.
-func (s *WidgetStyle) UnmarshalJSON(data []byte) error {
-	var generic map[string]json.RawMessage
-	if err := json.Unmarshal(data, &generic); err != nil || generic == nil {
-		return fmt.Errorf("style: must be an object")
-	}
-	for _, key := range styleKeys {
-		raw, ok := generic[key]
-		if !ok || (string(raw) == "null" && !contains(styleNullableKeys, key)) {
-			return fmt.Errorf("style: %s is required", key)
-		}
-	}
-	type plain WidgetStyle
-	var decoded plain
-	if err := strictDecode(data, &decoded); err != nil {
-		if strings.HasPrefix(err.Error(), "json: unknown field") {
-			return fmt.Errorf("style: %s", strings.TrimPrefix(err.Error(), "json: "))
-		}
-		return fmt.Errorf("style: malformed fields")
-	}
-	*s = WidgetStyle(decoded)
-	return nil
-}
-
-// styled adds the optional style to a widget; nil keeps the previous look and is not serialised.
-type styled struct {
-	Style *WidgetStyle `json:"style,omitempty"`
-}
-
-func (s styled) styleOf() *WidgetStyle { return s.Style }
-
-func validateStyle(zone string, style *WidgetStyle, refs *WidgetRefs) error {
-	for _, color := range []*string{style.TextColor, style.BackgroundColor, style.BorderColor} {
-		if color != nil && !colorPattern.MatchString(*color) {
-			return zoneError(zone, "style colours must be lowercase #rrggbb or null")
-		}
-	}
-	if style.BackgroundOpacity < 0 || style.BackgroundOpacity > 100 || style.Padding < 0 || style.Padding > 10 ||
-		style.Radius < 0 || style.Radius > 10 || style.BorderWidth < 0 || style.BorderWidth > 20 ||
-		style.FontScale < 25 || style.FontScale > 400 {
-		return zoneError(zone, "style backgroundOpacity, padding, radius, borderWidth or fontScale is out of range")
-	}
-	if !contains(styleFontFamilies, style.FontFamily) {
-		return zoneError(zone, "style fontFamily is invalid")
-	}
-	if !contains(styleAlignments, style.Align) || !contains(styleAlignments, style.VerticalAlign) {
-		return zoneError(zone, "style align or verticalAlign is invalid")
-	}
-	if (style.FontFamily == "custom") != (style.FontAssetID != nil) {
-		return zoneError(zone, "style fontAssetId is required exactly when fontFamily is custom")
-	}
-	if style.FontAssetID != nil {
-		refs.FontAssets = append(refs.FontAssets, *style.FontAssetID)
-	}
-	return nil
 }
 
 // richFields are the rich text fields of text, list and agenda widgets. An absent format is plain.
@@ -318,15 +223,15 @@ func validFormat(format RichTextFormat) bool {
 }
 
 // validate checks the rich text fields and drops duplicate or empty font lists from the canonical form.
-func (r *richFields) validate(zone string, refs *WidgetRefs) error {
+func (r *richFields) validate(block string, refs *WidgetRefs) error {
 	if !validFormat(r.Format) {
-		return zoneError(zone, "format must be plain, markdown or html")
+		return blockError(block, "format must be plain, markdown or html")
 	}
 	if !multilineText(r.CSS, maxRichCSSRunes) {
-		return zoneError(zone, "css must be text of at most %d characters", maxRichCSSRunes)
+		return blockError(block, "css must be text of at most %d characters", maxRichCSSRunes)
 	}
 	if len(r.FontAssetIDs) > maxWidgetFonts {
-		return zoneError(zone, "a widget lists at most %d fonts", maxWidgetFonts)
+		return blockError(block, "a widget lists at most %d fonts", maxWidgetFonts)
 	}
 	r.FontAssetIDs = distinct(r.FontAssetIDs)
 	if len(r.FontAssetIDs) == 0 {
@@ -357,8 +262,12 @@ func validHeading(title *string) bool {
 	return title == nil || plainText(*title, maxListTitleRunes, false)
 }
 
-func zoneError(zone, format string, args ...any) error {
-	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", fmt.Sprintf("zone %q: %s", zone, fmt.Sprintf(format, args...)))
+func blockError(block, format string, args ...any) error {
+	return apperror.New(
+		http.StatusUnprocessableEntity,
+		"validation_failed",
+		fmt.Sprintf("block %q: %s", block, fmt.Sprintf(format, args...)),
+	)
 }
 
 func inSet[T comparable](value T, allowed ...T) bool {
@@ -399,21 +308,21 @@ func strictDecode(raw []byte, target any) error {
 	return nil
 }
 
-// ValidateWidget strictly decodes one widget and returns its canonical JSON and references.
-func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, error) {
+// ValidateWidget strictly decodes the widget of one block and returns its canonical JSON and references.
+func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, error) {
 	var head widgetType
 	var generic map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &generic); err != nil || generic == nil {
-		return nil, WidgetRefs{}, zoneError(zone, "widget must be an object")
+		return nil, WidgetRefs{}, blockError(block, "widget must be an object")
 	}
 	if err := json.Unmarshal(generic["type"], &head.Type); err != nil {
-		return nil, WidgetRefs{}, zoneError(zone, "widget type is required")
+		return nil, WidgetRefs{}, blockError(block, "widget type is required")
 	}
 	var refs WidgetRefs
 	var value any
 	decode := func(target any) error {
 		if err := strictDecode(raw, target); err != nil {
-			return zoneError(zone, "invalid %s widget: %s", head.Type, decodeMessage(err))
+			return blockError(block, "invalid %s widget: %s", head.Type, decodeMessage(err))
 		}
 		value = target
 		return nil
@@ -424,20 +333,27 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		if err := decode(&w); err != nil {
 			return nil, refs, err
 		}
-	case WidgetImage, WidgetVideo:
-		var w mediaW
+	case WidgetImage:
+		var w imageW
+		if err := decode(&w); err != nil {
+			return nil, refs, err
+		}
+		if !inSet(w.Fit, MediaFitContain, MediaFitCover) || w.Dim < 0 || w.Dim > maxImageDim {
+			return nil, refs, blockError(block, "fit must be contain or cover and dim between 0 and %d", maxImageDim)
+		}
+		if w.MediaID != nil {
+			refs.ImageAssets = append(refs.ImageAssets, *w.MediaID)
+		}
+	case WidgetVideo:
+		var w videoW
 		if err := decode(&w); err != nil {
 			return nil, refs, err
 		}
 		if !inSet(w.Fit, MediaFitContain, MediaFitCover) {
-			return nil, refs, zoneError(zone, "fit must be contain or cover")
+			return nil, refs, blockError(block, "fit must be contain or cover")
 		}
 		if w.MediaID != nil {
-			if head.Type == WidgetImage {
-				refs.ImageAssets = append(refs.ImageAssets, *w.MediaID)
-			} else {
-				refs.VideoAssets = append(refs.VideoAssets, *w.MediaID)
-			}
+			refs.VideoAssets = append(refs.VideoAssets, *w.MediaID)
 		}
 	case WidgetSlideshow:
 		var w slideshowW
@@ -448,10 +364,10 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			w.MediaIDs = []uuid.UUID{}
 		}
 		if len(w.MediaIDs) > maxSlideshowAssets {
-			return nil, refs, zoneError(zone, "a slideshow holds at most %d images", maxSlideshowAssets)
+			return nil, refs, blockError(block, "a slideshow holds at most %d images", maxSlideshowAssets)
 		}
 		if w.Seconds < 3 || w.Seconds > 3600 {
-			return nil, refs, zoneError(zone, "slideshow seconds must be between 3 and 3600")
+			return nil, refs, blockError(block, "slideshow seconds must be between 3 and 3600")
 		}
 		refs.ImageAssets = append(refs.ImageAssets, w.MediaIDs...)
 		value = &w
@@ -461,12 +377,9 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			return nil, refs, err
 		}
 		if !multilineText(w.Text, maxTextWidgetRunes) {
-			return nil, refs, zoneError(zone, "text must be text of at most %d characters", maxTextWidgetRunes)
+			return nil, refs, blockError(block, "text must be text of at most %d characters", maxTextWidgetRunes)
 		}
-		if !inSet(w.Size, TextSizeS, TextSizeM, TextSizeL, TextSizeXL) || !inSet(w.Align, TextAlignStart, TextAlignCenter, TextAlignEnd) {
-			return nil, refs, zoneError(zone, "text size or alignment is invalid")
-		}
-		if err := w.validate(zone, &refs); err != nil {
+		if err := w.validate(block, &refs); err != nil {
 			return nil, refs, err
 		}
 		value = &w
@@ -476,11 +389,11 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			return nil, refs, err
 		}
 		if err := validateHTTPSURL(w.URL); err != nil {
-			return nil, refs, zoneError(zone, "%s", err.Error())
+			return nil, refs, blockError(block, "%s", err.Error())
 		}
 		if !plainText(w.Caption, maxCaptionRunes, false) {
-			return nil, refs, zoneError(
-				zone,
+			return nil, refs, blockError(
+				block,
 				"QR caption must be single-line plain text of at most %d characters",
 				maxCaptionRunes,
 			)
@@ -491,7 +404,7 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			return nil, refs, err
 		}
 		if !inSet(w.Mode, ClockTime, ClockDateTime, ClockDate) {
-			return nil, refs, zoneError(zone, "clock mode must be time, datetime or date")
+			return nil, refs, blockError(block, "clock mode must be time, datetime or date")
 		}
 	case WidgetCamera:
 		var w cameraW
@@ -500,19 +413,19 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		}
 		if !inSet(w.Source, CameraSourceMachine, CameraSourceAuto) || !inSet(w.Multi, MultiModeSplit, MultiModeAlternate) ||
 			!inSet(w.Fallback, CameraFallbackImage, CameraFallbackText, CameraFallbackHide) {
-			return nil, refs, zoneError(zone, "camera source, multi mode or fallback is invalid")
+			return nil, refs, blockError(block, "camera source, multi mode or fallback is invalid")
 		}
 		if w.Source == CameraSourceMachine && w.MachineID == nil {
-			return nil, refs, zoneError(zone, "a camera bound to a machine needs machineId")
+			return nil, refs, blockError(block, "a camera bound to a machine needs machineId")
 		}
 		if w.MachineIDs == nil {
 			w.MachineIDs = []uuid.UUID{}
 		}
 		if len(w.MachineIDs) > maxStatusMachines {
-			return nil, refs, zoneError(zone, "a camera widget lists at most %d machines", maxStatusMachines)
+			return nil, refs, blockError(block, "a camera widget lists at most %d machines", maxStatusMachines)
 		}
 		if len(distinct(w.MachineIDs)) != len(w.MachineIDs) {
-			return nil, refs, zoneError(zone, "camera machines must be distinct")
+			return nil, refs, blockError(block, "camera machines must be distinct")
 		}
 		if w.Source == CameraSourceAuto {
 			w.MachineID = nil
@@ -539,7 +452,7 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			w.MachineIDs = []uuid.UUID{}
 		}
 		if len(w.MachineIDs) > maxStatusMachines {
-			return nil, refs, zoneError(zone, "a status widget lists at most %d machines", maxStatusMachines)
+			return nil, refs, blockError(block, "a status widget lists at most %d machines", maxStatusMachines)
 		}
 		w.MachineIDs = distinct(w.MachineIDs)
 		refs.Machines = append(refs.Machines, w.MachineIDs...)
@@ -550,16 +463,16 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			return nil, refs, err
 		}
 		if w.Count < 1 || w.Count > maxListEntries {
-			return nil, refs, zoneError(zone, "count must be between 1 and %d", maxListEntries)
+			return nil, refs, blockError(block, "count must be between 1 and %d", maxListEntries)
 		}
 		if w.Type == WidgetEvents && w.ShowCompetencies {
-			return nil, refs, zoneError(zone, "only open-day widgets show competencies")
+			return nil, refs, blockError(block, "only open-day widgets show competencies")
 		}
 		if !validHeading(w.Title) || !multilineText(w.EmptyText, maxListEmptyRunes) ||
 			!multilineText(w.EntryTemplate, maxEntryTemplateRun) {
-			return nil, refs, zoneError(zone, "title, emptyText or entryTemplate is too long or not text")
+			return nil, refs, blockError(block, "title, emptyText or entryTemplate is too long or not text")
 		}
-		if err := w.validate(zone, &refs); err != nil {
+		if err := w.validate(block, &refs); err != nil {
 			return nil, refs, err
 		}
 		value = &w
@@ -569,13 +482,13 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			return nil, refs, err
 		}
 		if w.Count < 1 || w.Count > maxListEntries {
-			return nil, refs, zoneError(zone, "count must be between 1 and %d", maxListEntries)
+			return nil, refs, blockError(block, "count must be between 1 and %d", maxListEntries)
 		}
 		if !validHeading(w.Title) || !multilineText(w.EmptyText, maxListEmptyRunes) ||
 			!multilineText(w.OpenDayTemplate, maxEntryTemplateRun) || !multilineText(w.EventTemplate, maxEntryTemplateRun) {
-			return nil, refs, zoneError(zone, "title, emptyText or a template is too long or not text")
+			return nil, refs, blockError(block, "title, emptyText or a template is too long or not text")
 		}
-		if err := w.validate(zone, &refs); err != nil {
+		if err := w.validate(block, &refs); err != nil {
 			return nil, refs, err
 		}
 		value = &w
@@ -585,15 +498,15 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			return nil, refs, err
 		}
 		if !inSet(w.View, "month", "weeks") || w.Weeks < 1 || w.Weeks > maxCalendarWeeks {
-			return nil, refs, zoneError(zone, "calendar view must be month or weeks and weeks between 1 and %d", maxCalendarWeeks)
+			return nil, refs, blockError(block, "calendar view must be month or weeks and weeks between 1 and %d", maxCalendarWeeks)
 		}
 		for _, color := range []string{w.Colors.Holiday, w.Colors.Break, w.Colors.OpenDay, w.Colors.Event} {
 			if !colorPattern.MatchString(color) {
-				return nil, refs, zoneError(zone, "calendar colours must be lowercase #rrggbb")
+				return nil, refs, blockError(block, "calendar colours must be lowercase #rrggbb")
 			}
 		}
 		if !validHeading(w.Title) {
-			return nil, refs, zoneError(zone, "calendar title is limited to %d characters of single-line text", maxListTitleRunes)
+			return nil, refs, blockError(block, "calendar title is limited to %d characters of single-line text", maxListTitleRunes)
 		}
 	case WidgetTimelapse:
 		var w timelapseW
@@ -601,32 +514,32 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			return nil, refs, err
 		}
 		if !inSet(w.Source, TimelapseSourceAll, TimelapseSourceMachines) {
-			return nil, refs, zoneError(zone, "timelapse source must be all or machines")
+			return nil, refs, blockError(block, "timelapse source must be all or machines")
 		}
 		if w.MachineIDs == nil {
 			w.MachineIDs = []uuid.UUID{}
 		}
 		switch {
 		case w.Source == TimelapseSourceAll && len(w.MachineIDs) > 0:
-			return nil, refs, zoneError(zone, "a timelapse widget showing all machines lists no machines")
+			return nil, refs, blockError(block, "a timelapse widget showing all machines lists no machines")
 		case w.Source == TimelapseSourceMachines && len(w.MachineIDs) == 0:
-			return nil, refs, zoneError(zone, "a timelapse widget for chosen machines needs machineIds")
+			return nil, refs, blockError(block, "a timelapse widget for chosen machines needs machineIds")
 		case len(w.MachineIDs) > maxStatusMachines:
-			return nil, refs, zoneError(zone, "a timelapse widget lists at most %d machines", maxStatusMachines)
+			return nil, refs, blockError(block, "a timelapse widget lists at most %d machines", maxStatusMachines)
 		case len(distinct(w.MachineIDs)) != len(w.MachineIDs):
-			return nil, refs, zoneError(zone, "timelapse machines must be distinct")
+			return nil, refs, blockError(block, "timelapse machines must be distinct")
 		}
 		if w.Count < 1 || w.Count > maxTimelapseCount {
-			return nil, refs, zoneError(zone, "count must be between 1 and %d", maxTimelapseCount)
+			return nil, refs, blockError(block, "count must be between 1 and %d", maxTimelapseCount)
 		}
 		if w.MaxAgeDays < 0 || w.MaxAgeDays > maxTimelapseAgeDays {
-			return nil, refs, zoneError(zone, "maxAgeDays must be between 0 and %d", maxTimelapseAgeDays)
+			return nil, refs, blockError(block, "maxAgeDays must be between 0 and %d", maxTimelapseAgeDays)
 		}
 		if w.MaxSeconds < minTimelapseSeconds || w.MaxSeconds > maxTimelapseSeconds {
-			return nil, refs, zoneError(zone, "maxSeconds must be between %d and %d", minTimelapseSeconds, maxTimelapseSeconds)
+			return nil, refs, blockError(block, "maxSeconds must be between %d and %d", minTimelapseSeconds, maxTimelapseSeconds)
 		}
 		if !inSet(w.Transition, TransitionCut, TransitionFade) || !inSet(w.Fit, MediaFitContain, MediaFitCover) {
-			return nil, refs, zoneError(zone, "transition must be cut or fade and fit contain or cover")
+			return nil, refs, blockError(block, "transition must be cut or fade and fit contain or cover")
 		}
 		// Only checked to exist: the clips never add machines to the live machine list.
 		refs.Machines = append(refs.Machines, w.MachineIDs...)
@@ -640,34 +553,28 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 			w.TemplateIDs = []uuid.UUID{}
 		}
 		if len(w.TemplateIDs) > maxWidgetTemplates {
-			return nil, refs, zoneError(zone, "an announcement widget filters at most %d templates", maxWidgetTemplates)
+			return nil, refs, blockError(block, "an announcement widget filters at most %d templates", maxWidgetTemplates)
 		}
 		w.TemplateIDs = distinct(w.TemplateIDs)
 		if !inSet(w.Style, AnnouncementStyleBanner, AnnouncementStyleCard, AnnouncementStyleFull) ||
-			!inSet(w.Size, TextSizeS, TextSizeM, TextSizeL, TextSizeXL) ||
 			!inSet(w.WhenNone, WhenNoneEmpty, WhenNoneText) ||
 			!inSet(w.WhenMany, WhenManyRotate, WhenManyNewest, WhenManyStack) {
-			return nil, refs, zoneError(zone, "announcement style, size, whenNone or whenMany is invalid")
+			return nil, refs, blockError(block, "announcement style, whenNone or whenMany is invalid")
 		}
 		if !plainText(w.FallbackText, maxFallbackTextRune, true) {
-			return nil, refs, zoneError(
-				zone,
+			return nil, refs, blockError(
+				block,
 				"fallback text must be plain text of at most %d characters",
 				maxFallbackTextRune,
 			)
 		}
 		if w.RotateSeconds < 3 || w.RotateSeconds > 300 {
-			return nil, refs, zoneError(zone, "rotateSeconds must be between 3 and 300")
+			return nil, refs, blockError(block, "rotateSeconds must be between 3 and 300")
 		}
 		refs.Templates = append(refs.Templates, w.TemplateIDs...)
 		value = &w
 	default:
-		return nil, refs, zoneError(zone, "unknown widget type")
-	}
-	if holder, ok := value.(interface{ styleOf() *WidgetStyle }); ok && holder.styleOf() != nil {
-		if err := validateStyle(zone, holder.styleOf(), &refs); err != nil {
-			return nil, refs, err
-		}
+		return nil, refs, blockError(block, "unknown widget type")
 	}
 	canonical, err := json.Marshal(value)
 	if err != nil {
@@ -681,9 +588,6 @@ func decodeMessage(err error) string {
 	if strings.HasPrefix(message, "json: unknown field") {
 		return strings.TrimPrefix(message, "json: ")
 	}
-	if strings.HasPrefix(message, "style: ") {
-		return message
-	}
 	return "malformed fields"
 }
 
@@ -696,55 +600,4 @@ func validateHTTPSURL(raw string) error {
 		return fmt.Errorf("QR code URL must be an https:// URL without credentials")
 	}
 	return nil
-}
-
-// ParseZones validates a scene's zone map against its layout. Zone ids outside the layout are
-// rejected; layout zones that are missing become empty widgets. The result holds canonical JSON.
-func ParseZones(layout Layout, raw map[string]json.RawMessage) (map[string]RawWidget, WidgetRefs, error) {
-	known := make(map[string]struct{}, len(layout.Zones))
-	for _, zone := range layout.Zones {
-		known[zone.ID] = struct{}{}
-	}
-	keys := make([]string, 0, len(raw))
-	for key := range raw {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		if _, ok := known[key]; !ok {
-			return nil, WidgetRefs{}, apperror.New(
-				http.StatusUnprocessableEntity,
-				"validation_failed",
-				fmt.Sprintf("zone %q does not belong to layout %q", key, layout.ID),
-			)
-		}
-	}
-	result := make(map[string]RawWidget, len(layout.Zones))
-	var refs WidgetRefs
-	total := 0
-	for _, zone := range layout.Zones {
-		widgetRaw, ok := raw[zone.ID]
-		if !ok {
-			result[zone.ID] = emptyWidget
-			continue
-		}
-		canonical, widgetRefs, err := ValidateWidget(zone.ID, widgetRaw)
-		if err != nil {
-			return nil, WidgetRefs{}, err
-		}
-		total += len(canonical)
-		result[zone.ID] = canonical
-		refs.merge(widgetRefs)
-	}
-	if total > maxZonesJSONBytes {
-		return nil, WidgetRefs{}, apperror.New(http.StatusUnprocessableEntity, "validation_failed", "scene zones are too large")
-	}
-	refs.ImageAssets, refs.VideoAssets = distinct(refs.ImageAssets), distinct(refs.VideoAssets)
-	refs.FontAssets = distinct(refs.FontAssets)
-	refs.Machines, refs.Templates = distinct(refs.Machines), distinct(refs.Templates)
-	return result, refs, nil
-}
-
-func marshalZones(zones map[string]RawWidget) ([]byte, error) {
-	return json.Marshal(zones)
 }

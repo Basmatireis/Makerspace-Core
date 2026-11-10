@@ -57,52 +57,50 @@ type timelapseNeed struct {
 // only in count share one need with the largest count. present reports any timelapse widget at all.
 func timelapseNeedsOf(manifest Manifest) (needs []timelapseNeed, present bool) {
 	byKey := map[string]int{}
-	for _, scene := range manifest.Scenes {
-		for _, raw := range scene.Zones {
-			var widget struct {
-				Type       WidgetType      `json:"type"`
-				Source     TimelapseSource `json:"source"`
-				MachineIDs []uuid.UUID     `json:"machineIds"`
-				Count      int             `json:"count"`
-				MaxAgeDays int             `json:"maxAgeDays"`
-			}
-			if json.Unmarshal(raw, &widget) != nil || widget.Type != WidgetTimelapse {
-				continue
-			}
-			present = true
-			need := timelapseNeed{
-				all:        widget.Source == TimelapseSourceAll,
-				maxAgeDays: min(max(widget.MaxAgeDays, 0), maxTimelapseAgeDays),
-				count:      min(max(widget.Count, 0), maxTimelapseCount),
-			}
-			if !need.all {
-				set := map[uuid.UUID]struct{}{}
-				for _, id := range widget.MachineIDs {
-					set[id] = struct{}{}
-				}
-				need.machines = sortedIDs(set)
-				if len(need.machines) == 0 {
-					continue
-				}
-			}
-			if need.count == 0 {
-				continue
-			}
-			var key bytes.Buffer
-			if need.all {
-				key.WriteString("all")
-			}
-			for _, id := range need.machines {
-				key.Write(id[:])
-			}
-			key.WriteString("/" + strconv.Itoa(need.maxAgeDays))
-			if index, seen := byKey[key.String()]; seen {
-				needs[index].count = max(needs[index].count, need.count)
-				continue
-			}
-			byKey[key.String()] = len(needs)
-			needs = append(needs, need)
+	for _, raw := range manifestWidgets(manifest) {
+		var widget struct {
+			Type       WidgetType      `json:"type"`
+			Source     TimelapseSource `json:"source"`
+			MachineIDs []uuid.UUID     `json:"machineIds"`
+			Count      int             `json:"count"`
+			MaxAgeDays int             `json:"maxAgeDays"`
 		}
+		if json.Unmarshal(raw, &widget) != nil || widget.Type != WidgetTimelapse {
+			continue
+		}
+		present = true
+		need := timelapseNeed{
+			all:        widget.Source == TimelapseSourceAll,
+			maxAgeDays: min(max(widget.MaxAgeDays, 0), maxTimelapseAgeDays),
+			count:      min(max(widget.Count, 0), maxTimelapseCount),
+		}
+		if !need.all {
+			set := map[uuid.UUID]struct{}{}
+			for _, id := range widget.MachineIDs {
+				set[id] = struct{}{}
+			}
+			need.machines = sortedIDs(set)
+			if len(need.machines) == 0 {
+				continue
+			}
+		}
+		if need.count == 0 {
+			continue
+		}
+		var key bytes.Buffer
+		if need.all {
+			key.WriteString("all")
+		}
+		for _, id := range need.machines {
+			key.Write(id[:])
+		}
+		key.WriteString("/" + strconv.Itoa(need.maxAgeDays))
+		if index, seen := byKey[key.String()]; seen {
+			needs[index].count = max(needs[index].count, need.count)
+			continue
+		}
+		byKey[key.String()] = len(needs)
+		needs = append(needs, need)
 	}
 	return needs, present
 }

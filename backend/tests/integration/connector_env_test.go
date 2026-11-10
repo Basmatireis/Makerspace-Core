@@ -199,6 +199,7 @@ func (g *connectorEnv) bearer(token, method, path string, body any) *http.Respon
 
 func cameraWidget(machine uuid.UUID) json.RawMessage {
 	return json.RawMessage(
-		`{"type":"camera","source":"machine","machineId":"` + machine.String() + `","multi":"split","showProgress":false,"showRemaining":false,"fallback":"text","fallbackMediaId":null}`,
+		`{"type":"camera","source":"machine","machineId":"` + machine.String() + `","multi":"split","showProgress":false,"showRemaining":false,"fallback":"text","fallbackMediaId":null,` +
+			`"showLive":true,"showName":true}`,
 	)
 }

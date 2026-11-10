@@ -2,6 +2,7 @@ package signage
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -9,7 +10,7 @@ import (
 )
 
 // A publication made before custom layouts has no customLayouts and no customLayoutId. It must still
-// decode, and diffing it against a current manifest must not report layouts or crash.
+// decode into blocks, and diffing it against itself must not report changes or crash.
 func TestOldPublicationStillDecodesAndDiffs(t *testing.T) {
 	const old = `{"revision":3,"display":{"orientation":"landscape","resolution":{"width":1920,"height":1080},"visibleFromOutside":false},
 		"defaultPlaylistId":"01a163eb-b404-77e3-a447-7ad9b8535d7a","rules":[],"playlists":[],"assets":[],"layoutsVersion":1,
@@ -20,14 +21,15 @@ func TestOldPublicationStillDecodesAndDiffs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if published.CustomLayouts != nil || published.Scenes[0].CustomLayoutID != nil || published.LayoutsVersion != 1 {
+	blocks := published.Scenes[0].Blocks
+	if published.ManifestVersion != ManifestVersion || len(blocks) != 1 || blocks[0].ID != "main" ||
+		blocks[0].W != 1920 || blocks[0].H != 1080 || string(blocks[0].Widget) != `{"count":3,"type":"events"}` {
 		t.Fatalf("old manifest = %#v", published)
 	}
 	if _, err := sceneAssetIDs(published.Scenes[0]); err != nil {
 		t.Fatalf("old scene no longer validates: %v", err)
 	}
 	draft := published
-	draft.CustomLayouts, draft.LayoutsVersion = []ManifestCustomLayout{}, LayoutsVersion
 	if changes := diffManifests(published, draft); len(changes) != 0 {
 		t.Fatalf("an unchanged draft reports changes: %v", changes)
 	}
@@ -152,14 +154,14 @@ func TestUpgradeManifestTurnsPlaylistsIntoSceneLists(t *testing.T) {
 			t.Fatalf("upgraded manifest still carries %s: %s", gone, encoded)
 		}
 	}
-	// Upgrading is idempotent: the stored shape of version 3 passes through unchanged.
+	// Upgrading is idempotent: the current shape passes through unchanged.
 	again, err := upgradeManifest(encoded)
 	if err != nil {
 		t.Fatal(err)
 	}
 	reencoded, _ := json.Marshal(again)
 	if string(reencoded) != string(encoded) {
-		t.Fatalf("a version 3 manifest changed on upgrade:\n%s\n%s", encoded, reencoded)
+		t.Fatalf("a current manifest changed on upgrade:\n%s\n%s", encoded, reencoded)
 	}
 }
 
@@ -182,8 +184,8 @@ func TestUpgradeManifestFallsBackToBlankScene(t *testing.T) {
 	}
 	blank := manifest.Scenes[1]
 	if blank.ID.String() != "00000000-0000-7000-8000-000000000001" || blank.Name != "Blank" || blank.AspectRatio != portrait ||
-		blank.LayoutID != "full" || blank.BackgroundColor != "#000000" || blank.Theme != ThemeDark || blank.Version != 1 ||
-		len(blank.Zones) != 1 || string(blank.Zones["main"]) != `{"type":"empty"}` {
+		blank.BackgroundColor != "#000000" || blank.Theme != ThemeDark || blank.Version != 1 || len(blank.Blocks) != 1 ||
+		string(blank.Blocks[0].Widget) != `{"type":"empty"}` || blank.Blocks[0].W != 1080 || blank.Blocks[0].H != 1920 {
 		t.Fatalf("blank scene = %#v", blank)
 	}
 	if _, err := sceneAssetIDs(blank); err != nil {
@@ -193,4 +195,119 @@ func TestUpgradeManifestFallsBackToBlankScene(t *testing.T) {
 	if !sceneListsEqual(manifest.DefaultScenes, want) || len(manifest.Rules) != 0 {
 		t.Fatalf("default = %#v rules = %#v", manifest.DefaultScenes, manifest.Rules)
 	}
+}
+
+// A version 3 publication carries layouts with zones and the custom layouts it uses. Reading it gives every scene
+// the blocks that migration 00129 gave the stored scenes: built-in grids, custom grids and free layouts, and a
+// missing custom layout renders as full.
+func TestUpgradeVersion3ManifestConvertsLayoutsToBlocks(t *testing.T) {
+	const raw = `{"manifestVersion":3,"revision":7,"display":{"aspectRatio":{"width":16,"height":9},"visibleFromOutside":false},
+		"rules":[],"defaultScenes":[{"sceneId":"01a163eb-b3fd-74c6-9fa2-4aeb568c1201","seconds":10,"transition":"cut"}],
+		"assets":[],"layoutsVersion":2,
+		"customLayouts":[
+			{"id":"01a163eb-b404-77e3-a447-7ad9b8535e01","name":"Grid","mode":"grid","columns":[1,3],"rows":[2,1],"version":4,
+			 "zones":[{"id":"wide","label":"Wide","grid":{"col":1,"row":1,"colSpan":2,"rowSpan":1},"rect":null},
+			          {"id":"low","label":"Low","grid":{"col":2,"row":2,"colSpan":1,"rowSpan":1},"rect":null}]},
+			{"id":"01a163eb-b404-77e3-a447-7ad9b8535e02","name":"Free","mode":"free","columns":[1],"rows":[1],"version":1,
+			 "zones":[{"id":"back","label":"Back","grid":null,"rect":{"x":0,"y":0,"width":100,"height":100}},
+			          {"id":"badge","label":"Badge","grid":null,"rect":{"x":12.5,"y":33.33,"width":25,"height":10.01}}]}],
+		"scenes":[
+			{"id":"01a163eb-b3fd-74c6-9fa2-4aeb568c1201","name":"Split","aspectRatio":{"width":16,"height":9},"layoutId":"split",
+			 "customLayoutId":null,"backgroundColor":"#101820","backgroundAssetId":null,"backgroundFit":"cover","backgroundDim":0,
+			 "theme":"dark","fontFamily":"sans","fontAssetId":null,"version":3,
+			 "zones":{"left":{"type":"text","text":"Hi","size":"l","align":"end"},
+			          "right":{"type":"clock","mode":"time","style":{"textColor":"#ffffff","backgroundColor":"#000000","borderColor":null,
+			            "backgroundOpacity":50,"padding":3,"radius":1,"borderWidth":5,"fontScale":150,"fontFamily":"serif",
+			            "fontAssetId":null,"align":"start","verticalAlign":"end"}}}},
+			{"id":"01a163eb-b3fd-74c6-9fa2-4aeb568c1202","name":"Grid","aspectRatio":{"width":9,"height":16},"layoutId":"custom",
+			 "customLayoutId":"01a163eb-b404-77e3-a447-7ad9b8535e01","backgroundColor":"#101820","backgroundAssetId":null,
+			 "backgroundFit":"cover","backgroundDim":0,"theme":"light","fontFamily":"sans","fontAssetId":null,"version":1,
+			 "zones":{"wide":{"type":"image","mediaId":null,"fit":"cover"}}},
+			{"id":"01a163eb-b3fd-74c6-9fa2-4aeb568c1203","name":"Free","aspectRatio":{"width":21,"height":9},"layoutId":"custom",
+			 "customLayoutId":"01a163eb-b404-77e3-a447-7ad9b8535e02","backgroundColor":"#101820","backgroundAssetId":null,
+			 "backgroundFit":"cover","backgroundDim":0,"theme":"dark","fontFamily":"sans","fontAssetId":null,"version":2,
+			 "zones":{"badge":{"type":"camera","source":"auto","machineId":null,"multi":"split","showProgress":true,
+			   "showRemaining":false,"fallback":"hide","fallbackMediaId":null}}},
+			{"id":"01a163eb-b3fd-74c6-9fa2-4aeb568c1204","name":"Lost","aspectRatio":{"width":16,"height":9},"layoutId":"custom",
+			 "customLayoutId":"01a163eb-b404-77e3-a447-7ad9b8535eff","backgroundColor":"#101820","backgroundAssetId":null,
+			 "backgroundFit":"cover","backgroundDim":0,"theme":"dark","fontFamily":"sans","fontAssetId":null,"version":1,
+			 "zones":{"main":{"type":"empty"}}}]}`
+	manifest, err := upgradeManifest([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.ManifestVersion != ManifestVersion || manifest.Revision != 7 || len(manifest.Scenes) != 4 {
+		t.Fatalf("manifest = %#v", manifest)
+	}
+	type box struct {
+		id         string
+		x, y, w, h int
+	}
+	boxes := func(blocks []Block) []box {
+		result := make([]box, 0, len(blocks))
+		for _, block := range blocks {
+			result = append(result, box{block.ID, block.X, block.Y, block.W, block.H})
+		}
+		return result
+	}
+	want := [][]box{
+		{{"left", 0, 0, 960, 1080}, {"right", 960, 0, 960, 1080}},
+		// 1080 × 1920: columns 1fr 3fr at 0 | 270 | 1080, rows 2fr 1fr at 0 | 1280 | 1920.
+		{{"wide", 0, 0, 1080, 1280}, {"low", 270, 1280, 810, 640}},
+		// 2520 × 1080: 12.5 % = 315, 37.5 % = 945; 33.33 % = 359.964, 43.34 % = 468.072.
+		{{"back", 0, 0, 2520, 1080}, {"badge", 315, 360, 630, 108}},
+		{{"main", 0, 0, 1920, 1080}},
+	}
+	for index, scene := range manifest.Scenes {
+		if got := boxes(scene.Blocks); !reflect.DeepEqual(got, want[index]) {
+			t.Errorf("scene %s blocks = %v, want %v", scene.Name, got, want[index])
+		}
+		if _, _, err := ParseBlocks(mustMarshal(t, scene.Blocks)); err != nil {
+			t.Errorf("scene %s blocks do not validate: %v", scene.Name, err)
+		}
+	}
+	text, clock := manifest.Scenes[0].Blocks[0], manifest.Scenes[0].Blocks[1]
+	if string(text.Widget) != `{"fit":false,"text":"Hi","type":"text"}` || text.Style.TextSize != 76 ||
+		text.Style.Align != BlockAlignEnd || text.Style.VerticalAlign != BlockAlignCenter || text.Style.Padding != 22 ||
+		text.Style.FontWeight != FontWeight600 || text.Style.LineHeight != 115 {
+		t.Errorf("text block = %s %#v", text.Widget, text.Style)
+	}
+	if clock.Style.TextSize != 48 || clock.Style.Padding != 32 || clock.Style.Radius != 11 || clock.Style.BorderWidth != 5 ||
+		clock.Style.Align != BlockAlignCenter || clock.Style.VerticalAlign != BlockAlignEnd ||
+		clock.Style.FontFamily != BlockFontSerif || clock.Style.BackgroundOpacity != 50 ||
+		*clock.Style.BackgroundColor != "#000000" || *clock.Style.TextColor != "#ffffff" || clock.Style.BorderColor != nil {
+		t.Errorf("clock style = %#v", clock.Style)
+	}
+	if got := string(manifest.Scenes[1].Blocks[0].Widget); got != `{"dim":0,"fit":"cover","mediaId":null,"type":"image"}` {
+		t.Errorf("image widget = %s", got)
+	}
+	if got := string(manifest.Scenes[2].Blocks[1].Widget); !strings.Contains(got, `"showLive":true`) ||
+		!strings.Contains(got, `"showName":true`) {
+		t.Errorf("camera widget = %s", got)
+	}
+	encoded, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, gone := range []string{`"customLayouts"`, `"layoutsVersion"`, `"layoutId"`, `"zones"`} {
+		if strings.Contains(string(encoded), gone) {
+			t.Fatalf("upgraded manifest still carries %s", gone)
+		}
+	}
+	again, err := upgradeManifest(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changes := diffManifests(manifest, again); len(changes) != 0 {
+		t.Fatalf("re-reading the upgraded manifest reports %v", changes)
+	}
+}
+
+func mustMarshal(t *testing.T, value any) json.RawMessage {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return encoded
 }

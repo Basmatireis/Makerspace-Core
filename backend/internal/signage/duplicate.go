@@ -42,7 +42,7 @@ func copyName(name string, taken []string) string {
 	}
 }
 
-// DuplicateScene stores a copy of a scene: every field and widget of the source with a fresh id and
+// DuplicateScene stores a copy of a scene: every field and block of the source with a fresh id and
 // version 1, named by copyName.
 func (s *Service) DuplicateScene(
 	ctx context.Context,
@@ -76,8 +76,6 @@ func (s *Service) DuplicateScene(
 		Name:              copyName(source.Name, names),
 		AspectWidth:       source.AspectWidth,
 		AspectHeight:      source.AspectHeight,
-		LayoutID:          source.LayoutID,
-		CustomLayoutID:    source.CustomLayoutID,
 		BackgroundColor:   source.BackgroundColor,
 		BackgroundAssetID: source.BackgroundAssetID,
 		BackgroundFit:     source.BackgroundFit,
@@ -85,14 +83,14 @@ func (s *Service) DuplicateScene(
 		Theme:             source.Theme,
 		FontFamily:        source.FontFamily,
 		FontAssetID:       source.FontAssetID,
-		Zones:             string(source.Zones),
+		Blocks:            string(source.Blocks),
 	})
 	if err != nil {
 		return Scene{}, databaseError(err)
 	}
 	if err := writeAudit(
 		ctx, tx, principal, "signage_scene.created", "signage_scene", id, requestID,
-		[]string{"name", "aspectRatio", "layoutId", "background", "theme", "font", "zones"},
+		[]string{"name", "aspectRatio", "background", "theme", "font", "blocks"},
 	); err != nil {
 		return Scene{}, err
 	}
@@ -150,57 +148,6 @@ func (s *Service) DuplicateTemplate(
 	result, err := s.getTemplate(ctx, q, id)
 	if err != nil {
 		return Template{}, err
-	}
-	return result, tx.Commit(ctx)
-}
-
-// DuplicateCustomLayout stores a copy of a custom layout with its zones.
-func (s *Service) DuplicateCustomLayout(
-	ctx context.Context,
-	principal authorization.Principal,
-	sourceID uuid.UUID,
-	requestID *uuid.UUID,
-) (CustomLayout, error) {
-	if err := requireContentManage(principal); err != nil {
-		return CustomLayout{}, err
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return CustomLayout{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	q := signagedb.New(tx)
-	source, err := q.GetSignageCustomLayout(ctx, sourceID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return CustomLayout{}, apperror.NotFound
-	}
-	if err != nil {
-		return CustomLayout{}, err
-	}
-	names, err := q.ListSignageCustomLayoutNames(ctx)
-	if err != nil {
-		return CustomLayout{}, err
-	}
-	id := ids.New()
-	if _, err := q.CreateSignageCustomLayout(ctx, signagedb.CreateSignageCustomLayoutParams{
-		ID:      id,
-		Name:    copyName(source.Name, names),
-		Mode:    source.Mode,
-		Columns: source.Columns,
-		Rows:    source.Rows,
-		Zones:   string(source.Zones),
-	}); err != nil {
-		return CustomLayout{}, databaseError(err)
-	}
-	if err := writeAudit(
-		ctx, tx, principal, "signage_custom_layout.created", "signage_custom_layout", id, requestID,
-		[]string{"name", "mode", "columns", "rows", "zones"},
-	); err != nil {
-		return CustomLayout{}, err
-	}
-	result, err := s.getCustomLayout(ctx, q, id)
-	if err != nil {
-		return CustomLayout{}, err
 	}
 	return result, tx.Commit(ctx)
 }
