@@ -2491,3 +2491,24 @@ body.panel-sheet-open .app-main > * {
   align-items: center;
   gap: $spacing-03;
 }
+
+
+.legal-document-modal__external {
+  display: grid;
+  gap: $spacing-05;
+}
+
+.legal-document-modal__frame {
+  inline-size: 100%;
+  // The dialog's header, footer and the QR row take about 20rem; the frame gets the rest of the screen.
+  block-size: max(12rem, calc(100vh - 22rem));
+  border: 1px solid var(--cds-border-subtle);
+  background: #ffffff;
+}
+
+.legal-document-modal__phone {
+  display: flex;
+  align-items: center;
+  gap: $spacing-05;
+  @include type-style('body-compact-01');
+}

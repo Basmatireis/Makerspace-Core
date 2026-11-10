@@ -4,7 +4,6 @@ import {
   ContentSwitcher,
   Form,
   InlineNotification,
-  Link as CarbonLink,
   Modal,
   PasswordInput,
   ProgressIndicator,
@@ -27,7 +26,7 @@ import { apiErrorCode } from '../../api/http-client';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { BrandMark } from '../../app/BrandMark';
 import { usePageTitle, useBranding } from '../branding/branding';
-import { LegalLinks } from '../branding/LegalLinks';
+import { LegalDocumentLink, LegalLinks } from '../branding/LegalLinks';
 import { EnrollmentDone, type EnrollmentOutcome } from './components/EnrollmentDone';
 import { LabRulesModal } from './components/LabRulesModal';
 import { ProfilePhotoPicker, type ProfileImage } from './components/ProfilePhotoPicker';
@@ -74,7 +73,6 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const heading = useRef<HTMLHeadingElement>(null);
-  const branding = useBranding();
   const [step, setStep] = useState(0);
   const steps: StepKey[] = [
     'about',
@@ -246,9 +244,9 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
               <div className="visitor-flow__fields">
                 <p className="visitor-flow__note">
                   All fields are required. How we use your data is explained in the{' '}
-                  <CarbonLink as={Link} to={branding.legal.privacy.href} inline>
+                  <LegalDocumentLink kind="privacy" inline>
                     privacy policy
-                  </CarbonLink>
+                  </LegalDocumentLink>
                   .
                 </p>
                 <div className="visitor-flow__pair">
@@ -409,9 +407,9 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
               </div>
               <p className="visitor-flow__note">
                 Messages about your account, your visits and safety in the lab are always sent. Details in the{' '}
-                <CarbonLink as={Link} to={branding.legal.privacy.href} inline size="sm">
+                <LegalDocumentLink kind="privacy" inline size="sm">
                   privacy policy
-                </CarbonLink>
+                </LegalDocumentLink>
                 .
               </p>
             </div>

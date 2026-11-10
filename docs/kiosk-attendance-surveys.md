@@ -69,7 +69,7 @@ The wizard at `/visitor-enrollment` has up to four steps:
 3. **Messages.** The consent categories from the enrollment state (`consentCategories`, the categories with basis `consent`), each with a No/Yes switch; nothing is preselected and Next works with everything off. The submission sends an answer per category in `consents`; they are stored with place `kiosk` and the kiosk device in the enrollment transaction (audit `notification_consent.answered`), so the next check-in does not ask again. The step is left out when no category needs consent.
 4. **Lab Rules**, only when the Visitor role asks for them (see below).
 
-The header links the imprint and privacy policy from the branding legal settings.
+The header links the imprint and privacy policy from the branding legal settings. On the kiosk and in visitor enrollment they open in a dialog on top of the page, because a kiosk has no way back from another website (the desktop app does not even open one): an internal document is shown as text, an external one in a frame with a QR code for reading it on a phone when the site refuses to be framed.
 
 ## Enrollment photo and on-screen keyboard
 
