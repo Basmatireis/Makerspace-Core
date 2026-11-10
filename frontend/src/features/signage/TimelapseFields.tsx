@@ -1,4 +1,13 @@
-import { MultiSelect, NumberInput, RadioButton, RadioButtonGroup, Select, SelectItem, Toggle } from '@carbon/react';
+import {
+  InlineNotification,
+  MultiSelect,
+  NumberInput,
+  RadioButton,
+  RadioButtonGroup,
+  Select,
+  SelectItem,
+  Toggle,
+} from '@carbon/react';
 import type { SignageTimelapseWidget, SignageTransition } from '../../api/generated/models';
 import { FitField } from './components';
 import type { MachineOption } from './preview';
@@ -10,10 +19,12 @@ type Option = { id: string; label: string };
 export function TimelapseFields({
   widget,
   machines,
+  outsideDisplays,
   onChange,
 }: {
   widget: SignageTimelapseWidget;
   machines: readonly MachineOption[];
+  outsideDisplays: readonly string[];
   onChange: (widget: SignageTimelapseWidget) => void;
 }) {
   const options: Option[] = machines.map((machine) => ({ id: machine.id, label: machine.name }));
@@ -103,6 +114,15 @@ export function TimelapseFields({
         Timelapses of finished prints play muted, newest first. A run hidden from signage never appears. Clips show on
         published displays and in the display preview; this editor preview stays empty.
       </p>
+      {outsideDisplays.length > 0 && (
+        <InlineNotification
+          kind="warning"
+          lowContrast
+          hideCloseButton
+          title="Timelapses not shown on outside displays"
+          subtitle={`On ${outsideDisplays.join(', ')} this widget stays empty, because live cameras and timelapses are not allowed there.`}
+        />
+      )}
     </>
   );
 }

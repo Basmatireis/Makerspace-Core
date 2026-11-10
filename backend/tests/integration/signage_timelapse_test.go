@@ -238,6 +238,39 @@ func TestSignageTimelapseWidgetLiveAndContent(t *testing.T) {
 		t.Fatal("staff fetched the player endpoint")
 	}
 
+	// Timelapses are camera recordings: a display visible from outside lists and serves none without
+	// allowCameraOutside, in the live data, the preview and the clip endpoint alike.
+	setOutside := func(visible, allowCamera bool) {
+		t.Helper()
+		shown := g.expect(g.as(staff, http.MethodGet, "/signage/displays/"+machinesDisplay, nil), http.StatusOK)
+		g.expect(g.as(staff, http.MethodPut, "/signage/displays/"+machinesDisplay, map[string]any{
+			"expectedVersion": shown["version"], "name": shown["name"], "location": shown["location"],
+			"aspectRatio": shown["aspectRatio"], "visibleFromOutside": visible, "allowCameraOutside": allowCamera,
+			"defaultScenes": shown["defaultScenes"], "groupId": shown["groupId"],
+		}), http.StatusOK)
+	}
+	setOutside(true, false)
+	if runs := listed(live(machinesPlayer)); runs == nil || len(runs) != 0 {
+		t.Fatalf("outside display without allowCameraOutside lists %v, want an empty list", runs)
+	}
+	preview = g.expect(g.as(staff, http.MethodGet, "/signage/displays/"+machinesDisplay+"/preview", nil), http.StatusOK)
+	if runs := listed(preview["live"].(map[string]any)); runs == nil || len(runs) != 0 {
+		t.Fatalf("outside display preview lists %v, want an empty list", runs)
+	}
+	for _, clip := range []seededTimelapse{newestB, newestA} {
+		if response, _ := g.rawGet(machinesPlayer, clipPath(clip)); response.StatusCode != http.StatusNotFound {
+			t.Fatalf("outside display without allowCameraOutside fetched a clip: %d", response.StatusCode)
+		}
+	}
+	setOutside(true, true)
+	expectRuns("outside with allowCameraOutside", listed(live(machinesPlayer)), newestB, newestA)
+	preview = g.expect(g.as(staff, http.MethodGet, "/signage/displays/"+machinesDisplay+"/preview", nil), http.StatusOK)
+	expectRuns("outside preview with allowCameraOutside", listed(preview["live"].(map[string]any)), newestB, newestA)
+	if response, _ := g.rawGet(machinesPlayer, clipPath(newestA)); response.StatusCode != http.StatusOK {
+		t.Fatalf("outside display with allowCameraOutside: clip status %d", response.StatusCode)
+	}
+	setOutside(false, false)
+
 	// Hiding a finished run later removes its clip from the selection, the endpoint and the staff endpoint.
 	if _, err := g.pool.Exec(ctx, `UPDATE machine_runs SET hidden_from_signage = true WHERE id = $1`, newestB.run); err != nil {
 		t.Fatal(err)

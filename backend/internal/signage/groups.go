@@ -575,7 +575,8 @@ func (s *Service) PreviewGroup(
 		if err != nil {
 			return DisplayPreview{}, err
 		}
-		display = PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location}
+		display = PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location,
+			VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside}
 	}
 	// The preview never offers camera streams: it is not a display itself.
 	live, err := s.playerLive(ctx, display, false)

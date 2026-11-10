@@ -148,12 +148,14 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
   };
   const difference = view ? reportedDifference(display, view, describeRule, sceneName) : null;
   const activeAnnouncements = preview.data?.live.announcements ?? [];
-  // The server offers no camera streams to such a display, so its camera widgets only ever show their fallback.
+  // The server offers no camera streams or timelapses to such a display, so those widgets only ever show their fallback.
   const camerasBlocked =
     !revoked &&
     display.visibleFromOutside &&
     !display.allowCameraOutside &&
-    (view?.manifest.scenes.some((scene) => Object.values(scene.zones).some((widget) => widget.type === 'camera')) ??
+    (view?.manifest.scenes.some((scene) =>
+      Object.values(scene.zones).some((widget) => widget.type === 'camera' || widget.type === 'timelapse'),
+    ) ??
       false);
 
   const actions = (
@@ -251,8 +253,8 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
             kind="warning"
             lowContrast
             hideCloseButton
-            title="Live cameras are not shown"
-            subtitle="This display is visible from outside and does not allow live cameras, so its camera widgets show their fallback. To change this, turn on live cameras in the Settings tab."
+            title="Live cameras and timelapses are not shown"
+            subtitle="This display is visible from outside and does not allow live cameras, so its camera and timelapse widgets show their fallback. To change this, turn on live cameras and timelapses in the Settings tab."
           />
         )}
         {activeAnnouncements.length > 0 && (

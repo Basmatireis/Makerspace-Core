@@ -23683,7 +23683,7 @@ components:
         location: {type: string, maxLength: 150}
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         visibleFromOutside: {type: boolean}
-        allowCameraOutside: {type: boolean, description: "Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams. Takes effect immediately (no publication needed)."}
+        allowCameraOutside: {type: boolean, description: "Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams or play timelapses. Takes effect immediately (no publication needed)."}
         defaultScenes:
           type: array
           minItems: 0
@@ -24121,6 +24121,7 @@ components:
           description: >-
             Present only while the display's publication contains a timelapse widget: the union of the clips the published timelapse widgets
             need, newest first, at most 50. Only finished recorded runs with a stored timelapse that are not hidden from signage.
+            Empty for a display that is visible from outside without `allowCameraOutside`.
     SignageCalendar:
       type: object
       additionalProperties: false
