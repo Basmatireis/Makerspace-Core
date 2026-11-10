@@ -8,7 +8,10 @@ use std::{
     sync::{Arc, Mutex, RwLock},
     time::Duration,
 };
-use tauri::{Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder, webview::Cookie};
+use tauri::{
+    Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    webview::{Cookie, PageLoadEvent},
+};
 use tauri_plugin_shell::{ShellExt, process::CommandChild};
 use url::Url;
 
@@ -36,6 +39,24 @@ struct DeviceHardwareContext {
     #[serde(rename = "terminalEnabled")]
     kiosk_enabled: bool,
     allowed_application_modes: Vec<String>,
+}
+
+/// The part of Core's public configuration that names the legal documents.
+#[derive(Debug, Deserialize)]
+struct PublicLegalConfiguration {
+    legal: PublicLegalLinks,
+}
+
+#[derive(Debug, Deserialize)]
+struct PublicLegalLinks {
+    imprint: PublicLegalLink,
+    privacy: PublicLegalLink,
+}
+
+#[derive(Debug, Deserialize)]
+struct PublicLegalLink {
+    mode: String,
+    href: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -289,6 +310,75 @@ async fn complete_registration(
         .map_err(|_| "The desktop window could not open Makerspace Core.".to_owned())
 }
 
+/// Learns where Core's external legal documents live, following their redirects, so that the kiosk may frame them.
+/// Navigation is otherwise limited to Core: a link to another website would leave the kiosk with no way back. A
+/// failure keeps the previous list; the next page load of Core tries again.
+fn refresh_legal_origins(core: Url, legal_origins: Arc<RwLock<Vec<String>>>) {
+    tauri::async_runtime::spawn(async move {
+        let Some(origins) = fetch_legal_origins(&core).await else {
+            return;
+        };
+        if let Ok(mut value) = legal_origins.write() {
+            *value = origins;
+        }
+    });
+}
+
+async fn fetch_legal_origins(core: &Url) -> Option<Vec<String>> {
+    let configuration = http_client()
+        .ok()?
+        .get(core.join("api/v1/public/config").ok()?)
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json::<PublicLegalConfiguration>()
+        .await
+        .ok()?;
+    let mut origins = Vec::new();
+    for link in [configuration.legal.imprint, configuration.legal.privacy] {
+        let Some(document) = external_legal_url(&link) else {
+            continue;
+        };
+        for hop in redirect_chain(&document).await {
+            let hop_origin = origin(&hop);
+            if hop.scheme() == "https" && !origins.contains(&hop_origin) {
+                origins.push(hop_origin);
+            }
+        }
+    }
+    Some(origins)
+}
+
+fn external_legal_url(link: &PublicLegalLink) -> Option<Url> {
+    let url = Url::parse(&link.href).ok()?;
+    (link.mode == "external" && url.scheme() == "https").then_some(url)
+}
+
+/// The document's URL and every URL it redirects to (a site's imprint often moves to "www." or a new path).
+async fn redirect_chain(document: &Url) -> Vec<Url> {
+    let hops = Arc::new(Mutex::new(vec![document.clone()]));
+    let recorded = Arc::clone(&hops);
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .redirect(reqwest::redirect::Policy::custom(move |attempt| {
+            if attempt.previous().len() >= 10 {
+                return attempt.stop();
+            }
+            if let Ok(mut value) = recorded.lock() {
+                value.push(attempt.url().clone());
+            }
+            attempt.follow()
+        }))
+        .build();
+    if let Ok(client) = client {
+        let _ = client.head(document.clone()).send().await;
+    }
+    hops.lock().map(|value| value.clone()).unwrap_or_default()
+}
+
 fn http_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
@@ -356,6 +446,7 @@ fn main() {
             let token = credential_entry().ok().and_then(|entry| entry.get_password().ok());
             let core = stored.as_ref().and_then(|registration| validate_core_url(&registration.core_url).ok());
             let core_origin = Arc::new(RwLock::new(core.as_ref().map(origin)));
+            let legal_origins = Arc::new(RwLock::new(Vec::new()));
             app.manage(AppState {
                 bridge: Mutex::new(None),
                 core_origin: Arc::clone(&core_origin),
@@ -370,6 +461,9 @@ fn main() {
                 "pairingKey": pairing_key,
             }))?;
             let navigation_origin = Arc::clone(&core_origin);
+            let navigation_legal_origins = Arc::clone(&legal_origins);
+            let loaded_origin = Arc::clone(&core_origin);
+            let loaded_legal_origins = Arc::clone(&legal_origins);
             let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("Makerspace Core Desktop")
                 .inner_size(1280.0, 800.0)
@@ -378,7 +472,18 @@ fn main() {
                     "if (window.top === window) {{ window.makerspaceDesktopBridge = {injected}; window.makerspaceDesktopDebug = {}; }}",
                     cfg!(debug_assertions)
                 ))
-                .on_navigation(move |url| navigation_allowed(url, &navigation_origin))
+                .on_navigation(move |url| {
+                    navigation_allowed(url, &navigation_origin, &navigation_legal_origins)
+                })
+                // Each load of Core picks up legal documents changed in the branding settings.
+                .on_page_load(move |_, payload| {
+                    let url = payload.url();
+                    if payload.event() == PageLoadEvent::Finished
+                        && loaded_origin.read().ok().and_then(|value| value.clone()) == Some(origin(url))
+                    {
+                        refresh_legal_origins(url.clone(), Arc::clone(&loaded_legal_origins));
+                    }
+                })
                 .build()?;
 
             if let (Some(mut registration), Some(token), Some(core)) = (stored, token, core) {
@@ -604,15 +709,26 @@ fn validate_token(token: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn navigation_allowed(url: &Url, configured: &Arc<RwLock<Option<String>>>) -> bool {
+/// The window stays on Core. The only other pages are Core's external legal documents, which the kiosk frames in a
+/// dialog: the navigation handler cannot tell a frame from the window, and Core never sends the window there.
+fn navigation_allowed(
+    url: &Url,
+    configured: &Arc<RwLock<Option<String>>>,
+    legal_origins: &Arc<RwLock<Vec<String>>>,
+) -> bool {
     if url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost") {
         return true;
     }
+    let target = origin(url);
     configured
         .read()
         .ok()
         .and_then(|value| value.clone())
-        .is_some_and(|allowed| origin(url) == allowed)
+        .is_some_and(|allowed| target == allowed)
+        || (url.scheme() == "https"
+            && legal_origins
+                .read()
+                .is_ok_and(|origins| origins.contains(&target)))
 }
 
 fn initial_path(identity: &DeviceHardwareContext) -> &'static str {
@@ -755,18 +871,53 @@ mod tests {
     #[test]
     fn navigation_is_limited_to_the_configured_origin() {
         let allowed = Arc::new(RwLock::new(Some("https://core.example.org".to_owned())));
+        let legal = Arc::new(RwLock::new(Vec::new()));
         assert!(navigation_allowed(
             &Url::parse("https://core.example.org/kiosk").unwrap(),
-            &allowed
+            &allowed,
+            &legal
         ));
         assert!(!navigation_allowed(
             &Url::parse("https://core.example.org.evil.test/").unwrap(),
-            &allowed
+            &allowed,
+            &legal
         ));
         assert!(!navigation_allowed(
             &Url::parse("http://core.example.org/").unwrap(),
-            &allowed
+            &allowed,
+            &legal
         ));
+    }
+
+    #[test]
+    fn navigation_admits_the_origins_of_external_legal_documents() {
+        let allowed = Arc::new(RwLock::new(Some("https://core.example.org".to_owned())));
+        let legal = Arc::new(RwLock::new(vec!["https://www.example.org".to_owned()]));
+        assert!(navigation_allowed(
+            &Url::parse("https://www.example.org/imprint").unwrap(),
+            &allowed,
+            &legal
+        ));
+        assert!(!navigation_allowed(
+            &Url::parse("https://example.org/imprint").unwrap(),
+            &allowed,
+            &legal
+        ));
+    }
+
+    #[test]
+    fn only_external_https_legal_documents_are_framed() {
+        let link = |mode: &str, href: &str| PublicLegalLink {
+            mode: mode.to_owned(),
+            href: href.to_owned(),
+        };
+        assert_eq!(
+            external_legal_url(&link("external", "https://www.example.org/imprint"))
+                .map(|url| url.to_string()),
+            Some("https://www.example.org/imprint".to_owned())
+        );
+        assert!(external_legal_url(&link("external", "http://www.example.org/imprint")).is_none());
+        assert!(external_legal_url(&link("internal", "/legal/imprint")).is_none());
     }
 
     #[test]

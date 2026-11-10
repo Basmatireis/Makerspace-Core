@@ -25,7 +25,7 @@ Debug builds accept HTTP only on the exact loopback hosts `localhost`, `127.0.0.
 
 The token is stored in the operating system credential store and installed into the WebView as the same HttpOnly, SameSite managed-device cookie Core expects from native clients. It is passed once to the bundled sidecar over stdin. It is never placed in command arguments, environment variables, URLs, JavaScript storage, configuration files, or logs. Non-secret registration metadata and the loopback pairing key live in the app configuration directory; private files use mode `0600` on Unix.
 
-The remote Core page has no Tauri command permissions. Navigation is limited to the exact registered Core origin, and only the bundled registration page can invoke registration. The managed-device identity and a staff user session remain separate credentials. Closing or restarting the native app does not extend a server-expired user session.
+The remote Core page has no Tauri command permissions. Navigation is limited to the exact registered Core origin, and only the bundled registration page can invoke registration. The one exception are the HTTPS origins of an external imprint or privacy policy (and of the pages they redirect to): the app reads them from Core's public configuration on every load of Core, because the kiosk shows these documents framed in a dialog. The WebView's navigation check cannot tell a frame from the window; Core itself never sends the window there, and the frame's sandbox stops the framed page from doing so. The managed-device identity and a staff user session remain separate credentials. Closing or restarting the native app does not extend a server-expired user session.
 
 ## Build and test
 
