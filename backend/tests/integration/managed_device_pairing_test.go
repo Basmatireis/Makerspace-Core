@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -64,7 +65,7 @@ func (e kioskPairingEnv) claimBody(code, name string) map[string]any {
 		"code": code, "name": name, "deviceTypeId": e.deviceTypeID, "expiresAt": nil,
 		"sessionPolicyId": e.policyID, "terminalEnabled": true,
 		"allowedApplicationModes": []string{"visitor_terminal"},
-		"checkInAssurance":        "normal", "checkOutAssurance": "normal",
+		"checkInMethods":          []string{"email_code", "password"}, "checkOutMethods": []string{},
 		"allowTapCheckout": true, "offerSurveysAtCheckout": false, "kioskResetSeconds": 90,
 		"capabilities": []string{"camera", "file_upload"},
 	}
@@ -190,7 +191,8 @@ func TestKioskPairingBrowserFlowDeliversTheDeviceCookieOnce(t *testing.T) {
 	// Claim (case and separators are forgiven): the device exists with the chosen settings.
 	device := e.expect(e.claim(staff, strings.ToLower(code[:3]+"-"+code[3:]), "Entrance kiosk"), http.StatusCreated)
 	if device["name"] != "Entrance kiosk" || device["terminalEnabled"] != true || device["status"] != "active" ||
-		device["kioskResetSeconds"] != float64(90) || device["checkInAssurance"] != "normal" {
+		device["kioskResetSeconds"] != float64(90) || fmt.Sprint(device["checkInMethods"]) != "[email_code password]" ||
+		fmt.Sprint(device["checkOutMethods"]) != "[]" {
 		t.Fatalf("device = %v", device)
 	}
 	if capabilities, _ := device["capabilities"].([]any); len(capabilities) != 2 {
@@ -281,8 +283,8 @@ func TestKioskPairingNativeDeliveryReturnsTheTokenOnlyToItsPoller(t *testing.T) 
 
 	e.expect(e.as(staff, http.MethodPost, "/managed-devices/pairing", map[string]any{
 		"code": code, "name": "Desk app", "deviceTypeId": e.deviceTypeID, "expiresAt": nil, "sessionPolicyId": nil,
-		"terminalEnabled": false, "allowedApplicationModes": []string{"staff_ui"}, "checkInAssurance": "low",
-		"checkOutAssurance": "low", "allowTapCheckout": false, "offerSurveysAtCheckout": false,
+		"terminalEnabled": false, "allowedApplicationModes": []string{"staff_ui"},
+		"checkInMethods": []string{"password"}, "checkOutMethods": []string{"pin"}, "allowTapCheckout": false, "offerSurveysAtCheckout": false,
 		"kioskResetSeconds": 60, "capabilities": []string{"nfc"},
 	}), http.StatusCreated)
 

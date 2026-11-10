@@ -32,10 +32,6 @@ func (s *Server) GetTerminalContext(
 	if err != nil {
 		return nil, err
 	}
-	methods := make([]openapi.TerminalContextAuthenticationMethods, len(value.AuthenticationMethods))
-	for i, method := range value.AuthenticationMethods {
-		methods[i] = openapi.TerminalContextAuthenticationMethods(method)
-	}
 	capabilities := make([]openapi.DeviceCapability, len(value.Capabilities))
 	for i, capability := range value.Capabilities {
 		capabilities[i] = openapi.DeviceCapability(capability)
@@ -45,9 +41,9 @@ func (s *Server) GetTerminalContext(
 	})
 	return openapi.GetTerminalContext200JSONResponse{Notices: notices, DeviceId: value.DeviceID, DeviceName: value.DeviceName,
 		AllowTapCheckout: value.AllowTapCheckout, OfferSurveysAtCheckout: value.OfferSurveysAtCheckout,
-		KioskResetSeconds: int(value.KioskResetSeconds), CheckInAssurance: openapi.AuthenticationAssurance(value.CheckInAssurance),
-		CheckOutAssurance: openapi.AuthenticationAssurance(value.CheckOutAssurance), AuthenticationMethods: methods,
-		Capabilities: capabilities, StaffDestination: openapi.TerminalContextStaffDestination("login")}, nil
+		KioskResetSeconds: int(value.KioskResetSeconds), CheckInMethods: kioskMethodsDTO(value.CheckInMethods),
+		CheckOutMethods: kioskMethodsDTO(value.CheckOutMethods),
+		Capabilities:    capabilities, StaffDestination: openapi.TerminalContextStaffDestination("login")}, nil
 }
 
 // kioskNotices reads tablet notices for a response that is already decided: a failure to read them only leaves the

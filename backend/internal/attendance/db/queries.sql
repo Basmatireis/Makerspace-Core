@@ -1,5 +1,5 @@
 -- name: GetTerminalDevice :one
-SELECT md.id, md.name, md.terminal_enabled, md.check_in_assurance, md.check_out_assurance,
+SELECT md.id, md.name, md.terminal_enabled, md.check_in_methods, md.check_out_methods,
        md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds, md.revoked_at, md.expires_at
 FROM managed_devices md
 WHERE md.id = sqlc.arg(id) AND md.terminal_enabled AND md.revoked_at IS NULL

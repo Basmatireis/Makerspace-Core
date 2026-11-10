@@ -11852,11 +11852,14 @@ paths:
         answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
         `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
         A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
+        403 `attendance_method_not_allowed` when this kiosk's `checkInMethods` do not include this way of identifying;
+        the credentials are then not checked.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TerminalPasswordCheckInRequest"}}}}
       responses:
         "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
@@ -11872,11 +11875,14 @@ paths:
         answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
         `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
         A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
+        403 `attendance_method_not_allowed` when this kiosk's `checkInMethods` do not include this way of identifying;
+        the credentials are then not checked.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TerminalPinCheckInRequest"}}}}
       responses:
         "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
@@ -11889,12 +11895,14 @@ paths:
       description: |
         Same rules, budget and answer as `POST /auth/email-code`: the code goes only to an enabled account that signs
         in with an emailed code, and the answer never tells whether the address belongs to one. The code works only
-        for `/terminal/check-in/email-code` and `/terminal/check-out/email-code`, not for the web login.
+        for `/terminal/check-in/email-code` and `/terminal/check-out/email-code`, not for the web login. 403
+        `attendance_method_not_allowed` when this kiosk accepts the emailed code neither for check-in nor for check-out.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RequestEmailLoginCodeRequest"}}}}
       responses:
         "202": {description: Request accepted without disclosing account or delivery state., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}}
         "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
   /terminal/check-in/email-code:
@@ -11913,11 +11921,14 @@ paths:
         `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
         A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
         The check-in has `normal` assurance.
+        403 `attendance_method_not_allowed` when this kiosk's `checkInMethods` do not include this way of identifying;
+        the credentials are then not checked.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TerminalEmailCodeCheckInRequest"}}}}
       responses:
         "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
@@ -11927,11 +11938,13 @@ paths:
     post:
       tags: [Attendance]
       operationId: terminalPasswordCheckOut
+      description: 403 `attendance_method_not_allowed` when this kiosk's `checkOutMethods` do not include this way of identifying; the credentials are then not checked.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendancePasswordRequest"}}}}
       responses:
         "200": {description: Visitor checked out., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -11939,11 +11952,13 @@ paths:
     post:
       tags: [Attendance]
       operationId: terminalPinCheckOut
+      description: 403 `attendance_method_not_allowed` when this kiosk's `checkOutMethods` do not include this way of identifying; the credentials are then not checked.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendancePinRequest"}}}}
       responses:
         "200": {description: Visitor checked out., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -11951,12 +11966,13 @@ paths:
     post:
       tags: [Attendance]
       operationId: terminalEmailCodeCheckOut
-      description: Checks out with the code from `POST /terminal/email-code`; the code is consumed only by a successful check-out.
+      description: Checks out with the code from `POST /terminal/email-code`; the code is consumed only by a successful check-out. 403 `attendance_method_not_allowed` when this kiosk's `checkOutMethods` do not include `email_code`.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendanceEmailCodeRequest"}}}}
       responses:
         "200": {description: Visitor checked out., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "429": {$ref: "#/components/responses/TooManyRequests"}
@@ -11993,7 +12009,7 @@ paths:
       tags: [Attendance]
       operationId: terminalSurveyOfferSubmit
       summary: Submit the answers to the offered survey
-      description: Anonymous surveys store the response exactly like an anonymous invitation redemption (no person, no visit). Identified surveys link the response to the person. The offer is consumed and the post-visit invitation of that visit is cancelled.
+      description: Anonymous surveys store the response exactly like an anonymous invitation redemption (no person, no visit). Identified surveys link the response to the person. The offer is consumed and the post-visit invitation of that visit is cancelled. The answers to an offer made after a tap check-out are always stored without a person and leave the invitations alone.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubmitSurveyResponse"}}}}
       responses:
@@ -12008,7 +12024,7 @@ paths:
       tags: [Attendance]
       operationId: terminalSurveyOfferSendEmail
       summary: Send the survey invitation by e-mail right away
-      description: Bypasses the trigger delay and works even when the person's Surveys & feedback consent is off (it is an explicit one-off request; the consent stays as it is). 422 `no_email` when the person has no e-mail address.
+      description: Bypasses the trigger delay and works even when the person's Surveys & feedback consent is off (it is an explicit one-off request; the consent stays as it is). 422 `no_email` when the person has no e-mail address; 404 for an offer made after a tap check-out.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       responses:
         "204": {description: Invitation queued for immediate delivery; the offer is consumed.}
@@ -12021,7 +12037,7 @@ paths:
       tags: [Attendance]
       operationId: terminalSurveyOfferDecline
       summary: Decline the offered survey ("No thanks")
-      description: Consumes the offer and cancels the post-visit invitation of that visit. The survey's cooldown for this person started with the offer.
+      description: Consumes the offer and cancels the post-visit invitation of that visit. The survey's cooldown for this person started with the offer. An offer made after a tap check-out is only consumed.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       responses:
         "204": {description: Offer declined.}
@@ -12033,7 +12049,7 @@ paths:
       tags: [Attendance]
       operationId: terminalSurveyOfferNever
       summary: Decline and switch off feedback questions at check-out for this person
-      description: Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit.
+      description: Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit. 404 for an offer made after a tap check-out, which names nobody.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       responses:
         "204": {description: Offer declined and the question switched off.}
@@ -12044,6 +12060,10 @@ paths:
     post:
       tags: [Attendance]
       operationId: terminalPublicCheckOut
+      description: |
+        403 unless the kiosk has `allowTapCheckout`. When the kiosk offers surveys, the answer may carry `surveyOffer`.
+        Anyone can tap any name, so that offer names nobody: it is bound only to this tablet, single use and valid for
+        15 minutes, and its answers are stored without a person; e-mail and "never ask again" are not available.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       responses:
         "200": {description: Public-tap checkout completed., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
@@ -16995,6 +17015,10 @@ components:
         name: {type: string, minLength: 1, maxLength: 100}
         description: {type: string, maxLength: 500, nullable: true}
         expectedVersion: {$ref: "#/components/schemas/Version"}
+    KioskAuthenticationMethod:
+      type: string
+      description: A way a person identifies at an entrance kiosk.
+      enum: [email_code, pin, password]
     ManagedDeviceStatus:
       type: string
       enum: [active, expired, revoked]
@@ -17008,7 +17032,7 @@ components:
     ManagedDevice:
       type: object
       additionalProperties: false
-      required: [id, name, deviceTypeId, deviceTypeName, status, expiresAt, revokedAt, lastSeenAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities, version, createdAt, updatedAt]
+      required: [id, name, deviceTypeId, deviceTypeName, status, expiresAt, revokedAt, lastSeenAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInMethods, checkOutMethods, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 100}
@@ -17028,10 +17052,21 @@ components:
           maxItems: 2
           uniqueItems: true
           items: {$ref: "#/components/schemas/DeviceApplicationMode"}
-        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible."}
-        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a person checked out with PIN or password."}
+        checkInMethods:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check in at this kiosk.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        checkOutMethods:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check out at this kiosk. Empty only while `allowTapCheckout` is on.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Required while `checkOutMethods` is empty."}
+        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a check-out. After a tap in the presence list the answers are stored without a person."}
         kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
         capabilities:
           type: array
@@ -17053,7 +17088,7 @@ components:
     CreateManagedDeviceRequest:
       type: object
       additionalProperties: false
-      required: [name, deviceTypeId, expiresAt, credentialDelivery, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities]
+      required: [name, deviceTypeId, expiresAt, credentialDelivery, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInMethods, checkOutMethods, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
         deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
@@ -17069,16 +17104,27 @@ components:
           maxItems: 2
           uniqueItems: true
           items: {$ref: "#/components/schemas/DeviceApplicationMode"}
-        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible."}
-        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a person checked out with PIN or password."}
+        checkInMethods:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check in at this kiosk.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        checkOutMethods:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check out at this kiosk. Empty only while `allowTapCheckout` is on.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Required while `checkOutMethods` is empty."}
+        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a check-out. After a tap in the presence list the answers are stored without a person."}
         kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
         capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
     UpdateManagedDeviceRequest:
       type: object
       additionalProperties: false
-      required: [name, deviceTypeId, expiresAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities, expectedVersion]
+      required: [name, deviceTypeId, expiresAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInMethods, checkOutMethods, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities, expectedVersion]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
         deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
@@ -17094,10 +17140,21 @@ components:
           maxItems: 2
           uniqueItems: true
           items: {$ref: "#/components/schemas/DeviceApplicationMode"}
-        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible."}
-        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a person checked out with PIN or password."}
+        checkInMethods:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check in at this kiosk.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        checkOutMethods:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check out at this kiosk. Empty only while `allowTapCheckout` is on.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Required while `checkOutMethods` is empty."}
+        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a check-out. After a tap in the presence list the answers are stored without a person."}
         kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
         capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
     RotateManagedDeviceTokenRequest:
@@ -17127,7 +17184,7 @@ components:
       type: object
       additionalProperties: false
       description: The pairing code plus the fields of `CreateManagedDeviceRequest`; the kiosk chose the credential delivery when it requested the code.
-      required: [code, name, deviceTypeId, expiresAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities]
+      required: [code, name, deviceTypeId, expiresAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInMethods, checkOutMethods, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities]
       properties:
         code: {type: string, minLength: 1, maxLength: 20, description: "The six characters the kiosk shows; case, spaces and dashes are ignored."}
         name: {type: string, minLength: 1, maxLength: 100}
@@ -17143,8 +17200,19 @@ components:
           maxItems: 2
           uniqueItems: true
           items: {$ref: "#/components/schemas/DeviceApplicationMode"}
-        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        checkInMethods:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check in at this kiosk.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        checkOutMethods:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check out at this kiosk. Empty only while `allowTapCheckout` is on.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
         allowTapCheckout: {type: boolean}
         offerSurveysAtCheckout: {type: boolean}
         kioskResetSeconds: {type: integer, minimum: 15, maximum: 600}
@@ -23092,16 +23160,26 @@ components:
     TerminalContext:
       type: object
       additionalProperties: false
-      required: [deviceId, deviceName, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, checkInAssurance, checkOutAssurance, authenticationMethods, capabilities, staffDestination]
+      required: [deviceId, deviceName, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, checkInMethods, checkOutMethods, capabilities, staffDestination]
       properties:
         deviceId: {$ref: "#/components/schemas/UUIDv7"}
         deviceName: {type: string}
-        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible."}
-        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a person checked out with PIN or password."}
+        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Required while `checkOutMethods` is empty."}
+        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a check-out. After a tap in the presence list the answers are stored without a person."}
         kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
-        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        authenticationMethods: {type: array, uniqueItems: true, items: {type: string, enum: [password, pin, email_code, oidc, nfc]}}
+        checkInMethods:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check in at this kiosk.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        checkOutMethods:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check out at this kiosk. Empty only while `allowTapCheckout` is on.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
         capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
         staffDestination: {type: string, enum: [login]}
         notices:
@@ -23226,7 +23304,7 @@ components:
           items: {$ref: "#/components/schemas/TerminalConsentCategory"}
         surveyOffer:
           allOf: [{$ref: "#/components/schemas/TerminalSurveyOffer"}]
-          description: Only the answer of a tablet check-out with PIN or password carries an offer, and only when the tablet offers surveys, a published survey asks at the tablet, the person did not switch the question off and the survey's cooldown allows it.
+          description: Only the answer of a tablet check-out (with a password, PIN or emailed code, or by a tap in the presence list) carries an offer, and only when the tablet offers surveys, a published survey asks at the tablet, the checked-out person did not switch the question off and the survey's cooldown allows it. An offer after a tap names nobody, and its answers are stored without a person.
     TerminalConsentCategory:
       type: object
       additionalProperties: false
@@ -23250,14 +23328,15 @@ components:
     TerminalSurveyOffer:
       type: object
       additionalProperties: false
-      required: [offerToken, surveyName, questionCount, anonymous, canAnswerNow, canSendByEmail, expiresAt]
+      required: [offerToken, surveyName, questionCount, anonymous, canAnswerNow, canSendByEmail, canStopAsking, expiresAt]
       properties:
         offerToken: {type: string, minLength: 43, maxLength: 43, description: "Opaque, single use, valid for 15 minutes, only usable on the tablet that received it."}
         surveyName: {type: string}
         questionCount: {type: integer, minimum: 0}
         anonymous: {type: boolean}
         canAnswerNow: {type: boolean}
-        canSendByEmail: {type: boolean, description: "The person has an e-mail address. Sending works without their Surveys & feedback consent: it is a one-off request."}
+        canSendByEmail: {type: boolean, description: "The person has an e-mail address. Sending works without their Surveys & feedback consent: it is a one-off request. Always false after a tap check-out."}
+        canStopAsking: {type: boolean, description: "The person may switch the question off (`/never`). False after a tap check-out: the offer names nobody, so its answers are anonymous and only answer-now and decline work."}
         expiresAt: {type: string, format: date-time}
     VisitList:
       type: object

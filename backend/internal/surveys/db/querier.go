@@ -53,7 +53,8 @@ type Querier interface {
 	GetSurvey(ctx context.Context, id uuid.UUID) (GetSurveyRow, error)
 	GetSurveyForUpdate(ctx context.Context, id uuid.UUID) (Survey, error)
 	GetSurveyInvitationCounts(ctx context.Context, surveyID uuid.UUID) (GetSurveyInvitationCountsRow, error)
-	// An offer that is still usable on this tablet; every other case reads as not found.
+	// An offer that is still usable on this tablet; every other case reads as not found. An offer that names no person
+	// (after a tap check-out) is answered anonymously whatever the survey says.
 	GetSurveyOffer(ctx context.Context, arg GetSurveyOfferParams) (GetSurveyOfferRow, error)
 	GetSurveyOfferForUpdate(ctx context.Context, arg GetSurveyOfferForUpdateParams) (GetSurveyOfferForUpdateRow, error)
 	GetSurveyResponseOverview(ctx context.Context, surveyID uuid.UUID) (GetSurveyResponseOverviewRow, error)

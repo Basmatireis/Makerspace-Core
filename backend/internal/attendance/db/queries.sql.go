@@ -469,7 +469,7 @@ func (q *Queries) GetPersonDisplay(ctx context.Context, id uuid.UUID) (GetPerson
 }
 
 const getTerminalDevice = `-- name: GetTerminalDevice :one
-SELECT md.id, md.name, md.terminal_enabled, md.check_in_assurance, md.check_out_assurance,
+SELECT md.id, md.name, md.terminal_enabled, md.check_in_methods, md.check_out_methods,
        md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds, md.revoked_at, md.expires_at
 FROM managed_devices md
 WHERE md.id = $1 AND md.terminal_enabled AND md.revoked_at IS NULL
@@ -480,8 +480,8 @@ type GetTerminalDeviceRow struct {
 	ID                     uuid.UUID
 	Name                   string
 	TerminalEnabled        bool
-	CheckInAssurance       string
-	CheckOutAssurance      string
+	CheckInMethods         []string
+	CheckOutMethods        []string
 	AllowTapCheckout       bool
 	OfferSurveysAtCheckout bool
 	KioskResetSeconds      int32
@@ -496,8 +496,8 @@ func (q *Queries) GetTerminalDevice(ctx context.Context, id uuid.UUID) (GetTermi
 		&i.ID,
 		&i.Name,
 		&i.TerminalEnabled,
-		&i.CheckInAssurance,
-		&i.CheckOutAssurance,
+		&i.CheckInMethods,
+		&i.CheckOutMethods,
 		&i.AllowTapCheckout,
 		&i.OfferSurveysAtCheckout,
 		&i.KioskResetSeconds,

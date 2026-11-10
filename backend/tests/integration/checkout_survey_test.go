@@ -89,8 +89,9 @@ func (e *checkoutEnv) newDevice(name string, offerSurveys, allowTap bool) manage
 	device, err := e.devices.CreateConfigured(e.ctx, e.principal, name, deviceType.ID, nil, manageddevices.DeviceSettings{
 		SessionPolicyID: &policyID, KioskEnabled: true,
 		AllowedApplicationModes: []manageddevices.ApplicationMode{"visitor_terminal"},
-		CheckInAssurance:        "low", CheckOutAssurance: "low", OfferSurveysAtCheckout: offerSurveys,
-		AllowTapCheckout: allowTap, KioskResetSeconds: 60,
+		CheckInMethods:          manageddevices.AllKioskMethods, CheckOutMethods: manageddevices.AllKioskMethods,
+		OfferSurveysAtCheckout: offerSurveys,
+		AllowTapCheckout:       allowTap, KioskResetSeconds: 60,
 	}, nil)
 	if err != nil {
 		e.t.Fatal(err)
@@ -219,14 +220,7 @@ func TestSurveyIsOfferedOnlyAfterASelfCheckOutThatQualifies(t *testing.T) {
 		t.Fatal("offered although the person turned feedback at check-out off")
 	}
 
-	// Tapping a name is not a self check-out, and a supervisor's check-out is not either.
-	tap := e.newDevice("Tap tablet", true, true)
-	d, dVisit := e.person("d", true, tap.Device.ID)
-	_ = d
-	tapped, err := e.attendance.PublicCheckOut(e.ctx, e.deviceContext(tap), dVisit, nil)
-	if err != nil || tapped.SurveyOffer != nil || tapped.CheckOutMethod == nil || *tapped.CheckOutMethod != "public_tap" {
-		t.Fatalf("tap check-out: %+v, %v", tapped, err)
-	}
+	// A supervisor's check-out is not at a tablet. (Tapping a name offers an anonymous survey, tested below.)
 	_, f := e.person("f", true, e.device.Device.ID)
 	supervised, err := e.attendance.SupervisedCheckOut(e.ctx, e.supervisor(), f, nil)
 	if err != nil || supervised.SurveyOffer != nil {
@@ -506,7 +500,8 @@ func TestDeviceSettingsValidateTheResetTimeAndMigrateTapCheckOut(t *testing.T) {
 			manageddevices.DeviceSettings{
 				SessionPolicyID: device.SessionPolicyID, KioskEnabled: true,
 				AllowedApplicationModes: []manageddevices.ApplicationMode{"visitor_terminal"},
-				KioskResetSeconds:       seconds,
+				CheckInMethods:          manageddevices.AllKioskMethods, CheckOutMethods: manageddevices.AllKioskMethods,
+				KioskResetSeconds: seconds,
 			}, device.Version, nil)
 		if err == nil {
 			t.Fatalf("reset time %d accepted: %v", seconds, err)
@@ -516,7 +511,8 @@ func TestDeviceSettingsValidateTheResetTimeAndMigrateTapCheckOut(t *testing.T) {
 		manageddevices.DeviceSettings{
 			SessionPolicyID: device.SessionPolicyID, KioskEnabled: true,
 			AllowedApplicationModes: []manageddevices.ApplicationMode{"visitor_terminal"},
-			AllowTapCheckout:        true, OfferSurveysAtCheckout: true, KioskResetSeconds: 600,
+			CheckInMethods:          manageddevices.AllKioskMethods, CheckOutMethods: manageddevices.AllKioskMethods,
+			AllowTapCheckout: true, OfferSurveysAtCheckout: true, KioskResetSeconds: 600,
 		}, device.Version, nil)
 	if err != nil || !updated.AllowTapCheckout || !updated.OfferSurveysAtCheckout || updated.KioskResetSeconds != 600 {
 		t.Fatalf("updated = %+v, %v", updated, err)

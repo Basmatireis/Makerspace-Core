@@ -822,12 +822,12 @@ type ManagedDevice struct {
 	UpdatedAt              time.Time
 	SessionPolicyID        *uuid.UUID
 	TerminalEnabled        bool
-	CheckInAssurance       string
-	CheckOutAssurance      string
 	AllowedAppModes        []string
 	AllowTapCheckout       bool
 	OfferSurveysAtCheckout bool
 	KioskResetSeconds      int32
+	CheckInMethods         []string
+	CheckOutMethods        []string
 }
 
 type ManagedDeviceCapability struct {

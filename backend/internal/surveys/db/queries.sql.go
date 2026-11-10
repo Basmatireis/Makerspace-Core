@@ -997,8 +997,8 @@ func (q *Queries) GetSurveyInvitationCounts(ctx context.Context, surveyID uuid.U
 }
 
 const getSurveyOffer = `-- name: GetSurveyOffer :one
-SELECT o.id, o.visit_id, o.survey_id, o.survey_version_id, o.expires_at, s.anonymous, s.status AS survey_status,
-  sv.title, sv.introduction
+SELECT o.id, o.visit_id, o.survey_id, o.survey_version_id, o.expires_at,
+  (s.anonymous OR o.person_id IS NULL)::boolean AS anonymous, s.status AS survey_status, sv.title, sv.introduction
 FROM survey_offers o
 JOIN surveys s ON s.id = o.survey_id
 JOIN survey_versions sv ON sv.id = o.survey_version_id
@@ -1023,7 +1023,8 @@ type GetSurveyOfferRow struct {
 	Introduction    *string
 }
 
-// An offer that is still usable on this tablet; every other case reads as not found.
+// An offer that is still usable on this tablet; every other case reads as not found. An offer that names no person
+// (after a tap check-out) is answered anonymously whatever the survey says.
 func (q *Queries) GetSurveyOffer(ctx context.Context, arg GetSurveyOfferParams) (GetSurveyOfferRow, error) {
 	row := q.db.QueryRow(ctx, getSurveyOffer, arg.TokenDigest, arg.DeviceID)
 	var i GetSurveyOfferRow
@@ -1042,7 +1043,8 @@ func (q *Queries) GetSurveyOffer(ctx context.Context, arg GetSurveyOfferParams) 
 }
 
 const getSurveyOfferForUpdate = `-- name: GetSurveyOfferForUpdate :one
-SELECT o.id, o.visit_id, o.person_id, o.survey_id, o.survey_version_id, o.expires_at, s.anonymous, s.status AS survey_status
+SELECT o.id, o.visit_id, o.person_id, o.survey_id, o.survey_version_id, o.expires_at,
+  (s.anonymous OR o.person_id IS NULL)::boolean AS anonymous, s.status AS survey_status
 FROM survey_offers o
 JOIN surveys s ON s.id = o.survey_id
 WHERE o.token_digest = $1 AND o.device_id = $2

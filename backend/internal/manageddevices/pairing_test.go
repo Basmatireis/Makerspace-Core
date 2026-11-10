@@ -54,18 +54,19 @@ func TestPairRequiresManagePermission(t *testing.T) {
 func TestPairThrottlesRepeatedMalformedCodesPerAccount(t *testing.T) {
 	service := NewService(nil)
 	principal := authorization.Principal{AccountID: ids.New(), Master: true}
+	staffSettings := DeviceSettings{CheckInMethods: AllKioskMethods, CheckOutMethods: AllKioskMethods}
 	for i := 0; i < claimFailuresPerWindow; i++ {
-		_, err := service.Pair(context.Background(), principal, "no", "Kiosk", ids.New(), nil, DeviceSettings{}, nil)
+		_, err := service.Pair(context.Background(), principal, "no", "Kiosk", ids.New(), nil, staffSettings, nil)
 		if !apperror.IsCode(err, "pairing_code_invalid") {
 			t.Fatalf("attempt %d: err = %v, want pairing_code_invalid", i, err)
 		}
 	}
-	_, err := service.Pair(context.Background(), principal, "no", "Kiosk", ids.New(), nil, DeviceSettings{}, nil)
+	_, err := service.Pair(context.Background(), principal, "no", "Kiosk", ids.New(), nil, staffSettings, nil)
 	if !apperror.IsCode(err, "rate_limited") {
 		t.Fatalf("err = %v, want rate_limited", err)
 	}
 	other := authorization.Principal{AccountID: ids.New(), Master: true}
-	if _, err := service.Pair(context.Background(), other, "no", "Kiosk", ids.New(), nil, DeviceSettings{},
+	if _, err := service.Pair(context.Background(), other, "no", "Kiosk", ids.New(), nil, staffSettings,
 		nil); !apperror.IsCode(err, "pairing_code_invalid") {
 		t.Fatalf("another account must not be throttled: %v", err)
 	}
