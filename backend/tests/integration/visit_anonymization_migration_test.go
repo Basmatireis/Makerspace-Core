@@ -10,18 +10,18 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 )
 
-// TestAnonymizingVisitsMigrationRollsUpAndDeletes checks 00131: completed and voided visits are rolled into the daily
+// TestAnonymizingVisitsMigrationRollsUpAndDeletes checks 00129: completed and voided visits are rolled into the daily
 // statistics and deleted, people keep the date of their last completed visit, open visits and their offers stay with
 // the person, and audit events of ordinary check-ins and check-outs are deleted while corrections lose the visit ID.
 func TestAnonymizingVisitsMigrationRollsUpAndDeletes(t *testing.T) {
 	pool := emptySchemaPool(t)
 	ctx := testContext(t)
-	const name = "00131_anonymize_visits_at_checkout.sql"
+	const name = "00129_anonymize_visits_at_checkout.sql"
 	var before []string
 	var migration string
 	for _, path := range allMigrationFiles(t) {
 		switch {
-		case filepath.Base(path) < "00131_":
+		case filepath.Base(path) < "00129_":
 			before = append(before, path)
 		case filepath.Base(path) == name:
 			migration = path

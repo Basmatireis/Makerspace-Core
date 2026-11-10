@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// legacyWidgetFixtures are widgets as stored before migration 00130: every widget type without a zone style and
+// legacyWidgetFixtures are widgets as stored before migration 00131: every widget type without a zone style and
 // with one (announcements in boxStyle), including partial and odd styles.
 func legacyWidgetFixtures() []string {
 	machine, image, video, template, font := ids.New(), ids.New(), ids.New(), ids.New(), ids.New()
@@ -102,7 +102,7 @@ func migrationFile(t *testing.T, prefix string) (before []string, file string) {
 func TestSignageBlocksMigrationMatchesGoConversion(t *testing.T) {
 	pool := emptySchemaPool(t)
 	ctx := testContext(t)
-	before, migration := migrationFile(t, "00130_")
+	before, migration := migrationFile(t, "00131_")
 	applyMigrationFiles(t, pool, before)
 	exec := func(query string, args ...any) {
 		t.Helper()
