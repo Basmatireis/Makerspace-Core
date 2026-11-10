@@ -151,7 +151,7 @@ func TestParseBlocksRejectsInvalidBlocks(t *testing.T) {
 		"missing field":          blocksJSON(strings.Replace(valid, `"locked":false,`, "", 1)),
 		"unknown field":          blocksJSON(strings.Replace(valid, `"locked":false,`, `"locked":false,"z":1,`, 1)),
 		"too narrow":             blocksJSON(strings.Replace(valid, `"w":1920`, `"w":7`, 1)),
-		"too far":                blocksJSON(strings.Replace(valid, `"x":0`, `"x":8001`, 1)),
+		"too far":                blocksJSON(strings.Replace(valid, `"x":0`, `"x":120001`, 1)),
 		"fractional":             blocksJSON(strings.Replace(valid, `"x":0`, `"x":0.5`, 1)),
 		"null style":             blocksJSON(strings.Replace(valid, `"style":`+testStyleJSON, `"style":null`, 1)),
 		"style missing field":    blocksJSON(withStyle(empty, `"opacity":100`, `"opacity":100,"margin":1`)),
