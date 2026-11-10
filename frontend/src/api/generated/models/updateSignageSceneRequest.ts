@@ -19,10 +19,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SignageAspectRatio } from './signageAspectRatio';
+import type { SignageBlocks } from './signageBlocks';
 import type { SignageFit } from './signageFit';
-import type { SignageLayoutId } from './signageLayoutId';
 import type { SignageSceneFontFamily } from './signageSceneFontFamily';
-import type { SignageZones } from './signageZones';
 import type { UpdateSignageSceneRequestTheme } from './updateSignageSceneRequestTheme';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
@@ -35,9 +34,6 @@ export interface UpdateSignageSceneRequest {
      */
   name: string;
   aspectRatio: SignageAspectRatio;
-  layoutId: SignageLayoutId;
-  /** Required with `layoutId` `custom`, otherwise omitted or null. */
-  customLayoutId?: UUIDv7 | null;
   /** @pattern ^#[0-9a-f]{6}$ */
   backgroundColor: string;
   /** Image asset; omitted or null clears it. */
@@ -52,5 +48,5 @@ export interface UpdateSignageSceneRequest {
   fontFamily: SignageSceneFontFamily;
   /** Font asset; set exactly when `fontFamily` is `custom`. */
   fontAssetId: UUIDv7 | null;
-  zones?: SignageZones;
+  blocks: SignageBlocks;
 }

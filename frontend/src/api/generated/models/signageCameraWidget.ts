@@ -22,7 +22,6 @@ import type { SignageCameraWidgetFallback } from './signageCameraWidgetFallback'
 import type { SignageCameraWidgetMulti } from './signageCameraWidgetMulti';
 import type { SignageCameraWidgetSource } from './signageCameraWidgetSource';
 import type { SignageCameraWidgetType } from './signageCameraWidgetType';
-import type { SignageWidgetStyle } from './signageWidgetStyle';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageCameraWidget {
@@ -33,6 +32,10 @@ export interface SignageCameraWidget {
   multi: SignageCameraWidgetMulti;
   showProgress: boolean;
   showRemaining: boolean;
+  /** Shows the live badge on the picture. */
+  showLive: boolean;
+  /** Shows the machine name on the picture. */
+  showName: boolean;
   fallback: SignageCameraWidgetFallback;
   /** Image asset; only kept when `fallback` is `image`. */
   fallbackMediaId: UUIDv7 | null;
@@ -41,5 +44,4 @@ export interface SignageCameraWidget {
      * @maxItems 20
      */
   machineIds?: UUIDv7[];
-  style?: SignageWidgetStyle;
 }

@@ -1589,7 +1589,7 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	envelope := e.expect(response, http.StatusOK)
 	manifest := envelope["manifest"].(map[string]any)
 	if envelope["unchanged"] != false || manifest["revision"] != float64(1) ||
-		manifest["layoutsVersion"] != float64(2) || manifest["manifestVersion"] != float64(3) {
+		manifest["manifestVersion"] != float64(4) {
 		t.Fatalf("manifest = %v", manifest)
 	}
 	if _, ok := manifest["playlists"]; ok {

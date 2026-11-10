@@ -18,12 +18,10 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SignageBlock } from './signageBlock';
 
-export type SignageTextWidgetAlign = typeof SignageTextWidgetAlign[keyof typeof SignageTextWidgetAlign];
-
-
-export const SignageTextWidgetAlign = {
-  SignageTextWidgetAlignStart: 'start',
-  SignageTextWidgetAlignCenter: 'center',
-  SignageTextWidgetAlignEnd: 'end',
-} as const;
+/**
+ * The blocks of a scene; the array order is the stacking order (later on top).
+ * @maxItems 40
+ */
+export type SignageBlocks = SignageBlock[];

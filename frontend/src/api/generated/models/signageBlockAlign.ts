@@ -19,12 +19,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type SignageTextSize = typeof SignageTextSize[keyof typeof SignageTextSize];
+export type SignageBlockAlign = typeof SignageBlockAlign[keyof typeof SignageBlockAlign];
 
 
-export const SignageTextSize = {
-  SignageTextSizeS: 's',
-  SignageTextSizeM: 'm',
-  SignageTextSizeL: 'l',
-  SignageTextSizeXl: 'xl',
+export const SignageBlockAlign = {
+  SignageBlockAlignStart: 'start',
+  SignageBlockAlignCenter: 'center',
+  SignageBlockAlignEnd: 'end',
 } as const;

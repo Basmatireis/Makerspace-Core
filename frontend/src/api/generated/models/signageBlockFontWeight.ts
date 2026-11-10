@@ -19,28 +19,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * Percentages of the screen with at most two decimals; `width` and `height` are at least 1, `x + width` and `y + height` at most 100.
- */
-export interface SignageFreeRect {
-  /**
-     * @minimum 0
-     * @maximum 100
-     */
-  x: number;
-  /**
-     * @minimum 0
-     * @maximum 100
-     */
-  y: number;
-  /**
-     * @minimum 1
-     * @maximum 100
-     */
-  width: number;
-  /**
-     * @minimum 1
-     * @maximum 100
-     */
-  height: number;
-}
+export type SignageBlockFontWeight = typeof SignageBlockFontWeight[keyof typeof SignageBlockFontWeight];
+
+
+export const SignageBlockFontWeight = {
+  SignageBlockFontWeightInherit: 'inherit',
+  SignageBlockFontWeightN400: '400',
+  SignageBlockFontWeightN500: '500',
+  SignageBlockFontWeightN600: '600',
+  SignageBlockFontWeightN700: '700',
+} as const;

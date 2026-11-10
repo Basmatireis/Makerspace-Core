@@ -20,7 +20,6 @@
  */
 import type {
   CreateSignageAnnouncementTemplateRequest,
-  CreateSignageCustomLayoutRequest,
   CreateSignageDisplayGroupRequest,
   CreateSignageSceneRequest,
   DownloadSignageAssetParams,
@@ -37,14 +36,11 @@ import type {
   SignageAsset,
   SignageAssetList,
   SignageCalendar,
-  SignageCustomLayout,
-  SignageCustomLayoutList,
   SignageDisplay,
   SignageDisplayGroup,
   SignageDisplayGroupList,
   SignageDisplayList,
   SignageDisplayPreview,
-  SignageLayoutList,
   SignageMachineList,
   SignagePairingPoll,
   SignagePairingStart,
@@ -56,7 +52,6 @@ import type {
   UUIDv7,
   UpdateSignageAnnouncementRequest,
   UpdateSignageAnnouncementTemplateRequest,
-  UpdateSignageCustomLayoutRequest,
   UpdateSignageDisplayGroupRequest,
   UpdateSignageDisplayRequest,
   UpdateSignageSceneRequest,
@@ -64,215 +59,6 @@ import type {
 } from '../models';
 
 import { apiFetch } from '../../http-client';
-
-export const getListSignageLayoutsUrl = () => {
-
-
-
-
-  return `/api/v1/signage/layouts`
-}
-
-/**
- * @summary List the fixed, code-defined scene layouts
- */
-export const listSignageLayouts = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignageLayoutList> => {
-
-  return apiFetch<SignageLayoutList>(getListSignageLayoutsUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getListSignageCustomLayoutsUrl = () => {
-
-
-
-
-  return `/api/v1/signage/custom-layouts`
-}
-
-/**
- * Needs `signage.read` or `signage.content.manage`. Items carry `sceneCount`.
- * @summary List the custom layouts
- */
-export const listSignageCustomLayouts = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayoutList> => {
-
-  return apiFetch<SignageCustomLayoutList>(getListSignageCustomLayoutsUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getCreateSignageCustomLayoutUrl = () => {
-
-
-
-
-  return `/api/v1/signage/custom-layouts`
-}
-
-/**
- * Needs `signage.content.manage`. Audited as `signage_custom_layout.created`.
- * @summary Create a custom layout
- */
-export const createSignageCustomLayout = async (createSignageCustomLayoutRequest: CreateSignageCustomLayoutRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayout> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageCustomLayout>(getCreateSignageCustomLayoutUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(createSignageCustomLayoutRequest)
-  }
-);}
-
-
-export const getDuplicateSignageCustomLayoutUrl = (customLayoutId: string,) => {
-
-
-
-
-  return `/api/v1/signage/custom-layouts/${customLayoutId}/duplicate`
-}
-
-/**
- * Copies every field of the layout, including its zones. The copy has a fresh id and version 1 and is named `<name> (copy)`, `<name> (copy 2)`, … (the first name not taken, truncated to fit 100 characters). Needs `signage.content.manage`. Audited as `signage_custom_layout.created`.
- * @summary Duplicate a custom layout
- */
-export const duplicateSignageCustomLayout = async (customLayoutId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayout> => {
-
-  return apiFetch<SignageCustomLayout>(getDuplicateSignageCustomLayoutUrl(customLayoutId),
-  {
-    ...options,
-    method: 'POST'
-
-
-  }
-);}
-
-
-export const getGetSignageCustomLayoutUrl = (customLayoutId: string,) => {
-
-
-
-
-  return `/api/v1/signage/custom-layouts/${customLayoutId}`
-}
-
-/**
- * Needs `signage.read` or `signage.content.manage`.
- */
-export const getSignageCustomLayout = async (customLayoutId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayout> => {
-
-  return apiFetch<SignageCustomLayout>(getGetSignageCustomLayoutUrl(customLayoutId),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getUpdateSignageCustomLayoutUrl = (customLayoutId: string,) => {
-
-
-
-
-  return `/api/v1/signage/custom-layouts/${customLayoutId}`
-}
-
-/**
- * Needs `signage.content.manage`. Audited as `signage_custom_layout.updated`. Removing zones is allowed: in the same transaction every scene using the layout loses the widgets of the removed zone ids, gets an empty widget for new zone ids, bumps its version and is audited as `signage_scene.updated` (`zones`).
- * @summary Replace a custom layout
- */
-export const updateSignageCustomLayout = async (customLayoutId: string,
-    updateSignageCustomLayoutRequest: UpdateSignageCustomLayoutRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayout> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageCustomLayout>(getUpdateSignageCustomLayoutUrl(customLayoutId),
-  {
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(updateSignageCustomLayoutRequest)
-  }
-);}
-
-
-export const getDeleteSignageCustomLayoutUrl = (customLayoutId: string,) => {
-
-
-
-
-  return `/api/v1/signage/custom-layouts/${customLayoutId}`
-}
-
-/**
- * Needs `signage.content.manage`. Answers 409 `signage_in_use` with `details.references` while a scene uses the layout.
- */
-export const deleteSignageCustomLayout = async (customLayoutId: string,
-    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteSignageCustomLayoutUrl(customLayoutId),
-  {
-    ...options,
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(versionRequest)
-  }
-);}
-
 
 export const getListSignageMachinesUrl = () => {
 
@@ -642,7 +428,7 @@ export const getUpdateSignageSceneUrl = (sceneId: string,) => {
 }
 
 /**
- * When the layout (built-in or custom) changes and `zones` is omitted, widgets move to the new layout by position; surplus widgets are dropped and new zones are empty.
+ * Replaces the whole scene including every block (the editor saves drafts with this call). Changing the aspect ratio is refused while a rule or default scene list shows the scene on a display with another ratio. Needs `signage.content.manage`. Audited as `signage_scene.updated`.
  * @summary Replace a scene
  */
 export const updateSignageScene = async (sceneId: string,

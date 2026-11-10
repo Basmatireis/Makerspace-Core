@@ -19,28 +19,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * 1-based grid lines; the zone must lie inside the layout's tracks.
- */
-export interface SignageGridPlacement {
-  /**
-     * @minimum 1
-     * @maximum 12
-     */
-  col: number;
-  /**
-     * @minimum 1
-     * @maximum 12
-     */
-  row: number;
-  /**
-     * @minimum 1
-     * @maximum 12
-     */
-  colSpan: number;
-  /**
-     * @minimum 1
-     * @maximum 12
-     */
-  rowSpan: number;
-}
+export type SignageBlockBorderStyle = typeof SignageBlockBorderStyle[keyof typeof SignageBlockBorderStyle];
+
+
+export const SignageBlockBorderStyle = {
+  SignageBlockBorderStyleSolid: 'solid',
+  SignageBlockBorderStyleDashed: 'dashed',
+  SignageBlockBorderStyleDotted: 'dotted',
+  SignageBlockBorderStyleDouble: 'double',
+} as const;

@@ -22,7 +22,6 @@ import type { SignageFit } from './signageFit';
 import type { SignageTimelapseWidgetSource } from './signageTimelapseWidgetSource';
 import type { SignageTimelapseWidgetType } from './signageTimelapseWidgetType';
 import type { SignageTransition } from './signageTransition';
-import type { SignageWidgetStyle } from './signageWidgetStyle';
 import type { UUIDv7 } from './uUIDv7';
 
 /**
@@ -59,5 +58,4 @@ export interface SignageTimelapseWidget {
   /** Shows the machine name and the day the print ended; never the job, file or person. */
   showCaption: boolean;
   fit: SignageFit;
-  style?: SignageWidgetStyle;
 }

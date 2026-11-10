@@ -18,9 +18,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SignageWidget } from './signageWidget';
 
 /**
- * Widget per zone id of the scene's layout.
+ * `glow` uses the border colour, falling back to the text colour.
  */
-export interface SignageZones {[key: string]: SignageWidget}
+export type SignageBlockShadow = typeof SignageBlockShadow[keyof typeof SignageBlockShadow];
+
+
+export const SignageBlockShadow = {
+  SignageBlockShadowNone: 'none',
+  SignageBlockShadowSoft: 'soft',
+  SignageBlockShadowStrong: 'strong',
+  SignageBlockShadowGlow: 'glow',
+} as const;

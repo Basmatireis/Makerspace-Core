@@ -18,22 +18,47 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SignageLayoutId } from './signageLayoutId';
-import type { SignageLayoutZone } from './signageLayoutZone';
+import type { SignageBlockStyle } from './signageBlockStyle';
+import type { SignageWidget } from './signageWidget';
 
-export interface SignageLayout {
-  id: SignageLayoutId;
-  /** @maxLength 100 */
+/**
+ * A freely positioned box on the scene's layout grid (short side 1080 units) that shows one widget.
+ */
+export interface SignageBlock {
+  /**
+     * Unique within the scene.
+     * @pattern ^[A-Za-z0-9_-]{1,40}$
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 60
+     */
   name: string;
   /**
-     * CSS grid-template-columns.
-     * @maxLength 100
+     * @minimum -8000
+     * @maximum 8000
      */
-  columns: string;
+  x: number;
   /**
-     * CSS grid-template-rows.
-     * @maxLength 100
+     * @minimum -8000
+     * @maximum 8000
      */
-  rows: string;
-  zones: SignageLayoutZone[];
+  y: number;
+  /**
+     * @minimum 8
+     * @maximum 8000
+     */
+  w: number;
+  /**
+     * @minimum 8
+     * @maximum 8000
+     */
+  h: number;
+  /** Hidden blocks are not shown on displays. */
+  hidden: boolean;
+  /** Locked blocks cannot be moved in the editor; no effect on displays. */
+  locked: boolean;
+  widget: SignageWidget;
+  style: SignageBlockStyle;
 }
