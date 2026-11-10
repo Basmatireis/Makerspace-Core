@@ -76,9 +76,13 @@ export function ProfilePhotoPicker({
       return;
     }
     const canvas = document.createElement('canvas');
-    canvas.width = source.videoWidth;
-    canvas.height = source.videoHeight;
-    canvas.getContext('2d')!.drawImage(source, 0, 0);
+    // The preview shows the centred square of the frame (object-fit: cover), so the photo takes exactly that region.
+    const side = Math.min(source.videoWidth, source.videoHeight);
+    canvas.width = side;
+    canvas.height = side;
+    canvas
+      .getContext('2d')!
+      .drawImage(source, (source.videoWidth - side) / 2, (source.videoHeight - side) / 2, side, side, 0, 0, side, side);
     setSource(canvas.toDataURL('image/jpeg', 0.9));
     stopCamera();
     setError('');
@@ -120,6 +124,7 @@ export function ProfilePhotoPicker({
             ) : (
               !cameraOn && <UserAvatar size={64} aria-hidden="true" className="visitor-photo__placeholder" />
             )}
+            {cameraOn && !image && <span className="visitor-photo__guide" aria-hidden="true" />}
             <video
               ref={video}
               autoPlay
