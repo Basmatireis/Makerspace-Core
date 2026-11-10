@@ -155,6 +155,34 @@
       ],
       "url": "http://localhost:5186",
       "port": 5186
+    },
+    {
+      "name": "opendays-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5188",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "/private/tmp/claude-501/-Users-basmatireis-git-Makerspace-core/d57d380d-d4d4-4103-8052-92905cf1fd98/scratchpad/proto"
+      ],
+      "port": 5188
+    },
+    {
+      "name": "signage-editor-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5189",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "/private/tmp/claude-501/-Users-basmatireis-git-Makerspace-core/0a85ac37-50ff-4a42-b945-d9bd2ffc6fbe/scratchpad/signage-editor"
+      ],
+      "port": 5189
     }
   ]
 }
