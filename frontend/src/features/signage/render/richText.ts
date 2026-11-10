@@ -343,10 +343,14 @@ export function renderRichText({ format, text, css = '' }: RichTextInput): RichT
   return { html: escapeHtml(text), css: safeCss };
 }
 
-/** Base look of a rich text document inside its shadow root; author CSS follows and wins. `var(--u)` is inherited. */
+/**
+ * Base look of a rich text document inside its shadow root; author CSS follows and wins. `var(--u)` is inherited. In a
+ * text block (host class `sg-rich--block`) the block style's weight and line height apply.
+ */
 export const RICH_TEXT_BASE_CSS = `
 :host { display: block; contain: paint; min-inline-size: 0; }
 .rt { white-space: normal; font-weight: 400; line-height: 1.3; overflow-wrap: anywhere; }
+:host(.sg-rich--block) .rt { font-weight: inherit; line-height: inherit; }
 .rt.rt--plain { white-space: pre-wrap; }
 .rt > :first-child { margin-block-start: 0; }
 .rt > :last-child { margin-block-end: 0; }

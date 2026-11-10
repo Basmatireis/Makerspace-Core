@@ -1,4 +1,4 @@
-// Package signage owns digital-signage content (layouts, media assets, scenes, announcement templates and
+// Package signage owns digital-signage content (media assets, scenes made of blocks, announcement templates and
 // announcements) and the displays that show it: pairing, rules with their scene lists, the default scene
 // list, publications and the player API.
 package signage
@@ -222,12 +222,4 @@ func int32Pointer(value *int) *int32 {
 	}
 	converted := int32(*value)
 	return &converted
-}
-
-// ListLayouts returns the fixed layouts; it is available to every signage reader.
-func (s *Service) ListLayouts(_ context.Context, principal authorization.Principal) ([]Layout, error) {
-	if err := requireRead(principal); err != nil {
-		return nil, err
-	}
-	return Layouts(), nil
 }

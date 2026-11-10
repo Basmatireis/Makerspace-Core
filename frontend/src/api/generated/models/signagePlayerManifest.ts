@@ -19,7 +19,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SignagePlayerAsset } from './signagePlayerAsset';
-import type { SignagePlayerCustomLayout } from './signagePlayerCustomLayout';
 import type { SignagePlayerManifestDisplay } from './signagePlayerManifestDisplay';
 import type { SignagePlayerRule } from './signagePlayerRule';
 import type { SignagePlayerScene } from './signagePlayerScene';
@@ -27,8 +26,8 @@ import type { SignageSceneListItems } from './signageSceneListItems';
 
 export interface SignagePlayerManifest {
   /**
-     * Shape of the manifest; 3 since rules and the default carry scene lists instead of playlists. Publications stored in an older shape (without this field) are upgraded when they are read, so this endpoint always answers 3.
-     * @minimum 3
+     * Shape of the manifest; 4 since scenes carry free-positioned blocks instead of a layout with zones. Publications stored in an older shape are upgraded when they are read (layouts and zones become blocks), so this endpoint always answers 4.
+     * @minimum 4
      */
   manifestVersion: number;
   /** @minimum 1 */
@@ -42,11 +41,4 @@ export interface SignagePlayerManifest {
   defaultScenes: SignageSceneListItems;
   scenes: SignagePlayerScene[];
   assets: SignagePlayerAsset[];
-  /** The custom layouts the published scenes use; empty in publications made before custom layouts. */
-  customLayouts: SignagePlayerCustomLayout[];
-  /**
-     * 2 for publications that carry `customLayouts`.
-     * @minimum 1
-     */
-  layoutsVersion: number;
 }

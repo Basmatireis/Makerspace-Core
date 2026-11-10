@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULE_ID, resolvePlayback, type PlaybackRule } from '../features/signage/engine/playback';
 import { noCameraSource } from './camera';
-import { live, manifest, only, rule, scene } from './testFixtures';
+import { live, manifest, only, rule, scene, textBlock } from './testFixtures';
 import { holdResult, resolveView, LIVE_TTL_MS, type Hold, type LiveSnapshot } from './view';
 
 const result = (rules: PlaybackRule[], printing: string[] = []) =>
@@ -170,11 +170,21 @@ describe('resolveView', () => {
     ).toBe('scene-a');
   });
 
-  it('hands layouts, calendar, asset names and announcement formats to the renderer', () => {
-    const calendar = { from: '2026-10-01', to: '2026-12-01', holidays: [], breaks: [], openDays: [], events: [] };
-    const customLayouts = [
-      { id: 'cl', name: 'L', mode: 'grid' as const, columns: [1], rows: [1], zones: [], version: 1 },
+  it('plays the blocks of a version 4 manifest scene as published, hidden ones included for the renderer to skip', () => {
+    const blocks = [
+      textBlock('title', 'Welcome', { x: 96, y: 54, w: 1728, h: 200 }),
+      textBlock('draft', 'Not yet', { hidden: true }),
     ];
+    const m = manifest(1, { scenes: [scene('scene-a', { blocks })] });
+    expect(m.manifestVersion).toBe(4);
+    const { view } = resolveView({ ...base, manifest: m, live: snapshot(), lastLiveAt: 1_000, now: 1_000 });
+    expect(view.sceneId).toBe('scene-a');
+    expect(view.scene?.blocks).toEqual(blocks);
+    expect(view.scene?.aspectRatio).toEqual({ width: 16, height: 9 });
+  });
+
+  it('hands the calendar, asset names and announcement formats to the renderer', () => {
+    const calendar = { from: '2026-10-01', to: '2026-12-01', holidays: [], breaks: [], openDays: [], events: [] };
     const announcement = {
       id: 'a1',
       templateId: 't',
@@ -189,12 +199,11 @@ describe('resolveView', () => {
     const { view } = resolveView({
       ...base,
       assetName: (id) => (id === 'f' ? 'Fira' : null),
-      manifest: manifest(1, { customLayouts }),
+      manifest: manifest(1),
       live: snapshot({ calendar, announcements: [announcement] }),
       lastLiveAt: 1_000,
       now: 1_000,
     });
-    expect(view.data.customLayouts).toEqual(customLayouts);
     expect(view.data.calendar).toEqual(calendar);
     expect(view.data.assetName?.('f')).toBe('Fira');
     expect(view.data.announcements[0]).toMatchObject({ bodyFormat: 'markdown', bodyCss: 'p{}', body: '**b**' });
@@ -225,9 +234,8 @@ describe('resolveView', () => {
     expect(resolveView({ ...input, live: snapshot() }).view.data.timelapses).toBeNull();
   });
 
-  it('copes with a manifest and announcements cached before custom layouts and rich text', () => {
+  it('copes with announcements cached before rich text', () => {
     const old = manifest(1);
-    delete (old as Partial<typeof old>).customLayouts;
     const announcement = {
       id: 'a1',
       templateId: 't',
@@ -244,7 +252,6 @@ describe('resolveView', () => {
       lastLiveAt: 1_000,
       now: 1_000,
     });
-    expect(view.data.customLayouts).toEqual([]);
     expect(view.data.calendar).toBeNull();
     expect(view.data.announcements[0]).toMatchObject({ bodyFormat: 'plain', bodyCss: '' });
   });

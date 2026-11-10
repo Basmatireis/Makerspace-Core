@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SignageTimelapseWidget } from '../../../api/generated/models';
 import { defaultWidget } from '../widgets';
 import { SceneRenderer } from './SceneRenderer';
+import { sceneWith } from './testScenes';
 import { timelapseCaption, timelapseClips } from './timelapseModel';
 import { TimelapseWidget } from './TimelapseWidget';
 import type { RenderData, RenderScene, RenderTimelapse } from './types';
@@ -135,18 +136,9 @@ describe('timelapse widget', () => {
   });
 
   it('renders only the style box without clips', async () => {
-    const scene: RenderScene = {
-      aspectRatio: { width: 16, height: 9 },
-      layoutId: 'full',
-      backgroundColor: '#161616',
-      backgroundAssetId: null,
-      backgroundFit: 'cover',
-      backgroundDim: 0,
-      theme: 'dark',
-      zones: { main: widget() },
-    };
+    const scene: RenderScene = sceneWith(widget());
     const empty = render(<SceneRenderer scene={scene} data={data({ timelapses: null })} />);
-    expect(empty.container.querySelector('.sg-zone--timelapse')).not.toBeNull();
+    expect(empty.container.querySelector('.sg-block--timelapse')).not.toBeNull();
     expect(empty.container.querySelector('video')).toBeNull();
     empty.unmount();
     const { container } = render(<SceneRenderer scene={scene} data={data()} />);

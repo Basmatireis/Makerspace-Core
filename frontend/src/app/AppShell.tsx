@@ -40,6 +40,8 @@ const ConsentGate = lazy(() => import('../features/mynotifications/ConsentGate')
 const CalendarSubscriptionDialog = lazy(() => import('../features/profile/CalendarSubscriptionDialog'));
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
+/** Pages that use the whole width below the header, without page padding. */
+const FULL_WIDTH_PATHS = /^\/signage\/scenes\/[^/]+\/?$/;
 
 function currentNarrowState(): boolean {
   return typeof window.matchMedia === 'function' ? window.matchMedia(NARROW_SHELL_QUERY).matches : false;
@@ -61,7 +63,9 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isNarrow, setIsNarrow] = useState(currentNarrowState);
-  const [sideNavExpanded, setSideNavExpanded] = useState(() => !currentNarrowState());
+  // Full-width work pages (the screen editor) keep the header but open the navigation only on request.
+  const fullWidth = FULL_WIDTH_PATHS.test(location.pathname);
+  const [sideNavExpanded, setSideNavExpanded] = useState(() => !currentNarrowState() && !fullWidth);
   const [profilePanelOpen, setProfilePanelOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
@@ -99,7 +103,7 @@ export function AppShell() {
     const media = window.matchMedia(NARROW_SHELL_QUERY);
     const handleChange = (event: MediaQueryListEvent) => {
       setIsNarrow(event.matches);
-      setSideNavExpanded(!event.matches);
+      setSideNavExpanded(!event.matches && !FULL_WIDTH_PATHS.test(window.location.pathname));
     };
     media.addEventListener('change', handleChange);
     return () => media.removeEventListener('change', handleChange);
@@ -113,8 +117,12 @@ export function AppShell() {
     }
   }, [isNarrow, location.pathname]);
 
+  useEffect(() => {
+    if (!currentNarrowState()) setSideNavExpanded(!fullWidth);
+  }, [fullWidth]);
+
   const handleNavigation = () => {
-    if (!isNarrow) return;
+    if (!isNarrow && !fullWidth) return;
     setSideNavExpanded(false);
     window.requestAnimationFrame(() => {
       document.getElementById('main-content')?.focus();
@@ -287,7 +295,7 @@ export function AppShell() {
           <main
             id="main-content"
             tabIndex={-1}
-            className={`app-main${sideNavExpanded && !isNarrow && !consentRequired ? ' app-main--nav-expanded' : ''}`}
+            className={`app-main${sideNavExpanded && !isNarrow && !fullWidth && !consentRequired ? ' app-main--nav-expanded' : ''}${fullWidth ? ' app-main--full-width' : ''}`}
           >
             <DemoBanner />
             <NotificationAlertHost />

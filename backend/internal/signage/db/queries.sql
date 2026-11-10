@@ -105,15 +105,15 @@ SELECT id, kind FROM signage_assets WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]
 
 -- name: ListScenesReferencingAsset :many
 SELECT id, name FROM signage_scenes
-WHERE background_asset_id = sqlc.arg(id)::uuid OR font_asset_id = sqlc.arg(id)::uuid OR position((sqlc.arg(id)::uuid)::text in zones::text) > 0
+WHERE background_asset_id = sqlc.arg(id)::uuid OR font_asset_id = sqlc.arg(id)::uuid OR position((sqlc.arg(id)::uuid)::text in blocks::text) > 0
 ORDER BY lower(name), id;
 
 -- Scenes ------------------------------------------------------------------------------------------------------
 
 -- name: CreateSignageScene :one
-INSERT INTO signage_scenes (id, name, aspect_width, aspect_height, layout_id, custom_layout_id, background_color, background_asset_id, background_fit, background_dim, theme, font_family, font_asset_id, zones)
-VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(aspect_width), sqlc.arg(aspect_height), sqlc.arg(layout_id), sqlc.narg(custom_layout_id), sqlc.arg(background_color), sqlc.narg(background_asset_id),
-        sqlc.arg(background_fit), sqlc.arg(background_dim), sqlc.arg(theme), sqlc.arg(font_family), sqlc.narg(font_asset_id), sqlc.arg(zones)::text::jsonb)
+INSERT INTO signage_scenes (id, name, aspect_width, aspect_height, background_color, background_asset_id, background_fit, background_dim, theme, font_family, font_asset_id, blocks)
+VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(aspect_width), sqlc.arg(aspect_height), sqlc.arg(background_color), sqlc.narg(background_asset_id),
+        sqlc.arg(background_fit), sqlc.arg(background_dim), sqlc.arg(theme), sqlc.arg(font_family), sqlc.narg(font_asset_id), sqlc.arg(blocks)::text::jsonb)
 RETURNING *;
 
 -- name: GetSignageScene :one
@@ -127,16 +127,12 @@ SELECT * FROM signage_scenes ORDER BY lower(name), id;
 
 -- name: UpdateSignageScene :one
 UPDATE signage_scenes
-SET name = sqlc.arg(name), aspect_width = sqlc.arg(aspect_width), aspect_height = sqlc.arg(aspect_height), layout_id = sqlc.arg(layout_id), custom_layout_id = sqlc.narg(custom_layout_id),
+SET name = sqlc.arg(name), aspect_width = sqlc.arg(aspect_width), aspect_height = sqlc.arg(aspect_height),
     background_color = sqlc.arg(background_color),
     background_asset_id = sqlc.narg(background_asset_id), background_fit = sqlc.arg(background_fit), background_dim = sqlc.arg(background_dim),
-    theme = sqlc.arg(theme), font_family = sqlc.arg(font_family), font_asset_id = sqlc.narg(font_asset_id), zones = sqlc.arg(zones)::text::jsonb, version = version + 1, updated_at = now()
+    theme = sqlc.arg(theme), font_family = sqlc.arg(font_family), font_asset_id = sqlc.narg(font_asset_id), blocks = sqlc.arg(blocks)::text::jsonb, version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
-
--- name: SetSignageSceneZones :exec
--- Rewrites the widgets of a scene whose custom layout changed its zones.
-UPDATE signage_scenes SET zones = sqlc.arg(zones)::text::jsonb, version = version + 1, updated_at = now() WHERE id = sqlc.arg(id);
 
 -- name: DeleteSignageScene :one
 DELETE FROM signage_scenes WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING id;
@@ -161,48 +157,6 @@ ORDER BY d.name, d.id;
 SELECT g.id, g.name FROM signage_display_groups g
 WHERE EXISTS (SELECT 1 FROM signage_default_scenes ds WHERE ds.group_id = g.id AND ds.scene_id = sqlc.arg(scene_id))
 ORDER BY g.name, g.id;
-
--- Custom layouts ----------------------------------------------------------------------------------------------
-
--- name: CreateSignageCustomLayout :one
-INSERT INTO signage_custom_layouts (id, name, mode, columns, rows, zones)
-VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(mode), sqlc.arg(columns)::int[], sqlc.arg(rows)::int[], sqlc.arg(zones)::text::jsonb)
-RETURNING *;
-
--- name: GetSignageCustomLayout :one
-SELECT * FROM signage_custom_layouts WHERE id = sqlc.arg(id);
-
--- name: GetSignageCustomLayoutForUpdate :one
-SELECT * FROM signage_custom_layouts WHERE id = sqlc.arg(id) FOR UPDATE;
-
--- name: GetSignageCustomLayoutForShare :one
--- Scene writes share-lock the layout so that a concurrent layout update or deletion waits for them.
-SELECT * FROM signage_custom_layouts WHERE id = sqlc.arg(id) FOR SHARE;
-
--- name: ListSignageCustomLayouts :many
-SELECT l.id, l.name, l.mode, l.columns, l.rows, l.zones, l.version, l.created_at, l.updated_at,
-       (SELECT count(*) FROM signage_scenes s WHERE s.custom_layout_id = l.id)::int AS scene_count
-FROM signage_custom_layouts l ORDER BY lower(l.name), l.id;
-
--- name: CountScenesUsingCustomLayout :one
-SELECT count(*)::int FROM signage_scenes WHERE custom_layout_id = sqlc.arg(id)::uuid;
-
--- name: ListSignageCustomLayoutsByIDs :many
-SELECT * FROM signage_custom_layouts WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) ORDER BY id;
-
--- name: UpdateSignageCustomLayout :one
-UPDATE signage_custom_layouts
-SET name = sqlc.arg(name), mode = sqlc.arg(mode), columns = sqlc.arg(columns)::int[], rows = sqlc.arg(rows)::int[],
-    zones = sqlc.arg(zones)::text::jsonb, version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
-RETURNING *;
-
--- name: DeleteSignageCustomLayout :one
-DELETE FROM signage_custom_layouts WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING id;
-
--- name: ListScenesUsingCustomLayoutForUpdate :many
--- Locks every scene that uses the layout (in id order) before the layout zones change.
-SELECT id, name, zones FROM signage_scenes WHERE custom_layout_id = sqlc.arg(id)::uuid ORDER BY id FOR UPDATE;
 
 -- Announcement templates --------------------------------------------------------------------------------------
 
@@ -259,7 +213,7 @@ WHERE r.announcement_template_ids @> ARRAY[sqlc.arg(template_id)::uuid] ORDER BY
 SELECT id FROM signage_announcement_templates WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) FOR SHARE;
 
 -- name: ListScenesReferencingTemplate :many
-SELECT id, name FROM signage_scenes WHERE position((sqlc.arg(template_id)::uuid)::text in zones::text) > 0 ORDER BY lower(name), id;
+SELECT id, name FROM signage_scenes WHERE position((sqlc.arg(template_id)::uuid)::text in blocks::text) > 0 ORDER BY lower(name), id;
 
 -- Announcements -----------------------------------------------------------------------------------------------
 
@@ -629,8 +583,6 @@ SELECT name FROM signage_scenes;
 -- name: ListSignageTemplateNames :many
 SELECT name FROM signage_announcement_templates;
 
--- name: ListSignageCustomLayoutNames :many
-SELECT name FROM signage_custom_layouts;
 
 -- name: ListLiveSignageRuleNotices :many
 -- Notices a notification rule put on this display that are in force now.

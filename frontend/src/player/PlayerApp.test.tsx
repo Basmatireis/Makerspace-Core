@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlayerApiError } from './api';
 import { PlayerApp } from './PlayerApp';
-import { fakeApi, live } from './testFixtures';
+import { fakeApi, live, manifest, scene, textBlock } from './testFixtures';
 
 describe('PlayerApp', () => {
   beforeEach(async () => {
@@ -19,6 +19,28 @@ describe('PlayerApp', () => {
       await vi.advanceTimersByTimeAsync(100);
     });
     expect(screen.getByText('scene-a')).toBeInTheDocument();
+  });
+
+  it('renders the blocks of the scene on a stage of the grid size and leaves hidden blocks out', async () => {
+    const blocks = [textBlock('title', 'Visible'), textBlock('draft', 'Hidden draft', { hidden: true })];
+    const { container } = render(
+      <PlayerApp
+        api={fakeApi({
+          manifest: async () => ({
+            unchanged: false,
+            manifest: manifest(1, { scenes: [scene('scene-a', { blocks })] }),
+          }),
+        })}
+      />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(screen.getByText('Visible')).toBeInTheDocument();
+    expect(screen.queryByText('Hidden draft')).toBeNull();
+    const stage = container.querySelector<HTMLElement>('.sg-stage')!;
+    expect([stage.style.width, stage.style.height]).toEqual(['1920px', '1080px']);
+    expect(container.querySelector('[data-block-id="title"]')).not.toBeNull();
   });
 
   it('returns to the pairing screen with a new code when the credential is revoked', async () => {

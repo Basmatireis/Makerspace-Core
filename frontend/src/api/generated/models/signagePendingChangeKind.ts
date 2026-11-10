@@ -30,5 +30,4 @@ export const SignagePendingChangeKind = {
   SignagePendingChangeKindRule: 'rule',
   SignagePendingChangeKindScene: 'scene',
   SignagePendingChangeKindAsset: 'asset',
-  SignagePendingChangeKindLayout: 'layout',
 } as const;

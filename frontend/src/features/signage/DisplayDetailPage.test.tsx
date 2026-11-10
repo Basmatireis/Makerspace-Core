@@ -30,11 +30,16 @@ function cameraPreview() {
     multi: 'split' as const,
     showProgress: true,
     showRemaining: true,
+    showLive: true,
+    showName: true,
     fallback: 'text' as const,
     fallbackMediaId: null,
   };
+  const blocks = scene.blocks.map((block) =>
+    block.id === 'main' ? { ...block, widget: camera, style: { ...block.style, backgroundAssetId: null } } : block,
+  );
   return previewFixture({
-    manifest: { ...base.manifest!, scenes: [{ ...scene, zones: { ...scene.zones, main: camera } }] },
+    manifest: { ...base.manifest!, scenes: [{ ...scene, blocks }] },
   });
 }
 

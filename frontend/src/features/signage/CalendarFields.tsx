@@ -1,6 +1,6 @@
 import { NumberInput, RadioButton, RadioButtonGroup, TextInput, Toggle } from '@carbon/react';
 import type { SignageCalendarColors, SignageCalendarWidget } from '../../api/generated/models';
-import { ColorField } from './WidgetStyleFields';
+import { ColorField } from './editor/BlockStyleFields';
 import { clampInt, LIMITS, withField } from './widgets';
 
 type Category = {

@@ -19,7 +19,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SignageQrWidgetType } from './signageQrWidgetType';
-import type { SignageWidgetStyle } from './signageWidgetStyle';
 
 export interface SignageQrWidget {
   type: SignageQrWidgetType;
@@ -31,5 +30,4 @@ export interface SignageQrWidget {
   url: string;
   /** @maxLength 200 */
   caption: string;
-  style?: SignageWidgetStyle;
 }

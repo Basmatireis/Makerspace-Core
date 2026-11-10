@@ -1,4 +1,5 @@
 import type {
+  SignageBlock,
   SignagePlayerLive,
   SignagePlayerManifest,
   SignagePlayerRule,
@@ -8,21 +9,56 @@ import type { PlayerApi } from './api';
 
 // Builders for player tests.
 
+/** A full-screen 16:9 text block with the default text style. */
+export const textBlock = (id: string, text: string, patch: Partial<SignageBlock> = {}): SignageBlock => ({
+  id,
+  name: id,
+  x: 0,
+  y: 0,
+  w: 1920,
+  h: 1080,
+  hidden: false,
+  locked: false,
+  widget: { type: 'text', text, fit: false },
+  style: {
+    backgroundColor: null,
+    backgroundOpacity: 100,
+    backgroundAssetId: null,
+    backgroundDim: 0,
+    textColor: null,
+    borderWidth: 0,
+    borderStyle: 'solid',
+    borderColor: null,
+    radius: 0,
+    shadow: 'none',
+    fontFamily: 'inherit',
+    fontAssetId: null,
+    fontWeight: '600',
+    lineHeight: 115,
+    letterSpacing: 0,
+    uppercase: false,
+    textSize: 50,
+    padding: 22,
+    align: 'start',
+    verticalAlign: 'center',
+    opacity: 100,
+  },
+  ...patch,
+});
+
 export const scene = (id: string, patch: Partial<SignagePlayerScene> = {}): SignagePlayerScene =>
   ({
     id,
     name: id,
     aspectRatio: { width: 16, height: 9 },
-    layoutId: 'full',
     backgroundColor: '#000000',
     backgroundAssetId: null,
     backgroundFit: 'cover',
     backgroundDim: 0,
     fontFamily: 'sans',
     fontAssetId: null,
-    customLayoutId: null,
     theme: 'dark',
-    zones: { main: { type: 'text', text: id, size: 'm', align: 'start' } },
+    blocks: [textBlock('main', id)],
     version: 1,
     ...patch,
   }) as SignagePlayerScene;
@@ -51,12 +87,10 @@ export const manifest = (revision: number, patch: Partial<SignagePlayerManifest>
   revision,
   display: { aspectRatio: { width: 16, height: 9 }, visibleFromOutside: false },
   rules: [],
-  manifestVersion: 3,
+  manifestVersion: 4,
   defaultScenes: only('scene-a'),
   scenes: [scene('scene-a'), scene('scene-b')],
   assets: [],
-  customLayouts: [],
-  layoutsVersion: 2,
   ...patch,
 });
 

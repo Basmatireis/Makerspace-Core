@@ -1,75 +1,124 @@
 /* Shared scene renderer: plain CSS on purpose (no Carbon); the player app imports it too.
-   --u is 1/100 of the design width (see SceneRenderer), so a scene looks identical at any size. */
+   A scene is laid out at its grid size in CSS pixels (short side 1080) and ScreenFrame scales the stage with a
+   transform. Lengths are grid pixels or multiples of --u, the widget unit of a block (see style.ts, blockUnit);
+   no viewport, container or percentage units size anything inside a scene. */
 .sg-frame {
   position: relative;
-  container-type: inline-size;
   overflow: hidden;
   max-inline-size: 100%;
+  inline-size: 100%;
   background: #000;
   color: #fff;
-  inline-size: 100%;
 }
-.sg-frame > .sg-scene,
-.sg-screen {
+/* Physical offsets: the transform origin is the top left corner. */
+.sg-stage {
+  --u: 10.8px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+.sg-stage > .sg-screen {
   position: absolute;
   inset: 0;
 }
-.sg-screen > .sg-scene {
-  position: static;
-}
+
+/* The scene root resets typography, so page styles (Carbon in the admin app) never leak into previews. */
 .sg-scene {
-  display: grid;
-  inline-size: 100%;
-  block-size: 100%;
-  min-inline-size: 0;
-  min-block-size: 0;
+  --u: 10.8px;
+  --sg-letter-spacing: 0;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
   color: #fff;
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 32px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: 0;
+  word-spacing: normal;
+  text-align: start;
+  text-indent: 0;
+  text-transform: none;
+  text-decoration: none;
+  white-space: normal;
+  -webkit-font-smoothing: antialiased;
+}
+.sg-scene *,
+.sg-scene *::before,
+.sg-scene *::after {
+  box-sizing: border-box;
+}
+.sg-scene :where(ul, ol) {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .sg-scene--light {
   color: #161616;
 }
 .sg-scene--empty {
+  inline-size: 100%;
+  block-size: 100%;
   background: #000;
 }
-.sg-zone {
+
+/* A block: the positioned style box (blockBoxCss) around its content box (padding, vertical alignment). Later blocks
+   are on top (document order); each block is its own stacking context. */
+.sg-block {
+  position: absolute;
+  display: flex;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* Letter spacing in em is resolved per element, so headings and shrunk text keep their proportion. */
+.sg-block,
+.sg-block * {
+  letter-spacing: var(--sg-letter-spacing, 0);
+}
+.sg-block__in {
   position: relative;
   display: flex;
-  box-sizing: border-box;
+  flex: 1 1 auto;
+  flex-direction: column;
   min-inline-size: 0;
   min-block-size: 0;
   overflow: hidden;
 }
-/* Free custom layouts place their zones absolutely (percent rects, stacking order by index; see SceneRenderer). */
-.sg-scene--free {
-  display: block;
-}
-.sg-scene--free > .sg-zone {
-  position: absolute;
-}
-.sg-zone--text,
-.sg-zone--status,
-.sg-zone--clock,
-.sg-zone--open_days,
-.sg-zone--events,
-.sg-zone--agenda,
-.sg-zone--calendar,
-.sg-zone--qr {
-  padding: calc(var(--u) * 2);
-}
-.sg-zone > * {
-  flex: 1 1 auto;
+.sg-block__in > * {
+  flex: none;
   min-inline-size: 0;
 }
-/* A widget style with a vertical alignment sets --sg-valign on the zone (zoneBoxCss). */
-.sg-zone.sg-zone--valign > * {
-  align-self: var(--sg-valign);
+/* Widgets that fill their block; the others take their content's height and follow the vertical alignment. */
+.sg-block__in
+  > :is(
+    .sg-media,
+    .sg-media-box,
+    .sg-placeholder,
+    .sg-fade,
+    .sg-camera,
+    .sg-split,
+    .sg-cal,
+    .sg-timelapse,
+    .sg-ann-list
+  ) {
+  flex: 1 1 0;
+  min-block-size: 0;
 }
 .sg-media {
   display: block;
   inline-size: 100%;
   block-size: 100%;
   object-fit: cover;
+}
+.sg-media-box {
+  position: relative;
+}
+.sg-media-box > .sg-media,
+.sg-dim {
+  position: absolute;
+  inset: 0;
 }
 .sg-placeholder {
   display: grid;
@@ -79,17 +128,13 @@
   border: 1px dashed rgba(255, 255, 255, 0.35);
   margin: calc(var(--u) * 1);
 }
+/* Text takes the block's font size (textSize), weight and line height; "shrink to fit" sets its own font size. */
 .sg-text {
-  align-self: center;
   white-space: pre-wrap;
-  font-weight: 600;
-  line-height: 1.15;
   overflow-wrap: anywhere;
 }
 .sg-text--rich {
   white-space: normal;
-  font-weight: 400;
-  line-height: 1.3;
 }
 /* Rich text lives in a shadow root (RichText.tsx); the host only needs a box. */
 .sg-rich {
@@ -108,6 +153,11 @@
   text-align: center;
   font-size: calc(var(--u) * 3.2);
 }
+/* Clocks follow the block's horizontal alignment. */
+.sg-center--aligned {
+  align-items: var(--sg-halign, center);
+  text-align: inherit;
+}
 .sg-big {
   font-size: calc(var(--u) * 5);
 }
@@ -125,7 +175,7 @@
 .sg-qr {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: var(--sg-halign, center);
   gap: calc(var(--u) * 3);
 }
 .sg-qr__code {
@@ -158,7 +208,7 @@
 .sg-ann-list {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: var(--sg-valign, center);
   gap: calc(var(--u) * 1);
 }
 .sg-ann-list--full,
@@ -173,7 +223,6 @@
   padding: calc(var(--u) * 1.6) calc(var(--u) * 2.4);
   color: #fff;
   background: #0f62fe;
-  line-height: 1.15;
   overflow-wrap: anywhere;
 }
 .sg-ann--info {
@@ -214,12 +263,12 @@
 }
 .sg-ann--full {
   flex: 1 1 auto;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
+  align-items: var(--sg-halign, center);
+  justify-content: var(--sg-valign, center);
   padding: calc(var(--u) * 6);
   gap: calc(var(--u) * 2);
 }
+/* Notices of notification rules lie over the scene on the stage (grid pixels, --u of the stage). */
 .sg-rule-notices {
   position: absolute;
   inset-block-start: 0;
@@ -227,11 +276,10 @@
   z-index: 5;
   display: flex;
   flex-direction: column;
+  line-height: 1.15;
 }
-.sg-zone--announcement > .sg-ann-list--card {
-  padding: calc(var(--u) * 2);
-}
-.sg-zone--announcement > .sg-text {
+.sg-block__in > .sg-ann-list--card,
+.sg-block--announcement .sg-block__in > .sg-text {
   padding: calc(var(--u) * 2);
 }
 
@@ -255,7 +303,7 @@
 }
 .sg-camera__note {
   position: absolute;
-  inset-block-start: calc(var(--u) * 2);
+  inset-block-start: calc(var(--u) * 5);
   inset-inline: calc(var(--u) * 2);
   text-align: center;
   font-size: calc(var(--u) * 2.2);
@@ -263,6 +311,29 @@
 .sg-camera__icon {
   inline-size: calc(var(--u) * 12);
   block-size: calc(var(--u) * 12);
+}
+.sg-camera__live {
+  position: absolute;
+  inset-block-start: calc(var(--u) * 1.5);
+  inset-inline-start: calc(var(--u) * 1.5);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.6);
+  padding: calc(var(--u) * 0.3) calc(var(--u) * 1);
+  border-radius: calc(var(--u) * 0.4);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: calc(var(--u) * 1.8);
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.sg-camera__live::before {
+  content: '';
+  inline-size: calc(var(--u) * 1.1);
+  block-size: calc(var(--u) * 1.1);
+  border-radius: 50%;
+  background: #fa4d56;
 }
 .sg-camera__caption {
   position: absolute;
@@ -513,46 +584,10 @@
   font-size: calc(var(--u) * 1.8);
 }
 
-/* Zone selection on the editor canvas: real buttons, so zones work with the keyboard. */
-.sg-zone__select {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  outline: 1px dashed rgba(255, 255, 255, 0.55);
+/* Editor: hidden blocks are drawn faded (opacity is set inline); displays leave them out. */
+.sg-block--hidden {
+  outline: 2px dashed rgba(255, 255, 255, 0.6);
   outline-offset: -2px;
-  text-align: start;
-}
-.sg-zone__select:hover {
-  background: rgba(120, 169, 255, 0.18);
-}
-.sg-zone__select:focus-visible {
-  outline: 3px solid #78a9ff;
-  outline-offset: -3px;
-}
-.sg-zone--selected .sg-zone__select {
-  outline: 3px solid #0f62fe;
-  outline-offset: -3px;
-  background: rgba(15, 98, 254, 0.14);
-}
-.sg-zone__label {
-  position: absolute;
-  inset-block-start: 4px;
-  inset-inline-start: 4px;
-  padding: 1px 6px;
-  background: rgba(22, 22, 22, 0.85);
-  color: #fff;
-  font:
-    400 0.75rem/1.2 'IBM Plex Sans',
-    system-ui,
-    sans-serif;
-}
-.sg-zone--selected .sg-zone__label {
-  background: #0f62fe;
 }
 
 @keyframes sg-fade-in {

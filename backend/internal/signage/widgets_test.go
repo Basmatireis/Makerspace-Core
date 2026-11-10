@@ -1,63 +1,32 @@
 package signage
 
 import (
+	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 )
 
-func styleJSON(family, asset string) string {
-	return `{"textColor":"#ffffff","backgroundColor":null,"borderColor":"#000000","backgroundOpacity":50,` +
-		`"padding":2,"radius":1,"borderWidth":5,"fontScale":150,"fontFamily":"` + family + `","fontAssetId":` + asset +
-		`,"align":"center","verticalAlign":"inherit"}`
-}
-
-func TestWidgetStyleValidation(t *testing.T) {
-	font := ids.New()
-	ok, refs, err := ValidateWidget("main", []byte(`{"type":"empty","style":`+styleJSON("custom", `"`+font.String()+`"`)+`}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(refs.FontAssets) != 1 || refs.FontAssets[0] != font || !strings.Contains(string(ok), `"style":{`) {
-		t.Fatalf("refs = %#v widget = %s", refs, ok)
-	}
-	if _, _, err := ValidateWidget("main", []byte(`{"type":"empty","style":`+styleJSON("sans", "null")+`}`)); err != nil {
-		t.Fatalf("builtin family rejected: %v", err)
-	}
-	plain := styleJSON("sans", "null")
-	bad := map[string]string{
-		"custom without font":  styleJSON("custom", "null"),
-		"font without custom":  styleJSON("serif", `"`+font.String()+`"`),
-		"unknown family":       styleJSON("comic", "null"),
-		"missing field":        strings.Replace(plain, `"padding":2,`, "", 1),
-		"extra field":          strings.Replace(plain, `"padding":2,`, `"padding":2,"margin":1,`, 1),
-		"null number":          strings.Replace(plain, `"padding":2`, `"padding":null`, 1),
-		"padding too large":    strings.Replace(plain, `"padding":2`, `"padding":11`, 1),
-		"font scale too small": strings.Replace(plain, `"fontScale":150`, `"fontScale":24`, 1),
-		"opacity too large":    strings.Replace(plain, `"backgroundOpacity":50`, `"backgroundOpacity":101`, 1),
-		"uppercase colour":     strings.Replace(plain, `#ffffff`, `#FFFFFF`, 1),
-		"short colour":         strings.Replace(plain, `#ffffff`, `#fff`, 1),
-		"bad alignment":        strings.Replace(plain, `"center"`, `"middle"`, 1),
-	}
-	for name, style := range bad {
-		t.Run(name, func(t *testing.T) {
-			if _, _, err := ValidateWidget("main", []byte(`{"type":"clock","mode":"time","style":`+style+`}`)); err == nil {
-				t.Fatal("invalid style accepted")
-			}
-		})
-	}
-}
-
-func TestAnnouncementWidgetUsesBoxStyleField(t *testing.T) {
-	raw := `{"type":"announcement","templateIds":[],"style":"card","size":"m","whenNone":"empty","fallbackText":"",` +
-		`"whenMany":"rotate","rotateSeconds":10,"boxStyle":` + styleJSON("mono", "null") + `}`
-	canonical, _, err := ValidateWidget("main", []byte(raw))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(canonical), `"style":"card"`) || !strings.Contains(string(canonical), `"boxStyle":{`) {
-		t.Fatalf("canonical = %s", canonical)
+func TestWidgetsCarryNoStyleOfTheirOwn(t *testing.T) {
+	for name, raw := range map[string]string{
+		"announcement": `{"type":"announcement","templateIds":[],"style":"card","whenNone":"empty","fallbackText":"",` +
+			`"whenMany":"rotate","rotateSeconds":10}`,
+		"text": `{"type":"text","text":"Hi","fit":true}`,
+		"camera": `{"type":"camera","source":"auto","machineId":null,"multi":"split","showProgress":false,` +
+			`"showRemaining":false,"fallback":"hide","fallbackMediaId":null,"machineIds":[],"showLive":false,"showName":true}`,
+		"image": `{"type":"image","mediaId":null,"fit":"cover","dim":45}`,
+	} {
+		canonical, _, err := ValidateWidget("main", []byte(raw))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		var original, decoded map[string]any
+		_ = json.Unmarshal([]byte(raw), &original)
+		if err := json.Unmarshal(canonical, &decoded); err != nil || !reflect.DeepEqual(original, decoded) {
+			t.Fatalf("%s re-encoded as %s", name, canonical)
+		}
 	}
 }
 
@@ -71,8 +40,8 @@ func fontList(n int) string {
 
 func TestRichTextAndListWidgets(t *testing.T) {
 	good := []string{
-		`{"type":"text","text":"# Hi","size":"m","align":"start","format":"markdown","css":"p{color:red}","fontAssetIds":` + fontList(1) + `}`,
-		`{"type":"text","text":"` + strings.Repeat("a", 20000) + `","size":"m","align":"start","format":"html"}`,
+		`{"type":"text","text":"# Hi","fit":false,"format":"markdown","css":"p{color:red}","fontAssetIds":` + fontList(1) + `}`,
+		`{"type":"text","text":"` + strings.Repeat("a", 20000) + `","fit":false,"format":"html"}`,
 		`{"type":"open_days","count":20,"title":"","emptyText":"none","entryTemplate":"{date} {start}","format":"html","css":"b{}"}`,
 		`{"type":"events","count":1}`,
 		`{"type":"agenda","count":5,"includeOpenDays":true,"includeEvents":false,"openDayTemplate":"{kind}","eventTemplate":"{title}"}`,
@@ -87,9 +56,9 @@ func TestRichTextAndListWidgets(t *testing.T) {
 	colors := `"colors":{"holiday":"#ff0000","break":"#00ff00","openDay":"#0000ff","event":"#ffff00"},"showWeekNumbers":false`
 	flags := `"showHolidays":true,"showBreaks":true,"showOpenDays":true,"showEvents":true,`
 	bad := map[string]string{
-		"format":            `{"type":"text","text":"x","size":"m","align":"start","format":"rtf"}`,
-		"css too long":      `{"type":"text","text":"x","size":"m","align":"start","css":"` + strings.Repeat("a", 20001) + `"}`,
-		"too many fonts":    `{"type":"text","text":"x","size":"m","align":"start","fontAssetIds":` + fontList(11) + `}`,
+		"format":            `{"type":"text","text":"x","fit":false,"format":"rtf"}`,
+		"css too long":      `{"type":"text","text":"x","fit":false,"css":"` + strings.Repeat("a", 20001) + `"}`,
+		"too many fonts":    `{"type":"text","text":"x","fit":false,"fontAssetIds":` + fontList(11) + `}`,
 		"template too long": `{"type":"events","count":2,"entryTemplate":"` + strings.Repeat("a", 5001) + `"}`,
 		"title too long":    `{"type":"events","count":2,"title":"` + strings.Repeat("a", 201) + `"}`,
 		"agenda count":      `{"type":"agenda","count":21,"includeOpenDays":true,"includeEvents":true}`,
@@ -111,7 +80,7 @@ func TestRichTextAndListWidgets(t *testing.T) {
 func TestOldWidgetsKeepTheirCanonicalForm(t *testing.T) {
 	for _, raw := range []string{
 		`{"type":"empty"}`,
-		`{"type":"text","text":"hi","size":"m","align":"start"}`,
+		`{"type":"text","text":"hi","fit":false}`,
 		`{"type":"open_days","count":3}`,
 		`{"type":"events","count":3}`,
 	} {

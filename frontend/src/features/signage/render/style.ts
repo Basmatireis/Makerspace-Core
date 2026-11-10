@@ -1,8 +1,10 @@
 import type { CSSProperties } from 'react';
-import type { SignageStyleAlign, SignageWidget, SignageWidgetStyle } from '../../../api/generated/models';
+import type { SignageBlock, SignageBlockAlign, SignageBlockStyle, SignageWidget } from '../../../api/generated/models';
+import { GRID_UNIT } from './aspect';
 
-// Widget style: colours, padding, radius, border, font scale, font family and alignment of a zone box, plus the font
-// assets a scene needs. Sizes use --sg-u, the unscaled unit of the scene; --u inside the box is scaled by `fontScale`.
+// Block style: the box of a block (position, background, border, shadow, opacity), its typography and the unit `--u`
+// its widget is sized in, plus the font assets a scene needs. Every length is in grid units, i.e. CSS pixels of the
+// unscaled scene (see sceneGridSize).
 
 export const FONT_STACKS = {
   sans: "'IBM Plex Sans', system-ui, sans-serif",
@@ -13,16 +15,41 @@ export const FONT_STACKS = {
 /** A CSS string literal; backslashes, quotes and line breaks cannot end it early. */
 export const cssString = (value: string) => `"${value.replace(/[\\"]/g, '\\$&').replace(/[\r\n\f]+/g, ' ')}"`;
 
-/** The box style of a widget: `boxStyle` for announcements (their `style` picks banner/card/full), `style` otherwise. */
-export function widgetStyleOf(widget: SignageWidget): SignageWidgetStyle | undefined {
-  return widget.type === 'announcement' ? widget.boxStyle : widget.style;
+/** A CSS `url()` of a URL; quotes, backslashes and line breaks are percent-encoded. */
+export const cssUrl = (url: string) => `url("${url.replace(/["\\\n]/g, encodeURIComponent)}")`;
+
+type WidgetType = SignageWidget['type'];
+
+/** Widgets that fill their block with a picture; their blocks have no background image (the server enforces it). */
+export const MEDIA_WIDGET_TYPES: readonly WidgetType[] = ['image', 'video', 'slideshow', 'camera', 'timelapse'];
+export const isMediaWidget = (type: WidgetType) => MEDIA_WIDGET_TYPES.includes(type);
+
+/** For text and announcement blocks `textSize` is a font size; every other widget scales its sizes with it. */
+export const textSizeIsFontSize = (type: WidgetType) => type === 'text' || type === 'announcement';
+
+/** `textSize` of the default look of non-text widgets (the old 100 % font scale). */
+export const DEFAULT_TEXT_SIZE = 32;
+/** Font size of the old default text size "m" (4.6u); the paddings of text and announcement blocks are tied to it. */
+export const DEFAULT_FONT_SIZE = 50;
+
+/**
+ * The widget unit `--u` of a block in CSS pixels. Widget CSS is written in multiples of the old unit (1 % of the short
+ * side, 10.8 grid units): `10.8 · textSize / 32`, so 32 is the default look. Text and announcement blocks use
+ * `textSize` as their font size; their unit is `10.8 · textSize / 50`, so the old default size "m" keeps its paddings.
+ */
+export function blockUnit(type: WidgetType, textSize: number): number {
+  const reference = textSizeIsFontSize(type) ? DEFAULT_FONT_SIZE : DEFAULT_TEXT_SIZE;
+  return Math.round(((GRID_UNIT * textSize) / reference) * 10_000) / 10_000;
 }
 
-/** The font assets of a widget: its style's custom font and the fonts its rich text CSS uses. */
-export function fontAssetIdsOf(widget: SignageWidget): string[] {
-  const style = widgetStyleOf(widget);
+/** The text colour of a theme; blocks without a text colour inherit it. */
+export const sceneTextColor = (theme: 'dark' | 'light') => (theme === 'light' ? '#161616' : '#ffffff');
+
+/** The font assets of a block: its style's custom font and the fonts its rich text CSS uses. */
+export function fontAssetIdsOf(block: Pick<SignageBlock, 'style' | 'widget'>): string[] {
+  const { style, widget } = block;
   const ids = [
-    ...(style?.fontFamily === 'custom' && style.fontAssetId ? [style.fontAssetId] : []),
+    ...(style.fontFamily === 'custom' && style.fontAssetId ? [style.fontAssetId] : []),
     ...('fontAssetIds' in widget ? (widget.fontAssetIds ?? []) : []),
   ];
   return [...new Set(ids)];
@@ -46,44 +73,89 @@ export function withOpacity(hex: string, opacity: number): string {
   return `rgba(${channel(0)}, ${channel(2)}, ${channel(4)}, ${Math.min(100, Math.max(0, opacity)) / 100})`;
 }
 
-const FLEX_ALIGN: Record<Exclude<SignageStyleAlign, 'inherit'>, string> = {
+export const FLEX_ALIGN: Record<SignageBlockAlign, string> = {
   start: 'flex-start',
   center: 'center',
   end: 'flex-end',
 };
 
-/** Horizontal alignment a style asks for; null leaves the widget's own. */
-export const styleTextAlign = (style: SignageWidgetStyle | undefined): 'start' | 'center' | 'end' | null =>
-  style && style.align !== 'inherit' ? style.align : null;
+const SHADOWS: Record<Exclude<SignageBlockStyle['shadow'], 'none' | 'glow'>, string> = {
+  soft: '0 8px 24px rgba(0, 0, 0, 0.35)',
+  strong: '0 18px 48px rgba(0, 0, 0, 0.6)',
+};
+
+/** Opacity of hidden blocks in the editor (displays leave them out). */
+export const HIDDEN_BLOCK_OPACITY = 0.3;
+
+export type BlockCssContext = {
+  /** The scene's text colour (its theme's); the glow falls back to it. */
+  sceneTextColor: string;
+  /** Name of the style's custom font asset (its @font-face family); unknown keeps the inherited font. */
+  fontName: string | null;
+  /** URL of the style's background image; null when there is none or it is unknown. */
+  backgroundUrl: string | null;
+  /** Editor only: the block is hidden on displays and drawn faded. */
+  hidden?: boolean;
+};
 
 /**
- * CSS of the zone box for a style. `fontName` is the name of the custom font asset (its @font-face family); a custom
- * font whose name is unknown keeps the inherited font.
+ * CSS of a block's outer box: position and size in grid pixels, background (colour with opacity, image with a black
+ * dimming veil, only for non-media widgets), border, radius, shadow, opacity and typography (inherited by the widget).
+ * Custom properties: `--u` (widget unit), `--sg-halign`/`--sg-valign` (flex alignment), `--sg-letter-spacing`.
  */
-export function zoneBoxCss(style: SignageWidgetStyle, fontName: string | null): CSSProperties {
-  const css: Record<string, string> = {
-    padding: `calc(var(--sg-u) * ${style.padding})`,
-    borderRadius: `calc(var(--sg-u) * ${style.radius})`,
-    '--u': style.fontScale === 100 ? 'var(--sg-u)' : `calc(var(--sg-u) * ${style.fontScale / 100})`,
+export function blockBoxCss(
+  block: Pick<SignageBlock, 'x' | 'y' | 'w' | 'h' | 'style'> & { widget: { type: WidgetType } },
+  context: BlockCssContext,
+): CSSProperties {
+  const { style } = block;
+  const type = block.widget.type;
+  const css: Record<string, string | number> = {
+    left: `${block.x}px`,
+    top: `${block.y}px`,
+    width: `${block.w}px`,
+    height: `${block.h}px`,
+    fontSize: `${style.textSize}px`,
+    lineHeight: style.lineHeight / 100,
+    textAlign: style.align,
+    '--u': `${blockUnit(type, style.textSize)}px`,
+    '--sg-halign': FLEX_ALIGN[style.align],
+    '--sg-valign': FLEX_ALIGN[style.verticalAlign],
   };
   if (style.textColor) css.color = style.textColor;
+  if (context.backgroundUrl && !isMediaWidget(type)) {
+    const veil = `rgba(0, 0, 0, ${style.backgroundDim / 100})`;
+    css.backgroundImage = `${style.backgroundDim > 0 ? `linear-gradient(${veil}, ${veil}), ` : ''}${cssUrl(context.backgroundUrl)}`;
+    css.backgroundPosition = 'center';
+    css.backgroundSize = 'cover';
+    css.backgroundRepeat = 'no-repeat';
+  }
   if (style.backgroundColor)
-    css.background =
+    css.backgroundColor =
       style.backgroundOpacity >= 100
         ? style.backgroundColor
         : withOpacity(style.backgroundColor, style.backgroundOpacity);
   if (style.borderWidth > 0)
-    css.border = `calc(var(--sg-u) * ${style.borderWidth / 10}) solid ${style.borderColor ?? 'currentColor'}`;
+    css.border = `${style.borderWidth}px ${style.borderStyle} ${style.borderColor ?? 'currentColor'}`;
+  if (style.radius > 0) css.borderRadius = `${style.radius}px`;
+  if (style.shadow === 'glow')
+    css.boxShadow = `0 0 40px ${withOpacity(style.borderColor ?? style.textColor ?? context.sceneTextColor, 70)}`;
+  else if (style.shadow !== 'none') css.boxShadow = SHADOWS[style.shadow];
+  if (context.hidden) css.opacity = HIDDEN_BLOCK_OPACITY;
+  else if (style.opacity < 100) css.opacity = style.opacity / 100;
   if (style.fontFamily === 'custom') {
-    if (fontName) css.fontFamily = `${cssString(fontName)}, ${FONT_STACKS.sans}`;
+    if (context.fontName) css.fontFamily = `${cssString(context.fontName)}, ${FONT_STACKS.sans}`;
   } else if (style.fontFamily !== 'inherit') css.fontFamily = FONT_STACKS[style.fontFamily];
-  if (style.align !== 'inherit') css.textAlign = style.align;
-  if (style.verticalAlign !== 'inherit') {
-    css.alignItems = FLEX_ALIGN[style.verticalAlign];
-    css['--sg-valign'] = FLEX_ALIGN[style.verticalAlign];
-  }
+  if (style.fontWeight !== 'inherit') css.fontWeight = Number(style.fontWeight);
+  if (style.letterSpacing !== 0) css['--sg-letter-spacing'] = `${style.letterSpacing / 100}em`;
+  if (style.uppercase) css.textTransform = 'uppercase';
   return css as CSSProperties;
 }
+
+/** CSS of a block's content box: the padding and the vertical alignment of the widget. */
+export const blockInnerCss = (style: Pick<SignageBlockStyle, 'padding' | 'verticalAlign'>): CSSProperties => ({
+  padding: style.padding > 0 ? `${style.padding}px` : undefined,
+  justifyContent: FLEX_ALIGN[style.verticalAlign],
+});
 
 export type FontFace = { family: string; url: string };
 
