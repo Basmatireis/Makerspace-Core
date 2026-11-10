@@ -151,3 +151,54 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   expect(contexts).toBe(1);
   expect(errors).toEqual([]);
 });
+
+test('opens an external privacy policy in a dialog instead of leaving the kiosk', async ({ page }, testInfo) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const privacyUrl = 'https://privacy.example.test/policy';
+  await page.route(privacyUrl, (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<h1>Privacy at the example lab</h1>' }),
+  );
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/public/config')) {
+      const response = await route.fetch();
+      const configuration = await response.json();
+      configuration.legal.privacy = { mode: 'external', href: privacyUrl };
+      await route.fulfill({ response, json: configuration });
+    } else if (path.endsWith('/public/legal/privacy')) {
+      await route.fulfill({
+        json: { kind: 'privacy', title: 'Privacy policy', mode: 'external', markdown: '', externalUrl: privacyUrl },
+      });
+    } else if (path.endsWith('/visitor-enrollment/context')) {
+      await route.fulfill({ status: 204 });
+    } else if (path.endsWith('/visitor-enrollment/state')) {
+      await route.fulfill({
+        json: {
+          allowedMethods: ['pin'],
+          capabilities: [],
+          labRulesRequired: false,
+          consentCategories: [],
+          expiresAt: '2030-01-01T00:00:00Z',
+        },
+      });
+    } else {
+      await route.fulfill({ status: 401, json: { code: 'invalid_session', message: 'Sign in required' } });
+    }
+  });
+  await page.goto('/visitor-enrollment');
+  await expect(page.getByRole('heading', { name: 'About you' })).toBeFocused();
+  const link = page
+    .getByRole('navigation', { name: 'Legal information' })
+    .getByRole('link', { name: 'Privacy policy' });
+  await expect(link).toHaveAttribute('href', privacyUrl);
+  await link.click();
+  const dialog = page.getByRole('dialog', { name: 'Privacy policy' });
+  await expect(
+    dialog.frameLocator('iframe').getByRole('heading', { name: 'Privacy at the example lab' }),
+  ).toBeVisible();
+  await expect(dialog.getByRole('img', { name: `QR code for ${privacyUrl}` })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('kiosk-privacy-dialog.png') });
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/\/visitor-enrollment$/);
+});

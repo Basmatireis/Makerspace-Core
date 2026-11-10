@@ -1,8 +1,9 @@
 import { http, HttpResponse } from 'msw';
-import { screen } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { App } from '../../app/App';
+import { BrandingProvider, defaultPublicConfiguration } from '../branding/branding';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
@@ -109,7 +110,7 @@ describe('kiosk rule notices', () => {
 });
 
 describe('kiosk legal links', () => {
-  it('links the privacy policy and returns to the kiosk from it', async () => {
+  it('opens an internal privacy policy on top of the kiosk', async () => {
     mockKiosk([]);
     server.use(
       http.get('*/api/v1/public/legal/privacy', () =>
@@ -126,8 +127,53 @@ describe('kiosk legal links', () => {
     const { router } = renderRoute(<App />, '/kiosk');
 
     await user.click(await screen.findByRole('link', { name: 'Privacy policy' }));
-    expect(await screen.findByRole('heading', { name: 'Privacy policy' })).toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: 'Back' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Privacy policy' });
+    expect(await within(dialog).findByText('Text')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/kiosk');
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Privacy policy' })).not.toBeInTheDocument());
+  });
+
+  it('frames an external imprint instead of leaving the kiosk', async () => {
+    mockKiosk([]);
+    server.use(
+      http.get('*/api/v1/public/config', () =>
+        HttpResponse.json({
+          ...defaultPublicConfiguration,
+          legal: {
+            ...defaultPublicConfiguration.legal,
+            imprint: { mode: 'external', href: 'https://example.test/imprint' },
+          },
+        }),
+      ),
+      http.get('*/api/v1/public/legal/imprint', () =>
+        HttpResponse.json({
+          kind: 'imprint',
+          title: 'Imprint',
+          mode: 'external',
+          markdown: '',
+          externalUrl: 'https://example.test/imprint',
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    const { router } = renderRoute(
+      <BrandingProvider>
+        <App />
+      </BrandingProvider>,
+      '/kiosk',
+    );
+
+    const link = await screen.findByRole('link', { name: 'Imprint' });
+    await waitFor(() => expect(link).toHaveAttribute('href', 'https://example.test/imprint'));
+    await user.click(link);
+    const dialog = await screen.findByRole('dialog', { name: 'Imprint' });
+    const frame = await within(dialog).findByTitle('Imprint');
+    expect(frame).toHaveAttribute('src', 'https://example.test/imprint');
+    expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin');
+    expect(
+      await within(dialog).findByRole('img', { name: 'QR code for https://example.test/imprint' }),
+    ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/kiosk');
   });
 });

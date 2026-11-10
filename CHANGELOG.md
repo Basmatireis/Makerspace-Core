@@ -66,6 +66,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Fixed
 
+- **Imprint and privacy policy on the kiosk.** On the kiosk (`/kiosk`, visitor enrollment, the desktop app) both open in a dialog on top of the page instead of leaving it: an external document is framed, with a QR code for sites that refuse to be framed. The app's CSP now allows framing HTTPS pages (`frame-src 'self' https:`), and the desktop app admits the origins of the external documents it reads from Core's configuration.
 - **Unbooked filament in Material usage.** The part of a print no spool fed (or whose quantity is unknown) now appears in the Material usage table of the run with a Map action, instead of only in the run details. The "Reported material" entry is gone from the run details.
 - **Notification dialogs cover the screen.** A notification shown as a dialog pushed the page out of view and dimmed only the content area; it now lies over the whole app with the page visible beneath.
 - **Open-day places lost role restrictions nobody chose.** Before the membership roles, a place listed the roles allowed to fill it; the migration kept those lists, so places showed custom roles such as a former supervisor role as "extra roles". Migration 00126 removes the lists of places that existed before that migration; restrictions set since then stay.
