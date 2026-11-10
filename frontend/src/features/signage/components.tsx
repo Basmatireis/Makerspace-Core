@@ -5,17 +5,14 @@ import {
   Link as CarbonLink,
   ListItem,
   Modal,
-  RadioTile,
   Select,
   SelectItem,
   Stack,
-  TileGroup,
   UnorderedList,
 } from '@carbon/react';
 import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import type { SignageAsset, SignageCustomLayout, SignageLayoutId, SignageScene } from '../../api/generated/models';
+import type { SignageAsset } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import {
@@ -26,13 +23,10 @@ import {
   referenceLabel,
   type SignageReference,
 } from './helpers';
-import type { PickedLayout } from './customLayoutModel';
-import { LayoutDiagram } from './LayoutDiagram';
-import { customLayoutsQuery } from './layoutQueries';
-import { LAYOUTS, resolveLayout } from './layouts';
 import { usePreviewData } from './preview';
 import { signageKeys } from './queries';
 import { SceneRenderer, ScreenFrame } from './render/SceneRenderer';
+import type { RenderScene } from './render/types';
 
 /** The player address as a copyable inline snippet. */
 export function PlayerAddress() {
@@ -67,110 +61,13 @@ export function QueryBoundary({
 // Thumbnails share one clock so they do not re-render every second.
 const THUMBNAIL_NOW = Date.now();
 
-/** Small static rendering of a scene for tiles and scene list rows. */
-export function SceneThumbnail({
-  scene,
-  className,
-}: {
-  scene: Pick<
-    SignageScene,
-    | 'aspectRatio'
-    | 'layoutId'
-    | 'customLayoutId'
-    | 'backgroundColor'
-    | 'backgroundAssetId'
-    | 'backgroundFit'
-    | 'backgroundDim'
-    | 'theme'
-    | 'zones'
-  >;
-  className?: string;
-}) {
+/** Small static rendering of a scene (as displays show it) for cards and scene list rows. */
+export function SceneThumbnail({ scene, className }: { scene: RenderScene; className?: string }) {
   const data = usePreviewData('announcement', { now: THUMBNAIL_NOW, still: true });
-  // Only scenes on a custom layout need the list; the query is shared with the editors and cached.
-  const customLayouts = useQuery({ ...customLayoutsQuery(), enabled: scene.layoutId === 'custom' }).data?.items;
   return (
     <ScreenFrame aspectRatio={scene.aspectRatio} className={`sg-thumb${className ? ` ${className}` : ''}`}>
-      <SceneRenderer scene={scene} data={data} customLayouts={customLayouts} />
+      <SceneRenderer scene={scene} data={data} />
     </ScreenFrame>
-  );
-}
-
-export type LayoutChoice = PickedLayout;
-
-/** Schematic drawing of a layout's zones. */
-export function LayoutSketch({
-  layoutId,
-  customLayoutId = null,
-  customLayouts,
-  orientation,
-}: {
-  layoutId: SignageLayoutId;
-  customLayoutId?: string | null;
-  customLayouts?: readonly SignageCustomLayout[];
-  orientation: 'landscape' | 'portrait';
-}) {
-  return <LayoutDiagram layout={resolveLayout(layoutId, customLayoutId, customLayouts)} orientation={orientation} />;
-}
-
-const choiceValue = (choice: LayoutChoice) =>
-  choice.customLayoutId ? `custom:${choice.customLayoutId}` : choice.layoutId;
-
-export function LayoutPicker({
-  value,
-  orientation,
-  customLayouts = [],
-  onChange,
-  legend = 'Layout',
-}: {
-  value: LayoutChoice;
-  orientation: 'landscape' | 'portrait';
-  /** Custom layouts offered after the built-in ones. */
-  customLayouts?: readonly SignageCustomLayout[];
-  onChange: (choice: LayoutChoice) => void;
-  legend?: string;
-}) {
-  const choices: { choice: LayoutChoice; key: string; name: string; zones: number }[] = [
-    ...LAYOUTS.map((layout) => ({
-      choice: { layoutId: layout.id, customLayoutId: null },
-      key: layout.id,
-      name: layout.name,
-      zones: layout.zones.length,
-    })),
-    ...customLayouts.map((layout) => ({
-      choice: { layoutId: 'custom' as const, customLayoutId: layout.id },
-      key: `custom-${layout.id}`,
-      name: layout.name,
-      zones: layout.zones.length,
-    })),
-  ];
-  return (
-    <TileGroup
-      legend={legend}
-      name="scene-layout"
-      valueSelected={choiceValue(value)}
-      onChange={(next) => {
-        const found = choices.find((item) => choiceValue(item.choice) === String(next));
-        if (found) onChange(found.choice);
-      }}
-      className="sg-layout-picker"
-    >
-      {choices.map((item) => (
-        <RadioTile key={item.key} id={`layout-${item.key}`} value={choiceValue(item.choice)} className="sg-layout-tile">
-          <LayoutSketch
-            layoutId={item.choice.layoutId}
-            customLayoutId={item.choice.customLayoutId}
-            customLayouts={customLayouts}
-            orientation={orientation}
-          />
-          <span className="sg-layout-tile__name">{item.name}</span>
-          <span className="sg-secondary">
-            {item.zones} {item.zones === 1 ? 'zone' : 'zones'}
-            {item.choice.customLayoutId ? ' · custom' : ''}
-          </span>
-        </RadioTile>
-      ))}
-    </TileGroup>
   );
 }
 

@@ -1,10 +1,14 @@
 import type {
+  SignageBlock,
+  SignageBlockStyle,
   SignageCalendarColors,
   SignageRichTextFormat,
   SignageWidget,
-  SignageWidgetStyle,
-  SignageZones,
 } from '../../api/generated/models';
+import { isMediaWidget } from './render/style';
+
+// The widget and block model shared by the scene editor, the media page and previews: defaults, the references a scene
+// holds, and validation that mirrors the backend (backend/internal/signage/blocks.go and widgets.go).
 
 export type WidgetType = SignageWidget['type'];
 
@@ -27,8 +31,13 @@ export const WIDGET_LABELS: Record<WidgetType, string> = {
 };
 export const WIDGET_TYPES = Object.keys(WIDGET_LABELS) as WidgetType[];
 
-// Limits mirror backend/internal/signage/zones.go.
+// Limits mirror backend/internal/signage/blocks.go and widgets.go.
 export const LIMITS = {
+  blocks: 40,
+  blockName: 60,
+  blockCoordinate: 8000,
+  blockMinExtent: 8,
+  blockMaxExtent: 8000,
   text: 20000,
   css: 20000,
   fonts: 10,
@@ -52,20 +61,51 @@ export const DEFAULT_CALENDAR_COLORS: SignageCalendarColors = {
   event: '#4589ff',
 };
 
-export const defaultStyle = (): SignageWidgetStyle => ({
-  textColor: null,
-  backgroundColor: null,
-  borderColor: null,
-  backgroundOpacity: 100,
-  padding: 0,
-  radius: 0,
-  borderWidth: 0,
-  fontScale: 100,
-  fontFamily: 'inherit',
-  fontAssetId: null,
-  align: 'inherit',
-  verticalAlign: 'inherit',
-});
+/** Widgets whose blocks were padded by default (2u) before blocks; new blocks of these types get the same padding. */
+const PADDED_TYPES: readonly WidgetType[] = [
+  'text',
+  'status',
+  'clock',
+  'open_days',
+  'events',
+  'agenda',
+  'calendar',
+  'qr',
+];
+/** Widgets that are centred vertically by default. */
+const CENTERED_TYPES: readonly WidgetType[] = ['text', 'clock', 'qr', 'status', 'announcement', 'camera'];
+
+/**
+ * The style of a new block of a widget type: the look an unstyled zone of that widget had before blocks (the same
+ * defaults the server's layout conversion uses), so new and converted blocks match. `textSize` 50 is a text's old
+ * size "m"; 32 is every other widget's default look.
+ */
+export function defaultBlockStyle(type: WidgetType): SignageBlockStyle {
+  const plainText = type === 'text';
+  return {
+    backgroundColor: null,
+    backgroundOpacity: 100,
+    backgroundAssetId: null,
+    backgroundDim: 0,
+    textColor: null,
+    borderWidth: 0,
+    borderStyle: 'solid',
+    borderColor: null,
+    radius: 0,
+    shadow: 'none',
+    fontFamily: 'inherit',
+    fontAssetId: null,
+    fontWeight: plainText ? '600' : 'inherit',
+    lineHeight: plainText || type === 'announcement' ? 115 : 125,
+    letterSpacing: 0,
+    uppercase: false,
+    textSize: type === 'text' || type === 'announcement' ? 50 : 32,
+    padding: PADDED_TYPES.includes(type) ? 22 : 0,
+    align: type === 'clock' || type === 'qr' ? 'center' : 'start',
+    verticalAlign: CENTERED_TYPES.includes(type) ? 'center' : 'start',
+    opacity: 100,
+  };
+}
 
 export function defaultWidget(type: WidgetType): SignageWidget {
   switch (type) {
@@ -73,11 +113,11 @@ export function defaultWidget(type: WidgetType): SignageWidget {
       return { type };
     case 'image':
     case 'video':
-      return { type, mediaId: null, fit: 'cover' };
+      return type === 'image' ? { type, mediaId: null, fit: 'cover', dim: 0 } : { type, mediaId: null, fit: 'cover' };
     case 'slideshow':
       return { type, mediaIds: [], seconds: 8 };
     case 'text':
-      return { type, text: 'Your text', size: 'm', align: 'start' };
+      return { type, text: 'Your text', fit: false };
     case 'qr':
       return { type, url: 'https://', caption: 'Scan for details' };
     case 'clock':
@@ -90,6 +130,8 @@ export function defaultWidget(type: WidgetType): SignageWidget {
         multi: 'split',
         showProgress: true,
         showRemaining: true,
+        showLive: true,
+        showName: true,
         fallback: 'text',
         fallbackMediaId: null,
         machineIds: [],
@@ -130,26 +172,12 @@ export function defaultWidget(type: WidgetType): SignageWidget {
         type,
         templateIds: [],
         style: 'banner',
-        size: 'm',
         whenNone: 'empty',
         fallbackText: '',
         whenMany: 'rotate',
         rotateSeconds: 10,
       };
   }
-}
-
-/** The zone box style of a widget: `boxStyle` on announcements (where `style` picks the presentation), `style` elsewhere. */
-export const styleOf = (widget: SignageWidget): SignageWidgetStyle | undefined =>
-  widget.type === 'announcement' ? widget.boxStyle : widget.style;
-
-/** Sets or, with undefined, removes the zone box style. */
-export function withStyle(widget: SignageWidget, style: SignageWidgetStyle | undefined): SignageWidget {
-  const key = widget.type === 'announcement' ? 'boxStyle' : 'style';
-  const next: Record<string, unknown> = { ...widget };
-  if (style) next[key] = style;
-  else delete next[key];
-  return next as unknown as SignageWidget;
 }
 
 /** Sets an optional widget field; undefined removes it so absent keeps meaning "as before". */
@@ -178,11 +206,9 @@ export function withRichText<W extends RichTextWidget>(
   return next;
 }
 
-/** Asset ids a widget points at, fonts included (a font cannot be deleted while it is referenced). */
+/** Asset ids a widget points at, fonts of its rich text CSS included (a font cannot be deleted while it is referenced). */
 export function widgetAssetIds(widget: SignageWidget): string[] {
-  const style = styleOf(widget);
-  const fonts = [...(style?.fontAssetId ? [style.fontAssetId] : [])];
-  if (isRichTextWidget(widget)) fonts.push(...(widget.fontAssetIds ?? []));
+  const fonts = isRichTextWidget(widget) ? (widget.fontAssetIds ?? []) : [];
   switch (widget.type) {
     case 'image':
     case 'video':
@@ -196,15 +222,37 @@ export function widgetAssetIds(widget: SignageWidget): string[] {
   }
 }
 
-export const sceneAssetIds = (scene: { backgroundAssetId: string | null; zones: SignageZones }): string[] => [
-  ...(scene.backgroundAssetId ? [scene.backgroundAssetId] : []),
-  ...Object.values(scene.zones).flatMap(widgetAssetIds),
+/** Asset ids of a block: its widget's and its style's background image and custom font. */
+export const blockAssetIds = (block: Pick<SignageBlock, 'widget' | 'style'>): string[] => [
+  ...widgetAssetIds(block.widget),
+  ...(block.style.backgroundAssetId ? [block.style.backgroundAssetId] : []),
+  ...(block.style.fontAssetId ? [block.style.fontAssetId] : []),
 ];
 
+/**
+ * Asset ids a scene points at: background, scene font and every block, hidden ones included (the scene still
+ * references them, so they cannot be deleted).
+ */
+export const sceneAssetIds = (scene: {
+  backgroundAssetId: string | null;
+  fontAssetId?: string | null;
+  blocks: readonly Pick<SignageBlock, 'widget' | 'style'>[];
+}): string[] => [
+  ...new Set([
+    ...(scene.backgroundAssetId ? [scene.backgroundAssetId] : []),
+    ...(scene.fontAssetId ? [scene.fontAssetId] : []),
+    ...scene.blocks.flatMap(blockAssetIds),
+  ]),
+];
+
+/** Widgets of the blocks a display shows (hidden blocks are left out). */
+export const visibleWidgets = (blocks: readonly Pick<SignageBlock, 'widget' | 'hidden'>[]): SignageWidget[] =>
+  blocks.filter((block) => !block.hidden).map((block) => block.widget);
+
 /** Machines a scene's widgets point at, so previews can show them even without access to the machine list. */
-export const sceneMachineIds = (zones: SignageZones): string[] => [
+export const sceneMachineIds = (blocks: readonly Pick<SignageBlock, 'widget'>[]): string[] => [
   ...new Set(
-    Object.values(zones).flatMap((widget) => {
+    blocks.flatMap(({ widget }) => {
       if (widget.type === 'camera')
         return [...(widget.machineId ? [widget.machineId] : []), ...(widget.machineIds ?? [])];
       return widget.type === 'status' ? widget.machineIds : [];
@@ -240,21 +288,55 @@ export const ENTRY_PLACEHOLDERS: { key: string; label: string; for: 'both' | 'op
 
 const SINGLE_LINE = /[\r\n]/;
 
-/** Checks a style the way the backend does; colours are lowercase `#rrggbb` or null. */
-export function styleError(style: SignageWidgetStyle): string | null {
+const within = (value: number, min: number, max: number) => Number.isInteger(value) && value >= min && value <= max;
+const COLOR = /^#[0-9a-f]{6}$/;
+
+/** Checks a block style the way the backend does (ValidateBlockStyle); colours are lowercase `#rrggbb` or null. */
+export function blockStyleError(style: SignageBlockStyle, type: WidgetType): string | null {
   for (const color of [style.textColor, style.backgroundColor, style.borderColor])
-    if (color !== null && !/^#[0-9a-f]{6}$/.test(color)) return 'Style colours must be #rrggbb.';
-  const within = (value: number, min: number, max: number) => Number.isInteger(value) && value >= min && value <= max;
+    if (color !== null && !COLOR.test(color)) return 'Style colours must be #rrggbb.';
   if (
     !within(style.backgroundOpacity, 0, 100) ||
-    !within(style.padding, 0, 10) ||
-    !within(style.radius, 0, 10) ||
-    !within(style.borderWidth, 0, 20) ||
-    !within(style.fontScale, 25, 400)
+    !within(style.backgroundDim, 0, 90) ||
+    !within(style.borderWidth, 0, 40) ||
+    !within(style.radius, 0, 400) ||
+    !within(style.padding, 0, 400) ||
+    !within(style.lineHeight, 80, 250) ||
+    !within(style.letterSpacing, -10, 50) ||
+    !within(style.textSize, 8, 400) ||
+    !within(style.opacity, 10, 100)
   )
     return 'A style value is out of range.';
   if ((style.fontFamily === 'custom') !== (style.fontAssetId !== null))
     return 'Choose a font for the custom font family.';
+  if (isMediaWidget(type) && (style.backgroundAssetId !== null || style.backgroundDim !== 0))
+    return 'This block shows a picture and has no background image.';
+  return null;
+}
+
+/** Checks a block's id, name and geometry, then its widget and style. */
+export function blockError(block: SignageBlock): string | null {
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(block.id)) return 'A block id is 1 to 40 letters, digits, underscores or hyphens.';
+  if (block.name.trim() === '' || [...block.name].length > LIMITS.blockName)
+    return `A block name is 1 to ${LIMITS.blockName} characters.`;
+  if (
+    !within(block.x, -LIMITS.blockCoordinate, LIMITS.blockCoordinate) ||
+    !within(block.y, -LIMITS.blockCoordinate, LIMITS.blockCoordinate) ||
+    !within(block.w, LIMITS.blockMinExtent, LIMITS.blockMaxExtent) ||
+    !within(block.h, LIMITS.blockMinExtent, LIMITS.blockMaxExtent)
+  )
+    return 'A block position or size is out of range.';
+  return widgetError(block.widget) ?? blockStyleError(block.style, block.widget.type);
+}
+
+/** Checks the blocks of a scene: at most 40, unique ids, each valid. */
+export function blocksError(blocks: readonly SignageBlock[]): string | null {
+  if (blocks.length > LIMITS.blocks) return `A screen holds at most ${LIMITS.blocks} blocks.`;
+  if (new Set(blocks.map((block) => block.id)).size !== blocks.length) return 'Block ids must be unique.';
+  for (const block of blocks) {
+    const problem = blockError(block);
+    if (problem) return `${block.name}: ${problem}`;
+  }
   return null;
 }
 
@@ -277,7 +359,6 @@ function listError(widget: Extract<SignageWidget, { type: 'open_days' | 'events'
 }
 
 function timelapseError(widget: Extract<SignageWidget, { type: 'timelapse' }>): string | null {
-  const within = (value: number, min: number, max: number) => Number.isInteger(value) && value >= min && value <= max;
   const distinct = new Set(widget.machineIds).size;
   if (widget.source === 'machines' && distinct === 0) return 'Choose at least one machine.';
   if (widget.source === 'all' && widget.machineIds.length > 0) return 'All machines lists no machines.';
@@ -292,12 +373,11 @@ function timelapseError(widget: Extract<SignageWidget, { type: 'timelapse' }>): 
     : `A clip plays ${LIMITS.timelapseMinSeconds} to ${LIMITS.timelapseMaxSeconds} seconds.`;
 }
 
-/** Mirrors the backend widget validation (zones.go) so autosave does not send what is certain to be rejected. */
+/** Mirrors the backend widget validation (widgets.go) so autosave does not send what is certain to be rejected. */
 export function widgetError(widget: SignageWidget): string | null {
-  const style = styleOf(widget);
-  const problem = style ? styleError(style) : null;
-  if (problem) return problem;
   switch (widget.type) {
+    case 'image':
+      return within(widget.dim, 0, 90) ? null : 'Darken the image by 0 to 90 %.';
     case 'text':
       return widget.text.length > LIMITS.text ? `Text is limited to ${LIMITS.text} characters.` : richTextError(widget);
     case 'qr':

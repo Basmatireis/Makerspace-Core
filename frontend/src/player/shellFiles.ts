@@ -3,12 +3,13 @@
 
 export type BuildManifest = Record<
   string,
-  { file: string; imports?: string[]; dynamicImports?: string[]; css?: string[] }
+  { file: string; imports?: string[]; dynamicImports?: string[]; css?: string[]; assets?: string[] }
 >;
 
 /**
- * The hashed files of the player entry: its static imports and CSS plus its lazy chunks (the rich text renderer),
- * transitively. Sorted, so the list (and the worker's version hash) is stable.
+ * The hashed files of the player entry: its static imports, CSS and the assets the CSS references (the IBM Plex fonts)
+ * plus its lazy chunks (the rich text renderer), transitively. Sorted, so the list (and the worker's version hash) is
+ * stable.
  */
 export function playerShellFiles(manifest: BuildManifest): string[] {
   const files = new Set<string>();
@@ -17,6 +18,7 @@ export function playerShellFiles(manifest: BuildManifest): string[] {
     if (!chunk || files.has(`/${chunk.file}`)) return;
     files.add(`/${chunk.file}`);
     chunk.css?.forEach((css) => files.add(`/${css}`));
+    chunk.assets?.forEach((asset) => files.add(`/${asset}`));
     chunk.imports?.forEach(visit);
     chunk.dynamicImports?.forEach(visit);
   };

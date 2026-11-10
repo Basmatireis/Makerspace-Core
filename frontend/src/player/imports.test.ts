@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 // The player is a separate small app (docs/signage.md, "Player app"): its runtime import graph may contain only React,
-// the player's own files and the shared signage engine, renderer and layouts. Type-only imports are erased and ignored.
+// the player's own files and the shared signage engine and renderer. Type-only imports are erased and ignored.
 
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRY = resolve(SRC, 'player/main.tsx');
@@ -12,11 +12,7 @@ const ALLOWED_PACKAGES = new Set(['react', 'react/jsx-runtime', 'react-dom', 're
 // The rich text renderer (marked, DOMPurify) is allowed as a lazy chunk only: the initial JavaScript budget cannot hold it.
 const LAZY_PACKAGES = new Set(['marked', 'dompurify']);
 const RICH_TEXT = 'features/signage/render/richText.ts';
-const ALLOWED_SHARED = [
-  /^features\/signage\/engine\//,
-  /^features\/signage\/render\//,
-  /^features\/signage\/layouts\.ts$/,
-];
+const ALLOWED_SHARED = [/^features\/signage\/engine\//, /^features\/signage\/render\//];
 
 const resolveFile = (from: string, specifier: string): string | null => {
   const base = resolve(dirname(from), specifier);

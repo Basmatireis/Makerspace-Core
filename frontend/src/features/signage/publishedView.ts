@@ -93,7 +93,6 @@ export function resolvePublished(preview: SignageDisplayPreview, options: Publis
     calendar: preview.live.calendar,
     timelapses: preview.live.timelapses,
     timelapseUrl: (clip) => timelapseContentUrl(clip.runId, clip.sha256),
-    customLayouts: manifest.customLayouts,
     timeZone,
     multiMode: result.multiMode,
     alternateSeconds: result.alternateSeconds,

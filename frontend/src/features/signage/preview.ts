@@ -7,7 +7,6 @@ import type { SignageAnnouncementTemplate, SignagePlayerCalendar } from '../../a
 import { renderAnnouncement } from './engine/announcements';
 import type { RenderAnnouncement, RenderData, RenderMachine } from './render/types';
 import { publicConfigurationOptions } from '../branding/branding';
-import { customLayoutsQuery } from './layoutQueries';
 import { assetsQuery, calendarQuery, machinesQuery, templatesQuery } from './queries';
 
 // Data for the admin previews (editor canvas, thumbnails, scene list preview). Machine states and announcements are
@@ -135,8 +134,6 @@ export type PreviewInput = {
   events?: RenderData['events'];
   /** The calendar block with every category. */
   calendar?: SignagePlayerCalendar | null;
-  /** The custom layouts scenes may use. */
-  customLayouts?: RenderData['customLayouts'];
   still?: boolean;
 };
 
@@ -151,7 +148,6 @@ export function buildPreviewData({
   openDays = [],
   events = [],
   calendar = null,
-  customLayouts = [],
   still,
 }: PreviewInput): RenderData {
   const ids = [...new Set([...machines.map((machine) => machine.id), ...referencedMachineIds])];
@@ -206,7 +202,6 @@ export function buildPreviewData({
     openDays,
     events,
     calendar,
-    customLayouts,
     assetUrl: (assetId) => assetContentUrl(assetId, digests.get(assetId)),
     assetName: (assetId) => assetNames.get(assetId) ?? null,
     still,
@@ -227,7 +222,6 @@ export function usePreviewData(
     (permission) => hasPermission(user, permission),
   );
   const calendar = useQuery(calendarQuery(canRead)).data;
-  const customLayouts = useQuery({ ...customLayoutsQuery(), enabled: canRead }).data?.items;
   const { now, referencedMachineIds, still } = options;
   const referenced = referencedMachineIds?.join(',') ?? '';
   // Rebuilt only when an input changes: the preview data is handed to the renderer, which re-renders on a new object.
@@ -244,9 +238,8 @@ export function usePreviewData(
         openDays: calendar?.openDays,
         events: calendar?.events,
         calendar: calendar?.calendar,
-        customLayouts,
         still,
       }),
-    [preset, now, machines, referenced, templates, timeZone, assets, calendar, customLayouts, still],
+    [preset, now, machines, referenced, templates, timeZone, assets, calendar, still],
   );
 }

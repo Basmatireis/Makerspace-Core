@@ -60,7 +60,7 @@ describe('signage preview helpers', () => {
     expect([...(data.unavailableCameras ?? [])]).toEqual(['a']);
   });
 
-  it('passes custom layouts, the calendar block and asset names on to the renderer', () => {
+  it('passes the calendar block and asset names on to the renderer', () => {
     const base = {
       preset: 'idle' as const,
       now: now.getTime(),
@@ -70,17 +70,13 @@ describe('signage preview helpers', () => {
     };
     const plain = buildPreviewData(base);
     expect(plain.calendar).toBeNull();
-    expect(plain.customLayouts).toEqual([]);
     const calendar = { from: '2026-10-01', to: '2026-12-01', holidays: [], breaks: [], openDays: [], events: [] };
-    const customLayouts = [{ id: 'cl', mode: 'grid' as const, columns: [1], rows: [1], zones: [] }];
     const data = buildPreviewData({
       ...base,
       calendar,
-      customLayouts,
       assets: [{ id: 'font-1', sha256: 'e'.repeat(64), name: 'Fira Sans' }],
     });
     expect(data.calendar).toEqual(calendar);
-    expect(data.customLayouts).toEqual(customLayouts);
     expect(data.assetName?.('font-1')).toBe('Fira Sans');
     expect(data.assetName?.('other')).toBeNull();
   });

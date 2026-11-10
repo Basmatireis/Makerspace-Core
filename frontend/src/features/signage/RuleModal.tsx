@@ -26,6 +26,7 @@ import { useMachineOptions } from './preview';
 import { SceneListFields } from './SceneListFields';
 import { newSceneListItem, sceneListDraftOf, sceneListError, type SceneListDraftItem } from './sceneListDraft';
 import { scenesQuery, signageKeys, templatesQuery } from './queries';
+import { visibleWidgets } from './widgets';
 
 const WEEKDAYS = [
   ['Mon', 1],
@@ -98,7 +99,7 @@ export function RuleModal({
   ]);
 
   const hasCamera = chosenScenes.some((item) =>
-    Object.values(scenes?.find((scene) => scene.id === item.sceneId)?.zones ?? {}).some(
+    visibleWidgets(scenes?.find((scene) => scene.id === item.sceneId)?.blocks ?? []).some(
       (widget) => widget.type === 'camera',
     ),
   );
