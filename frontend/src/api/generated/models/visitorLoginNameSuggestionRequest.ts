@@ -18,9 +18,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
 
-export type AnswerNotificationConsentsRequestAnswersItem = {
-  categoryId: UUIDv7;
-  granted: boolean;
-};
+export interface VisitorLoginNameSuggestionRequest {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  firstName: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  lastName: string;
+}

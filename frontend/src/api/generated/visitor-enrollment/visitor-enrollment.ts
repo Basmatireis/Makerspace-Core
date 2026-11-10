@@ -24,7 +24,9 @@ import type {
   VisitorEnrollmentConfiguration,
   VisitorEnrollmentResult,
   VisitorEnrollmentState,
-  VisitorEnrollmentSubmission
+  VisitorEnrollmentSubmission,
+  VisitorLoginNameSuggestion,
+  VisitorLoginNameSuggestionRequest
 } from '../models';
 
 import { apiFetch } from '../../http-client';
@@ -158,6 +160,46 @@ export const getVisitorEnrollmentLabRulesPDF = async ( options?: Parameters<type
 );}
 
 
+export const getSuggestVisitorPinLoginNameUrl = () => {
+
+
+
+
+  return `/api/v1/visitor-enrollment/login-name-suggestions`
+}
+
+/**
+ * Builds `firstname.lastname` (lower case, umlauts and accents transliterated, other characters dropped) and
+ * appends a random number when that name is taken (a random number, so the answer does not tell which numbered names exist). Answers 403 when PIN enrollment is not allowed. It creates nothing; the name is checked again when the enrollment is
+ * submitted. Answers 422 when no valid login name can be built from the name.
+ * @summary Suggest a free PIN login name from the visitor's name
+ */
+export const suggestVisitorPinLoginName = async (visitorLoginNameSuggestionRequest: VisitorLoginNameSuggestionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<VisitorLoginNameSuggestion> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<VisitorLoginNameSuggestion>(getSuggestVisitorPinLoginNameUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(visitorLoginNameSuggestionRequest)
+  }
+);}
+
+
 export const getSubmitVisitorEnrollmentUrl = () => {
 
 
@@ -169,7 +211,9 @@ export const getSubmitVisitorEnrollmentUrl = () => {
 /**
  * Completing enrollment counts as arriving: the visitor is checked in. When the configured role asks for the Lab
  * Rules, `labRulesAccepted` must be true (422 otherwise) and records the visitor's confirmation (method
- * `enrollment`) of the Lab Rules version pinned by the enrollment context. When that version is no longer the
+ * `enrollment`) of the Lab Rules version pinned by the enrollment context. `consents` holds the visitor's answers
+ * to the notification categories listed in the enrollment state (place `kiosk`); they are stored in the same
+ * transaction, and a category left out is asked at a later check-in. When that version is no longer the
  * current one, the answer is 409 `lab_rules_changed` and the kiosk must start over with the new version.
  * Current device, method, and initial-role configuration is still enforced.
  * @summary Atomically create one visitor using the backend-configured Role

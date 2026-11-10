@@ -79,6 +79,7 @@ POST /terminal/survey-offers/{token}/never TerminalSurveyOfferNever
 POST /terminal/survey-offers/{token}/responses TerminalSurveyOfferSubmit
 POST /terminal/survey-offers/{token}/send-email TerminalSurveyOfferSendEmail
 POST /visitor-enrollment/context BeginVisitorEnrollment
+POST /visitor-enrollment/login-name-suggestions SuggestVisitorPinLoginName
 POST /visitor-enrollment/submissions SubmitVisitorEnrollment
 PUT /managed-devices/self/hardware ReportOwnManagedDeviceHardware
 PUT /printer-connector/self/assignments/{assignmentId}/runs/{runId}/artifact UploadPrinterConnectorRunArtifact
