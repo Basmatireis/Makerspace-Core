@@ -178,7 +178,7 @@ describe('controlled visitor enrollment', () => {
     expect(await screen.findByRole('heading', { name: 'Lab Rules' })).toHaveFocus();
     const accept = screen.getByLabelText('I have read and accept the Lab Rules');
     expect(accept).toBeDisabled();
-    expect(screen.getByText('Open the Lab Rules to confirm')).toBeInTheDocument();
+    expect(screen.getByText('Open the Lab Rules and scroll to the end to confirm')).toBeInTheDocument();
     const submit = screen.getByRole('button', { name: 'Register and check in' });
     expect(submit).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'View current Lab Rules PDF' }));
@@ -189,7 +189,7 @@ describe('controlled visitor enrollment', () => {
       }),
     );
     await waitFor(() => expect(screen.queryByText(/Mock PDF viewer/)).not.toBeInTheDocument());
-    expect(screen.queryByText('Open the Lab Rules to confirm')).not.toBeInTheDocument();
+    expect(screen.queryByText('Open the Lab Rules and scroll to the end to confirm')).not.toBeInTheDocument();
     expect(submit).toBeDisabled();
     await user.click(screen.getByLabelText('I have read and accept the Lab Rules'));
     await user.click(submit);

@@ -502,26 +502,20 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                   checked in and may use the lab.
                 </p>
                 <div>
-                  <Button
-                    type="button"
-                    kind="secondary"
-                    onClick={() => {
-                      setRulesOpen(true);
-                      setRulesViewed(true);
-                    }}
-                  >
+                  <Button type="button" kind="secondary" onClick={() => setRulesOpen(true)}>
                     View current Lab Rules PDF
                   </Button>
                   <LabRulesModal
                     open={rulesOpen}
                     revision={state.currentLabRules.humanRevision}
                     onClose={() => setRulesOpen(false)}
+                    onReadToEnd={() => setRulesViewed(true)}
                   />
                 </div>
                 <Checkbox
                   id="visitor-ready"
                   labelText="I have read and accept the Lab Rules"
-                  helperText={rulesViewed ? undefined : 'Open the Lab Rules to confirm'}
+                  helperText={rulesViewed ? undefined : 'Open the Lab Rules and scroll to the end to confirm'}
                   disabled={!rulesViewed}
                   checked={ready}
                   onChange={(_, data) => setReady(data.checked)}
