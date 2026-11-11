@@ -467,6 +467,65 @@ describe('User detail page', () => {
     expect(screen.queryByRole('button', { name: 'Turn on' })).not.toBeInTheDocument();
   });
 
+  describe('sending a sign-in code', () => {
+    const arrange = (permissions: PermissionId[], account = accountFixture({ emailCodeEnabled: true })) => {
+      server.use(
+        http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
+        http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
+      );
+      renderRoute(<App />, `/people/${otherPersonId}?tab=account-access`);
+    };
+    const manage = [PermissionId.peoplereadall, PermissionId.accountsread, PermissionId.accountsemail_codemanageall];
+
+    it('mails a code and confirms the address', async () => {
+      let called = false;
+      server.use(
+        http.post('*/api/v1/accounts/:accountId/email-code/send', () => {
+          called = true;
+          return HttpResponse.json({ delivery: 'sent', address: 'grace@example.test' });
+        }),
+      );
+      const user = userEvent.setup();
+      arrange(manage);
+      await user.click(await screen.findByRole('button', { name: 'Send sign-in code' }));
+      expect(await screen.findByText('Sign-in code sent to grace@example.test')).toBeInTheDocument();
+      expect(called).toBe(true);
+    });
+
+    it('shows failed delivery and rate limiting', async () => {
+      let calls = 0;
+      server.use(
+        http.post('*/api/v1/accounts/:accountId/email-code/send', () => {
+          calls += 1;
+          return calls === 1
+            ? HttpResponse.json({ delivery: 'failed' })
+            : HttpResponse.json(
+                { code: 'email_code_rate_limited', message: 'Too many', details: [], requestId: 'r' },
+                { status: 429, headers: { 'Retry-After': '900' } },
+              );
+        }),
+      );
+      const user = userEvent.setup();
+      arrange(manage);
+      await user.click(await screen.findByRole('button', { name: 'Send sign-in code' }));
+      expect(await screen.findByText('Code not delivered')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Send sign-in code' }));
+      expect(await screen.findByText(/Five codes were already requested/)).toBeInTheDocument();
+    });
+
+    it('is hidden without the permission and while the method is off', async () => {
+      arrange([PermissionId.peoplereadall, PermissionId.accountsread]);
+      expect(await screen.findByText('Email code')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Send sign-in code' })).not.toBeInTheDocument();
+    });
+
+    it('is hidden while the method is off', async () => {
+      arrange(manage, accountFixture({ emailCodeEnabled: false }));
+      expect(await screen.findByRole('button', { name: 'Turn on' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Send sign-in code' })).not.toBeInTheDocument();
+    });
+  });
+
   it('validates and submits direct PIN setup while preserving the setup-link alternative', async () => {
     const account = accountFixture({
       loginEmail: null,

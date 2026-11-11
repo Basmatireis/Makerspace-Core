@@ -65,6 +65,7 @@ async function requestCode(user: ReturnType<typeof userEvent.setup>, requests: u
   // The on-screen keypad enters the digits, so the tablet keyboard stays closed.
   expect(code).toHaveAttribute('inputmode', 'none');
   expect(screen.getByRole('group', { name: 'Code keypad' })).toBeInTheDocument();
+  expect(screen.getByText(/No code\? Check your spam folder/)).toBeInTheDocument();
   // The register callout and the method switcher make room for the code and its keypad.
   expect(screen.queryByText('First time here?')).toBeNull();
   expect(screen.queryByRole('tab', { name: 'Email code' })).toBeNull();

@@ -435,6 +435,9 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                 onBackspace={() => setCode((current) => current.slice(0, -1))}
                 onClear={() => setCode('')}
               />
+              <p className="visitor-flow__note">
+                No code? Check your spam folder. You can request up to five codes every 15 minutes.
+              </p>
               {resent && <p className="visitor-flow__note">We sent you a new code.</p>}
               <div className="visitor-flow__code-actions">
                 <Button type="button" kind="ghost" size="lg" disabled={pending} onClick={() => void sendCode(true)}>

@@ -131,6 +131,7 @@ describe('controlled visitor enrollment', () => {
     expect(codeField).toHaveValue('1234');
     expect(screen.getByRole('button', { name: 'Verify code' })).toBeDisabled();
     // The rest comes from the on-screen keypad under the field.
+    expect(screen.getByText(/No code\? Check your spam folder/)).toBeInTheDocument();
     const keypad = screen.getByRole('group', { name: 'Code keypad' });
     await user.click(within(keypad).getByRole('button', { name: '9' }));
     await user.click(within(keypad).getByRole('button', { name: '9' }));

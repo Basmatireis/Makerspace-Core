@@ -238,6 +238,11 @@ export function CredentialsScreen({
               onClear={() => setSecret('')}
             />
           )}
+          {codeSent && (
+            <p className="tablet-code-hint">
+              No code? Check your spam folder. You can request up to five codes every 15 minutes.
+            </p>
+          )}
           {sendCode.isError && (
             <InlineNotification
               kind="error"

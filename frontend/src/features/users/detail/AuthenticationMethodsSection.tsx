@@ -1,4 +1,5 @@
-import { Button, OverflowMenu, OverflowMenuItem, Tag } from '@carbon/react';
+import { Button, InlineNotification, OverflowMenu, OverflowMenuItem, Tag } from '@carbon/react';
+import { apiErrorCode } from '../../../api/http-client';
 import type { AccountSummary } from '../../../api/generated/models';
 import { AuthenticationMethod, DetailSection } from '../PersonDetailComponents';
 import type { getPersonDetailAccess } from './personDetailAccess';
@@ -133,17 +134,34 @@ export function AuthenticationMethodsSection({
           active={account.emailCodeEnabled}
           action={
             canManageEmailCode ? (
-              <Button
-                kind="tertiary"
-                size="sm"
-                disabled={ctrl.emailCodeMutation.isPending}
-                onClick={() => ctrl.emailCodeMutation.mutate(!account.emailCodeEnabled)}
-              >
-                {account.emailCodeEnabled ? 'Turn off' : 'Turn on'}
-              </Button>
+              <>
+                {account.emailCodeEnabled && account.loginEmail && (
+                  <Button
+                    kind="ghost"
+                    size="sm"
+                    disabled={ctrl.sendEmailCodeMutation.isPending}
+                    onClick={() => ctrl.sendEmailCodeMutation.mutate()}
+                  >
+                    Send sign-in code
+                  </Button>
+                )}
+                <Button
+                  kind="tertiary"
+                  size="sm"
+                  disabled={ctrl.emailCodeMutation.isPending}
+                  onClick={() => {
+                    ctrl.sendEmailCodeMutation.reset();
+                    ctrl.emailCodeMutation.mutate(!account.emailCodeEnabled);
+                  }}
+                >
+                  {account.emailCodeEnabled ? 'Turn off' : 'Turn on'}
+                </Button>
+              </>
             ) : undefined
           }
-        />
+        >
+          {sendCodeFeedback(ctrl.sendEmailCodeMutation)}
+        </AuthenticationMethod>
         <AuthenticationMethod
           label="OIDC / SSO"
           status={
@@ -182,4 +200,40 @@ export function AuthenticationMethodsSection({
       </div>
     </DetailSection>
   );
+}
+
+/** The outcome of mailing a sign-in code: sent, mail not delivered, or one of the explicit refusals. */
+function sendCodeFeedback(mutation: PersonDetailActions['sendEmailCodeMutation']) {
+  if (mutation.isSuccess) {
+    return mutation.data.delivery === 'sent' ? (
+      <InlineNotification
+        kind="success"
+        lowContrast
+        hideCloseButton
+        title="Code sent"
+        subtitle={`Sign-in code sent to ${mutation.data.address ?? 'the login email'}`}
+      />
+    ) : (
+      <InlineNotification
+        kind="error"
+        lowContrast
+        hideCloseButton
+        title="Code not delivered"
+        subtitle="The mail could not be sent. Check the mail settings and try again."
+      />
+    );
+  }
+  if (!mutation.isError) return null;
+  const code = apiErrorCode(mutation.error);
+  const subtitle =
+    code === 'email_code_rate_limited'
+      ? 'Five codes were already requested for this address. Try again in 15 minutes.'
+      : code === 'email_code_not_enabled'
+        ? 'Sign-in with an emailed code is off for this account.'
+        : code === 'email_code_unavailable'
+          ? 'The account is disabled, must reset its password or has used up its codes.'
+          : code === 'login_email_required'
+            ? 'The account needs a login email first.'
+            : 'The code could not be sent. Reload the person and try again.';
+  return <InlineNotification kind="error" lowContrast hideCloseButton title="Code not sent" subtitle={subtitle} />;
 }

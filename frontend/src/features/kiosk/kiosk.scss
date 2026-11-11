@@ -332,6 +332,12 @@ body:has(.tablet) {
   margin-block-start: $spacing-06;
 }
 
+.tablet-code-hint {
+  @include type-style('helper-text-01');
+  color: $text-secondary;
+  text-align: center;
+}
+
 .tablet-code-actions {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
