@@ -17,15 +17,19 @@ function AddButtons({
   onAdd,
   prefix = '',
   personal = false,
+  allowed,
 }: {
   onAdd: (channel: Channel) => void;
   prefix?: string;
   personal?: boolean;
+  /** The channels the rule's trigger allows; absent when every channel is. */
+  allowed?: readonly string[];
 }) {
   return (
     <div className="nc-actions-row">
       {channels
         .filter((channel) => !personal || personalChannels.includes(channel.id))
+        .filter((channel) => !allowed || allowed.includes(channel.id))
         .map((channel) => (
           <Button key={channel.id} kind="ghost" size="sm" renderIcon={Add} onClick={() => onAdd(channel.id)}>
             {prefix}
@@ -70,6 +74,7 @@ export function ThenStep(props: StepProps) {
       </div>
       <AddButtons
         personal={personal}
+        allowed={ctx.trigger?.channels}
         onAdd={(channel) =>
           edit((draft) => {
             draft.actions.push(newAction(channel, personal));
@@ -196,6 +201,7 @@ export function EscalationStep(props: StepProps) {
       </div>
       <AddButtons
         prefix="Step: "
+        allowed={contextOf(catalog, definition).trigger?.channels}
         onAdd={(channel) =>
           edit((draft) => {
             const last = draft.escalation?.steps.at(-1)?.after;

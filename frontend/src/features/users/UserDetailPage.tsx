@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useMemo } from 'react';
 import {
   Button,
   Column,
@@ -43,6 +43,13 @@ import type { PersonDetailTab } from './detail/types';
 import { usePersonDetailActions } from './detail/usePersonDetailActions';
 import { peopleKeys, personOptions } from './queries';
 
+// Only people who may read notification settings open this tab, and it carries the shared notification tables.
+const PersonNotificationsSection = lazy(() =>
+  import('./detail/PersonNotificationsSection').then(({ PersonNotificationsSection }) => ({
+    default: PersonNotificationsSection,
+  })),
+);
+
 type PersonDetailTabOption = {
   key: PersonDetailTab;
   label: string;
@@ -55,6 +62,7 @@ const personDetailTabs: readonly PersonDetailTabOption[] = [
   { key: 'roles-permissions', label: 'Roles & permissions' },
   { key: 'makerspace-status', label: 'Makerspace status' },
   { key: 'trainings', label: 'Trainings' },
+  { key: 'notifications', label: 'Notifications' },
 ];
 
 function asAccount(value: Person['account']): AccountSummary | undefined {
@@ -94,6 +102,8 @@ function UserDetailContent({ person }: { person: Person }) {
     canEditMatriculation,
     canReadAccounts,
     canReadMakerspaceStatus,
+    canReadNotifications,
+    canManageNotifications,
     canEditLoginEmail,
     canCreateAccount,
     canDeletePerson,
@@ -142,10 +152,11 @@ function UserDetailContent({ person }: { person: Person }) {
           if (tab.key === 'roles-permissions') return true;
           if (tab.key === 'makerspace-status') return canReadMakerspaceStatus;
           if (tab.key === 'trainings') return canReadTrainings;
+          if (tab.key === 'notifications') return canReadNotifications;
           return true;
         })
         .map((tab) => (tab.key === 'makerspace-status' ? { ...tab, label: statusLabel } : tab)),
-    [canReadAccounts, canReadMakerspaceStatus, canReadTrainings, statusLabel],
+    [canReadAccounts, canReadMakerspaceStatus, canReadNotifications, canReadTrainings, statusLabel],
   );
   const requestedTab = searchParams.get('tab');
   const selectedTabIndex = Math.max(
@@ -278,6 +289,13 @@ function UserDetailContent({ person }: { person: Person }) {
       );
     }
     if (tab === 'trainings') return <TrainingRecordsSection personId={person.id} />;
+    if (tab === 'notifications') {
+      return (
+        <Suspense fallback={<FullPageLoading label="Loading notification settings" />}>
+          <PersonNotificationsSection personId={person.id} canManage={canManageNotifications} />
+        </Suspense>
+      );
+    }
 
     return (
       <Grid className="person-detail-grid person-detail-grid--overview">
