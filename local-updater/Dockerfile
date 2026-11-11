@@ -2,7 +2,7 @@
 
 # The optional updater sidecar of the local-service bundles (see docs/hosting.md). Compiled on the build
 # platform and cross-compiled for the target platform; tests run in CI before publishing.
-FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine3.24 AS dependencies
+FROM --platform=$BUILDPLATFORM golang:1.27.4-alpine3.24 AS dependencies
 
 ENV CGO_ENABLED=0
 WORKDIR /workspace/backend
