@@ -12,8 +12,8 @@ importers:
         specifier: 1.119.0
         version: 1.119.0(react-dom@19.3.1(react@19.3.1))(react-is@18.3.1)(react@19.3.1)(sass@1.107.1)
       '@carbon/styles':
-        specifier: 1.118.0
-        version: 1.118.0(sass@1.107.1)
+        specifier: 1.119.0
+        version: 1.119.0(sass@1.107.1)
       '@ibm/plex':
         specifier: 6.4.1
         version: 6.4.1
@@ -58,14 +58,17 @@ packages:
   '@babel/runtime@8.0.7':
     resolution: {integrity: sha512-k0hagDDq/6w4v+0Sp4wFvIz/yswH5O7Va6aRTnD7N62Tnborp4X+YB+H3XUcWVSR4aE47WPEXiIIZchBs0GmYg==}
 
-  '@carbon/colors@11.61.0':
-    resolution: {integrity: sha512-pEDtZ0jPGyjbxcnzBxFCIB05oIJSbfT2E+z9TY+txqRfHmXe+QCEDD4fQPaFkxq60ToJ7KWfCb/SjnhF5/aq8A==}
+  '@carbon/colors@11.62.0':
+    resolution: {integrity: sha512-xdOpneCuNgMDcH/38BLHmPpB4hDrMNf5+flYXGCI2KuMx+d4r6ByaKqpteaWnXzwu8CA4PBflUovoD0wTYBsHQ==}
 
   '@carbon/feature-flags@1.11.0':
     resolution: {integrity: sha512-HN8bzIwPubG53xSlOZGFcCghL3zspj/LzA+LOfkoLwpagYIpZsOddpvqmCpOh3JOumNb5Cxq9qmjJL9yEiVYNA==}
 
-  '@carbon/grid@11.65.0':
-    resolution: {integrity: sha512-zuHs9oDYd/gMZQPKV0a/PNJXK/iaYmnMFqcwgbm4zYJ3MnD3kWgJKoqFSSPGuks8xKrg722exFYW4yDdwImIDQ==}
+  '@carbon/feature-flags@1.12.0':
+    resolution: {integrity: sha512-cJU8Qp6Q/THiXUCQvx20O4gq1ru5umijEPDLlaTda1CmrDxbGUnTOTVBoxNu2zzBKvADPlT3FzW6M2lvO76+0Q==}
+
+  '@carbon/grid@11.66.0':
+    resolution: {integrity: sha512-yeNsn3dnxn8cVWsT7Vfj6bgbfMUzM7+ZRCtxYq+fMnTw3LeiFBUz6eVEh7LMhUoGf+zyz/njHn1NXKtdhGGglw==}
 
   '@carbon/icon-helpers@10.84.0':
     resolution: {integrity: sha512-G+LVR42568CbluBzu7uV+ZMmI5tT2ojnWCmRgDB8Z3xKls1D5DU6fQHyiAg10JjLo+zBGUih6eEVSCqq9oXkEw==}
@@ -78,8 +81,14 @@ packages:
   '@carbon/layout@11.62.0':
     resolution: {integrity: sha512-MBXjxBkY9DNbdDmSPhPF5t+rBUJffxk/hlLlTawX901X84BFBKVtbCYy/UfFl5IytCN8mXXuCdOJ3rPOEwEX1Q==}
 
+  '@carbon/layout@11.63.0':
+    resolution: {integrity: sha512-crAS//pE8xmRZmz4ecx96UUScTfaipVYJNR5qOaku5PoJRjiYvqn8CY5Dmd087bjurO4pt/H33V6dv9qBnqzQg==}
+
   '@carbon/motion@11.55.0':
     resolution: {integrity: sha512-jBjLagm+DvFPcVpZUYuS+lY3FkZWolA69apKe+Oh8Ezulm3Q1DQMkG9Ky+VOa0rptgFTnafP6L6y8vmZ3LJa5g==}
+
+  '@carbon/motion@11.56.0':
+    resolution: {integrity: sha512-XQDW/6SjyrVNojc3OgODlGAIWxlq+tOjDlRRJ3xqdNg2vk3R0xHy9DfEARDIDlYLwEGYdu6/Ua0BAqorp1nTzA==}
 
   '@carbon/react@1.119.0':
     resolution: {integrity: sha512-nEkv9O1Kff1lioe2yPwMCpHnl+7M/8jNTntEfw3alYXcEKOuGR7At8BV7d7q6FsoB/lJh0UE/krdqNLUNvvQOw==}
@@ -92,20 +101,20 @@ packages:
       sass:
         optional: true
 
-  '@carbon/styles@1.118.0':
-    resolution: {integrity: sha512-/a5FktRWkAtrWmWMPO9tpc+GKX91dctdKXFL/pk02BJg47NZxhGCwFBJTDGeLvuEZnlkYaN5nUJXBi6vj4oKjQ==}
+  '@carbon/styles@1.119.0':
+    resolution: {integrity: sha512-tERg5odRAn2SVRrUEll6SJrtoykVNlh47m6QBTuBbP0UO9lI5zGhYbz/0xDkB9Ha96Fzc8opmk3/0lVpr7Zwxw==}
     peerDependencies:
       sass: ^1.33.0
     peerDependenciesMeta:
       sass:
         optional: true
 
-  '@carbon/themes@11.84.0':
-    resolution: {integrity: sha512-SQI2Zq7bRC9+VOI6wPpoIt+k2nuzq47or76749h8xZTkjIYVMPKUh4OtUYI0+VZK3K4abeHCuUexQSqoAb54Gg==}
+  '@carbon/themes@11.85.0':
+    resolution: {integrity: sha512-8usV/OEFgFHRIBJ6mLez5PBwCQOAVFiT0yPm/waekbSS8juzIX/KbM5LHVuFXegXvouHsk9DooGbeMQEZ2L4Zg==}
     engines: {node: '>=22'}
 
-  '@carbon/type@11.70.0':
-    resolution: {integrity: sha512-cmxwwhlVD/8L/J6k1N4/U6AhNldrpLynCQ4+Z7wSeGO6Ki0wE1Iczza8PAPa2eMoIw7frzk1q8jrwnI0zHBftw==}
+  '@carbon/type@11.71.0':
+    resolution: {integrity: sha512-9HXTa7VWbACP9yrx4iK/OiNhW4D09KmFK0y414KNlET27ZsAoJHbyWict4HylTxnDWgUVGbd0JiCp2XDm9nwsg==}
 
   '@carbon/utilities@0.28.0':
     resolution: {integrity: sha512-I24KN06PLNAR1kGaixwVq3eJ0BkgC+KGV4wT1oNNAkP5197aIjPlUZrYLvhLOEXLBH0BLx7cUgFr8pRawkXYcw==}
@@ -904,7 +913,7 @@ snapshots:
 
   '@babel/runtime@8.0.7': {}
 
-  '@carbon/colors@11.61.0':
+  '@carbon/colors@11.62.0':
     dependencies:
       '@ibm/telemetry-js': 1.12.0
 
@@ -912,9 +921,13 @@ snapshots:
     dependencies:
       '@ibm/telemetry-js': 1.12.0
 
-  '@carbon/grid@11.65.0':
+  '@carbon/feature-flags@1.12.0':
     dependencies:
-      '@carbon/layout': 11.62.0
+      '@ibm/telemetry-js': 1.12.0
+
+  '@carbon/grid@11.66.0':
+    dependencies:
+      '@carbon/layout': 11.63.0
       '@ibm/telemetry-js': 1.12.0
 
   '@carbon/icon-helpers@10.84.0':
@@ -932,7 +945,15 @@ snapshots:
     dependencies:
       '@ibm/telemetry-js': 1.12.0
 
+  '@carbon/layout@11.63.0':
+    dependencies:
+      '@ibm/telemetry-js': 1.12.0
+
   '@carbon/motion@11.55.0':
+    dependencies:
+      '@ibm/telemetry-js': 1.12.0
+
+  '@carbon/motion@11.56.0':
     dependencies:
       '@ibm/telemetry-js': 1.12.0
 
@@ -943,7 +964,7 @@ snapshots:
       '@carbon/icons-react': 11.91.0(react@19.3.1)
       '@carbon/layout': 11.62.0
       '@carbon/motion': 11.55.0
-      '@carbon/styles': 1.118.0(sass@1.107.1)
+      '@carbon/styles': 1.119.0(sass@1.107.1)
       '@carbon/utilities': 0.28.0
       '@floating-ui/react': 0.27.20(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@ibm/telemetry-js': 1.12.0
@@ -963,15 +984,15 @@ snapshots:
     optionalDependencies:
       sass: 1.107.1
 
-  '@carbon/styles@1.118.0(sass@1.107.1)':
+  '@carbon/styles@1.119.0(sass@1.107.1)':
     dependencies:
-      '@carbon/colors': 11.61.0
-      '@carbon/feature-flags': 1.11.0
-      '@carbon/grid': 11.65.0
-      '@carbon/layout': 11.62.0
-      '@carbon/motion': 11.55.0
-      '@carbon/themes': 11.84.0
-      '@carbon/type': 11.70.0
+      '@carbon/colors': 11.62.0
+      '@carbon/feature-flags': 1.12.0
+      '@carbon/grid': 11.66.0
+      '@carbon/layout': 11.63.0
+      '@carbon/motion': 11.56.0
+      '@carbon/themes': 11.85.0
+      '@carbon/type': 11.71.0
       '@ibm/plex': 6.4.1
       '@ibm/plex-mono': 2.5.0
       '@ibm/plex-sans': 1.1.0
@@ -985,18 +1006,18 @@ snapshots:
     optionalDependencies:
       sass: 1.107.1
 
-  '@carbon/themes@11.84.0':
+  '@carbon/themes@11.85.0':
     dependencies:
-      '@carbon/colors': 11.61.0
-      '@carbon/layout': 11.62.0
-      '@carbon/type': 11.70.0
+      '@carbon/colors': 11.62.0
+      '@carbon/layout': 11.63.0
+      '@carbon/type': 11.71.0
       '@ibm/telemetry-js': 1.12.0
       color: 4.2.3
 
-  '@carbon/type@11.70.0':
+  '@carbon/type@11.71.0':
     dependencies:
-      '@carbon/grid': 11.65.0
-      '@carbon/layout': 11.62.0
+      '@carbon/grid': 11.66.0
+      '@carbon/layout': 11.63.0
       '@ibm/telemetry-js': 1.12.0
 
   '@carbon/utilities@0.28.0':
