@@ -307,6 +307,16 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+      # Chromium's system packages come from the Ubuntu mirrors. When the runner's Azure resolver cannot resolve them
+      # (Canonical's DNS outage of 2026-11-11), this job switches to public resolvers; otherwise nothing changes.
+      - name: Check Ubuntu mirror DNS
+        run: |
+          if timeout 15 getent hosts azure.archive.ubuntu.com >/dev/null; then exit 0; fi
+          link=$(ip -o route show default | awk '{print $5; exit}')
+          echo "::warning::The runner's resolver cannot resolve the Ubuntu mirrors; using public resolvers for this job."
+          sudo resolvectl dns "$link" 1.1.1.1 8.8.8.8
+          sudo resolvectl flush-caches
+          timeout 15 getent hosts azure.archive.ubuntu.com
       - name: Install Chromium
         working-directory: frontend
         run: pnpm exec playwright install --with-deps chromium
