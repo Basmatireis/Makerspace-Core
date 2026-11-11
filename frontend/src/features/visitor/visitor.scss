@@ -213,8 +213,9 @@ body:has(.visitor-flow) {
   justify-items: start;
 }
 
-// Live preview and taken photo share one large centred square, so what the person sees is what is captured. The
-// preview is deliberately not mirrored: it matches the photo that is taken.
+// The placeholder and the taken photo are a centred square. The live preview is larger and shows a little more of the
+// camera around the photo square, which is marked in it; the camera picture itself is not mirrored unless the kiosk's
+// calibration says so.
 .visitor-photo__frame {
   position: relative;
   display: grid;
@@ -223,6 +224,11 @@ body:has(.visitor-flow) {
   aspect-ratio: 1;
   overflow: hidden;
   background: $layer-02;
+}
+
+.visitor-photo__frame--live {
+  inline-size: min(100%, 52rem, calc(58dvh * var(--view-aspect, 1)));
+  aspect-ratio: var(--view-aspect, 1);
 }
 
 .visitor-photo__frame--round {
@@ -237,25 +243,50 @@ body:has(.visitor-flow) {
   transform: none;
 }
 
-// A soft oval to position the face in.
-.visitor-photo__guide {
-  grid-area: 1 / 1;
+// The part of the live picture that becomes the photo; everything around it is dimmed.
+.visitor-photo__square {
+  position: absolute;
   z-index: 1;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+// A soft oval inside the photo square to position the face in.
+.visitor-photo__guide {
   inline-size: 70%;
   block-size: 84%;
   border: 2px dashed rgba(255, 255, 255, 0.85);
   border-radius: 50%;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.25);
-  pointer-events: none;
+}
+
+// Points people at the lens: they tend to look at their own picture on the screen instead.
+.visitor-photo__look {
+  @include type-style('heading-03');
+  margin-block-end: $spacing-03;
+}
+
+// Before the camera starts, its button takes the middle of the empty frame.
+.visitor-photo__start {
+  grid-area: 1 / 1;
+  z-index: 3;
+}
+
+// The photo button on the live picture, in its lower third, so it is reachable without scrolling.
+.visitor-photo__overlay-actions {
+  position: absolute;
+  z-index: 3;
+  inset-inline: 0;
+  inset-block-end: 12%;
+  display: flex;
+  justify-content: center;
 }
 
 .visitor-photo__media[hidden] {
   display: none;
-}
-
-.visitor-photo__placeholder {
-  grid-area: 1 / 1;
-  fill: $icon-secondary;
 }
 
 .visitor-photo .cds--file {

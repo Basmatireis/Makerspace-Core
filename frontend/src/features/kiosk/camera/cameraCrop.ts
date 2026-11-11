@@ -55,6 +55,54 @@ export function previewPlacement(rect: SourceRect, width: number, height: number
   };
 }
 
+/** A rectangle in camera-frame pixels. */
+export type ViewRect = { x: number; y: number; width: number; height: number };
+
+/**
+ * The part of the frame the live preview shows around the photo square: the square grown by `margin` on each axis,
+ * as far as the frame reaches, kept centred on the square where possible. The preview shows this wider view with the
+ * square marked in it, so people see where they stand before the photo is cut out.
+ */
+export function viewAround(rect: SourceRect, width: number, height: number, margin = 1.5): ViewRect {
+  const viewWidth = Math.min(width, rect.side * margin);
+  const viewHeight = Math.min(height, rect.side * margin);
+  const centreX = rect.x + rect.side / 2;
+  const centreY = rect.y + rect.side / 2;
+  return {
+    x: clamp(centreX - viewWidth / 2, 0, width - viewWidth),
+    y: clamp(centreY - viewHeight / 2, 0, height - viewHeight),
+    width: viewWidth,
+    height: viewHeight,
+  };
+}
+
+/** Positions the whole camera frame inside a box of the view's aspect ratio so that exactly `view` fills it. */
+export function viewPlacement(view: ViewRect, width: number, height: number, mirror = false): CSSProperties {
+  const x = mirror ? width - view.x - view.width : view.x;
+  return {
+    position: 'absolute',
+    inlineSize: `${(width / view.width) * 100}%`,
+    blockSize: `${(height / view.height) * 100}%`,
+    insetInlineStart: `${(-x / view.width) * 100}%`,
+    insetBlockStart: `${(-view.y / view.height) * 100}%`,
+    maxInlineSize: 'none',
+    objectFit: 'fill',
+    transform: mirror ? 'scaleX(-1)' : undefined,
+  };
+}
+
+/** Where the photo square sits inside the view's box, in percent of the box, as it appears (mirrored or not). */
+export function squareInView(rect: SourceRect, view: ViewRect, mirror = false): CSSProperties {
+  const left = (rect.x - view.x) / view.width;
+  const widthShare = rect.side / view.width;
+  return {
+    left: `${(mirror ? 1 - left - widthShare : left) * 100}%`,
+    top: `${((rect.y - view.y) / view.height) * 100}%`,
+    width: `${widthShare * 100}%`,
+    height: `${(rect.side / view.height) * 100}%`,
+  };
+}
+
 /** Where `rect` appears when the frame is shown mirrored: the same square, flipped across the frame's centre. */
 export function displayedRect(rect: SourceRect, width: number, mirror: boolean): SourceRect {
   return mirror ? { ...rect, x: width - rect.x - rect.side } : rect;

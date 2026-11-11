@@ -126,11 +126,15 @@ describe('controlled visitor enrollment', () => {
     expect(screen.getByText('new.visitor@example.test')).toBeInTheDocument();
     const codeField = screen.getByLabelText('Code');
     expect(codeField).toHaveFocus();
-    expect(codeField).toHaveAttribute('inputmode', 'numeric');
+    expect(codeField).toHaveAttribute('inputmode', 'none');
     await user.type(codeField, '12a34');
     expect(codeField).toHaveValue('1234');
     expect(screen.getByRole('button', { name: 'Verify code' })).toBeDisabled();
-    await user.type(codeField, '99');
+    // The rest comes from the on-screen keypad under the field.
+    const keypad = screen.getByRole('group', { name: 'Code keypad' });
+    await user.click(within(keypad).getByRole('button', { name: '9' }));
+    await user.click(within(keypad).getByRole('button', { name: '9' }));
+    expect(codeField).toHaveValue('123499');
     await user.click(screen.getByRole('button', { name: 'Verify code' }));
     expect(await screen.findByText(/The code is not correct or has expired/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Code' })).toBeInTheDocument();

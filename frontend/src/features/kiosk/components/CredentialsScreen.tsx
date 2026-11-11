@@ -206,13 +206,24 @@ export function CredentialsScreen({
               size="lg"
               className="tablet-code-input"
               labelText="Code"
-              inputMode="numeric"
+              // The keypad below enters the digits, so the tablet's own keyboard stays closed.
+              inputMode="none"
               pattern="[0-9]*"
               maxLength={emailCodeLength}
               autoComplete="one-time-code"
               spellCheck={false}
               value={secret}
-              onChange={(event) => setSecret(event.target.value.replace(/\D/g, ''))}
+              onChange={(event) => setSecret(event.target.value.replace(/\D/g, '').slice(0, emailCodeLength))}
+            />
+          )}
+          {codeSent && (
+            <PinKeypad
+              label="Code keypad"
+              onDigit={(digit) => {
+                setSecret((current) => (current.length < emailCodeLength ? current + digit : current));
+              }}
+              onBackspace={() => setSecret((current) => current.slice(0, -1))}
+              onClear={() => setSecret('')}
             />
           )}
           {sendCode.isError && (

@@ -62,7 +62,9 @@ async function requestCode(user: ReturnType<typeof userEvent.setup>, requests: u
   await user.click(screen.getByRole('button', { name: 'Send code' }));
   const code = await screen.findByLabelText('Code');
   expect(code).toHaveFocus();
-  expect(code).toHaveAttribute('inputmode', 'numeric');
+  // The on-screen keypad enters the digits, so the tablet keyboard stays closed.
+  expect(code).toHaveAttribute('inputmode', 'none');
+  expect(screen.getByRole('group', { name: 'Code keypad' })).toBeInTheDocument();
   return code;
 }
 

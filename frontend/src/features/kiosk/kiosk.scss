@@ -309,25 +309,6 @@ body:has(.tablet) {
   font-variant-numeric: tabular-nums;
 }
 
-.tablet-keypad {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: $spacing-03;
-}
-
-.tablet-keypad__key.cds--btn {
-  @include type-style('heading-04');
-  max-inline-size: none;
-  inline-size: 100%;
-  min-block-size: 4.5rem;
-  justify-content: center;
-  padding-inline: 0;
-}
-
-.tablet-keypad__key--small.cds--btn {
-  @include type-style('body-compact-02');
-}
-
 .tablet-submit.cds--btn {
   max-inline-size: none;
   inline-size: 100%;

@@ -27,6 +27,7 @@ import { LegalDocumentLink, LegalLinks } from '../branding/LegalLinks';
 import { EnrollmentDone, type EnrollmentOutcome } from './components/EnrollmentDone';
 import { LabRulesModal } from './components/LabRulesModal';
 import { ProfilePhotoPicker, type ProfileImage } from './components/ProfilePhotoPicker';
+import { PinKeypad } from '../kiosk/components/PinKeypad';
 import { useKeyboardAvoidance } from '../kiosk/useKeyboardAvoidance';
 import { useInactivityPrompt } from './useInactivityPrompt';
 import './visitor.scss';
@@ -406,7 +407,8 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                 size="lg"
                 className="visitor-flow__code-input"
                 labelText="Code"
-                inputMode="numeric"
+                // The keypad below enters the digits, so the tablet's own keyboard stays closed.
+                inputMode="none"
                 pattern="[0-9]*"
                 maxLength={codeLength}
                 autoComplete="one-time-code"
@@ -419,9 +421,18 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                 }
                 value={code}
                 onChange={(event) => {
-                  setCode(event.target.value.replace(/\D/g, ''));
+                  setCode(event.target.value.replace(/\D/g, '').slice(0, codeLength));
                   confirmMutation.reset();
                 }}
+              />
+              <PinKeypad
+                label="Code keypad"
+                onDigit={(digit) => {
+                  setCode((current) => (current.length < codeLength ? current + digit : current));
+                  confirmMutation.reset();
+                }}
+                onBackspace={() => setCode((current) => current.slice(0, -1))}
+                onClear={() => setCode('')}
               />
               {resent && <p className="visitor-flow__note">We sent you a new code.</p>}
               <div className="visitor-flow__code-actions">

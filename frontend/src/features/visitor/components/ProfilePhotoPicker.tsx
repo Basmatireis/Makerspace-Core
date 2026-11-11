@@ -1,9 +1,9 @@
 import { Button, FileUploaderDropContainer, InlineNotification } from '@carbon/react';
-import { Camera, UserAvatar } from '@carbon/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { Camera } from '@carbon/icons-react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { KioskCameraSettings } from '../../../api/generated/models';
 import { CameraIndicator } from '../../kiosk/camera/CameraIndicator';
-import { cropSourceRect, drawCrop, previewPlacement } from '../../kiosk/camera/cameraCrop';
+import { cropSourceRect, drawCrop, squareInView, viewAround, viewPlacement } from '../../kiosk/camera/cameraCrop';
 import { openKioskCamera } from '../../kiosk/camera/cameraStream';
 import { ProfilePhotoCropper } from '../../users/ProfilePhotoCropper';
 
@@ -18,8 +18,9 @@ export type PhotoSources = { camera: boolean; upload: boolean };
 
 // Camera capture or upload, then positioning under a round mask. The camera is released as soon as a photo exists or
 // the step is left. Renders nothing on a device that offers neither source (the photo is then not required).
-// The kiosk's calibrated crop decides which square of the camera frame is shown and captured, so the preview is
-// exactly the photo; its lens pointer shows people where to look.
+// The kiosk's calibrated crop decides which square of the camera frame is captured. The live preview shows a little
+// more of the frame around it with that square marked, so people can step into place; the lens pointer and a hint
+// tell them where to look.
 export function ProfilePhotoPicker({
   image,
   sources,
@@ -139,6 +140,39 @@ export function ProfilePhotoPicker({
 
   if (!sources.camera && !sources.upload) return null;
 
+  const live = cameraOn && !image;
+  const square = frame ? cropSourceRect(camera?.crop, frame.width, frame.height) : undefined;
+  const view = frame && square ? viewAround(square, frame.width, frame.height) : undefined;
+  const photoAction = (
+    <>
+      {image ? (
+        <Button
+          type="button"
+          kind="tertiary"
+          size="xl"
+          renderIcon={sources.camera ? Camera : undefined}
+          onClick={replace}
+        >
+          {sources.camera ? 'Retake photo' : 'Choose another photo'}
+        </Button>
+      ) : cameraOn && countdown !== undefined ? (
+        <Button type="button" kind="secondary" size="xl" onClick={() => setCountdown(undefined)}>
+          Cancel
+        </Button>
+      ) : cameraOn ? (
+        <Button type="button" size="xl" renderIcon={Camera} onClick={startCountdown}>
+          Take photo
+        </Button>
+      ) : (
+        sources.camera && (
+          <Button type="button" kind="secondary" size="xl" renderIcon={Camera} onClick={() => void startCamera()}>
+            Start camera
+          </Button>
+        )
+      )}
+    </>
+  );
+
   return (
     <div className="visitor-photo">
       {sources.camera && <CameraIndicator indicator={camera?.indicator} live={cameraOn && !image && !source} />}
@@ -154,13 +188,28 @@ export function ProfilePhotoPicker({
         />
       ) : (
         <>
-          <div className={image ? 'visitor-photo__frame visitor-photo__frame--round' : 'visitor-photo__frame'}>
-            {image ? (
-              <img className="visitor-photo__media" src={image.preview} alt="Selected profile" />
-            ) : (
-              !cameraOn && <UserAvatar size={64} aria-hidden="true" className="visitor-photo__placeholder" />
+          {live && <p className="visitor-photo__look">Look into the camera, not at the screen</p>}
+          <div
+            className={
+              image
+                ? 'visitor-photo__frame visitor-photo__frame--round'
+                : live && view
+                  ? 'visitor-photo__frame visitor-photo__frame--live'
+                  : 'visitor-photo__frame'
+            }
+            style={live && view ? ({ '--view-aspect': view.width / view.height } as CSSProperties) : undefined}
+          >
+            {image && <img className="visitor-photo__media" src={image.preview} alt="Selected profile" />}
+            {live && square && view && (
+              <span
+                className="visitor-photo__square"
+                style={squareInView(square, view, camera?.mirror)}
+                data-testid="photo-square"
+                aria-hidden="true"
+              >
+                <span className="visitor-photo__guide" />
+              </span>
             )}
-            {cameraOn && !image && <span className="visitor-photo__guide" aria-hidden="true" />}
             <video
               ref={video}
               autoPlay
@@ -169,16 +218,7 @@ export function ProfilePhotoPicker({
               aria-label="Camera preview"
               className="visitor-photo__media"
               hidden={!cameraOn || Boolean(image)}
-              style={
-                frame
-                  ? previewPlacement(
-                      cropSourceRect(camera?.crop, frame.width, frame.height),
-                      frame.width,
-                      frame.height,
-                      camera?.mirror,
-                    )
-                  : undefined
-              }
+              style={frame && view ? viewPlacement(view, frame.width, frame.height, camera?.mirror) : undefined}
               onLoadedMetadata={(event) => {
                 const { videoWidth, videoHeight } = event.currentTarget;
                 if (videoWidth && videoHeight) setFrame({ width: videoWidth, height: videoHeight });
@@ -188,6 +228,9 @@ export function ProfilePhotoPicker({
                 if (videoWidth && videoHeight) setFrame({ width: videoWidth, height: videoHeight });
               }}
             />
+            {/* While live the button sits on the picture, so it is reachable without scrolling. */}
+            {live && view && <div className="visitor-photo__overlay-actions">{photoAction}</div>}
+            {!image && !cameraOn && sources.camera && <div className="visitor-photo__start">{photoAction}</div>}
             {countdown !== undefined && countdown > 0 && (
               <span className="camera-countdown" aria-hidden="true">
                 <span key={countdown} className="camera-countdown__number">
@@ -199,33 +242,7 @@ export function ProfilePhotoPicker({
           <p className="cds--visually-hidden" aria-live="assertive" aria-atomic="true">
             {countdown !== undefined && countdown > 0 ? `Taking the photo in ${countdown}` : ''}
           </p>
-          <div className="visitor-photo__actions">
-            {image ? (
-              <Button
-                type="button"
-                kind="tertiary"
-                size="md"
-                renderIcon={sources.camera ? Camera : undefined}
-                onClick={replace}
-              >
-                {sources.camera ? 'Retake photo' : 'Choose another photo'}
-              </Button>
-            ) : cameraOn && countdown !== undefined ? (
-              <Button type="button" kind="secondary" size="md" onClick={() => setCountdown(undefined)}>
-                Cancel
-              </Button>
-            ) : cameraOn ? (
-              <Button type="button" size="md" renderIcon={Camera} onClick={startCountdown}>
-                Take photo
-              </Button>
-            ) : (
-              sources.camera && (
-                <Button type="button" kind="secondary" size="md" renderIcon={Camera} onClick={() => void startCamera()}>
-                  Start camera
-                </Button>
-              )
-            )}
-          </div>
+          {image && <div className="visitor-photo__actions">{photoAction}</div>}
           {sources.upload && (
             <FileUploaderDropContainer
               accept={['image/jpeg', 'image/png', 'image/webp']}

@@ -146,9 +146,14 @@ describe('camera capture', () => {
     expect(indicator.style.left).toBe('62.5%');
     const video = await startPreview(user);
     expect(screen.getByTestId('camera-indicator')).toHaveClass('camera-indicator--live');
-    // The preview shows exactly the calibrated 360 px square starting at (716, 180).
-    expect(parseFloat(video.style.insetInlineStart)).toBeCloseTo((-716 / 360) * 100);
-    expect(parseFloat(video.style.insetBlockStart)).toBeCloseTo(-50);
+    // The preview shows 540 px of the frame from (626, 90) around the calibrated 360 px square at (716, 180), and
+    // marks that square in it.
+    expect(parseFloat(video.style.insetInlineStart)).toBeCloseTo((-626 / 540) * 100);
+    expect(parseFloat(video.style.insetBlockStart)).toBeCloseTo((-90 / 540) * 100);
+    const square = screen.getByTestId('photo-square');
+    expect(parseFloat(square.style.left)).toBeCloseTo((90 / 540) * 100);
+    expect(parseFloat(square.style.width)).toBeCloseTo((360 / 540) * 100);
+    expect(screen.getByText('Look into the camera, not at the screen')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Take photo' }));
     await act(() => vi.advanceTimersByTimeAsync(3000));
     await waitFor(() => expect(draws).toHaveLength(1));
@@ -178,7 +183,8 @@ describe('camera capture', () => {
     );
     const video = await startPreview(user);
     expect(video.style.transform).toBe('scaleX(-1)');
-    expect(parseFloat(video.style.insetInlineStart)).toBeCloseTo((-204 / 360) * 100);
+    // The flipped frame shows the 540 px view at its mirror position: 1280 - 626 - 540 = 114.
+    expect(parseFloat(video.style.insetInlineStart)).toBeCloseTo((-114 / 540) * 100);
     await user.click(screen.getByRole('button', { name: 'Take photo' }));
     await act(() => vi.advanceTimersByTimeAsync(3000));
     await waitFor(() => expect(draws).toHaveLength(1));
