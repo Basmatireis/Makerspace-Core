@@ -278,6 +278,21 @@ body:has(.visitor-flow) {
   text-align: center;
 }
 
+// Before the camera starts there is no picture yet: the frame shrinks to its button, so button and hint sit together.
+.visitor-photo__frame--idle {
+  inline-size: auto;
+  aspect-ratio: auto;
+  overflow: visible;
+  background: none;
+}
+
+// The photo buttons are the one action of the step on a tablet: larger type, content centred in the taller button.
+.visitor-photo__button.cds--btn {
+  @include type-style('heading-03');
+  min-inline-size: 16rem;
+  align-items: center;
+}
+
 // Before the camera starts, its button takes the middle of the empty frame.
 .visitor-photo__start {
   grid-area: 1 / 1;

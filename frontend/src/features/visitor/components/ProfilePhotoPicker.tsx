@@ -149,23 +149,37 @@ export function ProfilePhotoPicker({
         <Button
           type="button"
           kind="tertiary"
-          size="2xl"
+          size="xl"
+          className="visitor-photo__button"
           renderIcon={sources.camera ? Camera : undefined}
           onClick={replace}
         >
           {sources.camera ? 'Retake photo' : 'Choose another photo'}
         </Button>
       ) : cameraOn && countdown !== undefined ? (
-        <Button type="button" kind="secondary" size="2xl" onClick={() => setCountdown(undefined)}>
+        <Button
+          type="button"
+          kind="secondary"
+          size="xl"
+          className="visitor-photo__button"
+          onClick={() => setCountdown(undefined)}
+        >
           Cancel
         </Button>
       ) : cameraOn ? (
-        <Button type="button" size="2xl" renderIcon={Camera} onClick={startCountdown}>
+        <Button type="button" size="xl" className="visitor-photo__button" renderIcon={Camera} onClick={startCountdown}>
           Take photo
         </Button>
       ) : (
         sources.camera && (
-          <Button type="button" kind="secondary" size="2xl" renderIcon={Camera} onClick={() => void startCamera()}>
+          <Button
+            type="button"
+            kind="secondary"
+            size="xl"
+            className="visitor-photo__button"
+            renderIcon={Camera}
+            onClick={() => void startCamera()}
+          >
             Start camera
           </Button>
         )
@@ -193,7 +207,9 @@ export function ProfilePhotoPicker({
                 ? 'visitor-photo__frame visitor-photo__frame--round'
                 : live && view
                   ? 'visitor-photo__frame visitor-photo__frame--live'
-                  : 'visitor-photo__frame'
+                  : cameraOn
+                    ? 'visitor-photo__frame'
+                    : 'visitor-photo__frame visitor-photo__frame--idle'
             }
             style={live && view ? ({ '--view-aspect': view.width / view.height } as CSSProperties) : undefined}
           >
@@ -256,9 +272,7 @@ export function ProfilePhotoPicker({
         </>
       )}
       <p className="visitor-photo__hint">
-        {required
-          ? 'A real photo is required for identification. Metadata is removed by the server.'
-          : 'A photo is optional. Metadata is removed by the server.'}
+        {required ? 'A real photo is required for identification.' : 'A photo is optional.'}
       </p>
       {error && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Photo unavailable" subtitle={error} />
