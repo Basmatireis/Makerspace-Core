@@ -51,30 +51,21 @@
   border-radius: $spacing-06 0 0 $spacing-06;
 }
 
-// While the camera is live the notch turns to the error/record colour and a ring pulses out of it.
+// While the camera is live the notch turns to the error/record colour and a ring pulses out of it. The ring grows by
+// the same distance on every side (a spread shadow, not a scale), so it looks alike on a long side notch and a top one.
 .camera-indicator--live .camera-indicator__pill {
   background: $support-error;
   color: $text-on-color;
   fill: $icon-on-color;
-}
-
-.camera-indicator--live .camera-indicator__pill::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 2px solid $support-error;
-  border-radius: inherit;
   animation: camera-indicator-pulse 1.6s motion(standard, expressive) infinite;
 }
 
 @keyframes camera-indicator-pulse {
   from {
-    opacity: 0.9;
-    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, $support-error 60%, transparent);
   }
   to {
-    opacity: 0;
-    transform: scale(1.6);
+    box-shadow: 0 0 0 $spacing-05 color-mix(in srgb, $support-error 0%, transparent);
   }
 }
 
@@ -108,7 +99,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .camera-indicator--live .camera-indicator__pill::after,
+  .camera-indicator--live .camera-indicator__pill,
   .camera-countdown__number {
     animation: none;
   }
