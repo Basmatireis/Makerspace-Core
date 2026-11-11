@@ -68,6 +68,7 @@ var MergeReferences = []MergeReference{
 	{"auth_identities", "account_id", "accounts", ruleKeptIdentity},
 	{"branding_asset_overrides", "updated_by_account_id", "accounts", ruleActor},
 	{"branding_configuration", "updated_by_account_id", "accounts", ruleActor},
+	{"email_code_failures", "account_id", "accounts", ruleTransient},
 	{"event_shift_assignments", "cancelled_by_account_id", "accounts", ruleActor},
 	{"event_shift_assignments", "conflict_overridden_by_account_id", "accounts", ruleActor},
 	{"event_shift_assignments", "created_by_account_id", "accounts", ruleActor},

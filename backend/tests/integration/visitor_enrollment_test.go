@@ -90,13 +90,12 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		t.Fatalf("permission-less configuration read error=%v", err)
 	}
 	configuration, err := service.UpdateConfiguration(ctx, master, visitor.ConfigurationInput{
-		Enabled: true, DeviceTypeIDs: []uuid.UUID{kioskType.ID},
-		AllowedMethods: []visitor.AuthMethod{"pin", "password", "pin"}, ExpectedVersion: 1,
+		Enabled: true, DeviceTypeIDs: []uuid.UUID{kioskType.ID}, ExpectedVersion: 1,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if configuration.Version != 2 || len(configuration.AllowedMethods) != 2 || len(configuration.DeviceTypeIDs) != 1 {
+	if configuration.Version != 2 || len(configuration.DeviceTypeIDs) != 1 {
 		t.Fatalf("unexpected visitor configuration: %#v", configuration)
 	}
 
@@ -127,20 +126,29 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		t.Fatalf("invalid enrollment CSRF error=%v", err)
 	}
 	state, err := service.State(ctx, enrollment)
-	if err != nil || state.CurrentLabRules == nil || state.CurrentLabRules.HumanRevision != "2026-visitor" {
+	if err != nil || state.CurrentLabRules == nil || state.CurrentLabRules.HumanRevision != "2026-visitor" ||
+		state.Email != "" || state.EmailVerified {
 		t.Fatalf("visitor state=%#v err=%v", state, err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM people`, 1)
 	assertCount(t, pool, `SELECT count(*) FROM laborordnung_confirmations`, 0)
 
-	email := "new-visitor@example.test"
-	loginName := "Visitor.One"
-	pin := "654321"
-	result, err := service.Submit(ctx, enrollment, visitor.SubmissionInput{
-		FirstName: "New", LastName: "Visitor", Email: email,
-		AuthMethods: []visitor.AuthMethod{"pin"}, PINLoginName: &loginName, PIN: &pin,
+	input := visitor.SubmissionInput{
+		FirstName: "New", LastName: "Visitor",
 		ProfileImage: visitorTestJPEG(t), ProfileImageFilename: "camera.jpg", LabRulesAccepted: true,
-	}, nil)
+	}
+	// Without a verified address nothing is created.
+	if _, err := service.Submit(ctx, enrollment, input, nil); !apperror.IsCode(err, "email_verification_required") {
+		t.Fatalf("unverified submission error=%v", err)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM people`, 1)
+
+	email := "new-visitor@example.test"
+	enrollment = verifyEnrollmentEmail(t, service, notifier, issue.ContextToken, enrollment, email)
+	if state, err = service.State(ctx, enrollment); err != nil || state.Email != email || !state.EmailVerified {
+		t.Fatalf("verified state=%#v err=%v", state, err)
+	}
+	result, err := service.Submit(ctx, enrollment, input, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,9 +158,10 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	assertCount(
 		t,
 		pool,
-		`SELECT count(*) FROM people WHERE id=$1 AND profile_image_file_id IS NOT NULL AND profile_image_source='terminal_capture'`,
+		`SELECT count(*) FROM people WHERE id=$1 AND email=$2 AND profile_image_file_id IS NOT NULL AND profile_image_source='terminal_capture'`,
 		1,
 		result.PersonID,
+		email,
 	)
 	assertCount(
 		t,
@@ -162,38 +171,26 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		result.AccountID,
 		result.PersonID,
 	)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, result.PersonID, roleID)
+	// The verified address is the login email and signs in with an emailed code only.
 	assertCount(
 		t,
 		pool,
-		`SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`,
-		1,
-		result.PersonID,
-		roleID,
-	)
-	assertCount(
-		t,
-		pool,
-		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='pin' AND identifier_display=$2 AND identifier_normalized='visitor.one'`,
-		1,
-		result.AccountID,
-		loginName,
-	)
-	assertCount(
-		t,
-		pool,
-		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc'`,
-		0,
-		result.AccountID,
-	)
-	// The visitor's email is the account's login email even for a PIN-only enrollment.
-	assertCount(
-		t,
-		pool,
-		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password' AND identifier_normalized=$2`,
+		`SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password' AND identifier_normalized=$2
+		   AND verified_at IS NOT NULL AND email_code_enabled`,
 		1,
 		result.AccountID,
 		email,
 	)
+	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind<>'password'`, 0, result.AccountID)
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM password_credentials pc JOIN auth_identities i ON i.id=pc.auth_identity_id WHERE i.account_id=$1`,
+		0,
+		result.AccountID,
+	)
+	assertCount(t, pool, `SELECT count(*) FROM auth_challenges WHERE account_id=$1`, 0, result.AccountID)
 	assertCount(
 		t,
 		pool,
@@ -201,24 +198,42 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		1,
 		result.PersonID,
 	)
-
+	// The used context keeps no copy of the address.
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM visitor_enrollment_contexts WHERE id=$1 AND used_at IS NOT NULL AND email_normalized IS NULL`,
+		1,
+		enrollment.ID,
+	)
 	if _, err := service.AuthenticateContext(ctx, issue.ContextToken); !apperror.IsCode(err, "unauthenticated") {
 		t.Fatalf("consumed enrollment context error=%v", err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM people`, 2)
 
+	// The new visitor signs in at the kiosk with an emailed code; without a kiosk, visitors have no web access.
 	authService, err := auth.NewService(pool, cfg, notifier)
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := authService.LoginWithPIN(auth.WithManagedDeviceContext(ctx, &kiosk.Device.ID), "VISITOR.ONE", pin, "visitor-terminal", nil)
+	kioskCtx := auth.WithManagedDeviceContext(ctx, &kiosk.Device.ID)
+	if err := authService.RequestEmailCode(kioskCtx, email, "visitor-terminal", nil); err != nil {
+		t.Fatal(err)
+	}
+	code := notifier.loginCode(t, email)
+	if _, err := authService.LoginWithEmailCode(ctx, email, code, "visitor-web", nil); !apperror.IsCode(
+		err, auth.WebSignInNotPermittedCode,
+	) {
+		t.Fatalf("visitor web sign-in error=%v", err)
+	}
+	session, err := loginSession(authService.LoginWithEmailCode(kioskCtx, email, code, "visitor-terminal", nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	authenticated, err := authService.Authenticate(auth.WithManagedDeviceContext(ctx, &kiosk.Device.ID), session.Token)
+	authenticated, err := authService.Authenticate(kioskCtx, session.Token)
 	if err != nil || authenticated.Principal.AccountID != result.AccountID ||
-		authenticated.Principal.Assurance != authorization.AssuranceLow {
-		t.Fatalf("visitor PIN authentication=%#v err=%v", authenticated.Principal, err)
+		authenticated.Principal.Assurance != authorization.AssuranceNormal || authenticated.AuthMethod != "email_code" {
+		t.Fatalf("visitor email code authentication=%#v err=%v", authenticated, err)
 	}
 	if _, err := labRulesService.Evaluate(ctx, result.PersonID); err != nil {
 		t.Fatal(err)
@@ -235,71 +250,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		t.Fatalf("confirmed admission=%#v err=%v", admitted, err)
 	}
 
-	passwordIssue, err := service.Begin(ctx, approvedContext)
-	if err != nil {
-		t.Fatal(err)
-	}
-	passwordContext, err := service.AuthenticateContext(ctx, passwordIssue.ContextToken)
-	if err != nil {
-		t.Fatal(err)
-	}
-	passwordEmail := "password-visitor@example.test"
-	passwordResult, err := service.Submit(ctx, passwordContext, visitor.SubmissionInput{
-		FirstName: "Password", LastName: "Visitor", Email: passwordEmail,
-		AuthMethods: []visitor.AuthMethod{"password"}, ProfileImage: visitorTestJPEG(t),
-		ProfileImageFilename: "password-visitor.jpg", LabRulesAccepted: true,
-	}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if passwordResult.AccountStatus != "enabled" || passwordResult.InvitationDelivery == nil ||
-		*passwordResult.InvitationDelivery != "sent" {
-		t.Fatalf("password-only visitor result=%#v", passwordResult)
-	}
-	assertCount(
-		t,
-		pool,
-		`SELECT count(*) FROM password_credentials pc JOIN auth_identities i ON i.id=pc.auth_identity_id WHERE i.account_id=$1`,
-		0,
-		passwordResult.AccountID,
-	)
-	invitationCode := notifier.invitationCode(passwordEmail)
-	if invitationCode == "" {
-		t.Fatal("visitor invitation code was not delivered")
-	}
-	if err := authService.CompleteInvitation(
-		ctx,
-		passwordEmail,
-		invitationCode,
-		"Visitor password workshop 94",
-		"visitor-invitation",
-		nil,
-	); err != nil {
-		t.Fatal(err)
-	}
-	assertCount(
-		t,
-		pool,
-		`SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled' AND administratively_disabled_at IS NULL`,
-		1,
-		passwordResult.AccountID,
-	)
-	passwordSession, err := loginSession(authService.Login(
-		auth.WithManagedDeviceContext(ctx, &kiosk.Device.ID),
-		passwordEmail,
-		"Visitor password workshop 94",
-		"visitor-password-login",
-		nil,
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
-	passwordAuthenticated, err := authService.Authenticate(auth.WithManagedDeviceContext(ctx, &kiosk.Device.ID), passwordSession.Token)
-	if err != nil || passwordAuthenticated.Principal.AccountID != passwordResult.AccountID ||
-		passwordAuthenticated.Principal.Assurance != authorization.AssuranceNormal {
-		t.Fatalf("visitor password authentication=%#v err=%v", passwordAuthenticated.Principal, err)
-	}
-
+	// An address that already is a login email is refused before any code is sent: that person checks in instead.
 	duplicateIssue, err := service.Begin(ctx, approvedContext)
 	if err != nil {
 		t.Fatal(err)
@@ -308,20 +259,44 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.Submit(ctx, duplicateContext, visitor.SubmissionInput{
-		FirstName: "Duplicate", LastName: "Visitor", Email: email,
-		AuthMethods: []visitor.AuthMethod{"pin"}, PINLoginName: &loginName, PIN: &pin,
-		ProfileImage: visitorTestJPEG(t), ProfileImageFilename: "duplicate.jpg", LabRulesAccepted: true,
-	}, nil)
-	if !apperror.IsCode(err, "authentication_identifier_exists") {
-		t.Fatalf("duplicate identifier error=%v", err)
+	if err := service.SendEmailCode(ctx, duplicateContext, "NEW-visitor@example.test", nil); !apperror.IsCode(
+		err, "authentication_identifier_exists",
+	) {
+		t.Fatalf("existing address error=%v", err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM people`, 3)
-	assertCount(t, pool, `SELECT count(*) FROM accounts`, 3)
-	assertCount(t, pool, `SELECT count(*) FROM files WHERE original_filename='duplicate.jpg'`, 0)
+	assertCount(t, pool, `SELECT count(*) FROM people`, 2)
+	assertCount(t, pool, `SELECT count(*) FROM accounts`, 2)
 	if _, err := service.AuthenticateContext(ctx, duplicateIssue.ContextToken); err != nil {
-		t.Fatalf("failed submission should not consume its context: %v", err)
+		t.Fatalf("a refused address should not consume its context: %v", err)
 	}
+}
+
+// verifyEnrollmentEmail mails a code for email on the enrollment context, confirms it and reads the context again.
+func verifyEnrollmentEmail(
+	t *testing.T,
+	service *visitor.Service,
+	notifier *notificationRecorder,
+	token string,
+	enrollment visitor.Context,
+	email string,
+) visitor.Context {
+	t.Helper()
+	ctx := testContext(t)
+	if err := service.SendEmailCode(ctx, enrollment, email, nil); err != nil {
+		t.Fatal(err)
+	}
+	code := notifier.enrollmentCode(email)
+	if code == "" {
+		t.Fatal("enrollment code was not mailed")
+	}
+	if err := service.ConfirmEmail(ctx, enrollment, code, nil); err != nil {
+		t.Fatal(err)
+	}
+	refreshed, err := service.AuthenticateContext(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return refreshed
 }
 
 func visitorTestJPEG(t *testing.T) []byte {
@@ -350,7 +325,8 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 	}
 	fileService := files.NewService(pool, local)
 	labRules := laborordnung.NewService(pool, notifyrules.NewSystemEvents(nil), fileService)
-	service := visitor.NewService(pool, integrationConfig(t), fileService, labRules, nil)
+	notifier := newNotificationRecorder()
+	service := visitor.NewService(pool, integrationConfig(t), fileService, labRules, notifier)
 	publish := func(revision string) uuid.UUID {
 		stored, err := fileService.StoreSystemBytes(ctx, revision+".pdf", "application/pdf", []byte(revision), nil)
 		if err != nil {
@@ -391,7 +367,6 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 		visitor.ConfigurationInput{
 			Enabled:         true,
 			DeviceTypeIDs:   []uuid.UUID{deviceType.ID},
-			AllowedMethods:  []visitor.AuthMethod{"pin"},
 			ExpectedVersion: 1,
 		},
 		nil,
@@ -428,17 +403,13 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 	if err != nil || string(data) != "original" {
 		t.Fatalf("PDF switched version: %q %v", data, err)
 	}
-	email, login, pin := "pinned@example.test", "pinned.visitor", "654321"
+	enrollment = verifyEnrollmentEmail(t, service, notifier, issue.ContextToken, enrollment, "pinned@example.test")
 	result, err := service.Submit(
 		ctx,
 		enrollment,
 		visitor.SubmissionInput{
 			FirstName:        "Pinned",
 			LastName:         "Visitor",
-			Email:            email,
-			AuthMethods:      []visitor.AuthMethod{"pin"},
-			PINLoginName:     &login,
-			PIN:              &pin,
 			ProfileImage:     visitorTestJPEG(t),
 			LabRulesAccepted: true,
 		},
@@ -473,7 +444,8 @@ func TestVisitorEnrollmentChecksTheVisitorIn(t *testing.T) {
 			fileService := files.NewService(pool, local)
 			labRules := laborordnung.NewService(pool, notifyrules.NewSystemEvents(nil), fileService)
 			attendanceService := attendance.NewService(pool, nil, labRules, nil)
-			service := visitor.NewService(pool, integrationConfig(t), fileService, labRules, nil)
+			notifier := newNotificationRecorder()
+			service := visitor.NewService(pool, integrationConfig(t), fileService, labRules, notifier)
 			service.SetAttendance(attendanceService)
 			stored, err := fileService.StoreSystemBytes(ctx, "rules.pdf", "application/pdf", []byte("rules"), nil)
 			if err != nil {
@@ -505,8 +477,7 @@ func TestVisitorEnrollmentChecksTheVisitorIn(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err = service.UpdateConfiguration(ctx, master, visitor.ConfigurationInput{
-				Enabled: true, DeviceTypeIDs: []uuid.UUID{deviceType.ID},
-				AllowedMethods: []visitor.AuthMethod{"pin"}, ExpectedVersion: 1,
+				Enabled: true, DeviceTypeIDs: []uuid.UUID{deviceType.ID}, ExpectedVersion: 1,
 			}, nil); err != nil {
 				t.Fatal(err)
 			}
@@ -526,12 +497,10 @@ func TestVisitorEnrollmentChecksTheVisitorIn(t *testing.T) {
 			if state.LabRulesRequired != (mode != "not_required") || state.CurrentLabRules == nil {
 				t.Fatalf("state=%#v for mode %s: the kiosk asks for the Lab Rules only when enrollment records the confirmation", state, mode)
 			}
-			email, login, pin := "arriving@example.test", "arriving.visitor", "654321"
+			enrollment = verifyEnrollmentEmail(t, service, notifier, issue.ContextToken, enrollment, "arriving@example.test")
 			if mode != "not_required" {
 				_, err = service.Submit(ctx, enrollment, visitor.SubmissionInput{
-					FirstName: "Arriving", LastName: "Visitor", Email: email,
-					AuthMethods: []visitor.AuthMethod{"pin"}, PINLoginName: &login, PIN: &pin,
-					ProfileImage: visitorTestJPEG(t),
+					FirstName: "Arriving", LastName: "Visitor", ProfileImage: visitorTestJPEG(t),
 				}, nil)
 				if !apperror.IsCode(err, "validation_failed") {
 					t.Fatalf("enrollment without accepting the Lab Rules error=%v, want validation_failed", err)
@@ -539,9 +508,7 @@ func TestVisitorEnrollmentChecksTheVisitorIn(t *testing.T) {
 				assertCount(t, pool, `SELECT count(*) FROM visits`, 0)
 			}
 			result, err := service.Submit(ctx, enrollment, visitor.SubmissionInput{
-				FirstName: "Arriving", LastName: "Visitor", Email: email,
-				AuthMethods: []visitor.AuthMethod{"pin"}, PINLoginName: &login, PIN: &pin,
-				ProfileImage: visitorTestJPEG(t), LabRulesAccepted: true,
+				FirstName: "Arriving", LastName: "Visitor", ProfileImage: visitorTestJPEG(t), LabRulesAccepted: true,
 			}, nil)
 			if err != nil {
 				t.Fatal(err)

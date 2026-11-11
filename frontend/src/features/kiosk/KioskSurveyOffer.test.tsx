@@ -37,6 +37,8 @@ const offer = {
   anonymous: true,
   canAnswerNow: true,
   canSendByEmail: true,
+  mailConsent: false,
+  canStopAsking: true,
   expiresAt: '2026-10-09T12:15:00Z',
 };
 const survey = {
@@ -89,9 +91,8 @@ function mockKiosk(extra: Record<string, unknown> = {}) {
         allowTapCheckout: false,
         offerSurveysAtCheckout: true,
         kioskResetSeconds: 60,
-        checkInAssurance: 'low',
-        checkOutAssurance: 'low',
-        authenticationMethods: ['pin'],
+        checkInMethods: ['pin'],
+        checkOutMethods: ['pin'],
         capabilities: ['nfc'],
         staffDestination: 'login',
         ...extra,
@@ -188,6 +189,15 @@ describe('kiosk consent after check-in', () => {
   });
 });
 
+/** The offer's choice buttons in screen order. */
+function offerChoices(): (string | null)[] {
+  const names = ['Answer now', 'No thanks', 'Send by e-mail'];
+  return screen
+    .getAllByRole('button')
+    .map((button) => button.textContent)
+    .filter((name) => name !== null && names.includes(name));
+}
+
 describe('kiosk check-out survey offer', () => {
   it('shows the offer, asks one question per screen and posts the answers', async () => {
     let submitted: unknown;
@@ -246,10 +256,37 @@ describe('kiosk check-out survey offer', () => {
     const user = userEvent.setup();
     renderRoute(<App />, '/kiosk');
     await signIn(user, 'Check out');
-    await user.click(await screen.findByRole('button', { name: 'Send it by e-mail' }));
+    await user.click(await screen.findByRole('button', { name: 'Send by e-mail' }));
 
     expect(await screen.findByRole('heading', { name: "It's on its way" })).toBeInTheDocument();
     expect(called).toBe(true);
+  });
+
+  it('offers answer now, no thanks and send by e-mail without the survey e-mail consent', async () => {
+    mockKiosk();
+    mockCheckOut();
+    const user = userEvent.setup();
+    renderRoute(<App />, '/kiosk');
+    await signIn(user, 'Check out');
+
+    expect(await screen.findByRole('heading', { name: 'Got a minute?' })).toBeInTheDocument();
+    const choices = offerChoices();
+    expect(choices).toEqual(['Answer now', 'No thanks', 'Send by e-mail']);
+    expect(screen.queryByText(/comes to you by e-mail later/)).not.toBeInTheDocument();
+  });
+
+  it('offers only answer now and send by e-mail with the survey e-mail consent', async () => {
+    mockKiosk();
+    mockCheckOut({ ...offer, mailConsent: true });
+    const user = userEvent.setup();
+    renderRoute(<App />, '/kiosk');
+    await signIn(user, 'Check out');
+
+    expect(await screen.findByRole('heading', { name: 'Got a minute?' })).toBeInTheDocument();
+    const choices = offerChoices();
+    expect(choices).toEqual(['Answer now', 'Send by e-mail']);
+    expect(screen.getByText(/Otherwise it comes to you by e-mail later/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: "Don't ask me at check-out again" })).toBeInTheDocument();
   });
 
   it('hides the e-mail choice without an address and explains a refused send', async () => {
@@ -260,7 +297,7 @@ describe('kiosk check-out survey offer', () => {
     await signIn(user, 'Check out');
 
     expect(await screen.findByRole('heading', { name: 'Got a minute?' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Send it by e-mail' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send by e-mail' })).not.toBeInTheDocument();
   });
 
   it('shows the 422 when the e-mail cannot be sent', async () => {
@@ -274,7 +311,7 @@ describe('kiosk check-out survey offer', () => {
     const user = userEvent.setup();
     renderRoute(<App />, '/kiosk');
     await signIn(user, 'Check out');
-    await user.click(await screen.findByRole('button', { name: 'Send it by e-mail' }));
+    await user.click(await screen.findByRole('button', { name: 'Send by e-mail' }));
 
     expect(await screen.findByText(/We have no e-mail address for you/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Got a minute?' })).toBeInTheDocument();
@@ -327,6 +364,106 @@ describe('kiosk check-out survey offer', () => {
 
     expect(await screen.findByRole('heading', { name: 'See you, Grace!' })).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Got a minute?' })).not.toBeInTheDocument());
+  });
+});
+
+describe('kiosk survey after a tap check-out', () => {
+  const visitId = '0192f6f8-743e-7c77-a349-cd07c3e8a950';
+  function mockTapKiosk(checkOutMethods: string[], surveyOffer: unknown) {
+    mockKiosk({ allowTapCheckout: true, checkInMethods: ['email_code', 'pin'], checkOutMethods });
+    server.use(
+      http.get('*/api/v1/terminal/presence', () =>
+        HttpResponse.json({ items: [{ visitId, displayName: 'Grace H.', checkedInAt: '2026-10-09T12:00:00Z' }] }),
+      ),
+      http.post('*/api/v1/terminal/presence/:visitId/check-out', () =>
+        HttpResponse.json({
+          ...visit,
+          displayName: 'Grace H.',
+          status: 'checked_out',
+          checkedOutAt: '2026-10-09T14:00:00Z',
+          checkOutMethod: 'public_tap',
+          surveyOffer,
+        }),
+      ),
+    );
+  }
+
+  it('offers the anonymous survey without "never" and posts the answers', async () => {
+    let submitted: unknown;
+    mockTapKiosk([], { ...offer, anonymous: true, canSendByEmail: false, canStopAsking: false });
+    server.use(
+      http.post('*/api/v1/terminal/survey-offers/:token/answer-now', () => HttpResponse.json(survey)),
+      http.post('*/api/v1/terminal/survey-offers/:token/responses', async ({ request, params }) => {
+        submitted = { token: params.token, body: await request.json() };
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/kiosk');
+    await user.click(await screen.findByRole('button', { name: 'Check out' }));
+    // A tap-only kiosk offers no sign-in for checking out.
+    expect(screen.queryByRole('button', { name: 'Check out with your sign-in instead' })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('radio', { name: /Grace H\./ }));
+    await user.click(screen.getByRole('button', { name: 'Check out Grace H.' }));
+
+    expect(await screen.findByRole('heading', { name: 'Got a minute?' })).toBeInTheDocument();
+    expect(screen.getByText(/Anonymous: your answers are not linked to you/)).toBeInTheDocument();
+    expect(offerChoices()).toEqual(['Answer now', 'No thanks']);
+    expect(screen.queryByRole('link', { name: "Don't ask me at check-out again" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Answer now' }));
+    await user.click(await screen.findByRole('button', { name: '4 of 5' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(await screen.findByRole('button', { name: 'Laser cutting' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(await screen.findByRole('button', { name: 'Send' }));
+
+    expect(await screen.findByRole('heading', { name: 'Thank you, Grace!' })).toBeInTheDocument();
+    expect(submitted).toMatchObject({ token });
+  });
+
+  it('sends the survey to the tapped person by e-mail, with or without the survey e-mail consent', async () => {
+    for (const mailConsent of [false, true]) {
+      let sent = 0;
+      mockTapKiosk([], { ...offer, anonymous: true, canStopAsking: false, mailConsent });
+      server.use(
+        http.post('*/api/v1/terminal/survey-offers/:token/send-email', () => {
+          sent += 1;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      const user = userEvent.setup();
+      const { unmount } = renderRoute(<App />, '/kiosk');
+      await user.click(await screen.findByRole('button', { name: 'Check out' }));
+      await user.click(await screen.findByRole('radio', { name: /Grace H\./ }));
+      await user.click(screen.getByRole('button', { name: 'Check out Grace H.' }));
+
+      expect(await screen.findByRole('heading', { name: 'Got a minute?' })).toBeInTheDocument();
+      expect(offerChoices()).toEqual(
+        mailConsent ? ['Answer now', 'Send by e-mail'] : ['Answer now', 'No thanks', 'Send by e-mail'],
+      );
+      expect(screen.queryByRole('link', { name: "Don't ask me at check-out again" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Send by e-mail' }));
+      expect(await screen.findByRole('heading', { name: "It's on its way" })).toBeInTheDocument();
+      expect(sent).toBe(1);
+      unmount();
+    }
+  });
+
+  it('goes straight to the result without an offer and offers the configured sign-in instead of the list', async () => {
+    mockTapKiosk(['pin'], null);
+    const user = userEvent.setup();
+    renderRoute(<App />, '/kiosk');
+    await user.click(await screen.findByRole('button', { name: 'Check out' }));
+    await user.click(await screen.findByRole('button', { name: 'Check out with your sign-in instead' }));
+    // Only the configured check-out method: a single PIN form, no switcher.
+    expect(await screen.findByLabelText('Login name')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Email code' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(await screen.findByRole('button', { name: 'Check out' }));
+    await user.click(await screen.findByRole('radio', { name: /Grace H\./ }));
+    await user.click(screen.getByRole('button', { name: 'Check out Grace H.' }));
+    expect(await screen.findByRole('heading', { name: 'See you, Grace!' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Got a minute?' })).not.toBeInTheDocument();
   });
 });
 

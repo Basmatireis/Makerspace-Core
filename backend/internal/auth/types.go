@@ -8,6 +8,16 @@ const (
 	ChallengeInvitation        ChallengeKind = "invitation"
 	ChallengeEmailVerification ChallengeKind = "email_verification"
 	ChallengePINEnrollment     ChallengeKind = "pin_enrollment"
+	ChallengeEmailLogin        ChallengeKind = "email_login"
+	ChallengeEmailCheckIn      ChallengeKind = "email_check_in"
+)
+
+// LoginMethod is how the login email identity proved itself when a session or pending login was created.
+type LoginMethod string
+
+const (
+	MethodPassword  LoginMethod = "password"
+	MethodEmailCode LoginMethod = "email_code"
 )
 
 // DeliveryStatus is the outcome of delivering a challenge code to its recipient.

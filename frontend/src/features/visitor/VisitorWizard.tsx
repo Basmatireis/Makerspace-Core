@@ -1,28 +1,25 @@
 import {
   Button,
   Checkbox,
-  ContentSwitcher,
   Form,
   InlineNotification,
   Modal,
-  PasswordInput,
   ProgressIndicator,
   ProgressStep,
-  Switch,
   TextInput,
   Toggle,
 } from '@carbon/react';
 import { ArrowLeft, ArrowRight } from '@carbon/icons-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import {
+  confirmVisitorEnrollmentEmail,
+  sendVisitorEnrollmentEmailCode,
   submitVisitorEnrollment,
-  suggestVisitorPinLoginName,
   type getVisitorEnrollmentState,
 } from '../../api/generated/visitor-enrollment/visitor-enrollment';
-import type { VisitorAuthenticationMethod } from '../../api/generated/models';
-import { apiErrorCode } from '../../api/http-client';
+import { ApiError, apiErrorCode } from '../../api/http-client';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { BrandMark } from '../../app/BrandMark';
 import { usePageTitle, useBranding } from '../branding/branding';
@@ -30,30 +27,62 @@ import { LegalDocumentLink, LegalLinks } from '../branding/LegalLinks';
 import { EnrollmentDone, type EnrollmentOutcome } from './components/EnrollmentDone';
 import { LabRulesModal } from './components/LabRulesModal';
 import { ProfilePhotoPicker, type ProfileImage } from './components/ProfilePhotoPicker';
+import { CodeDigits } from '../kiosk/components/CodeDigits';
+import { PinKeypad } from '../kiosk/components/PinKeypad';
 import { useKeyboardAvoidance } from '../kiosk/useKeyboardAvoidance';
 import { useInactivityPrompt } from './useInactivityPrompt';
 import './visitor.scss';
 
 const idleSeconds = 30;
 const graceSeconds = 30;
-type StepKey = 'about' | 'method' | 'messages' | 'rules';
+const codeLength = 6;
+type StepKey = 'about' | 'code' | 'photo' | 'messages' | 'rules';
 const stepTitles: Record<StepKey, string> = {
   about: 'About you',
-  method: 'Sign-in method',
+  code: 'Code',
+  photo: 'Profile photo',
   messages: 'Messages',
   rules: 'Lab Rules',
 };
-const pinPattern = /^[0-9]{6,12}$/;
-const loginNamePattern = /^[A-Za-z0-9._-]{3,64}$/;
 const emailPattern = /^\S+@\S+\.\S+$/;
+
+type EmailProblem = 'invalid' | 'exists' | 'delivery' | 'unavailable' | 'limited' | 'other' | 'reverify';
+
+const emailProblemText: Record<EmailProblem, string> = {
+  invalid: "This doesn't look like a valid email address",
+  exists: 'This email already has an account — go back and check in instead',
+  delivery: "We couldn't send a code to this address. Check it or use another one.",
+  unavailable: 'Sending email is not available right now. Please ask a supervisor for help.',
+  limited: 'Too many codes were requested. Please wait a few minutes and try again.',
+  other: "We couldn't send the code. Please try again.",
+  reverify: 'Please confirm your email address again.',
+};
+
+function emailProblemOf(error: unknown): EmailProblem {
+  switch (apiErrorCode(error)) {
+    case 'email_invalid':
+      return 'invalid';
+    case 'authentication_identifier_exists':
+      return 'exists';
+    case 'email_delivery_failed':
+      return 'delivery';
+    case 'mail_unavailable':
+      return 'unavailable';
+    case 'verification_rate_limited':
+      return 'limited';
+    default:
+      return error instanceof ApiError && error.status === 429 ? 'limited' : 'other';
+  }
+}
 
 type EnrollmentState = Awaited<ReturnType<typeof getVisitorEnrollmentState>>;
 
-// Up to four steps that each fit one tablet screen. Messages asks the notification consent of a tablet check-in, so a
-// new visitor answers it right away; it is left out when no category needs consent. The Lab Rules step appears only
-// when the Visitor role asks for them, because only then does enrollment record the confirmation. All entries live
-// only in this component: leaving the page (back, Done or inactivity) unmounts it, which releases the camera and
-// discards everything.
+// Up to five steps that each fit one tablet screen. Names and email come first, and the email is verified with a mailed
+// code before anything is registered: the server creates the account with the address it verified, so the visitor
+// signs in with it later. The profile photo is a step of its own on a device that can take or upload one. Messages asks the notification consent of a tablet check-in, so a new visitor answers it right away; it is left out
+// when no category needs consent. The Lab Rules step appears only when the Visitor role asks for them, because only
+// then does enrollment record the confirmation. All entries live only in this component: leaving the page (back, Done
+// or inactivity) unmounts it, which releases the camera and discards everything.
 function BrandLockup() {
   const branding = useBranding();
   return (
@@ -74,9 +103,14 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const queryClient = useQueryClient();
   const heading = useRef<HTMLHeadingElement>(null);
   const [step, setStep] = useState(0);
+  // The kiosk device decides how a photo can be provided; one that can neither take nor upload one skips the step.
+  // The backend applies the same rule from the device's capabilities.
+  const sources = { camera: state.capabilities.includes('camera'), upload: state.capabilities.includes('file_upload') };
+  const photoRequired = sources.camera || sources.upload;
   const steps: StepKey[] = [
     'about',
-    'method',
+    'code',
+    ...(photoRequired ? (['photo'] as const) : []),
     ...(state.consentCategories.length > 0 ? (['messages'] as const) : []),
     ...(state.labRulesRequired ? (['rules'] as const) : []),
   ];
@@ -85,18 +119,26 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const [rulesOpen, setRulesOpen] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [emailTouched, setEmailTouched] = useState(false);
+  const [email, setEmail] = useState(state.email ?? '');
+  const [emailProblem, setEmailProblem] = useState<EmailProblem>();
+  // The address whose code the visitor entered (or that the server already verified for this enrollment).
+  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(state.emailVerified ? state.email : null);
+  const [code, setCode] = useState('');
+  const [codeSentTo, setCodeSentTo] = useState('');
+  const [resent, setResent] = useState(false);
+  const [rulesViewed, setRulesViewed] = useState(false);
+  const codeInput = useRef<HTMLInputElement>(null);
   const [image, setImage] = useState<ProfileImage>();
-  const [chosen, setChosen] = useState<VisitorAuthenticationMethod>();
-  // Undefined until the visitor types: the field shows the suggestion from the backend instead.
-  const [loginName, setLoginName] = useState<string>();
-  const [pin, setPIN] = useState('');
+  // While a photo is positioned, its "Retake photo" and "Use photo" buttons take the footer's place of Next.
+  const [footerSlot, setFooterSlot] = useState<HTMLDivElement | null>(null);
+  const [positioning, setPositioning] = useState(false);
   const [granted, setGranted] = useState<Record<string, boolean>>({});
   const [ready, setReady] = useState(false);
   const [rulesChanged, setRulesChanged] = useState(false);
   const [outcome, setOutcome] = useState<EnrollmentOutcome>();
   const mutation = useSecretMutation(submitVisitorEnrollment, { gcTime: 0 });
+  const sendMutation = useSecretMutation(sendVisitorEnrollmentEmailCode, { gcTime: 0 });
+  const confirmMutation = useSecretMutation(confirmVisitorEnrollmentEmail, { gcTime: 0 });
 
   const toKiosk = () => void navigate('/kiosk', { replace: true });
   const inactivity = useInactivityPrompt({
@@ -107,64 +149,75 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   });
 
   useEffect(() => {
-    heading.current?.focus();
-  }, [step]);
+    // The code is typed straight away on the tablet; every other step starts at its heading.
+    if (current === 'code') codeInput.current?.focus();
+    else heading.current?.focus();
+  }, [step, current]);
 
-  // The kiosk device decides how a photo can be provided; one that can neither take nor upload one skips the step.
-  // The backend applies the same rule from the device's capabilities.
-  const sources = { camera: state.capabilities.includes('camera'), upload: state.capabilities.includes('file_upload') };
-  const photoRequired = sources.camera || sources.upload;
-  const emailValid = emailPattern.test(email.trim());
-  const options = (['password', 'pin'] as const).filter((method) => state.allowedMethods.includes(method));
-  // The email invitation is preselected: the address is already there from the first step.
-  const method = chosen && options.includes(chosen) ? chosen : options[0];
-
-  // A free login name built from the name, asked only once the visitor chooses a PIN. It is a suggestion; the
-  // submission checks the name again.
+  const emailIsVerified = verifiedEmail !== null && verifiedEmail === email.trim();
+  const pending = mutation.isPending || sendMutation.isPending || confirmMutation.isPending;
   const names = { firstName: firstName.trim(), lastName: lastName.trim() };
-  const suggestion = useQuery({
-    queryKey: ['visitor-enrollment', 'login-name', names.firstName, names.lastName],
-    queryFn: ({ signal }) => suggestVisitorPinLoginName(names, { signal }),
-    enabled:
-      current === 'method' &&
-      method === 'pin' &&
-      loginName === undefined &&
-      names.firstName !== '' &&
-      names.lastName !== '',
-    retry: false,
-    staleTime: Infinity,
-    gcTime: 0,
-  });
-  const effectiveLoginName = loginName ?? suggestion.data?.loginName ?? '';
 
   const valid: Record<StepKey, boolean> = {
-    about: names.firstName !== '' && names.lastName !== '' && emailValid && (!photoRequired || Boolean(image)),
-    method:
-      method === 'password'
-        ? emailValid
-        : method === 'pin' && loginNamePattern.test(effectiveLoginName.trim()) && pinPattern.test(pin),
+    about: names.firstName !== '' && names.lastName !== '' && email.trim() !== '',
+    code: code.length === codeLength,
+    photo: Boolean(image),
     // Nothing is preselected and every answer may be "No".
     messages: true,
-    rules: ready && Boolean(state.currentLabRules),
+    rules: rulesViewed && ready && Boolean(state.currentLabRules),
   };
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!valid[current] || mutation.isPending) return;
-    if (step < lastStep) {
-      setStep(step + 1);
+  // Mails a code to the entered address; the visitor cannot proceed until the server accepted the request.
+  const sendCode = async (resend: boolean) => {
+    const address = email.trim();
+    if (!emailPattern.test(address)) {
+      setEmailProblem('invalid');
       return;
     }
-    if (!method) return;
+    setEmailProblem(undefined);
+    setResent(false);
+    try {
+      await sendMutation.mutateAsync({ email: address });
+    } catch (error) {
+      if (resend) setStep(steps.indexOf('about'));
+      setEmailProblem(emailProblemOf(error));
+      return;
+    }
+    setCodeSentTo(address);
+    setCode('');
+    confirmMutation.reset();
+    if (resend) setResent(true);
+    else setStep(steps.indexOf('code'));
+  };
+
+  const confirmCode = async () => {
+    try {
+      await confirmMutation.mutateAsync({ code });
+    } catch {
+      setCode('');
+      return;
+    }
+    setVerifiedEmail(codeSentTo);
+    setCode('');
+    if (step < lastStep) setStep(step + 1);
+    else await register();
+  };
+
+  const changeEmail = () => {
+    confirmMutation.reset();
+    setCode('');
+    setStep(steps.indexOf('about'));
+  };
+
+  // Back skips the code step once the address is verified: its code has been used up.
+  const goBack = () => setStep(steps[step - 1] === 'code' && verifiedEmail ? step - 2 : step - 1);
+
+  const register = async () => {
     setRulesChanged(false);
     try {
-      const result = await mutation.mutateAsync({
+      await mutation.mutateAsync({
         firstName: names.firstName,
         lastName: names.lastName,
-        email: email.trim(),
-        authMethods: [method],
-        pinLoginName: method === 'pin' ? effectiveLoginName.trim() : null,
-        pin: method === 'pin' ? pin : null,
         profileImageBase64: image?.base64 ?? null,
         profileImageFilename: image?.filename ?? null,
         labRulesAccepted: state.labRulesRequired && ready,
@@ -175,25 +228,68 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
       });
       setOutcome({
         firstName: names.firstName,
-        invitationDelivery: result.invitationDelivery,
-        method,
-        email: email.trim(),
-        loginName: effectiveLoginName.trim(),
+        email: verifiedEmail ?? codeSentTo,
         labRulesConfirmed: state.labRulesRequired,
       });
-      setPIN('');
       setImage(undefined);
     } catch (error) {
       if (apiErrorCode(error) === 'lab_rules_changed') {
         // A newer revision became effective while the visitor was filling in the form: load it, ask again.
         setReady(false);
+        setRulesViewed(false);
         setRulesChanged(true);
         setStep(steps.indexOf('rules'));
         await queryClient.invalidateQueries({ queryKey: ['visitor-enrollment', 'state'] });
       }
+      if (apiErrorCode(error) === 'email_verification_required') {
+        // The server lost or never had the verified address: confirm it again.
+        setVerifiedEmail(null);
+        setEmailProblem('reverify');
+        setStep(steps.indexOf('about'));
+        mutation.reset();
+      }
       /* Other failures are rendered by the notification below. */
     }
   };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!valid[current] || pending) return;
+    if (current === 'about') {
+      if (!emailIsVerified) await sendCode(false);
+      else if (steps.indexOf('code') < lastStep) setStep(steps.indexOf('code') + 1);
+      else await register();
+      return;
+    }
+    if (current === 'code') {
+      await confirmCode();
+      return;
+    }
+    if (step < lastStep) {
+      setStep(step + 1);
+      return;
+    }
+    await register();
+  };
+
+  const registering =
+    step === lastStep || (current === 'about' && emailIsVerified && steps.indexOf('code') === lastStep);
+  const primaryLabel =
+    current === 'about' && !emailIsVerified
+      ? sendMutation.isPending
+        ? 'Sending…'
+        : 'Send code'
+      : current === 'code'
+        ? confirmMutation.isPending || mutation.isPending
+          ? 'Checking…'
+          : step === lastStep
+            ? 'Verify and register'
+            : 'Verify code'
+        : registering
+          ? mutation.isPending
+            ? 'Submitting…'
+            : 'Register and check in'
+          : 'Next';
 
   if (outcome)
     return (
@@ -207,7 +303,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
 
   return (
     <main className="visitor-flow">
-      <Form className="visitor-flow__form" onSubmit={(event) => void submit(event)}>
+      <Form className="visitor-flow__form" noValidate onSubmit={(event) => void submit(event)}>
         <header className="visitor-flow__header">
           <Button as={Link} to="/kiosk" kind="ghost" size="lg" renderIcon={ArrowLeft}>
             Back to check-in
@@ -235,153 +331,129 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
               lowContrast
               hideCloseButton
               title="Enrollment not completed"
-              subtitle="If the login name or email already belongs to an account, check in with it instead. Otherwise review your entries and try again."
+              subtitle="If your email already belongs to an account, check in with it instead. Otherwise review your entries and try again."
             />
           )}
 
           {current === 'about' && (
-            <div className="visitor-flow__about">
-              <div className="visitor-flow__fields">
-                <p className="visitor-flow__note">
-                  All fields are required. How we use your data is explained in the{' '}
-                  <LegalDocumentLink kind="privacy" inline>
-                    privacy policy
-                  </LegalDocumentLink>
-                  .
-                </p>
-                <div className="visitor-flow__pair">
-                  <TextInput
-                    id="visitor-first-name"
-                    labelText="First name"
-                    required
-                    autoComplete="off"
-                    value={firstName}
-                    onChange={(event) => setFirstName(event.target.value)}
-                  />
-                  <TextInput
-                    id="visitor-last-name"
-                    labelText="Last name"
-                    required
-                    autoComplete="off"
-                    value={lastName}
-                    onChange={(event) => setLastName(event.target.value)}
-                  />
-                </div>
+            <div className="visitor-flow__email">
+              <p className="visitor-flow__note">
+                All fields are required. We email you a six-digit code to confirm your address; next time you check in
+                with this email and a new code — no password or PIN to remember. How we use your data is explained in
+                the{' '}
+                <LegalDocumentLink kind="privacy" inline>
+                  privacy policy
+                </LegalDocumentLink>
+                .
+              </p>
+              <div className="visitor-flow__pair">
                 <TextInput
-                  id="visitor-email"
-                  type="email"
-                  labelText="Email"
-                  helperText="We contact you here, for example about your account or the Lab Rules."
+                  id="visitor-first-name"
+                  labelText="First name"
                   required
                   autoComplete="off"
-                  invalid={emailTouched && email.trim() !== '' && !emailValid}
-                  invalidText="Enter a valid email address."
-                  value={email}
-                  onBlur={() => setEmailTouched(true)}
-                  onChange={(event) => setEmail(event.target.value)}
+                  value={firstName}
+                  onChange={(event) => setFirstName(event.target.value)}
+                />
+                <TextInput
+                  id="visitor-last-name"
+                  labelText="Last name"
+                  required
+                  autoComplete="off"
+                  value={lastName}
+                  onChange={(event) => setLastName(event.target.value)}
                 />
               </div>
-              <ProfilePhotoPicker image={image} sources={sources} required={photoRequired} onChange={setImage} />
+              <TextInput
+                id="visitor-email"
+                type="email"
+                labelText="Email"
+                required
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                invalid={emailProblem !== undefined}
+                invalidText={emailProblem ? emailProblemText[emailProblem] : undefined}
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setEmailProblem(undefined);
+                }}
+              />
+              {emailProblem === 'exists' && (
+                <Button as={Link} to="/kiosk" kind="tertiary" size="lg" renderIcon={ArrowLeft}>
+                  Go to check-in
+                </Button>
+              )}
             </div>
           )}
 
-          {current === 'method' && (
-            <div className="visitor-flow__methods">
-              {options.length === 0 ? (
-                <InlineNotification
-                  kind="warning"
-                  lowContrast
-                  hideCloseButton
-                  title="No sign-in method available"
-                  subtitle="Visitor enrollment is not configured with a sign-in method. Ask a staff member."
-                />
-              ) : (
-                <>
-                  {options.length > 1 && (
-                    <>
-                      <p className="visitor-flow__question" id="visitor-method-label">
-                        How do you want to sign in at this tablet?
-                      </p>
-                      {/* The same switch the check-in screen uses for its two sign-in methods. */}
-                      <ContentSwitcher
-                        size="lg"
-                        aria-labelledby="visitor-method-label"
-                        selectedIndex={options.indexOf(method ?? options[0])}
-                        onChange={({ name }) => setChosen(name as VisitorAuthenticationMethod)}
-                      >
-                        {options.map((option) => (
-                          <Switch
-                            key={option}
-                            name={option}
-                            text={option === 'password' ? 'Email and password' : 'Login name and PIN'}
-                          />
-                        ))}
-                      </ContentSwitcher>
-                    </>
-                  )}
-                  {method === 'password' && (
-                    <div className="visitor-flow__method-fields">
-                      <p className="visitor-flow__method-lead">
-                        We email you a link to choose a password for your next check-in. Check the address before you
-                        continue.
-                      </p>
-                      <TextInput
-                        id="visitor-invitation-email"
-                        type="email"
-                        labelText="Email"
-                        helperText="The same address as on the first step; a change here applies to both."
-                        required
-                        autoComplete="off"
-                        invalid={!emailValid}
-                        invalidText="Enter a valid email address."
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                      />
-                    </div>
-                  )}
-                  {method === 'pin' && (
-                    <div className="visitor-flow__method-fields">
-                      <p className="visitor-flow__method-lead">
-                        Choose a login name and a PIN of 6 to 12 digits to check in at this tablet. We suggest a login
-                        name from your name.
-                      </p>
-                      <div className="visitor-flow__pair">
-                        <TextInput
-                          id="visitor-login-name"
-                          labelText="Login name"
-                          helperText="3–64 letters, numbers, dots, underscores or hyphens."
-                          autoComplete="off"
-                          autoCapitalize="none"
-                          spellCheck={false}
-                          required
-                          invalid={effectiveLoginName !== '' && !loginNamePattern.test(effectiveLoginName.trim())}
-                          invalidText="Use 3–64 letters, numbers, dots, underscores or hyphens."
-                          value={effectiveLoginName}
-                          onChange={(event) => setLoginName(event.target.value)}
-                        />
-                        <PasswordInput
-                          id="visitor-pin-value"
-                          labelText="PIN (6–12 digits)"
-                          helperText="Digits only. Keep it to yourself."
-                          required
-                          pattern="[0-9]{6,12}"
-                          inputMode="numeric"
-                          autoComplete="new-password"
-                          value={pin}
-                          onChange={(event) => setPIN(event.target.value.replace(/\D/g, ''))}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
+          {current === 'photo' && (
+            <div className="visitor-flow__photo">
+              <ProfilePhotoPicker
+                image={image}
+                sources={sources}
+                required={photoRequired}
+                camera={state.camera}
+                actionsTarget={footerSlot}
+                onPositioning={setPositioning}
+                onConfirmed={() => {
+                  if (step < lastStep) setStep(step + 1);
+                }}
+                onChange={setImage}
+              />
+            </div>
+          )}
+
+          {current === 'code' && (
+            <div className="visitor-flow__email">
+              <p className="visitor-flow__lead">
+                We sent a six-digit code to <strong>{codeSentTo}</strong>. It is valid for ten minutes.
+              </p>
+              <CodeDigits
+                id="visitor-code"
+                inputRef={codeInput}
+                length={codeLength}
+                invalid={confirmMutation.isError}
+                invalidText={
+                  apiErrorCode(confirmMutation.error) === 'challenge_invalid'
+                    ? 'The code is not correct or has expired. Check it or send a new code.'
+                    : "We couldn't check the code. Please try again."
+                }
+                value={code}
+                onChange={(next) => {
+                  setCode(next);
+                  confirmMutation.reset();
+                }}
+              />
+              <PinKeypad
+                label="Code keypad"
+                onDigit={(digit) => {
+                  setCode((current) => (current.length < codeLength ? current + digit : current));
+                  confirmMutation.reset();
+                }}
+                onBackspace={() => setCode((current) => current.slice(0, -1))}
+                onClear={() => setCode('')}
+              />
+              <p className="visitor-flow__note">
+                No code? Check your spam folder. You can request up to five codes every 15 minutes.
+              </p>
+              {resent && <p className="visitor-flow__note">We sent you a new code.</p>}
+              <div className="visitor-flow__code-actions">
+                <Button type="button" kind="ghost" size="lg" disabled={pending} onClick={() => void sendCode(true)}>
+                  Resend code
+                </Button>
+                <Button type="button" kind="ghost" size="lg" onClick={changeEmail}>
+                  Change email
+                </Button>
+              </div>
             </div>
           )}
 
           {current === 'messages' && (
             <div className="visitor-flow__consent">
               <p className="visitor-flow__lead">
-                Which messages may we send to {email.trim()}? Nothing is preselected, and you can continue with
+                Which messages may we send to {verifiedEmail}? Nothing is preselected, and you can continue with
                 everything off.
               </p>
               <div className="visitor-flow__consent-list">
@@ -440,11 +512,14 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                     open={rulesOpen}
                     revision={state.currentLabRules.humanRevision}
                     onClose={() => setRulesOpen(false)}
+                    onReadToEnd={() => setRulesViewed(true)}
                   />
                 </div>
                 <Checkbox
                   id="visitor-ready"
                   labelText="I have read and accept the Lab Rules"
+                  helperText={rulesViewed ? undefined : 'Open the Lab Rules and scroll to the end to confirm'}
+                  disabled={!rulesViewed}
                   checked={ready}
                   onChange={(_, data) => setReady(data.checked)}
                 />
@@ -462,20 +537,23 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
 
         <footer className="visitor-flow__footer">
           {step > 0 ? (
-            <Button type="button" kind="secondary" size="xl" renderIcon={ArrowLeft} onClick={() => setStep(step - 1)}>
+            <Button type="button" kind="secondary" size="xl" renderIcon={ArrowLeft} onClick={goBack}>
               Back
             </Button>
           ) : (
             <span />
           )}
-          <Button
-            type="submit"
-            size="xl"
-            renderIcon={step < lastStep ? ArrowRight : undefined}
-            disabled={!valid[current] || mutation.isPending}
-          >
-            {step < lastStep ? 'Next' : mutation.isPending ? 'Submitting…' : 'Register and check in'}
-          </Button>
+          <div ref={setFooterSlot} className="visitor-flow__footer-slot" />
+          {!(current === 'photo' && positioning) && (
+            <Button
+              type="submit"
+              size="xl"
+              renderIcon={step < lastStep ? ArrowRight : undefined}
+              disabled={!valid[current] || pending}
+            >
+              {primaryLabel}
+            </Button>
+          )}
         </footer>
       </Form>
 

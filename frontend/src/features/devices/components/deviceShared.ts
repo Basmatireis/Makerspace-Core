@@ -1,7 +1,7 @@
 import type {
-  AuthenticationAssurance,
   DeviceApplicationMode,
   DeviceCapability,
+  KioskAuthenticationMethod,
   ManagedDevice,
   ManagedDeviceType,
 } from '../../../api/generated/models';
@@ -16,8 +16,8 @@ export type DeviceConfiguration = {
   sessionPolicyId: string | null;
   terminalEnabled: boolean;
   allowedApplicationModes: DeviceApplicationMode[];
-  checkInAssurance: AuthenticationAssurance;
-  checkOutAssurance: AuthenticationAssurance;
+  checkInMethods: KioskAuthenticationMethod[];
+  checkOutMethods: KioskAuthenticationMethod[];
   allowTapCheckout: boolean;
   offerSurveysAtCheckout: boolean;
   kioskResetSeconds: number;
@@ -43,12 +43,33 @@ export const capabilityLabels: Record<DeviceCapability, string> = {
   file_upload: 'File upload',
 };
 
-export const assuranceLabels: Record<AuthenticationAssurance, string> = {
-  low: 'Low',
-  normal: 'Normal',
-  strong: 'Strong',
-  strong_mfa: 'Strong with MFA',
-};
+/** The ways people identify at a kiosk, in the order the kiosk offers them. */
+export const kioskMethodOptions: { value: KioskAuthenticationMethod; label: string; inSentence: string }[] = [
+  { value: 'email_code', label: 'Email code', inSentence: 'email code' },
+  { value: 'pin', label: 'PIN', inSentence: 'PIN' },
+  { value: 'password', label: 'Password', inSentence: 'password' },
+];
+
+export const allKioskMethods = kioskMethodOptions.map((option) => option.value);
+
+/** "email code, PIN or password" for use inside a sentence; an empty list reads as "nothing". */
+export function describeKioskMethods(methods: KioskAuthenticationMethod[]): string {
+  const words = kioskMethodOptions
+    .filter((option) => methods.includes(option.value))
+    .map((option) => option.inSentence);
+  if (words.length === 0) return 'nothing';
+  if (words.length === 1) return words[0];
+  return `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}`;
+}
+
+/** Adds or removes a method and keeps the kiosk's order. */
+export function toggleKioskMethod(
+  methods: KioskAuthenticationMethod[],
+  method: KioskAuthenticationMethod,
+  checked: boolean,
+): KioskAuthenticationMethod[] {
+  return allKioskMethods.filter((item) => (item === method ? checked : methods.includes(item)));
+}
 
 export const devicePaths = {
   detail: (id: string) => `/settings/devices-sessions/devices/${id}`,
@@ -99,6 +120,9 @@ export const kioskResetRange = { min: 15, max: 600 } as const;
 export const isKioskResetValid = (seconds: number) =>
   Number.isInteger(seconds) && seconds >= kioskResetRange.min && seconds <= kioskResetRange.max;
 
+export const checkInMethodsProblem = 'Choose at least one way to check in.';
+export const checkOutMethodsProblem = 'Choose a way to check out, or allow checking out by a tap in the list.';
+
 /** Why the device cannot be saved yet; the server enforces the same rules and still answers 422 for the rest. */
 export function configurationProblem(config: DeviceConfiguration): string | null {
   if (config.allowedApplicationModes.length === 0) return 'Choose what the device is used as.';
@@ -107,21 +131,16 @@ export function configurationProblem(config: DeviceConfiguration): string | null
   if (config.terminalEnabled && !config.sessionPolicyId) return 'A kiosk needs a session policy.';
   if (config.terminalEnabled && !isKioskResetValid(config.kioskResetSeconds))
     return `Enter ${kioskResetRange.min} to ${kioskResetRange.max} seconds.`;
+  if (config.checkInMethods.length === 0) return checkInMethodsProblem;
+  if (config.checkOutMethods.length === 0 && !config.allowTapCheckout) return checkOutMethodsProblem;
   return null;
 }
 
-/** What people show at a kiosk. The kiosk offers only PIN or password (low) and password only (normal). */
-export const kioskShowOptions: { value: AuthenticationAssurance; label: string }[] = [
-  { value: 'low', label: 'PIN or password' },
-  { value: 'normal', label: 'Password only' },
-];
-
-const showLabels: Record<AuthenticationAssurance, string> = {
-  low: 'PIN or password',
-  normal: 'password only',
-  strong: 'a stronger sign-in than the kiosk offers',
-  strong_mfa: 'a stronger sign-in than the kiosk offers',
-};
+function checkOutDescription(config: DeviceConfiguration): string {
+  const methods = config.checkOutMethods.length > 0 ? describeKioskMethods(config.checkOutMethods) : '';
+  if (!config.allowTapCheckout) return methods;
+  return methods ? `${methods} or a tap in the list` : 'a tap in the list';
+}
 
 /** A plain list of what the settings add up to. */
 export function describeDeviceUse(config: DeviceConfiguration): string[] {
@@ -134,7 +153,7 @@ export function describeDeviceUse(config: DeviceConfiguration): string[] {
   ];
   lines.push(
     visitor
-      ? `Check-in with ${showLabels[config.checkInAssurance]} · check-out with ${showLabels[config.checkOutAssurance]}${config.allowTapCheckout ? ' or a tap in the list' : ''}`
+      ? `Check-in with ${describeKioskMethods(config.checkInMethods)} · check-out with ${checkOutDescription(config)}`
       : 'No check-in',
   );
   lines.push(visitor && config.offerSurveysAtCheckout ? 'Asks for feedback at check-out' : 'No feedback question');

@@ -31,7 +31,11 @@ export interface TerminalSurveyOffer {
   questionCount: number;
   anonymous: boolean;
   canAnswerNow: boolean;
-  /** The person has an e-mail address. Sending works without their Surveys & feedback consent: it is a one-off request. */
+  /** The checked-out person has an e-mail address on file; after a tap check-out it is the tapped person's own address. Sending works without their Surveys & feedback consent: it is a one-off request, and one offer sends at most one e-mail. */
   canSendByEmail: boolean;
+  /** The person agreed to survey e-mails (Surveys & feedback) and has an address, so this survey's automatic invitation reaches them after the offer anyway unless they answer here. The tablet then offers only answer now and send by e-mail (which sends it right away); without it, it also offers no thanks. */
+  mailConsent: boolean;
+  /** The person may switch the question off (`/never`). False after a tap check-out: anyone can tap any name, so nobody's choice is changed there, and the answers are stored without a person whatever the survey says. */
+  canStopAsking: boolean;
   expiresAt: string;
 }

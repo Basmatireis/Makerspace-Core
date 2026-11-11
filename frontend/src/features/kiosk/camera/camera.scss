@@ -1,0 +1,117 @@
+// The camera lens pointer and the countdown overlay of the kiosk photo step.
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/motion' as *;
+
+// Fixed to the viewport edge, centred on the calibrated offset, above Carbon's modals so it always points at the lens.
+.camera-indicator {
+  position: fixed;
+  z-index: 9500;
+  display: flex;
+  pointer-events: none;
+}
+
+.camera-indicator--top,
+.camera-indicator--bottom {
+  transform: translateX(-50%);
+}
+
+.camera-indicator--left,
+.camera-indicator--right {
+  transform: translateY(-50%);
+}
+
+// An icon-only notch, the same shape on every edge: longer along the edge than deep, turned to face the screen.
+.camera-indicator__pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: $background-inverse;
+  color: $text-inverse;
+  fill: $icon-inverse;
+}
+
+.camera-indicator--top .camera-indicator__pill,
+.camera-indicator--bottom .camera-indicator__pill {
+  inline-size: $spacing-12;
+  block-size: $spacing-09;
+}
+
+.camera-indicator--left .camera-indicator__pill,
+.camera-indicator--right .camera-indicator__pill {
+  inline-size: $spacing-09;
+  block-size: $spacing-12;
+}
+
+// A notch that hangs from the edge: rounded only on the side facing the screen.
+.camera-indicator--top .camera-indicator__pill {
+  border-radius: 0 0 $spacing-06 $spacing-06;
+}
+
+.camera-indicator--bottom .camera-indicator__pill {
+  border-radius: $spacing-06 $spacing-06 0 0;
+}
+
+.camera-indicator--left .camera-indicator__pill {
+  border-radius: 0 $spacing-06 $spacing-06 0;
+}
+
+.camera-indicator--right .camera-indicator__pill {
+  border-radius: $spacing-06 0 0 $spacing-06;
+}
+
+// While the camera is live the notch turns to the error/record colour and a ring pulses out of it. The ring grows by
+// the same distance on every side (a spread shadow, not a scale), so it looks alike on a long side notch and a top one.
+.camera-indicator--live .camera-indicator__pill {
+  background: $support-error;
+  color: $text-on-color;
+  fill: $icon-on-color;
+  animation: camera-indicator-pulse 1.6s motion(standard, expressive) infinite;
+}
+
+@keyframes camera-indicator-pulse {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, $support-error 80%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 $spacing-08 color-mix(in srgb, $support-error 0%, transparent);
+  }
+}
+
+// The 3-2-1 countdown over the live preview.
+.camera-countdown {
+  grid-area: 1 / 1;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+  pointer-events: none;
+}
+
+.camera-countdown__number {
+  @include type-style('display-04', true);
+  color: $text-on-color;
+  text-shadow: 0 0 $spacing-05 rgba(0, 0, 0, 0.6);
+  animation: camera-countdown-tick 1s motion(exit, expressive) both;
+}
+
+@keyframes camera-countdown-tick {
+  from {
+    opacity: 1;
+    transform: scale(1.4);
+  }
+  to {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camera-indicator--live .camera-indicator__pill,
+  .camera-countdown__number {
+    animation: none;
+  }
+}

@@ -189,8 +189,10 @@ type visitorEnrollmentEntry struct {
 	Enabled bool `json:"enabled"`
 	// InitialRole is accepted from files of releases before membership roles and ignored: enrolled visitors get the
 	// Visitor membership like every new person.
-	InitialRole    *string  `json:"initialRole,omitempty"`
-	AllowedMethods []string `json:"allowedMethods"`
+	InitialRole *string `json:"initialRole,omitempty"`
+	// AllowedMethods is accepted from files of releases before visitors enrolled with an emailed code and ignored:
+	// enrolled visitors always sign in with a code mailed to their verified address.
+	AllowedMethods []string `json:"allowedMethods,omitempty"`
 	DeviceTypes    []string `json:"deviceTypes"`
 }
 
@@ -202,7 +204,7 @@ func visitorEnrollmentSection() section {
 		exportVisitorEnrollment,
 		func(entry *visitorEnrollmentEntry) error {
 			entry.InitialRole = nil
-			entry.AllowedMethods = sortedStrings(entry.AllowedMethods)
+			entry.AllowedMethods = nil
 			if entry.DeviceTypes == nil {
 				entry.DeviceTypes = []string{}
 			}
@@ -225,9 +227,8 @@ func exportVisitorEnrollment(ctx context.Context, q *configtransferdb.Queries) (
 		return visitorEnrollmentEntry{}, err
 	}
 	entry := visitorEnrollmentEntry{
-		Enabled:        row.Enabled,
-		AllowedMethods: sortedStrings(row.AllowedMethods),
-		DeviceTypes:    make([]string, 0, len(types)),
+		Enabled:     row.Enabled,
+		DeviceTypes: make([]string, 0, len(types)),
 	}
 	for _, deviceType := range types {
 		entry.DeviceTypes = append(entry.DeviceTypes, deviceType.Name)
@@ -253,7 +254,6 @@ func applyVisitorEnrollment(r *run, entry *visitorEnrollmentEntry) (func() error
 		return nil, err
 	}
 	if current.Enabled == entry.Enabled &&
-		slices.Equal(current.AllowedMethods, entry.AllowedMethods) &&
 		slices.Equal(lowerNames(current.DeviceTypes), lowerNames(entry.DeviceTypes)) {
 		r.skip(visitorEnrollmentItem, reasonUnchanged)
 		return nil, nil
@@ -274,9 +274,6 @@ func applyVisitorEnrollment(r *run, entry *visitorEnrollmentEntry) (func() error
 	if problem != "" {
 		r.conflict(visitorEnrollmentItem, "reference_missing", problem)
 		return nil, nil
-	}
-	for _, method := range entry.AllowedMethods {
-		input.AllowedMethods = append(input.AllowedMethods, visitor.AuthMethod(method))
 	}
 	row, err := r.q.GetVisitorEnrollmentConfiguration(r.ctx)
 	if err != nil {

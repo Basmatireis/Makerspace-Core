@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
+	"github.com/oapi-codegen/nullable"
 )
 
 func kioskDevice(ctx context.Context) (manageddevices.DeviceContext, error) {
@@ -32,10 +33,6 @@ func (s *Server) GetTerminalContext(
 	if err != nil {
 		return nil, err
 	}
-	methods := make([]openapi.TerminalContextAuthenticationMethods, len(value.AuthenticationMethods))
-	for i, method := range value.AuthenticationMethods {
-		methods[i] = openapi.TerminalContextAuthenticationMethods(method)
-	}
 	capabilities := make([]openapi.DeviceCapability, len(value.Capabilities))
 	for i, capability := range value.Capabilities {
 		capabilities[i] = openapi.DeviceCapability(capability)
@@ -43,11 +40,21 @@ func (s *Server) GetTerminalContext(
 	notices := s.kioskNotices(ctx, func(n *notifyrules.Notices) ([]notifyrules.KioskNotice, error) {
 		return n.ForDevice(ctx, device.ID)
 	})
+	camera, err := s.managedDevices.KioskCamera(ctx, device.ID)
+	if err != nil {
+		return nil, err
+	}
+	cameraSettings := cameraSettingsDTO(camera.CameraSettings)
+	calibration := nullable.NewNullNullable[time.Time]()
+	if camera.CalibrationExpiresAt != nil {
+		calibration = nullable.NewNullableWithValue(*camera.CalibrationExpiresAt)
+	}
 	return openapi.GetTerminalContext200JSONResponse{Notices: notices, DeviceId: value.DeviceID, DeviceName: value.DeviceName,
+		Camera: &cameraSettings, CameraCalibrationExpiresAt: calibration,
 		AllowTapCheckout: value.AllowTapCheckout, OfferSurveysAtCheckout: value.OfferSurveysAtCheckout,
-		KioskResetSeconds: int(value.KioskResetSeconds), CheckInAssurance: openapi.AuthenticationAssurance(value.CheckInAssurance),
-		CheckOutAssurance: openapi.AuthenticationAssurance(value.CheckOutAssurance), AuthenticationMethods: methods,
-		Capabilities: capabilities, StaffDestination: openapi.TerminalContextStaffDestination("login")}, nil
+		KioskResetSeconds: int(value.KioskResetSeconds), CheckInMethods: kioskMethodsDTO(value.CheckInMethods),
+		CheckOutMethods: kioskMethodsDTO(value.CheckOutMethods),
+		Capabilities:    capabilities, StaffDestination: openapi.TerminalContextStaffDestination("login")}, nil
 }
 
 // kioskNotices reads tablet notices for a response that is already decided: a failure to read them only leaves the
@@ -160,6 +167,76 @@ func (s *Server) TerminalPinCheckIn(
 		return nil, err
 	}
 	return openapi.TerminalPinCheckIn201JSONResponse(s.checkInDTO(ctx, device.ID, value)), nil
+}
+
+func (s *Server) RequestTerminalEmailCode(
+	ctx context.Context,
+	request openapi.RequestTerminalEmailCodeRequestObject,
+) (openapi.RequestTerminalEmailCodeResponseObject, error) {
+	device, err := kioskDevice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil {
+		return nil, invalidRequest("email is required")
+	}
+	if err := s.attendance.RequestEmailCode(
+		ctx, device, string(request.Body.Email), requestIDPointer(ctx),
+	); err != nil {
+		return nil, err
+	}
+	return openapi.RequestTerminalEmailCode202Response{
+		Headers: openapi.RequestTerminalEmailCode202ResponseHeaders{CacheControl: "no-store"},
+	}, nil
+}
+
+func (s *Server) TerminalEmailCodeCheckIn(
+	ctx context.Context,
+	request openapi.TerminalEmailCodeCheckInRequestObject,
+) (openapi.TerminalEmailCodeCheckInResponseObject, error) {
+	device, err := kioskDevice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil || request.Body.Code == nil {
+		return nil, invalidRequest("email and code are required")
+	}
+	value, err := s.attendance.EmailCodeCheckIn(
+		ctx,
+		device,
+		string(request.Body.Email),
+		*request.Body.Code,
+		sourceAddress(ctx),
+		attendance.LabRulesChoice{
+			ConfirmVersionID: request.Body.ConfirmLabRulesVersionId,
+			Defer:            request.Body.DeferLabRules != nil && *request.Body.DeferLabRules,
+		},
+		requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.TerminalEmailCodeCheckIn201JSONResponse(s.checkInDTO(ctx, device.ID, value)), nil
+}
+
+func (s *Server) TerminalEmailCodeCheckOut(
+	ctx context.Context,
+	request openapi.TerminalEmailCodeCheckOutRequestObject,
+) (openapi.TerminalEmailCodeCheckOutResponseObject, error) {
+	device, err := kioskDevice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil || request.Body.Code == nil {
+		return nil, invalidRequest("email and code are required")
+	}
+	value, err := s.attendance.EmailCodeCheckOut(
+		ctx, device, string(request.Body.Email), *request.Body.Code, sourceAddress(ctx), requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.TerminalEmailCodeCheckOut200JSONResponse(visitDTO(value)), nil
 }
 
 func (s *Server) TerminalPasswordCheckOut(

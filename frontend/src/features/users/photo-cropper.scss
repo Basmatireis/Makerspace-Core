@@ -49,6 +49,13 @@
   pointer-events: none;
 }
 
+// Hint, zoom and buttons: under the photo, or beside it on the kiosk tablet.
+.photo-cropper__controls {
+  display: grid;
+  gap: $spacing-05;
+  inline-size: 100%;
+}
+
 .photo-cropper__help {
   @include type-style('helper-text-01');
   color: $text-secondary;
@@ -64,4 +71,33 @@
   flex-wrap: wrap;
   gap: $spacing-03;
   justify-self: start;
+}
+
+// The kiosk tablet: the photo with the zoom slider right under it, both scaled to the screen height so the step never
+// scrolls, and a short hint for fingers.
+.photo-cropper--touch {
+  // Header, title, slider, hint and wizard footer take about 26rem of the height; the photo gets the rest.
+  inline-size: min(100%, max(12rem, calc(100dvh - 26rem)));
+  gap: $spacing-04;
+
+  .photo-cropper__controls {
+    gap: $spacing-03;
+  }
+
+  .photo-cropper__help {
+    @include type-style('body-01');
+    justify-self: center;
+    text-align: center;
+  }
+
+  // The zoom range is self-evident next to the photo; the slider spans the photo's width.
+  .cds--slider {
+    flex: 1;
+    min-inline-size: 0;
+    max-inline-size: none;
+  }
+
+  .cds--slider__range-label {
+    display: none;
+  }
 }

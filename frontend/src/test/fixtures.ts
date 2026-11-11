@@ -27,6 +27,7 @@ export function accountFixture(overrides: Partial<Account> = {}): Account {
     id: otherAccountId,
     personId: otherPersonId,
     loginEmail: 'grace.login@example.test',
+    emailCodeEnabled: false,
     provisioningSource: 'local',
     firstAuthenticatedAt: '2026-01-01T00:00:00Z',
     authIdentities: [
@@ -88,6 +89,7 @@ export function currentUserFixture(permissions: PermissionId[] = [], master = fa
         id: accountId,
         personId,
         loginEmail: 'ada@example.test',
+        emailCodeEnabled: false,
         provisioningSource: 'local',
         firstAuthenticatedAt: '2026-01-01T00:00:00Z',
         authIdentities: [
@@ -114,6 +116,7 @@ export function currentUserFixture(permissions: PermissionId[] = [], master = fa
       id: accountId,
       personId,
       loginEmail: 'ada@example.test',
+      emailCodeEnabled: false,
       provisioningSource: 'local',
       firstAuthenticatedAt: '2026-01-01T00:00:00Z',
       authIdentities: [

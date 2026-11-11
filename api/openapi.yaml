@@ -192,6 +192,110 @@ paths:
         "429": {$ref: "#/components/responses/TooManyRequests"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /auth/email-code:
+    post:
+      tags: [Authentication]
+      operationId: requestEmailLoginCode
+      summary: Mail a one-time sign-in code
+      description: |
+        Mails a six-digit sign-in code to the login email when that account is enabled, has sign-in with an emailed
+        code turned on and no password reset pending. The code is valid for ten minutes and for five wrong entries; a
+        new request replaces the previous code. After ten wrong codes within 24 hours, across all its codes, an
+        account gets no new codes and accepts none until the oldest of them is a day old. The answer is the same
+        `202` for known, unknown, ineligible, blocked and rate-limited addresses; the account is looked up and the
+        code issued and mailed only after the answer, so neither the answer nor its timing tells whether the address
+        belongs to an account. The code works only for `POST /auth/email-code/login`, not at a kiosk.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RequestEmailLoginCodeRequest"}
+      responses:
+        "202":
+          description: Request accepted without disclosing account or delivery state.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/email-code/login:
+    post:
+      tags: [Authentication]
+      operationId: loginWithEmailCode
+      summary: Start a session with an emailed one-time code
+      description: |
+        Signs in with the code from `POST /auth/email-code`. Wrong, expired, used and unknown codes, accounts with a
+        pending password reset and accounts whose budget of ten wrong codes per 24 hours is used up all answer the
+        same `401 invalid_credentials`; after five wrong codes the code is invalid and a new one must be requested.
+        The code is consumed by a successful sign-in. The session has `normal` assurance like a password session:
+        control of the mailbox already allows resetting the password, so the emailed code proves no less. Second
+        factors work as with `POST /auth/login`: an account with an authenticator app or passkey gets `202` and a
+        pending-login cookie, and an account that must use a second factor but has none gets a session flagged
+        `mfaSetupRequired`. Accounts without `web.sign_in` answer `403 web_sign_in_not_permitted`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EmailCodeLoginRequest"}
+      responses:
+        "204":
+          description: Session created. The browser receives session and CSRF cookies.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            Set-Cookie:
+              description: Session and CSRF cookies. Multiple Set-Cookie headers may be sent.
+              schema: {type: string}
+        "202":
+          description: Code accepted; a second factor is required before a session is created.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            Set-Cookie:
+              description: HttpOnly pending-login cookie.
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SecondFactorRequired"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/methods/email-code:
+    put:
+      tags: [Authentication]
+      operationId: enableOwnEmailCode
+      summary: Turn on sign-in with an emailed code for the current account
+      description: |
+        Requires `accounts.email_code.manage.self` and a sign-in at `normal` assurance within the last ten minutes
+        (`403 fresh_authentication_required` otherwise). The account needs a login email (`422 login_email_required`).
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      responses:
+        "204": {description: Sign-in with an emailed code is on.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Authentication]
+      operationId: disableOwnEmailCode
+      summary: Turn off sign-in with an emailed code for the current account
+      description: |
+        Requires `accounts.email_code.manage.self` and a sign-in at `normal` assurance within the last ten minutes.
+        Outstanding sign-in codes are deleted and the account's other sessions are revoked.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      responses:
+        "204": {description: Sign-in with an emailed code is off.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /auth/methods/pin:
     put:
       tags: [Authentication]
@@ -1625,7 +1729,9 @@ paths:
         `accounts.password.remove.all`, `accounts.pin.remove.all`, or
         `identities.oidc.unlink.all`. The account lifecycle state is unchanged;
         dependent credentials and challenges are deleted, and existing account
-        sessions are revoked.
+        sessions are revoked. Removing the password identity of an account that
+        signs in with an emailed code deletes only the password and keeps the
+        login email, so the emailed code keeps working.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -1649,6 +1755,93 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}/email-code:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    put:
+      tags: [Accounts]
+      operationId: enableAccountEmailCode
+      summary: Turn on sign-in with an emailed code for an account
+      description: |
+        Requires `accounts.email_code.manage.all`; only a master may change a master account. The account needs a
+        login email (`422 login_email_required`).
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VersionRequest"}
+      responses:
+        "200": {description: Account with sign-in by emailed code on., content: {application/json: {schema: {$ref: "#/components/schemas/Account"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Accounts]
+      operationId: disableAccountEmailCode
+      summary: Turn off sign-in with an emailed code for an account
+      description: |
+        Requires `accounts.email_code.manage.all`; only a master may change a master account. Outstanding sign-in
+        codes are deleted and the account's sessions are revoked.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VersionRequest"}
+      responses:
+        "200": {description: Account with sign-in by emailed code off., content: {application/json: {schema: {$ref: "#/components/schemas/Account"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /accounts/{accountId}/email-code/send:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    post:
+      tags: [Accounts]
+      operationId: sendAccountEmailCode
+      summary: Mail a one-time web sign-in code to an account
+      description: |
+        Requires `accounts.email_code.manage.all`; only a master may act on a master account. Issues a web sign-in code
+        (the kind `POST /auth/email-code/login` accepts, valid ten minutes, replacing the previous one) and mails it to
+        the account's login email synchronously, then answers with the delivery result: `sent`, or `failed` when the
+        mail provider refused it or mail is not configured. The request counts against the same five-per-address and
+        fifteen-minute budget as `POST /auth/email-code`; unlike there, the caller already knows the account exists, so
+        errors are explicit: `422 login_email_required` without a login email, `409 email_code_not_enabled` when the
+        account does not sign in with an emailed code, `409 email_code_unavailable` for a disabled account, a pending
+        password reset or a used-up failure budget, and `429` when the address budget is spent. Audited as
+        `auth.email_code_sent_by_admin` in the same transaction as the code; neither code nor address is audited.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      responses:
+        "200":
+          description: Code issued; the body tells whether the mail was delivered.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SendAccountEmailCodeResult"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /accounts/{accountId}/second-factors/reset:
     parameters:
@@ -2150,6 +2343,67 @@ paths:
       security: [{sessionCookie: []}]
       responses:
         "200": {description: Hardware context of the device., content: {application/json: {schema: {$ref: "#/components/schemas/DeviceHardwareContext"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /managed-devices/{managedDeviceId}/camera:
+    parameters: [{$ref: "#/components/parameters/ManagedDeviceId"}]
+    get:
+      tags: [Managed Devices]
+      operationId: getManagedDeviceCamera
+      summary: Get a kiosk's camera crop, lens pointer and calibration window
+      description: Requires `managed_devices.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Camera settings of the device., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceCamera"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Managed Devices]
+      operationId: updateManagedDeviceCamera
+      summary: Set or reset a kiosk's camera crop and lens pointer
+      description: Requires `managed_devices.manage`. A null `crop` restores the centred largest square, a null `indicator` hides the lens pointer. An open calibration window stays open.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/KioskCameraSettings"}}}}
+      responses:
+        "200": {description: Camera settings saved., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceCamera"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /managed-devices/{managedDeviceId}/camera/calibration:
+    parameters: [{$ref: "#/components/parameters/ManagedDeviceId"}]
+    post:
+      tags: [Managed Devices]
+      operationId: startManagedDeviceCameraCalibration
+      summary: Open a short window in which the kiosk calibrates its camera on the tablet
+      description: |
+        Requires `managed_devices.manage`. The device must be an active kiosk configured with the `camera` capability
+        (422 `camera_not_configured`). For ten minutes the tablet shows its calibration screen and may save the result
+        once with its device credential. Starting again extends the window.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Calibration window opened., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceCamera"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Managed Devices]
+      operationId: closeManagedDeviceCameraCalibration
+      summary: Close an open camera calibration window
+      description: Requires `managed_devices.manage`. Closing a window that is not open changes nothing.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Calibration window closed., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceCamera"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -6572,21 +6826,49 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /visitor-enrollment/login-name-suggestions:
+  /visitor-enrollment/email-verification:
     post:
       tags: [Visitor Enrollment]
-      operationId: suggestVisitorPinLoginName
-      summary: Suggest a free PIN login name from the visitor's name
+      operationId: sendVisitorEnrollmentEmailCode
+      summary: Mail a code that verifies the visitor's email address
       description: |
-        Builds `firstname.lastname` (lower case, umlauts and accents transliterated, other characters dropped) and
-        appends a random number when that name is taken (a random number, so the answer does not tell which numbered names exist). Answers 403 when PIN enrollment is not allowed. It creates nothing; the name is checked again when the enrollment is
-        submitted. Answers 422 when no valid login name can be built from the name.
+        Binds the address to the enrollment context and mails it a six-digit code, valid for ten minutes and five
+        wrong entries. A new request replaces the previous code and address and clears an earlier verification.
+        Delivery is synchronous so the kiosk can ask for another address: a provider error answers
+        `422 email_delivery_failed`, disabled mail `503 mail_unavailable`. A syntactically invalid address answers
+        `422 email_invalid`; an address that is already an account's login email answers
+        `409 authentication_identifier_exists` (the visitor checks in instead). At most five send attempts, refused
+        ones included, are allowed per enrollment context, and five codes per address within fifteen minutes
+        (`429 verification_rate_limited`).
       security: []
       parameters:
         - {name: X-Enrollment-CSRF-Token, in: header, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorLoginNameSuggestionRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorEnrollmentEmailRequest"}}}}
       responses:
-        "200": {description: A login name that is free right now., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorLoginNameSuggestion"}}}}
+        "202": {description: Code mailed to the address., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+
+  /visitor-enrollment/email-verification/confirm:
+    post:
+      tags: [Visitor Enrollment]
+      operationId: confirmVisitorEnrollmentEmail
+      summary: Verify the visitor's email address with the mailed code
+      description: |
+        A wrong, expired or exhausted code answers `422 challenge_invalid`; after five wrong codes a new one must be
+        requested. A correct code marks the context's address as verified; the submission uses that address.
+      security: []
+      parameters:
+        - {name: X-Enrollment-CSRF-Token, in: header, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorEnrollmentEmailConfirmation"}}}}
+      responses:
+        "204": {description: Address verified., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}}
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
@@ -6605,7 +6887,11 @@ paths:
         to the notification categories listed in the enrollment state (place `kiosk`); they are stored in the same
         transaction, and a category left out is asked at a later check-in. When that version is no longer the
         current one, the answer is 409 `lab_rules_changed` and the kiosk must start over with the new version.
-        Current device, method, and initial-role configuration is still enforced.
+        The account's login email is the address verified on this context (`POST
+        /visitor-enrollment/email-verification` and `/confirm`); without a verified address the answer is
+        `409 email_verification_required`. The account signs in with an emailed code only: no password, PIN or
+        invitation is created. An address that became another account's login email meanwhile answers
+        `409 authentication_identifier_exists`. Current device and enrollment configuration is still enforced.
       security: []
       parameters:
         - {name: X-Enrollment-CSRF-Token, in: header, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
@@ -11663,11 +11949,14 @@ paths:
         answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
         `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
         A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
+        403 `attendance_method_not_allowed` when this kiosk's `checkInMethods` do not include this way of identifying;
+        the credentials are then not checked.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TerminalPasswordCheckInRequest"}}}}
       responses:
         "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
@@ -11683,24 +11972,76 @@ paths:
         answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
         `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
         A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
+        403 `attendance_method_not_allowed` when this kiosk's `checkInMethods` do not include this way of identifying;
+        the credentials are then not checked.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TerminalPinCheckInRequest"}}}}
       responses:
         "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/email-code:
+    post:
+      tags: [Attendance]
+      operationId: requestTerminalEmailCode
+      summary: Mail a one-time code for checking in or out at this kiosk
+      description: |
+        Same rules, budget and answer as `POST /auth/email-code`: the code goes only to an enabled account that signs
+        in with an emailed code, and the answer never tells whether the address belongs to one. The code works only
+        for `/terminal/check-in/email-code` and `/terminal/check-out/email-code`, not for the web login. 403
+        `attendance_method_not_allowed` when this kiosk accepts the emailed code neither for check-in nor for check-out.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RequestEmailLoginCodeRequest"}}}}
+      responses:
+        "202": {description: Request accepted without disclosing account or delivery state., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/check-in/email-code:
+    post:
+      tags: [Attendance]
+      operationId: terminalEmailCodeCheckIn
+      description: |
+        Checks in with the code from `POST /terminal/email-code`. Wrong, expired and unknown codes (and accounts with a
+        pending password reset or a used-up budget of wrong codes) answer `401 invalid_credentials`; after five wrong
+        codes a new one must be requested; wrong codes count toward the account's budget. The code is consumed only by
+        a successful check-in, so after a Lab Rules answer the terminal repeats the check-in with the same code.
+        When the person must confirm the current Lab Rules, the terminal shows them and repeats the check-in with
+        `confirmLabRulesVersionId` (records the confirmation, method `kiosk`, and admits the person) or, for roles
+        that only warn, `deferLabRules` (admits the person with admission decision `warning`). Without either the
+        answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
+        `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
+        A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
+        The check-in has `normal` assurance.
+        403 `attendance_method_not_allowed` when this kiosk's `checkInMethods` do not include this way of identifying;
+        the credentials are then not checked.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TerminalEmailCodeCheckInRequest"}}}}
+      responses:
+        "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
         "500": {$ref: "#/components/responses/InternalServerError"}
   /terminal/check-out/password:
     post:
       tags: [Attendance]
       operationId: terminalPasswordCheckOut
+      description: 403 `attendance_method_not_allowed` when this kiosk's `checkOutMethods` do not include this way of identifying; the credentials are then not checked.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendancePasswordRequest"}}}}
       responses:
         "200": {description: Visitor checked out., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -11708,13 +12049,30 @@ paths:
     post:
       tags: [Attendance]
       operationId: terminalPinCheckOut
+      description: 403 `attendance_method_not_allowed` when this kiosk's `checkOutMethods` do not include this way of identifying; the credentials are then not checked.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendancePinRequest"}}}}
       responses:
         "200": {description: Visitor checked out., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/check-out/email-code:
+    post:
+      tags: [Attendance]
+      operationId: terminalEmailCodeCheckOut
+      description: Checks out with the code from `POST /terminal/email-code`; the code is consumed only by a successful check-out. 403 `attendance_method_not_allowed` when this kiosk's `checkOutMethods` do not include `email_code`.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendanceEmailCodeRequest"}}}}
+      responses:
+        "200": {description: Visitor checked out., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
         "500": {$ref: "#/components/responses/InternalServerError"}
   /terminal/consents:
     post:
@@ -11748,7 +12106,7 @@ paths:
       tags: [Attendance]
       operationId: terminalSurveyOfferSubmit
       summary: Submit the answers to the offered survey
-      description: Anonymous surveys store the response exactly like an anonymous invitation redemption (no person, no visit). Identified surveys link the response to the person. The offer is consumed and the post-visit invitation of that visit is cancelled.
+      description: Anonymous surveys store the response exactly like an anonymous invitation redemption (no person, no visit). Identified surveys link the response to the person. The offer is consumed and the post-visit invitation of that check-out is cancelled, so the survey is not e-mailed as well. The answers to an offer made after a tap check-out are always stored without a person; its invitation is cancelled the same way.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubmitSurveyResponse"}}}}
       responses:
@@ -11763,7 +12121,7 @@ paths:
       tags: [Attendance]
       operationId: terminalSurveyOfferSendEmail
       summary: Send the survey invitation by e-mail right away
-      description: Bypasses the trigger delay and works even when the person's Surveys & feedback consent is off (it is an explicit one-off request; the consent stays as it is). 422 `no_email` when the person has no e-mail address.
+      description: Bypasses the trigger delay and works even when the person's Surveys & feedback consent is off (it is an explicit one-off request; the consent stays as it is). After a tap check-out it goes to the tapped person's own address on file. One offer sends at most one e-mail. 422 `no_email` when the person has no e-mail address.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       responses:
         "204": {description: Invitation queued for immediate delivery; the offer is consumed.}
@@ -11776,7 +12134,7 @@ paths:
       tags: [Attendance]
       operationId: terminalSurveyOfferDecline
       summary: Decline the offered survey ("No thanks")
-      description: Consumes the offer and cancels the post-visit invitation of that visit. The survey's cooldown for this person started with the offer.
+      description: Consumes the offer and cancels the post-visit invitation of that visit. The survey's cooldown for this person started with the offer. An offer made after a tap check-out is only consumed and, since anyone can tap any name, leaves the tapped person's invitation alone.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       responses:
         "204": {description: Offer declined.}
@@ -11788,17 +12146,51 @@ paths:
       tags: [Attendance]
       operationId: terminalSurveyOfferNever
       summary: Decline and switch off feedback questions at check-out for this person
-      description: Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit.
+      description: Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit. 404 for an offer made after a tap check-out, since anyone can tap any name.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       responses:
         "204": {description: Offer declined and the question switched off.}
         "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/camera-calibration:
+    put:
+      tags: [Attendance]
+      operationId: saveTerminalCameraCalibration
+      summary: Save the camera calibration made on this kiosk
+      description: |
+        Allowed only while an administrator's calibration window for this device is open (409
+        `camera_calibration_closed` otherwise); saving closes it.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/KioskCameraSettings"}}}}
+      responses:
+        "200": {description: Calibration saved., content: {application/json: {schema: {$ref: "#/components/schemas/KioskCameraSettings"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Attendance]
+      operationId: cancelTerminalCameraCalibration
+      summary: Leave the camera calibration on this kiosk without saving
+      description: Closes the open calibration window; 409 `camera_calibration_closed` when none is open.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      responses:
+        "204": {description: Calibration window closed.}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
   /terminal/presence/{visitId}/check-out:
     parameters: [{name: visitId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
     post:
       tags: [Attendance]
       operationId: terminalPublicCheckOut
+      description: |
+        403 unless the kiosk has `allowTapCheckout`. When the kiosk offers surveys, the answer may carry `surveyOffer`.
+        Anyone can tap any name, so that offer names nobody: it is bound only to this tablet, single use and valid for
+        15 minutes, and its answers are stored without a person; e-mail and "never ask again" are not available.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       responses:
         "200": {description: Public-tap checkout completed., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
@@ -12614,6 +13006,8 @@ components:
         - accounts.pin.remove.self
         - accounts.pin.remove.all
         - accounts.pin.reset
+        - accounts.email_code.manage.self
+        - accounts.email_code.manage.all
         - accounts.mfa.reset
         - people.roles.assign
         - roles.read
@@ -13767,7 +14161,7 @@ components:
       required: [method, assurance, authenticatedAt, authenticatedAssurance, mfaEnrolled, mfaRequired, mfaSetupRequired, secondFactorMethods, reauthenticationRequired]
       description: How the current session was authenticated and what the frontend must ask for.
       properties:
-        method: {type: string, enum: [password, pin, oidc, passkey]}
+        method: {type: string, enum: [password, pin, oidc, passkey, email_code]}
         assurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
         authenticatedAt: {type: string, format: date-time, description: "Time of the login or the last reauthentication."}
         authenticatedAssurance:
@@ -13817,6 +14211,28 @@ components:
           $ref: "#/components/schemas/Email"
         password:
           $ref: "#/components/schemas/ExistingPassword"
+
+    RequestEmailLoginCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+
+    EmailLoginCode:
+      type: string
+      format: password
+      pattern: "^[0-9]{6}$"
+      writeOnly: true
+      description: The six-digit code from the mail.
+
+    EmailCodeLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+        code: {$ref: "#/components/schemas/EmailLoginCode"}
 
     PinLoginRequest:
       type: object
@@ -15474,7 +15890,7 @@ components:
     AccountSummary:
       type: object
       additionalProperties: false
-      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, authIdentities, version]
+      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, emailCodeEnabled, authIdentities, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -15488,6 +15904,9 @@ components:
           allOf: [{$ref: "#/components/schemas/Email"}]
           nullable: true
           description: The account's login email, which is also the person's email. Null only for accounts that were provisioned without an email (for example phone-only visitors or accounts created before every account had one); clients should prompt for one.
+        emailCodeEnabled:
+          type: boolean
+          description: Whether the account can sign in (and check in at a kiosk) with a one-time code mailed to its login email. Always false without a login email.
         provisioningSource:
           type: string
           enum: [local, invitation, oidc_jit, scim, visitor]
@@ -15504,7 +15923,7 @@ components:
     Account:
       type: object
       additionalProperties: false
-      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, authIdentities, createdAt, updatedAt, version]
+      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, emailCodeEnabled, authIdentities, createdAt, updatedAt, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -15518,6 +15937,9 @@ components:
           allOf: [{$ref: "#/components/schemas/Email"}]
           nullable: true
           description: The account's login email, which is also the person's email. Null only for accounts that were provisioned without an email (for example phone-only visitors or accounts created before every account had one); clients should prompt for one.
+        emailCodeEnabled:
+          type: boolean
+          description: Whether the account can sign in (and check in at a kiosk) with a one-time code mailed to its login email. Always false without a login email.
         provisioningSource:
           type: string
           enum: [local, invitation, oidc_jit, scim, visitor]
@@ -15890,6 +16312,14 @@ components:
         fromName: {type: string, maxLength: 255}
         baseUrl: {type: string, maxLength: 2048}
         expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    SendAccountEmailCodeResult:
+      type: object
+      additionalProperties: false
+      required: [delivery]
+      properties:
+        delivery: {type: string, enum: [sent, failed]}
+        address: {type: string, description: "The login email the code was mailed to."}
 
     VersionRequest:
       type: object
@@ -16720,6 +17150,10 @@ components:
         name: {type: string, minLength: 1, maxLength: 100}
         description: {type: string, maxLength: 500, nullable: true}
         expectedVersion: {$ref: "#/components/schemas/Version"}
+    KioskAuthenticationMethod:
+      type: string
+      description: A way a person identifies at an entrance kiosk.
+      enum: [email_code, pin, password]
     ManagedDeviceStatus:
       type: string
       enum: [active, expired, revoked]
@@ -16733,7 +17167,7 @@ components:
     ManagedDevice:
       type: object
       additionalProperties: false
-      required: [id, name, deviceTypeId, deviceTypeName, status, expiresAt, revokedAt, lastSeenAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities, version, createdAt, updatedAt]
+      required: [id, name, deviceTypeId, deviceTypeName, status, expiresAt, revokedAt, lastSeenAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInMethods, checkOutMethods, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 100}
@@ -16753,10 +17187,21 @@ components:
           maxItems: 2
           uniqueItems: true
           items: {$ref: "#/components/schemas/DeviceApplicationMode"}
-        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible."}
-        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a person checked out with PIN or password."}
+        checkInMethods:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check in at this kiosk.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        checkOutMethods:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check out at this kiosk. Empty only while `allowTapCheckout` is on.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Required while `checkOutMethods` is empty."}
+        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a check-out. After a tap in the presence list the answers are stored without a person."}
         kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
         capabilities:
           type: array
@@ -16778,7 +17223,7 @@ components:
     CreateManagedDeviceRequest:
       type: object
       additionalProperties: false
-      required: [name, deviceTypeId, expiresAt, credentialDelivery, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities]
+      required: [name, deviceTypeId, expiresAt, credentialDelivery, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInMethods, checkOutMethods, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
         deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
@@ -16794,16 +17239,27 @@ components:
           maxItems: 2
           uniqueItems: true
           items: {$ref: "#/components/schemas/DeviceApplicationMode"}
-        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible."}
-        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a person checked out with PIN or password."}
+        checkInMethods:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check in at this kiosk.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        checkOutMethods:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check out at this kiosk. Empty only while `allowTapCheckout` is on.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Required while `checkOutMethods` is empty."}
+        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a check-out. After a tap in the presence list the answers are stored without a person."}
         kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
         capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
     UpdateManagedDeviceRequest:
       type: object
       additionalProperties: false
-      required: [name, deviceTypeId, expiresAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities, expectedVersion]
+      required: [name, deviceTypeId, expiresAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInMethods, checkOutMethods, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities, expectedVersion]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
         deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
@@ -16819,10 +17275,21 @@ components:
           maxItems: 2
           uniqueItems: true
           items: {$ref: "#/components/schemas/DeviceApplicationMode"}
-        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible."}
-        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a person checked out with PIN or password."}
+        checkInMethods:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check in at this kiosk.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        checkOutMethods:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check out at this kiosk. Empty only while `allowTapCheckout` is on.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Required while `checkOutMethods` is empty."}
+        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a check-out. After a tap in the presence list the answers are stored without a person."}
         kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
         capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
     RotateManagedDeviceTokenRequest:
@@ -16852,7 +17319,7 @@ components:
       type: object
       additionalProperties: false
       description: The pairing code plus the fields of `CreateManagedDeviceRequest`; the kiosk chose the credential delivery when it requested the code.
-      required: [code, name, deviceTypeId, expiresAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities]
+      required: [code, name, deviceTypeId, expiresAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInMethods, checkOutMethods, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities]
       properties:
         code: {type: string, minLength: 1, maxLength: 20, description: "The six characters the kiosk shows; case, spaces and dashes are ignored."}
         name: {type: string, minLength: 1, maxLength: 100}
@@ -16868,8 +17335,19 @@ components:
           maxItems: 2
           uniqueItems: true
           items: {$ref: "#/components/schemas/DeviceApplicationMode"}
-        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        checkInMethods:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check in at this kiosk.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        checkOutMethods:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check out at this kiosk. Empty only while `allowTapCheckout` is on.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
         allowTapCheckout: {type: boolean}
         offerSurveysAtCheckout: {type: boolean}
         kioskResetSeconds: {type: integer, minimum: 15, maximum: 600}
@@ -17857,30 +18335,24 @@ components:
       properties:
         items: {type: array, items: {$ref: "#/components/schemas/PublicOpenDay"}}
 
-    VisitorAuthenticationMethod:
-      type: string
-      enum: [password, pin]
-
     VisitorEnrollmentConfiguration:
       type: object
       additionalProperties: false
-      required: [enabled, deviceTypeIds, allowedMethods, version, updatedAt]
-      description: Enrolled visitors get the Visitor membership like every new person.
+      required: [enabled, deviceTypeIds, version, updatedAt]
+      description: Enrolled visitors get the Visitor membership like every new person and sign in with a code mailed to their verified email address.
       properties:
         enabled: {type: boolean}
         deviceTypeIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
-        allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
         version: {$ref: "#/components/schemas/Version"}
         updatedAt: {type: string, format: date-time}
 
     UpdateVisitorEnrollmentConfigurationRequest:
       type: object
       additionalProperties: false
-      required: [enabled, deviceTypeIds, allowedMethods, expectedVersion]
+      required: [enabled, deviceTypeIds, expectedVersion]
       properties:
         enabled: {type: boolean}
         deviceTypeIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
-        allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
     VisitorLabRulesVersion:
@@ -17895,55 +18367,52 @@ components:
     VisitorEnrollmentState:
       type: object
       additionalProperties: false
-      required: [allowedMethods, capabilities, currentLabRules, labRulesRequired, consentCategories, expiresAt]
+      required: [capabilities, currentLabRules, labRulesRequired, consentCategories, email, emailVerified, expiresAt]
       properties:
-        allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
+        email: {type: string, nullable: true, maxLength: 254, description: "The address the last verification code was mailed to on this context, or null before one was sent."}
+        emailVerified: {type: boolean, description: "Whether that address was confirmed with its code; the submission needs it."}
         consentCategories: {type: array, maxItems: 50, description: "Notification categories that need the visitor's consent, asked during enrollment. Nothing is preselected.", items: {$ref: "#/components/schemas/TerminalConsentCategory"}}
         capabilities: {type: array, uniqueItems: true, description: "Effective capabilities of the enrolling device. A profile photo is required exactly when this includes camera or file_upload.", items: {$ref: "#/components/schemas/DeviceCapability"}}
         currentLabRules: {allOf: [{$ref: "#/components/schemas/VisitorLabRulesVersion"}], nullable: true}
         labRulesRequired: {type: boolean, description: "Whether the Visitor role asks for the Lab Rules. Only then does the kiosk show them and does enrollment record the confirmation."}
         expiresAt: {type: string, format: date-time}
+        camera: {$ref: "#/components/schemas/KioskCameraSettings"}
 
     VisitorEnrollmentSubmission:
       type: object
       additionalProperties: false
-      required: [firstName, lastName, email, authMethods, pinLoginName, pin, profileImageBase64, profileImageFilename, labRulesAccepted, consents]
+      required: [firstName, lastName, profileImageBase64, profileImageFilename, labRulesAccepted, consents]
+      description: The account's login email is the address verified on the enrollment context; it is not part of the submission.
       properties:
         firstName: {type: string, minLength: 1, maxLength: 100}
         lastName: {type: string, minLength: 1, maxLength: 100}
-        email: {type: string, format: email, minLength: 3, maxLength: 320, description: "Required: the visitor's contact address and the account's login email."}
-        authMethods: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
-        pinLoginName: {type: string, minLength: 3, maxLength: 64, nullable: true}
-        pin: {type: string, pattern: "^[0-9]{6,12}$", writeOnly: true, nullable: true}
         profileImageBase64: {type: string, format: byte, minLength: 4, maxLength: 12000000, writeOnly: true, nullable: true, description: Required when the enrolling device's effective capabilities include camera or file_upload; otherwise it may be null.}
         profileImageFilename: {type: string, minLength: 1, maxLength: 255, nullable: true}
         labRulesAccepted: {type: boolean, description: "The visitor read and accepts the pinned Lab Rules (\"I have read and accept the Lab Rules\"). Must be true when the visitor role asks for the Lab Rules."}
         consents: {type: array, maxItems: 50, description: "Answers to the enrollment state's consent categories; may be empty.", items: {$ref: "#/components/schemas/ConsentAnswer"}}
 
-    VisitorLoginNameSuggestionRequest:
+    VisitorEnrollmentEmailRequest:
       type: object
       additionalProperties: false
-      required: [firstName, lastName]
+      required: [email]
       properties:
-        firstName: {type: string, minLength: 1, maxLength: 100}
-        lastName: {type: string, minLength: 1, maxLength: 100}
+        email: {type: string, minLength: 1, maxLength: 320, description: "The visitor's address. Checked by the server, which answers 422 email_invalid for a malformed one."}
 
-    VisitorLoginNameSuggestion:
+    VisitorEnrollmentEmailConfirmation:
       type: object
       additionalProperties: false
-      required: [loginName]
+      required: [code]
       properties:
-        loginName: {type: string, minLength: 3, maxLength: 64}
+        code: {$ref: "#/components/schemas/EmailLoginCode"}
 
     VisitorEnrollmentResult:
       type: object
       additionalProperties: false
-      required: [personId, accountId, accountStatus, invitationDelivery, admission, attendance]
+      required: [personId, accountId, accountStatus, admission, attendance]
       properties:
         personId: {$ref: "#/components/schemas/UUIDv7"}
         accountId: {$ref: "#/components/schemas/UUIDv7"}
         accountStatus: {type: string, enum: [enabled, disabled]}
-        invitationDelivery: {type: string, enum: [sent, failed], nullable: true}
         admission: {type: string, enum: [admitted], description: The visitor confirmed the Lab Rules while enrolling (or their role does not ask for them) and is admitted.}
         attendance:
           type: string
@@ -22827,23 +23296,69 @@ components:
     TerminalContext:
       type: object
       additionalProperties: false
-      required: [deviceId, deviceName, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, checkInAssurance, checkOutAssurance, authenticationMethods, capabilities, staffDestination]
+      required: [deviceId, deviceName, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, checkInMethods, checkOutMethods, capabilities, staffDestination]
       properties:
         deviceId: {$ref: "#/components/schemas/UUIDv7"}
         deviceName: {type: string}
-        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible."}
-        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a person checked out with PIN or password."}
+        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Required while `checkOutMethods` is empty."}
+        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a check-out. After a tap in the presence list the answers are stored without a person."}
         kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
-        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        authenticationMethods: {type: array, uniqueItems: true, items: {type: string, enum: [password, pin, oidc, nfc]}}
+        checkInMethods:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check in at this kiosk.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
+        checkOutMethods:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          description: How people may identify to check out at this kiosk. Empty only while `allowTapCheckout` is on.
+          items: {$ref: "#/components/schemas/KioskAuthenticationMethod"}
         capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
         staffDestination: {type: string, enum: [login]}
         notices:
           type: array
           maxItems: 50
           items: {$ref: "#/components/schemas/KioskNotice"}
-          description: Notices a notification rule put on this tablet that are in force now (start-screen banners and the notices for everyone who checks in today). Present for device-authenticated tablets only; the tablet polls this about once a minute.
+          description: Notices a notification rule put on this tablet that are in force now (start-screen banners and the notices for everyone who checks in today). Present for device-authenticated tablets only; the tablet polls this every 20 seconds.
+        camera: {$ref: "#/components/schemas/KioskCameraSettings"}
+        cameraCalibrationExpiresAt: {type: string, format: date-time, nullable: true, description: "End of the calibration window an administrator opened for this tablet; while set the tablet shows its camera calibration screen."}
+    KioskCameraCrop:
+      type: object
+      additionalProperties: false
+      required: [centerX, centerY, size]
+      description: The square of the camera frame a profile photo is taken from. The tablet keeps the square inside the frame.
+      properties:
+        centerX: {type: number, format: double, minimum: 0, maximum: 1, description: "Centre of the square as a fraction of the frame width, from the left of the unmirrored frame."}
+        centerY: {type: number, format: double, minimum: 0, maximum: 1, description: "Centre of the square as a fraction of the frame height, from the top."}
+        size: {type: number, format: double, minimum: 0.2, maximum: 1, description: "Side of the square as a fraction of the frame's shorter side; 1 is the largest square."}
+    KioskCameraIndicator:
+      type: object
+      additionalProperties: false
+      required: [edge, offset]
+      description: Where the tablet's camera lens is, so the kiosk can point people's eyes to it.
+      properties:
+        edge: {type: string, enum: [top, right, bottom, left]}
+        offset: {type: number, format: double, minimum: 0, maximum: 100, description: "Position along the edge in percent: from the left for top and bottom, from the top for left and right."}
+    KioskCameraSettings:
+      type: object
+      additionalProperties: false
+      required: [crop, indicator, mirror]
+      properties:
+        crop: {allOf: [{$ref: "#/components/schemas/KioskCameraCrop"}], nullable: true, description: "Null for the centred largest square."}
+        indicator: {allOf: [{$ref: "#/components/schemas/KioskCameraIndicator"}], nullable: true, description: "Null when the kiosk shows no lens pointer."}
+        mirror: {type: boolean, description: "Whether the preview and the captured photo are mirrored horizontally. The crop stays in unmirrored frame coordinates."}
+    ManagedDeviceCamera:
+      type: object
+      additionalProperties: false
+      required: [crop, indicator, mirror, calibrationExpiresAt]
+      properties:
+        crop: {allOf: [{$ref: "#/components/schemas/KioskCameraCrop"}], nullable: true}
+        indicator: {allOf: [{$ref: "#/components/schemas/KioskCameraIndicator"}], nullable: true}
+        mirror: {type: boolean}
+        calibrationExpiresAt: {type: string, format: date-time, nullable: true, description: "End of the open calibration window, or null when none is open."}
     KioskNotice:
       type: object
       additionalProperties: false
@@ -22894,6 +23409,22 @@ components:
       properties:
         loginName: {type: string, minLength: 3, maxLength: 64}
         pin: {type: string, format: password, minLength: 6, maxLength: 12, pattern: "^[0-9]{6,12}$", writeOnly: true}
+    AttendanceEmailCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+        code: {$ref: "#/components/schemas/EmailLoginCode"}
+    TerminalEmailCodeCheckInRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+        code: {$ref: "#/components/schemas/EmailLoginCode"}
+        confirmLabRulesVersionId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: The Lab Rules version the person read and confirms while checking in; it must be the current one.}
+        deferLabRules: {type: boolean, description: Check in without confirming; only allowed when the person's role merely warns.}
     TerminalPasswordCheckInRequest:
       type: object
       additionalProperties: false
@@ -22945,7 +23476,7 @@ components:
           items: {$ref: "#/components/schemas/TerminalConsentCategory"}
         surveyOffer:
           allOf: [{$ref: "#/components/schemas/TerminalSurveyOffer"}]
-          description: Only the answer of a tablet check-out with PIN or password carries an offer, and only when the tablet offers surveys, a published survey asks at the tablet, the person did not switch the question off and the survey's cooldown allows it.
+          description: Only the answer of a tablet check-out (with a password, PIN or emailed code, or by a tap in the presence list) carries an offer, and only when the tablet offers surveys, a published survey asks at the tablet, the checked-out person did not switch the question off and the survey's cooldown allows it. An offer after a tap names the tapped person only while it is open (to e-mail the survey to their own address and to hold back the automatic e-mail after an answer here); its answers are stored without a person.
     TerminalConsentCategory:
       type: object
       additionalProperties: false
@@ -22969,14 +23500,16 @@ components:
     TerminalSurveyOffer:
       type: object
       additionalProperties: false
-      required: [offerToken, surveyName, questionCount, anonymous, canAnswerNow, canSendByEmail, expiresAt]
+      required: [offerToken, surveyName, questionCount, anonymous, canAnswerNow, canSendByEmail, mailConsent, canStopAsking, expiresAt]
       properties:
         offerToken: {type: string, minLength: 43, maxLength: 43, description: "Opaque, single use, valid for 15 minutes, only usable on the tablet that received it."}
         surveyName: {type: string}
         questionCount: {type: integer, minimum: 0}
         anonymous: {type: boolean}
         canAnswerNow: {type: boolean}
-        canSendByEmail: {type: boolean, description: "The person has an e-mail address. Sending works without their Surveys & feedback consent: it is a one-off request."}
+        canSendByEmail: {type: boolean, description: "The checked-out person has an e-mail address on file; after a tap check-out it is the tapped person's own address. Sending works without their Surveys & feedback consent: it is a one-off request, and one offer sends at most one e-mail."}
+        mailConsent: {type: boolean, description: "The person agreed to survey e-mails (Surveys & feedback) and has an address, so this survey's automatic invitation reaches them after the offer anyway unless they answer here. The tablet then offers only answer now and send by e-mail (which sends it right away); without it, it also offers no thanks."}
+        canStopAsking: {type: boolean, description: "The person may switch the question off (`/never`). False after a tap check-out: anyone can tap any name, so nobody's choice is changed there, and the answers are stored without a person whatever the survey says."}
         expiresAt: {type: string, format: date-time}
     VisitList:
       type: object

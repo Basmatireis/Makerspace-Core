@@ -89,6 +89,7 @@ var Tables = []Table{
 	}},
 	{Name: "competency_categories", Columns: map[string]Treatment{"name": Catalog, "description": Catalog}},
 	{Name: "device_types", Columns: map[string]Treatment{"name": Catalog, "description": Catalog}},
+	{Name: "email_code_failures", Emptied: EmptiedSignInState},
 	{Name: "event_files", Emptied: EmptiedPersonalFile},
 	{Name: "event_sessions", Columns: map[string]Treatment{
 		"name":        Catalog,
@@ -278,6 +279,7 @@ var Tables = []Table{
 		"from_name":               Catalog,
 		"base_url":                Mailpit,
 	}},
+	{Name: "managed_device_camera_settings", Columns: map[string]Treatment{"indicator_edge": System}},
 	{Name: "managed_device_capabilities", Columns: map[string]Treatment{"capability": System}},
 	{Name: "managed_device_hardware_reports", Columns: map[string]Treatment{
 		"platform":       System,
@@ -286,11 +288,11 @@ var Tables = []Table{
 	{Name: "managed_device_pairing_requests", Emptied: EmptiedSignInState},
 	{Name: "managed_device_reported_capabilities", Columns: map[string]Treatment{"capability": System}},
 	{Name: "managed_devices", Columns: map[string]Treatment{
-		"name":                Catalog,
-		"token_digest":        RandomToken,
-		"check_in_assurance":  System,
-		"check_out_assurance": System,
-		"allowed_app_modes":   System,
+		"name":              Catalog,
+		"token_digest":      RandomToken,
+		"check_in_methods":  System,
+		"check_out_methods": System,
+		"allowed_app_modes": System,
 	}},
 	{Name: "master_reauthentication_permissions", Columns: map[string]Treatment{"permission_id": System}},
 	{Name: "material_balances"},
@@ -653,7 +655,7 @@ var Tables = []Table{
 	{Name: "training_processes"},
 	{Name: "training_records", Columns: map[string]Treatment{"status": System, "notes": Cleared}},
 	{Name: "trainings", Columns: map[string]Treatment{"name": Catalog, "description": Catalog}},
-	{Name: "visitor_enrollment_configuration", Columns: map[string]Treatment{"allowed_methods": System}},
+	{Name: "visitor_enrollment_configuration"},
 	{Name: "visitor_enrollment_contexts", Emptied: EmptiedSignInState},
 	{Name: "visitor_enrollment_device_types"},
 	{Name: "visits", Columns: map[string]Treatment{

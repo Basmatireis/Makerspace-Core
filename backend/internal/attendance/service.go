@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -28,6 +30,11 @@ import (
 type CredentialVerifier interface {
 	VerifyPasswordForAttendance(context.Context, string, string, string) (auth.VerifiedIdentity, error)
 	VerifyPINForAttendance(context.Context, string, string, string) (auth.VerifiedIdentity, error)
+	VerifyEmailCodeForAttendance(context.Context, string, string, string) (auth.VerifiedIdentity, error)
+	RequestCheckInEmailCode(ctx context.Context, email string, deviceID uuid.UUID, requestID *uuid.UUID) error
+	// ConsumeVerifiedTx uses up a one-time proof (an emailed code) inside the attendance transaction, so it is spent
+	// exactly when the check-in or check-out commits.
+	ConsumeVerifiedTx(ctx context.Context, tx pgx.Tx, verified auth.VerifiedIdentity) error
 }
 
 type LabRules interface {
@@ -45,6 +52,8 @@ type PostVisitSurveyTrigger interface {
 	CreatePostVisitInvitations(context.Context, pgx.Tx, uuid.UUID, uuid.UUID) error
 	// OfferAtCheckOut may offer a survey on the tablet after a self check-out; it returns nil when nothing is offered.
 	OfferAtCheckOut(ctx context.Context, tx pgx.Tx, personID, visitID, deviceID uuid.UUID) (*surveys.Offer, error)
+	// OfferAfterTapCheckOut may offer a survey on the tablet after a tap check-out; its answers stay anonymous.
+	OfferAfterTapCheckOut(ctx context.Context, tx pgx.Tx, personID, checkOutRef, deviceID uuid.UUID) (*surveys.Offer, error)
 }
 
 type Service struct {
@@ -151,6 +160,11 @@ var (
 		"lab_rules_confirmation_suggested",
 		"The current Lab Rules are not confirmed yet; they can be confirmed now or later",
 	)
+	errMethodNotAllowed = apperror.New(
+		http.StatusForbidden,
+		"attendance_method_not_allowed",
+		"This kiosk does not accept this way of checking in or out",
+	)
 	errLabRulesUnavailable = apperror.New(
 		http.StatusConflict,
 		"lab_rules_unavailable",
@@ -159,13 +173,13 @@ var (
 )
 
 type KioskContext struct {
-	DeviceID                            uuid.UUID
-	DeviceName                          string
-	AllowTapCheckout                    bool
-	OfferSurveysAtCheckout              bool
-	KioskResetSeconds                   int32
-	CheckInAssurance, CheckOutAssurance authorization.Assurance
-	AuthenticationMethods, Capabilities []string
+	DeviceID                        uuid.UUID
+	DeviceName                      string
+	AllowTapCheckout                bool
+	OfferSurveysAtCheckout          bool
+	KioskResetSeconds               int32
+	CheckInMethods, CheckOutMethods []manageddevices.KioskMethod
+	Capabilities                    []string
 }
 
 type PublicPresence struct {
@@ -185,7 +199,7 @@ type Visit struct {
 	AdmissionDecision AdmissionDecision
 	CorrectionReason  *string
 	Version           int64
-	// SurveyOffer is only set on the answer of a tablet self check-out that offers a survey.
+	// SurveyOffer is only set on the answer of a tablet check-out (self or tap) that offers a survey.
 	SurveyOffer *surveys.Offer
 }
 
@@ -195,28 +209,36 @@ type Statistics struct {
 	VisitorHours, AverageCompletedVisitMinutes                    string
 }
 
-func assuranceRank(value authorization.Assurance) int {
-	switch value {
-	case authorization.AssuranceLow:
-		return 1
-	case authorization.AssuranceNormal:
-		return 2
-	case authorization.AssuranceStrong:
-		return 3
-	case authorization.AssuranceStrongMFA:
-		return 4
-	default:
-		return 0
+// kioskFor loads the kiosk and refuses a method it does not accept for the action. It runs before any credential is
+// checked, so a method the kiosk refuses cannot be used to test passwords, PINs or codes there.
+func (s *Service) kioskFor(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	action attendanceAction,
+	method manageddevices.KioskMethod,
+) (attendancedb.GetTerminalDeviceRow, error) {
+	row, err := s.kiosk(ctx, device)
+	if err != nil {
+		return row, err
 	}
+	return row, requireKioskMethod(row, action, string(method))
 }
 
-func requireAssurance(actual authorization.Assurance, required authorization.Assurance) error {
-	if assuranceRank(actual) < assuranceRank(required) {
-		return apperror.New(
-			http.StatusForbidden,
-			"attendance_assurance_required",
-			"This attendance action requires a stronger authentication method",
-		)
+// attendanceAction is the direction of a kiosk attendance step.
+type attendanceAction string
+
+const (
+	actionCheckIn  attendanceAction = "check_in"
+	actionCheckOut attendanceAction = "check_out"
+)
+
+func requireKioskMethod(row attendancedb.GetTerminalDeviceRow, action attendanceAction, method string) error {
+	accepted := row.CheckInMethods
+	if action == actionCheckOut {
+		accepted = row.CheckOutMethods
+	}
+	if !slices.Contains(accepted, method) {
+		return errMethodNotAllowed
 	}
 	return nil
 }
@@ -250,11 +272,11 @@ func (s *Service) KioskContext(ctx context.Context, device manageddevices.Device
 	if err != nil {
 		return KioskContext{}, err
 	}
-	methods := []string{"password", "pin"}
 	return KioskContext{DeviceID: row.ID, DeviceName: row.Name, AllowTapCheckout: row.AllowTapCheckout,
 		OfferSurveysAtCheckout: row.OfferSurveysAtCheckout, KioskResetSeconds: row.KioskResetSeconds,
-		CheckInAssurance: authorization.Assurance(row.CheckInAssurance), CheckOutAssurance: authorization.Assurance(row.CheckOutAssurance),
-		AuthenticationMethods: methods, Capabilities: capabilities}, nil
+		CheckInMethods:  optional.ConvertSlice[manageddevices.KioskMethod](row.CheckInMethods),
+		CheckOutMethods: optional.ConvertSlice[manageddevices.KioskMethod](row.CheckOutMethods),
+		Capabilities:    capabilities}, nil
 }
 
 // PublicPresence lists who is here with first name and last initial only.
@@ -266,29 +288,20 @@ func (s *Service) PublicPresence(ctx context.Context, device manageddevices.Devi
 	if err != nil {
 		return nil, err
 	}
+	names := make([]PersonName, len(rows))
+	for index, row := range rows {
+		names[index] = PersonName{First: row.FirstName, Last: row.LastName}
+	}
+	short := ShortNames(names)
 	result := make([]PublicPresence, 0, len(rows))
-	shortName := shortNamer()
-	for _, row := range rows {
+	for index, row := range rows {
 		result = append(result, PublicPresence{
 			VisitID:     row.ID,
-			DisplayName: shortName(row.FirstName, row.LastInitial),
+			DisplayName: short[index],
 			CheckedInAt: row.CheckedInAt,
 		})
 	}
 	return result, nil
-}
-
-// shortNamer numbers repeated "First L." names so people with the same short name stay distinguishable.
-func shortNamer() func(firstName, lastInitial string) string {
-	duplicates := map[string]int{}
-	return func(firstName, lastInitial string) string {
-		name := firstName + " " + lastInitial + "."
-		duplicates[name]++
-		if duplicates[name] > 1 {
-			name = fmt.Sprintf("%s (%d)", name, duplicates[name])
-		}
-		return name
-	}
 }
 
 func (s *Service) PasswordCheckIn(
@@ -298,6 +311,9 @@ func (s *Service) PasswordCheckIn(
 	choice LabRulesChoice,
 	requestID *uuid.UUID,
 ) (Visit, error) {
+	if _, err := s.kioskFor(ctx, device, actionCheckIn, manageddevices.KioskMethodPassword); err != nil {
+		return Visit{}, err
+	}
 	verified, err := s.auth.VerifyPasswordForAttendance(ctx, email, password, source)
 	if err != nil {
 		return Visit{}, err
@@ -312,7 +328,48 @@ func (s *Service) PINCheckIn(
 	choice LabRulesChoice,
 	requestID *uuid.UUID,
 ) (Visit, error) {
+	if _, err := s.kioskFor(ctx, device, actionCheckIn, manageddevices.KioskMethodPIN); err != nil {
+		return Visit{}, err
+	}
 	verified, err := s.auth.VerifyPINForAttendance(ctx, login, pin, source)
+	if err != nil {
+		return Visit{}, err
+	}
+	return s.checkIn(ctx, device, verified, choice, requestID)
+}
+
+// RequestEmailCode mails a check-in code to an account that signs in with an emailed code; it works only at a kiosk,
+// not for the web login. Like the web request it never tells whether the address belongs to one.
+func (s *Service) RequestEmailCode(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	email string,
+	requestID *uuid.UUID,
+) error {
+	row, err := s.kiosk(ctx, device)
+	if err != nil {
+		return err
+	}
+	if requireKioskMethod(row, actionCheckIn, string(manageddevices.KioskMethodEmailCode)) != nil &&
+		requireKioskMethod(row, actionCheckOut, string(manageddevices.KioskMethodEmailCode)) != nil {
+		return errMethodNotAllowed
+	}
+	return s.auth.RequestCheckInEmailCode(ctx, email, device.ID, requestID)
+}
+
+// EmailCodeCheckIn checks in with an emailed code. The code stays valid until a check-in succeeds, so the kiosk can
+// repeat the request after showing the Lab Rules.
+func (s *Service) EmailCodeCheckIn(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	email, code, source string,
+	choice LabRulesChoice,
+	requestID *uuid.UUID,
+) (Visit, error) {
+	if _, err := s.kioskFor(ctx, device, actionCheckIn, manageddevices.KioskMethodEmailCode); err != nil {
+		return Visit{}, err
+	}
+	verified, err := s.auth.VerifyEmailCodeForAttendance(ctx, email, code, source)
 	if err != nil {
 		return Visit{}, err
 	}
@@ -355,7 +412,7 @@ func (s *Service) checkIn(
 	if err != nil {
 		return Visit{}, err
 	}
-	if err = requireAssurance(verified.Assurance, authorization.Assurance(kiosk.CheckInAssurance)); err != nil {
+	if err = requireKioskMethod(kiosk, actionCheckIn, verified.Method); err != nil {
 		return Visit{}, err
 	}
 	status, err := s.labRules.Evaluate(ctx, verified.PersonID)
@@ -420,6 +477,9 @@ func (s *Service) checkIn(
 	if err = s.afterCheckIn(ctx, tx, row.ID); err != nil {
 		return Visit{}, err
 	}
+	if err = s.auth.ConsumeVerifiedTx(ctx, tx, verified); err != nil {
+		return Visit{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return Visit{}, err
 	}
@@ -432,6 +492,9 @@ func (s *Service) PasswordCheckOut(
 	email, password, source string,
 	requestID *uuid.UUID,
 ) (Visit, error) {
+	if _, err := s.kioskFor(ctx, device, actionCheckOut, manageddevices.KioskMethodPassword); err != nil {
+		return Visit{}, err
+	}
 	verified, err := s.auth.VerifyPasswordForAttendance(ctx, email, password, source)
 	if err != nil {
 		return Visit{}, err
@@ -445,7 +508,26 @@ func (s *Service) PINCheckOut(
 	login, pin, source string,
 	requestID *uuid.UUID,
 ) (Visit, error) {
+	if _, err := s.kioskFor(ctx, device, actionCheckOut, manageddevices.KioskMethodPIN); err != nil {
+		return Visit{}, err
+	}
 	verified, err := s.auth.VerifyPINForAttendance(ctx, login, pin, source)
+	if err != nil {
+		return Visit{}, err
+	}
+	return s.verifiedCheckOut(ctx, device, verified, requestID)
+}
+
+func (s *Service) EmailCodeCheckOut(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	email, code, source string,
+	requestID *uuid.UUID,
+) (Visit, error) {
+	if _, err := s.kioskFor(ctx, device, actionCheckOut, manageddevices.KioskMethodEmailCode); err != nil {
+		return Visit{}, err
+	}
+	verified, err := s.auth.VerifyEmailCodeForAttendance(ctx, email, code, source)
 	if err != nil {
 		return Visit{}, err
 	}
@@ -462,7 +544,7 @@ func (s *Service) verifiedCheckOut(
 	if err != nil {
 		return Visit{}, err
 	}
-	if err = requireAssurance(verified.Assurance, authorization.Assurance(kiosk.CheckOutAssurance)); err != nil {
+	if err = requireKioskMethod(kiosk, actionCheckOut, verified.Method); err != nil {
 		return Visit{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -499,6 +581,9 @@ func (s *Service) verifiedCheckOut(
 		}
 	}
 	if err = s.archive(ctx, tx, row.ID); err != nil {
+		return Visit{}, err
+	}
+	if err = s.auth.ConsumeVerifiedTx(ctx, tx, verified); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -550,13 +635,23 @@ func (s *Service) PublicCheckOut(
 			return Visit{}, err
 		}
 	}
+	// Anyone can tap any name, so the answers to the tablet's offer after a tap stay anonymous; the offer names the
+	// tapped person only while it is open, to e-mail the survey to them and to hold back the automatic e-mail.
+	var offer *surveys.Offer
+	if s.surveys != nil && kiosk.OfferSurveysAtCheckout {
+		if offer, err = s.surveys.OfferAfterTapCheckOut(ctx, tx, row.PersonID, checkOutRef, device.ID); err != nil {
+			return Visit{}, err
+		}
+	}
 	if err = s.archive(ctx, tx, row.ID); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return Visit{}, err
 	}
-	return visitFromCheckout(row), nil
+	visit := visitFromCheckout(row)
+	visit.SurveyOffer = offer
+	return visit, nil
 }
 
 func (s *Service) SupervisedCheckIn(

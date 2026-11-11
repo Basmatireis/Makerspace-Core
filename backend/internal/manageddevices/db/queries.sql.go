@@ -133,12 +133,12 @@ func (q *Queries) CreateDeviceType(ctx context.Context, arg CreateDeviceTypePara
 
 const createManagedDevice = `-- name: CreateManagedDevice :one
 INSERT INTO managed_devices (id, name, device_type_id, token_digest, expires_at, session_policy_id,
-  terminal_enabled, allowed_app_modes, check_in_assurance, check_out_assurance, allow_tap_checkout,
+  terminal_enabled, allowed_app_modes, check_in_methods, check_out_methods, allow_tap_checkout,
   offer_surveys_at_checkout, kiosk_reset_seconds)
 VALUES ($1, $2, $3, $4, $5,
   $6, $7, $8, $9,
   $10, $11, $12,
-  $13) RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds
+  $13) RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds, check_in_methods, check_out_methods
 `
 
 type CreateManagedDeviceParams struct {
@@ -150,8 +150,8 @@ type CreateManagedDeviceParams struct {
 	SessionPolicyID        *uuid.UUID
 	TerminalEnabled        bool
 	AllowedAppModes        []string
-	CheckInAssurance       string
-	CheckOutAssurance      string
+	CheckInMethods         []string
+	CheckOutMethods        []string
 	AllowTapCheckout       bool
 	OfferSurveysAtCheckout bool
 	KioskResetSeconds      int32
@@ -167,8 +167,8 @@ func (q *Queries) CreateManagedDevice(ctx context.Context, arg CreateManagedDevi
 		arg.SessionPolicyID,
 		arg.TerminalEnabled,
 		arg.AllowedAppModes,
-		arg.CheckInAssurance,
-		arg.CheckOutAssurance,
+		arg.CheckInMethods,
+		arg.CheckOutMethods,
 		arg.AllowTapCheckout,
 		arg.OfferSurveysAtCheckout,
 		arg.KioskResetSeconds,
@@ -187,12 +187,12 @@ func (q *Queries) CreateManagedDevice(ctx context.Context, arg CreateManagedDevi
 		&i.UpdatedAt,
 		&i.SessionPolicyID,
 		&i.TerminalEnabled,
-		&i.CheckInAssurance,
-		&i.CheckOutAssurance,
 		&i.AllowedAppModes,
 		&i.AllowTapCheckout,
 		&i.OfferSurveysAtCheckout,
 		&i.KioskResetSeconds,
+		&i.CheckInMethods,
+		&i.CheckOutMethods,
 	)
 	return i, err
 }
@@ -418,7 +418,7 @@ func (q *Queries) GetDeviceTypeForMutation(ctx context.Context, id uuid.UUID) (D
 }
 
 const getManagedDevice = `-- name: GetManagedDevice :one
-SELECT md.id, md.name, md.device_type_id, md.token_digest, md.expires_at, md.revoked_at, md.last_seen_at, md.version, md.created_at, md.updated_at, md.session_policy_id, md.terminal_enabled, md.check_in_assurance, md.check_out_assurance, md.allowed_app_modes, md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds, dt.name AS device_type_name
+SELECT md.id, md.name, md.device_type_id, md.token_digest, md.expires_at, md.revoked_at, md.last_seen_at, md.version, md.created_at, md.updated_at, md.session_policy_id, md.terminal_enabled, md.allowed_app_modes, md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds, md.check_in_methods, md.check_out_methods, dt.name AS device_type_name
 FROM managed_devices md JOIN device_types dt ON dt.id = md.device_type_id
 WHERE md.id = $1
 `
@@ -436,12 +436,12 @@ type GetManagedDeviceRow struct {
 	UpdatedAt              time.Time
 	SessionPolicyID        *uuid.UUID
 	TerminalEnabled        bool
-	CheckInAssurance       string
-	CheckOutAssurance      string
 	AllowedAppModes        []string
 	AllowTapCheckout       bool
 	OfferSurveysAtCheckout bool
 	KioskResetSeconds      int32
+	CheckInMethods         []string
+	CheckOutMethods        []string
 	DeviceTypeName         string
 }
 
@@ -461,19 +461,61 @@ func (q *Queries) GetManagedDevice(ctx context.Context, id uuid.UUID) (GetManage
 		&i.UpdatedAt,
 		&i.SessionPolicyID,
 		&i.TerminalEnabled,
-		&i.CheckInAssurance,
-		&i.CheckOutAssurance,
 		&i.AllowedAppModes,
 		&i.AllowTapCheckout,
 		&i.OfferSurveysAtCheckout,
 		&i.KioskResetSeconds,
+		&i.CheckInMethods,
+		&i.CheckOutMethods,
 		&i.DeviceTypeName,
 	)
 	return i, err
 }
 
+const getManagedDeviceCameraSettings = `-- name: GetManagedDeviceCameraSettings :one
+SELECT managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset, calibration_expires_at, updated_at, mirror FROM managed_device_camera_settings WHERE managed_device_id = $1
+`
+
+func (q *Queries) GetManagedDeviceCameraSettings(ctx context.Context, managedDeviceID uuid.UUID) (ManagedDeviceCameraSetting, error) {
+	row := q.db.QueryRow(ctx, getManagedDeviceCameraSettings, managedDeviceID)
+	var i ManagedDeviceCameraSetting
+	err := row.Scan(
+		&i.ManagedDeviceID,
+		&i.CropCenterX,
+		&i.CropCenterY,
+		&i.CropSize,
+		&i.IndicatorEdge,
+		&i.IndicatorOffset,
+		&i.CalibrationExpiresAt,
+		&i.UpdatedAt,
+		&i.Mirror,
+	)
+	return i, err
+}
+
+const getManagedDeviceCameraSettingsForUpdate = `-- name: GetManagedDeviceCameraSettingsForUpdate :one
+SELECT managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset, calibration_expires_at, updated_at, mirror FROM managed_device_camera_settings WHERE managed_device_id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetManagedDeviceCameraSettingsForUpdate(ctx context.Context, managedDeviceID uuid.UUID) (ManagedDeviceCameraSetting, error) {
+	row := q.db.QueryRow(ctx, getManagedDeviceCameraSettingsForUpdate, managedDeviceID)
+	var i ManagedDeviceCameraSetting
+	err := row.Scan(
+		&i.ManagedDeviceID,
+		&i.CropCenterX,
+		&i.CropCenterY,
+		&i.CropSize,
+		&i.IndicatorEdge,
+		&i.IndicatorOffset,
+		&i.CalibrationExpiresAt,
+		&i.UpdatedAt,
+		&i.Mirror,
+	)
+	return i, err
+}
+
 const getManagedDeviceForMutation = `-- name: GetManagedDeviceForMutation :one
-SELECT id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds FROM managed_devices WHERE id = $1 FOR UPDATE
+SELECT id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds, check_in_methods, check_out_methods FROM managed_devices WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetManagedDeviceForMutation(ctx context.Context, id uuid.UUID) (ManagedDevice, error) {
@@ -492,12 +534,12 @@ func (q *Queries) GetManagedDeviceForMutation(ctx context.Context, id uuid.UUID)
 		&i.UpdatedAt,
 		&i.SessionPolicyID,
 		&i.TerminalEnabled,
-		&i.CheckInAssurance,
-		&i.CheckOutAssurance,
 		&i.AllowedAppModes,
 		&i.AllowTapCheckout,
 		&i.OfferSurveysAtCheckout,
 		&i.KioskResetSeconds,
+		&i.CheckInMethods,
+		&i.CheckOutMethods,
 	)
 	return i, err
 }
@@ -581,7 +623,7 @@ func (q *Queries) GetSessionPolicy(ctx context.Context, id uuid.UUID) (SessionPo
 
 const getValidManagedDeviceByDigest = `-- name: GetValidManagedDeviceByDigest :one
 SELECT md.id, md.name, md.device_type_id, dt.name AS device_type_name, md.expires_at,
-       md.session_policy_id, md.terminal_enabled, md.allowed_app_modes, md.check_in_assurance, md.check_out_assurance,
+       md.session_policy_id, md.terminal_enabled, md.allowed_app_modes, md.check_in_methods, md.check_out_methods,
        md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds
 FROM managed_devices md JOIN device_types dt ON dt.id = md.device_type_id
 WHERE md.token_digest = $1 AND md.revoked_at IS NULL
@@ -597,8 +639,8 @@ type GetValidManagedDeviceByDigestRow struct {
 	SessionPolicyID        *uuid.UUID
 	TerminalEnabled        bool
 	AllowedAppModes        []string
-	CheckInAssurance       string
-	CheckOutAssurance      string
+	CheckInMethods         []string
+	CheckOutMethods        []string
 	AllowTapCheckout       bool
 	OfferSurveysAtCheckout bool
 	KioskResetSeconds      int32
@@ -616,8 +658,8 @@ func (q *Queries) GetValidManagedDeviceByDigest(ctx context.Context, tokenDigest
 		&i.SessionPolicyID,
 		&i.TerminalEnabled,
 		&i.AllowedAppModes,
-		&i.CheckInAssurance,
-		&i.CheckOutAssurance,
+		&i.CheckInMethods,
+		&i.CheckOutMethods,
 		&i.AllowTapCheckout,
 		&i.OfferSurveysAtCheckout,
 		&i.KioskResetSeconds,
@@ -702,7 +744,7 @@ func (q *Queries) ListDeviceTypes(ctx context.Context) ([]DeviceType, error) {
 }
 
 const listManagedDevices = `-- name: ListManagedDevices :many
-SELECT md.id, md.name, md.device_type_id, md.token_digest, md.expires_at, md.revoked_at, md.last_seen_at, md.version, md.created_at, md.updated_at, md.session_policy_id, md.terminal_enabled, md.check_in_assurance, md.check_out_assurance, md.allowed_app_modes, md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds, dt.name AS device_type_name
+SELECT md.id, md.name, md.device_type_id, md.token_digest, md.expires_at, md.revoked_at, md.last_seen_at, md.version, md.created_at, md.updated_at, md.session_policy_id, md.terminal_enabled, md.allowed_app_modes, md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds, md.check_in_methods, md.check_out_methods, dt.name AS device_type_name
 FROM managed_devices md JOIN device_types dt ON dt.id = md.device_type_id
 ORDER BY lower(md.name), md.id
 `
@@ -720,12 +762,12 @@ type ListManagedDevicesRow struct {
 	UpdatedAt              time.Time
 	SessionPolicyID        *uuid.UUID
 	TerminalEnabled        bool
-	CheckInAssurance       string
-	CheckOutAssurance      string
 	AllowedAppModes        []string
 	AllowTapCheckout       bool
 	OfferSurveysAtCheckout bool
 	KioskResetSeconds      int32
+	CheckInMethods         []string
+	CheckOutMethods        []string
 	DeviceTypeName         string
 }
 
@@ -751,12 +793,12 @@ func (q *Queries) ListManagedDevices(ctx context.Context) ([]ListManagedDevicesR
 			&i.UpdatedAt,
 			&i.SessionPolicyID,
 			&i.TerminalEnabled,
-			&i.CheckInAssurance,
-			&i.CheckOutAssurance,
 			&i.AllowedAppModes,
 			&i.AllowTapCheckout,
 			&i.OfferSurveysAtCheckout,
 			&i.KioskResetSeconds,
+			&i.CheckInMethods,
+			&i.CheckOutMethods,
 			&i.DeviceTypeName,
 		); err != nil {
 			return nil, err
@@ -832,7 +874,7 @@ func (q *Queries) ListSessionPolicies(ctx context.Context) ([]SessionPolicy, err
 
 const revokeManagedDevice = `-- name: RevokeManagedDevice :one
 UPDATE managed_devices SET revoked_at = now(), version = version + 1, updated_at = now()
-WHERE id = $1 AND version = $2 AND revoked_at IS NULL RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds
+WHERE id = $1 AND version = $2 AND revoked_at IS NULL RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds, check_in_methods, check_out_methods
 `
 
 type RevokeManagedDeviceParams struct {
@@ -856,12 +898,12 @@ func (q *Queries) RevokeManagedDevice(ctx context.Context, arg RevokeManagedDevi
 		&i.UpdatedAt,
 		&i.SessionPolicyID,
 		&i.TerminalEnabled,
-		&i.CheckInAssurance,
-		&i.CheckOutAssurance,
 		&i.AllowedAppModes,
 		&i.AllowTapCheckout,
 		&i.OfferSurveysAtCheckout,
 		&i.KioskResetSeconds,
+		&i.CheckInMethods,
+		&i.CheckOutMethods,
 	)
 	return i, err
 }
@@ -891,7 +933,7 @@ func (q *Queries) RevokeSessionsForPolicy(ctx context.Context, sessionPolicyID *
 const rotateManagedDeviceToken = `-- name: RotateManagedDeviceToken :one
 UPDATE managed_devices SET token_digest = $1, expires_at = $2,
   version = version + 1, updated_at = now()
-WHERE id = $3 AND version = $4 AND revoked_at IS NULL RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds
+WHERE id = $3 AND version = $4 AND revoked_at IS NULL RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds, check_in_methods, check_out_methods
 `
 
 type RotateManagedDeviceTokenParams struct {
@@ -922,12 +964,12 @@ func (q *Queries) RotateManagedDeviceToken(ctx context.Context, arg RotateManage
 		&i.UpdatedAt,
 		&i.SessionPolicyID,
 		&i.TerminalEnabled,
-		&i.CheckInAssurance,
-		&i.CheckOutAssurance,
 		&i.AllowedAppModes,
 		&i.AllowTapCheckout,
 		&i.OfferSurveysAtCheckout,
 		&i.KioskResetSeconds,
+		&i.CheckInMethods,
+		&i.CheckOutMethods,
 	)
 	return i, err
 }
@@ -995,11 +1037,11 @@ func (q *Queries) UpdateDeviceType(ctx context.Context, arg UpdateDeviceTypePara
 const updateManagedDevice = `-- name: UpdateManagedDevice :one
 UPDATE managed_devices SET name = $1, device_type_id = $2,
   expires_at = $3, session_policy_id = $4,
-  terminal_enabled = $5, allowed_app_modes = $6, check_in_assurance = $7,
-  check_out_assurance = $8, allow_tap_checkout = $9,
+  terminal_enabled = $5, allowed_app_modes = $6, check_in_methods = $7,
+  check_out_methods = $8, allow_tap_checkout = $9,
   offer_surveys_at_checkout = $10, kiosk_reset_seconds = $11,
   version = version + 1, updated_at = now()
-WHERE id = $12 AND version = $13 RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds
+WHERE id = $12 AND version = $13 RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds, check_in_methods, check_out_methods
 `
 
 type UpdateManagedDeviceParams struct {
@@ -1009,8 +1051,8 @@ type UpdateManagedDeviceParams struct {
 	SessionPolicyID        *uuid.UUID
 	TerminalEnabled        bool
 	AllowedAppModes        []string
-	CheckInAssurance       string
-	CheckOutAssurance      string
+	CheckInMethods         []string
+	CheckOutMethods        []string
 	AllowTapCheckout       bool
 	OfferSurveysAtCheckout bool
 	KioskResetSeconds      int32
@@ -1026,8 +1068,8 @@ func (q *Queries) UpdateManagedDevice(ctx context.Context, arg UpdateManagedDevi
 		arg.SessionPolicyID,
 		arg.TerminalEnabled,
 		arg.AllowedAppModes,
-		arg.CheckInAssurance,
-		arg.CheckOutAssurance,
+		arg.CheckInMethods,
+		arg.CheckOutMethods,
 		arg.AllowTapCheckout,
 		arg.OfferSurveysAtCheckout,
 		arg.KioskResetSeconds,
@@ -1048,12 +1090,12 @@ func (q *Queries) UpdateManagedDevice(ctx context.Context, arg UpdateManagedDevi
 		&i.UpdatedAt,
 		&i.SessionPolicyID,
 		&i.TerminalEnabled,
-		&i.CheckInAssurance,
-		&i.CheckOutAssurance,
 		&i.AllowedAppModes,
 		&i.AllowTapCheckout,
 		&i.OfferSurveysAtCheckout,
 		&i.KioskResetSeconds,
+		&i.CheckInMethods,
+		&i.CheckOutMethods,
 	)
 	return i, err
 }
@@ -1097,6 +1139,65 @@ func (q *Queries) UpdateSessionPolicy(ctx context.Context, arg UpdateSessionPoli
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertManagedDeviceCameraSettings = `-- name: UpsertManagedDeviceCameraSettings :one
+INSERT INTO managed_device_camera_settings (
+    managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset,
+    mirror, calibration_expires_at, updated_at)
+VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7, $8,
+    $9)
+ON CONFLICT (managed_device_id) DO UPDATE SET
+    crop_center_x = EXCLUDED.crop_center_x,
+    crop_center_y = EXCLUDED.crop_center_y,
+    crop_size = EXCLUDED.crop_size,
+    indicator_edge = EXCLUDED.indicator_edge,
+    indicator_offset = EXCLUDED.indicator_offset,
+    mirror = EXCLUDED.mirror,
+    calibration_expires_at = EXCLUDED.calibration_expires_at,
+    updated_at = EXCLUDED.updated_at
+RETURNING managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset, calibration_expires_at, updated_at, mirror
+`
+
+type UpsertManagedDeviceCameraSettingsParams struct {
+	ManagedDeviceID      uuid.UUID
+	CropCenterX          *float64
+	CropCenterY          *float64
+	CropSize             *float64
+	IndicatorEdge        *string
+	IndicatorOffset      *float64
+	Mirror               bool
+	CalibrationExpiresAt pgtype.Timestamptz
+	UpdatedAt            time.Time
+}
+
+func (q *Queries) UpsertManagedDeviceCameraSettings(ctx context.Context, arg UpsertManagedDeviceCameraSettingsParams) (ManagedDeviceCameraSetting, error) {
+	row := q.db.QueryRow(ctx, upsertManagedDeviceCameraSettings,
+		arg.ManagedDeviceID,
+		arg.CropCenterX,
+		arg.CropCenterY,
+		arg.CropSize,
+		arg.IndicatorEdge,
+		arg.IndicatorOffset,
+		arg.Mirror,
+		arg.CalibrationExpiresAt,
+		arg.UpdatedAt,
+	)
+	var i ManagedDeviceCameraSetting
+	err := row.Scan(
+		&i.ManagedDeviceID,
+		&i.CropCenterX,
+		&i.CropCenterY,
+		&i.CropSize,
+		&i.IndicatorEdge,
+		&i.IndicatorOffset,
+		&i.CalibrationExpiresAt,
+		&i.UpdatedAt,
+		&i.Mirror,
 	)
 	return i, err
 }

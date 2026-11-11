@@ -115,23 +115,24 @@ body:has(.visitor-flow) {
   border-block-start: 1px solid $border-subtle-01;
 }
 
+.visitor-flow__footer-slot {
+  display: flex;
+  gap: $spacing-05;
+  margin-inline-start: auto;
+}
+
 .visitor-flow__footer .cds--btn {
   min-inline-size: 12rem;
 }
 
-.visitor-flow__about {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: $spacing-08;
-  align-items: start;
-}
-
-.visitor-flow__about .visitor-photo {
+// The photo step centres the picker; the preview keeps its size so camera, upload and hint fit one screen.
+.visitor-flow__photo .visitor-photo {
   justify-items: center;
   text-align: center;
 }
 
 .visitor-flow__fields,
+.visitor-flow__email,
 .visitor-flow__methods,
 .visitor-flow__rules,
 .visitor-flow__consent {
@@ -141,6 +142,19 @@ body:has(.visitor-flow) {
 
 .visitor-flow__rules {
   justify-items: center;
+}
+
+.visitor-flow__email {
+  inline-size: 100%;
+  max-inline-size: 36rem;
+  margin-inline: auto;
+}
+
+.visitor-flow__code-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: $spacing-03;
 }
 
 .visitor-flow__pair {
@@ -199,18 +213,25 @@ body:has(.visitor-flow) {
   justify-items: start;
 }
 
+// The placeholder and the taken photo are a centred square. The live preview is larger and shows a little more of the
+// camera around the photo square, which is marked in it; the camera picture itself is not mirrored unless the kiosk's
+// calibration says so.
 .visitor-photo__frame {
+  position: relative;
   display: grid;
   place-items: center;
-  inline-size: min(100%, 20rem);
-  aspect-ratio: 4 / 3;
+  inline-size: min(100%, 30rem, 38dvh);
+  aspect-ratio: 1;
   overflow: hidden;
   background: $layer-02;
 }
 
+.visitor-photo__frame--live {
+  inline-size: min(100%, 52rem, calc(58dvh * var(--view-aspect, 1)));
+  aspect-ratio: var(--view-aspect, 1);
+}
+
 .visitor-photo__frame--round {
-  inline-size: 12rem;
-  aspect-ratio: 1;
   border-radius: 50%;
 }
 
@@ -219,19 +240,97 @@ body:has(.visitor-flow) {
   block-size: 100%;
   object-fit: cover;
   grid-area: 1 / 1;
+  transform: none;
+}
+
+// The part of the live picture that becomes the photo; everything around it is dimmed.
+.visitor-photo__square {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+// A soft oval inside the photo square to position the face in.
+.visitor-photo__guide {
+  inline-size: 70%;
+  block-size: 84%;
+  border: 2px dashed rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+}
+
+// Points people at the lens: they tend to look at their own picture on the screen instead.
+.visitor-photo__look {
+  @include type-style('heading-03');
+  position: absolute;
+  z-index: 3;
+  inset-block-start: $spacing-05;
+  inset-inline: $spacing-05;
+  margin-inline: auto;
+  inline-size: fit-content;
+  padding: $spacing-03 $spacing-05;
+  background: rgba(0, 0, 0, 0.6);
+  color: $text-on-color;
+  text-align: center;
+}
+
+// Before the camera starts there is no picture yet: the frame shrinks to its button, so button and hint sit together.
+.visitor-photo__frame--idle {
+  inline-size: auto;
+  aspect-ratio: auto;
+  overflow: visible;
+  background: none;
+}
+
+// The photo buttons are the one action of the step on a tablet: larger type, text and icon centred in the taller
+// button (Carbon's xl size otherwise aligns its content to the top).
+.visitor-photo .visitor-photo__button.cds--btn {
+  @include type-style('heading-03');
+  min-inline-size: 16rem;
+  align-items: center;
+  padding-block: 0;
+}
+
+.visitor-photo .visitor-photo__button.cds--btn .cds--btn__icon {
+  margin-block: 0;
+  align-self: center;
+}
+
+// Before the camera starts, the start button and its hint sit in the middle of the step instead of under the title.
+.visitor-flow__body:has(.visitor-photo--idle) {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.visitor-flow__photo:has(.visitor-photo--idle) {
+  align-self: center;
+}
+
+// Before the camera starts, its button takes the middle of the empty frame.
+.visitor-photo__start {
+  grid-area: 1 / 1;
+  z-index: 3;
+}
+
+// The photo button on the live picture, in its lower third, so it is reachable without scrolling.
+.visitor-photo__overlay-actions {
+  position: absolute;
+  z-index: 3;
+  inset-inline: 0;
+  inset-block-end: 12%;
+  display: flex;
+  justify-content: center;
 }
 
 .visitor-photo__media[hidden] {
   display: none;
 }
 
-.visitor-photo__placeholder {
-  grid-area: 1 / 1;
-  fill: $icon-secondary;
-}
-
 .visitor-photo .cds--file {
-  inline-size: min(100%, 20rem);
+  inline-size: min(100%, 30rem);
 }
 
 .visitor-photo .cds--file-browse-btn {
@@ -300,7 +399,6 @@ body:has(.visitor-flow) {
 }
 
 @media (max-width: 66rem) {
-  .visitor-flow__about,
   .visitor-done__grid {
     grid-template-columns: 1fr;
     gap: $spacing-06;
@@ -354,11 +452,6 @@ body:has(.visitor-flow) {
 
   .visitor-flow__title {
     margin-block-start: 0;
-  }
-
-  .visitor-flow__about {
-    grid-template-columns: 1fr;
-    gap: $spacing-04;
   }
 
   .visitor-flow__footer {

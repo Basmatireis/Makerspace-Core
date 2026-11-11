@@ -31,10 +31,30 @@ func (q *Queries) ClearAllowedDeviceTypes(ctx context.Context) error {
 	return err
 }
 
-const consumeEnrollmentContext = `-- name: ConsumeEnrollmentContext :execrows
-UPDATE visitor_enrollment_contexts SET used_at=now() WHERE id=$1 AND used_at IS NULL
+const clearEnrollmentEmailCode = `-- name: ClearEnrollmentEmailCode :exec
+UPDATE visitor_enrollment_contexts SET email_code_digest=NULL, email_code_expires_at=NULL
+WHERE id=$1 AND email_code_digest=$2
 `
 
+type ClearEnrollmentEmailCodeParams struct {
+	ID              uuid.UUID
+	EmailCodeDigest []byte
+}
+
+// Withdraws a code whose mail could not be delivered, unless a newer code replaced it meanwhile.
+func (q *Queries) ClearEnrollmentEmailCode(ctx context.Context, arg ClearEnrollmentEmailCodeParams) error {
+	_, err := q.db.Exec(ctx, clearEnrollmentEmailCode, arg.ID, arg.EmailCodeDigest)
+	return err
+}
+
+const consumeEnrollmentContext = `-- name: ConsumeEnrollmentContext :execrows
+UPDATE visitor_enrollment_contexts
+SET used_at=now(), email_display=NULL, email_normalized=NULL, email_code_digest=NULL, email_code_expires_at=NULL,
+    email_verified_at=NULL
+WHERE id=$1 AND used_at IS NULL
+`
+
+// The verified address now lives on the account; the used context keeps no copy of it.
 func (q *Queries) ConsumeEnrollmentContext(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, consumeEnrollmentContext, id)
 	if err != nil {
@@ -43,11 +63,22 @@ func (q *Queries) ConsumeEnrollmentContext(ctx context.Context, id uuid.UUID) (i
 	return result.RowsAffected(), nil
 }
 
+const countEnrollmentEmailCodeSend = `-- name: CountEnrollmentEmailCodeSend :exec
+UPDATE visitor_enrollment_contexts SET email_codes_sent=email_codes_sent+1 WHERE id=$1
+`
+
+// Every send attempt counts, also one refused because the address already has an account, so a kiosk cannot probe
+// addresses beyond the per-context limit.
+func (q *Queries) CountEnrollmentEmailCodeSend(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, countEnrollmentEmailCodeSend, id)
+	return err
+}
+
 const createEnrollmentContext = `-- name: CreateEnrollmentContext :one
 INSERT INTO visitor_enrollment_contexts (id, managed_device_id, token_digest, csrf_digest, expires_at, lab_rules_version_id)
 VALUES ($1, $2, $3, $4, $5,
     (SELECT id FROM laborordnung_versions WHERE status='published' AND effective_at <= now() ORDER BY effective_at DESC, id DESC LIMIT 1))
-RETURNING id, managed_device_id, token_digest, csrf_digest, expires_at, used_at, created_at, lab_rules_version_id
+RETURNING id, managed_device_id, token_digest, csrf_digest, expires_at, used_at, created_at, lab_rules_version_id, email_display, email_normalized, email_code_digest, email_code_expires_at, email_code_attempts, email_codes_sent, email_verified_at
 `
 
 type CreateEnrollmentContextParams struct {
@@ -76,6 +107,13 @@ func (q *Queries) CreateEnrollmentContext(ctx context.Context, arg CreateEnrollm
 		&i.UsedAt,
 		&i.CreatedAt,
 		&i.LabRulesVersionID,
+		&i.EmailDisplay,
+		&i.EmailNormalized,
+		&i.EmailCodeDigest,
+		&i.EmailCodeExpiresAt,
+		&i.EmailCodeAttempts,
+		&i.EmailCodesSent,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }
@@ -105,143 +143,6 @@ func (q *Queries) CreateVisitorAccount(ctx context.Context, arg CreateVisitorAcc
 		&i.ProvisioningSource,
 		&i.FirstAuthenticatedAt,
 		&i.AdministrativelyDisabledAt,
-	)
-	return i, err
-}
-
-const createVisitorInvitation = `-- name: CreateVisitorInvitation :one
-INSERT INTO auth_challenges (id, kind, account_id, auth_identity_id, code_digest, delivery_address, expires_at)
-VALUES ($1, 'invitation', $2, $3, $4, $5, $6)
-RETURNING id, kind, account_id, auth_identity_id, code_digest, delivery_address, attempt_count, created_by_account_id, expires_at, used_at, cancelled_at, delivery_status, delivery_attempted_at, delivery_failure_code, created_at
-`
-
-type CreateVisitorInvitationParams struct {
-	ID              uuid.UUID
-	AccountID       uuid.UUID
-	AuthIdentityID  *uuid.UUID
-	CodeDigest      []byte
-	DeliveryAddress *string
-	ExpiresAt       time.Time
-}
-
-func (q *Queries) CreateVisitorInvitation(ctx context.Context, arg CreateVisitorInvitationParams) (AuthChallenge, error) {
-	row := q.db.QueryRow(ctx, createVisitorInvitation,
-		arg.ID,
-		arg.AccountID,
-		arg.AuthIdentityID,
-		arg.CodeDigest,
-		arg.DeliveryAddress,
-		arg.ExpiresAt,
-	)
-	var i AuthChallenge
-	err := row.Scan(
-		&i.ID,
-		&i.Kind,
-		&i.AccountID,
-		&i.AuthIdentityID,
-		&i.CodeDigest,
-		&i.DeliveryAddress,
-		&i.AttemptCount,
-		&i.CreatedByAccountID,
-		&i.ExpiresAt,
-		&i.UsedAt,
-		&i.CancelledAt,
-		&i.DeliveryStatus,
-		&i.DeliveryAttemptedAt,
-		&i.DeliveryFailureCode,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const createVisitorPINCredential = `-- name: CreateVisitorPINCredential :exec
-INSERT INTO pin_credentials (auth_identity_id, pin_hash) VALUES ($1, $2)
-`
-
-type CreateVisitorPINCredentialParams struct {
-	AuthIdentityID uuid.UUID
-	PinHash        string
-}
-
-func (q *Queries) CreateVisitorPINCredential(ctx context.Context, arg CreateVisitorPINCredentialParams) error {
-	_, err := q.db.Exec(ctx, createVisitorPINCredential, arg.AuthIdentityID, arg.PinHash)
-	return err
-}
-
-const createVisitorPINIdentity = `-- name: CreateVisitorPINIdentity :one
-INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized, verified_at)
-VALUES ($1, $2, 'pin', $3, $4, now())
-RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
-`
-
-type CreateVisitorPINIdentityParams struct {
-	ID                   uuid.UUID
-	AccountID            uuid.UUID
-	IdentifierDisplay    *string
-	IdentifierNormalized *string
-}
-
-func (q *Queries) CreateVisitorPINIdentity(ctx context.Context, arg CreateVisitorPINIdentityParams) (AuthIdentity, error) {
-	row := q.db.QueryRow(ctx, createVisitorPINIdentity,
-		arg.ID,
-		arg.AccountID,
-		arg.IdentifierDisplay,
-		arg.IdentifierNormalized,
-	)
-	var i AuthIdentity
-	err := row.Scan(
-		&i.ID,
-		&i.AccountID,
-		&i.Kind,
-		&i.IdentifierDisplay,
-		&i.IdentifierNormalized,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ProviderID,
-		&i.Issuer,
-		&i.Subject,
-		&i.VerifiedAt,
-		&i.DisabledAt,
-		&i.LastUsedAt,
-	)
-	return i, err
-}
-
-const createVisitorPasswordIdentity = `-- name: CreateVisitorPasswordIdentity :one
-INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized)
-VALUES ($1, $2, 'password', $3, $4)
-RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
-`
-
-type CreateVisitorPasswordIdentityParams struct {
-	ID                   uuid.UUID
-	AccountID            uuid.UUID
-	IdentifierDisplay    *string
-	IdentifierNormalized *string
-}
-
-func (q *Queries) CreateVisitorPasswordIdentity(ctx context.Context, arg CreateVisitorPasswordIdentityParams) (AuthIdentity, error) {
-	row := q.db.QueryRow(ctx, createVisitorPasswordIdentity,
-		arg.ID,
-		arg.AccountID,
-		arg.IdentifierDisplay,
-		arg.IdentifierNormalized,
-	)
-	var i AuthIdentity
-	err := row.Scan(
-		&i.ID,
-		&i.AccountID,
-		&i.Kind,
-		&i.IdentifierDisplay,
-		&i.IdentifierNormalized,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ProviderID,
-		&i.Issuer,
-		&i.Subject,
-		&i.VerifiedAt,
-		&i.DisabledAt,
-		&i.LastUsedAt,
 	)
 	return i, err
 }
@@ -313,8 +214,21 @@ func (q *Queries) DeviceTypeExists(ctx context.Context, id uuid.UUID) (bool, err
 	return exists, err
 }
 
+const enableVisitorEmailCode = `-- name: EnableVisitorEmailCode :execrows
+UPDATE auth_identities SET email_code_enabled=true, updated_at=now()
+WHERE account_id=$1 AND kind='password'
+`
+
+func (q *Queries) EnableVisitorEmailCode(ctx context.Context, accountID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, enableVisitorEmailCode, accountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getConfiguration = `-- name: GetConfiguration :one
-SELECT singleton, enabled, allowed_methods, version, updated_by_account_id, created_at, updated_at FROM visitor_enrollment_configuration WHERE singleton=true
+SELECT singleton, enabled, version, updated_by_account_id, created_at, updated_at FROM visitor_enrollment_configuration WHERE singleton=true
 `
 
 func (q *Queries) GetConfiguration(ctx context.Context) (VisitorEnrollmentConfiguration, error) {
@@ -323,7 +237,6 @@ func (q *Queries) GetConfiguration(ctx context.Context) (VisitorEnrollmentConfig
 	err := row.Scan(
 		&i.Singleton,
 		&i.Enabled,
-		&i.AllowedMethods,
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.CreatedAt,
@@ -333,7 +246,7 @@ func (q *Queries) GetConfiguration(ctx context.Context) (VisitorEnrollmentConfig
 }
 
 const getConfigurationForUpdate = `-- name: GetConfigurationForUpdate :one
-SELECT singleton, enabled, allowed_methods, version, updated_by_account_id, created_at, updated_at FROM visitor_enrollment_configuration WHERE singleton=true FOR UPDATE
+SELECT singleton, enabled, version, updated_by_account_id, created_at, updated_at FROM visitor_enrollment_configuration WHERE singleton=true FOR UPDATE
 `
 
 func (q *Queries) GetConfigurationForUpdate(ctx context.Context) (VisitorEnrollmentConfiguration, error) {
@@ -342,7 +255,6 @@ func (q *Queries) GetConfigurationForUpdate(ctx context.Context) (VisitorEnrollm
 	err := row.Scan(
 		&i.Singleton,
 		&i.Enabled,
-		&i.AllowedMethods,
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.CreatedAt,
@@ -352,7 +264,7 @@ func (q *Queries) GetConfigurationForUpdate(ctx context.Context) (VisitorEnrollm
 }
 
 const getEnrollmentContext = `-- name: GetEnrollmentContext :one
-SELECT ec.id, ec.managed_device_id, ec.token_digest, ec.csrf_digest, ec.expires_at, ec.used_at, ec.created_at, ec.lab_rules_version_id FROM visitor_enrollment_contexts ec
+SELECT ec.id, ec.managed_device_id, ec.token_digest, ec.csrf_digest, ec.expires_at, ec.used_at, ec.created_at, ec.lab_rules_version_id, ec.email_display, ec.email_normalized, ec.email_code_digest, ec.email_code_expires_at, ec.email_code_attempts, ec.email_codes_sent, ec.email_verified_at FROM visitor_enrollment_contexts ec
 JOIN managed_devices md ON md.id=ec.managed_device_id
 JOIN visitor_enrollment_configuration c ON c.singleton=true
 WHERE ec.token_digest=$1 AND ec.used_at IS NULL AND ec.expires_at > now()
@@ -373,12 +285,19 @@ func (q *Queries) GetEnrollmentContext(ctx context.Context, tokenDigest []byte) 
 		&i.UsedAt,
 		&i.CreatedAt,
 		&i.LabRulesVersionID,
+		&i.EmailDisplay,
+		&i.EmailNormalized,
+		&i.EmailCodeDigest,
+		&i.EmailCodeExpiresAt,
+		&i.EmailCodeAttempts,
+		&i.EmailCodesSent,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }
 
 const getEnrollmentContextForUpdate = `-- name: GetEnrollmentContextForUpdate :one
-SELECT ec.id, ec.managed_device_id, ec.token_digest, ec.csrf_digest, ec.expires_at, ec.used_at, ec.created_at, ec.lab_rules_version_id FROM visitor_enrollment_contexts ec
+SELECT ec.id, ec.managed_device_id, ec.token_digest, ec.csrf_digest, ec.expires_at, ec.used_at, ec.created_at, ec.lab_rules_version_id, ec.email_display, ec.email_normalized, ec.email_code_digest, ec.email_code_expires_at, ec.email_code_attempts, ec.email_codes_sent, ec.email_verified_at FROM visitor_enrollment_contexts ec
 JOIN managed_devices md ON md.id=ec.managed_device_id
 JOIN visitor_enrollment_configuration c ON c.singleton=true
 WHERE ec.id=$1 AND ec.used_at IS NULL AND ec.expires_at > now()
@@ -400,6 +319,13 @@ func (q *Queries) GetEnrollmentContextForUpdate(ctx context.Context, id uuid.UUI
 		&i.UsedAt,
 		&i.CreatedAt,
 		&i.LabRulesVersionID,
+		&i.EmailDisplay,
+		&i.EmailNormalized,
+		&i.EmailCodeDigest,
+		&i.EmailCodeExpiresAt,
+		&i.EmailCodeAttempts,
+		&i.EmailCodesSent,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }
@@ -535,67 +461,91 @@ func (q *Queries) ListAllowedDeviceTypes(ctx context.Context) ([]uuid.UUID, erro
 	return items, nil
 }
 
-const pINLoginNameTaken = `-- name: PINLoginNameTaken :one
+const loginEmailTaken = `-- name: LoginEmailTaken :one
 SELECT EXISTS (
-    SELECT 1 FROM auth_identities WHERE kind = 'pin' AND identifier_normalized = $1
+    SELECT 1 FROM auth_identities WHERE kind = 'password' AND identifier_normalized = $1::text
 )::boolean AS taken
 `
 
-func (q *Queries) PINLoginNameTaken(ctx context.Context, identifierNormalized *string) (bool, error) {
-	row := q.db.QueryRow(ctx, pINLoginNameTaken, identifierNormalized)
+func (q *Queries) LoginEmailTaken(ctx context.Context, identifierNormalized string) (bool, error) {
+	row := q.db.QueryRow(ctx, loginEmailTaken, identifierNormalized)
 	var taken bool
 	err := row.Scan(&taken)
 	return taken, err
 }
 
-const setChallengeDelivery = `-- name: SetChallengeDelivery :exec
-UPDATE auth_challenges SET delivery_status=$1, delivery_attempted_at=now(), delivery_failure_code=$2
-WHERE id=$3
+const recordEnrollmentEmailCodeFailure = `-- name: RecordEnrollmentEmailCodeFailure :exec
+UPDATE visitor_enrollment_contexts SET email_code_attempts=LEAST(email_code_attempts+1, 5) WHERE id=$1
 `
 
-type SetChallengeDeliveryParams struct {
-	DeliveryStatus      string
-	DeliveryFailureCode *string
-	ID                  uuid.UUID
+func (q *Queries) RecordEnrollmentEmailCodeFailure(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, recordEnrollmentEmailCodeFailure, id)
+	return err
 }
 
-func (q *Queries) SetChallengeDelivery(ctx context.Context, arg SetChallengeDeliveryParams) error {
-	_, err := q.db.Exec(ctx, setChallengeDelivery, arg.DeliveryStatus, arg.DeliveryFailureCode, arg.ID)
+const setEnrollmentEmailCode = `-- name: SetEnrollmentEmailCode :exec
+UPDATE visitor_enrollment_contexts
+SET email_display=$1, email_normalized=$2,
+    email_code_digest=$3, email_code_expires_at=$4,
+    email_code_attempts=0, email_verified_at=NULL
+WHERE id=$5
+`
+
+type SetEnrollmentEmailCodeParams struct {
+	EmailDisplay       *string
+	EmailNormalized    *string
+	EmailCodeDigest    []byte
+	EmailCodeExpiresAt pgtype.Timestamptz
+	ID                 uuid.UUID
+}
+
+// A new code replaces the previous one and its address, and clears an earlier verification.
+func (q *Queries) SetEnrollmentEmailCode(ctx context.Context, arg SetEnrollmentEmailCodeParams) error {
+	_, err := q.db.Exec(ctx, setEnrollmentEmailCode,
+		arg.EmailDisplay,
+		arg.EmailNormalized,
+		arg.EmailCodeDigest,
+		arg.EmailCodeExpiresAt,
+		arg.ID,
+	)
 	return err
 }
 
 const updateConfiguration = `-- name: UpdateConfiguration :one
 UPDATE visitor_enrollment_configuration
-SET enabled=$1,
-    allowed_methods=$2, version=version+1,
-    updated_by_account_id=$3, updated_at=now()
-WHERE singleton=true AND version=$4
-RETURNING singleton, enabled, allowed_methods, version, updated_by_account_id, created_at, updated_at
+SET enabled=$1, version=version+1,
+    updated_by_account_id=$2, updated_at=now()
+WHERE singleton=true AND version=$3
+RETURNING singleton, enabled, version, updated_by_account_id, created_at, updated_at
 `
 
 type UpdateConfigurationParams struct {
 	Enabled            bool
-	AllowedMethods     []string
 	UpdatedByAccountID *uuid.UUID
 	ExpectedVersion    int64
 }
 
 func (q *Queries) UpdateConfiguration(ctx context.Context, arg UpdateConfigurationParams) (VisitorEnrollmentConfiguration, error) {
-	row := q.db.QueryRow(ctx, updateConfiguration,
-		arg.Enabled,
-		arg.AllowedMethods,
-		arg.UpdatedByAccountID,
-		arg.ExpectedVersion,
-	)
+	row := q.db.QueryRow(ctx, updateConfiguration, arg.Enabled, arg.UpdatedByAccountID, arg.ExpectedVersion)
 	var i VisitorEnrollmentConfiguration
 	err := row.Scan(
 		&i.Singleton,
 		&i.Enabled,
-		&i.AllowedMethods,
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const verifyEnrollmentEmail = `-- name: VerifyEnrollmentEmail :exec
+UPDATE visitor_enrollment_contexts
+SET email_verified_at=now(), email_code_digest=NULL, email_code_expires_at=NULL
+WHERE id=$1
+`
+
+func (q *Queries) VerifyEnrollmentEmail(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, verifyEnrollmentEmail, id)
+	return err
 }

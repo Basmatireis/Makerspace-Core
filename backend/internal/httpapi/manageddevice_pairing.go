@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -178,8 +177,8 @@ func (s *Server) PairManagedDevice(
 			SessionPolicyID:         nullableUUID(r.Body.SessionPolicyId),
 			KioskEnabled:            r.Body.TerminalEnabled,
 			AllowedApplicationModes: applicationModeStrings(r.Body.AllowedApplicationModes),
-			CheckInAssurance:        authorization.Assurance(r.Body.CheckInAssurance),
-			CheckOutAssurance:       authorization.Assurance(r.Body.CheckOutAssurance),
+			CheckInMethods:          kioskMethodsFromDTO(r.Body.CheckInMethods),
+			CheckOutMethods:         kioskMethodsFromDTO(r.Body.CheckOutMethods),
 			AllowTapCheckout:        r.Body.AllowTapCheckout,
 			OfferSurveysAtCheckout:  r.Body.OfferSurveysAtCheckout,
 			KioskResetSeconds:       int32(r.Body.KioskResetSeconds),

@@ -11,6 +11,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	manageddevicesdb "github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -65,7 +66,8 @@ func CreateSignagePlayerDeviceTx(
 		), Name: name, DeviceTypeID: deviceType.ID, TokenDigest: security.DigestToken(string(unusable)),
 		AllowedAppModes: []string{
 			string(ModeSignagePlayer),
-		}, CheckInAssurance: string(authorization.AssuranceLow), CheckOutAssurance: string(authorization.AssuranceLow),
+		}, CheckInMethods: optional.ConvertSlice[string](AllKioskMethods),
+		CheckOutMethods:   optional.ConvertSlice[string](AllKioskMethods),
 		KioskResetSeconds: DefaultKioskResetSeconds,
 	})
 	if err != nil {

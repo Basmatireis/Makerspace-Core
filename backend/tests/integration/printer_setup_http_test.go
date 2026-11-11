@@ -243,7 +243,7 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	if profile.Version != 1 || len(profile.InputUnits) != 1 || len(profile.Slots) != 2 ||
 		!profile.Model.IsSpecified() ||
 		profile.Model.MustGet() != openapi.BambuH2d ||
-		profile.InputUnits[0].Nozzle.MustGet() != openapi.Left {
+		profile.InputUnits[0].Nozzle.MustGet() != openapi.PrinterNozzleLeft {
 		t.Fatalf("saved profile = %+v", profile)
 	}
 	response = doJSON(t, managerClient, http.MethodPut, server.URL+setupPath, origin, managerCSRF, setupBody(nil))

@@ -30,6 +30,72 @@ func (s *Server) Login(ctx context.Context, request openapi.LoginRequestObject) 
 	return cookieNoContentResponse{config: s.config, session: result.Session}, nil
 }
 
+func (s *Server) RequestEmailLoginCode(
+	ctx context.Context,
+	request openapi.RequestEmailLoginCodeRequestObject,
+) (openapi.RequestEmailLoginCodeResponseObject, error) {
+	if request.Body == nil {
+		return nil, invalidRequest("email is required")
+	}
+	if err := s.auth.RequestEmailCode(ctx, string(request.Body.Email), sourceAddress(ctx), requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.RequestEmailLoginCode202Response{
+		Headers: openapi.RequestEmailLoginCode202ResponseHeaders{CacheControl: "no-store"},
+	}, nil
+}
+
+func (s *Server) LoginWithEmailCode(
+	ctx context.Context,
+	request openapi.LoginWithEmailCodeRequestObject,
+) (openapi.LoginWithEmailCodeResponseObject, error) {
+	if request.Body == nil || request.Body.Code == nil {
+		return nil, invalidRequest("email and code are required")
+	}
+	result, err := s.auth.LoginWithEmailCode(
+		ctx,
+		string(request.Body.Email),
+		*request.Body.Code,
+		sourceAddress(ctx),
+		requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if result.Pending != nil {
+		return pendingLoginResponse{config: s.config, pending: *result.Pending}, nil
+	}
+	return cookieNoContentResponse{config: s.config, session: result.Session}, nil
+}
+
+func (s *Server) EnableOwnEmailCode(
+	ctx context.Context,
+	_ openapi.EnableOwnEmailCodeRequestObject,
+) (openapi.EnableOwnEmailCodeResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.auth.SetOwnEmailCode(ctx, principal, true, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.EnableOwnEmailCode204Response{}, nil
+}
+
+func (s *Server) DisableOwnEmailCode(
+	ctx context.Context,
+	_ openapi.DisableOwnEmailCodeRequestObject,
+) (openapi.DisableOwnEmailCodeResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.auth.SetOwnEmailCode(ctx, principal, false, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DisableOwnEmailCode204Response{}, nil
+}
+
 func (s *Server) LoginWithPin(
 	ctx context.Context,
 	request openapi.LoginWithPinRequestObject,

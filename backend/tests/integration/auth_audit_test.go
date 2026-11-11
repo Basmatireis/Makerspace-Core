@@ -27,6 +27,35 @@ import (
 type notificationRecorder struct {
 	mu    sync.Mutex
 	codes map[string]string
+	// enrollmentFailure, when set, is what enrollment verification mails fail with.
+	enrollmentFailure error
+}
+
+// loginCode waits for the sign-in code mailed to an address: it is delivered after the request was answered.
+func (n *notificationRecorder) loginCode(t *testing.T, to string) string {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		n.mu.Lock()
+		code := n.codes["login:"+strings.ToLower(to)]
+		n.mu.Unlock()
+		if code != "" || time.Now().After(deadline) {
+			return code
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func (n *notificationRecorder) forgetLoginCode(to string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	delete(n.codes, "login:"+strings.ToLower(to))
+}
+
+func (n *notificationRecorder) enrollmentCode(to string) string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.codes["enroll:"+strings.ToLower(to)]
 }
 
 func newNotificationRecorder() *notificationRecorder {
@@ -66,6 +95,23 @@ func (n *notificationRecorder) SendEmailVerification(_ context.Context, to, code
 	n.codes["verify:"+strings.ToLower(to)] = code
 	return nil
 }
+func (n *notificationRecorder) SendEmailLoginCode(_ context.Context, to, code string, _ time.Time) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.codes["login:"+strings.ToLower(to)] = code
+	return nil
+}
+
+func (n *notificationRecorder) SendEnrollmentEmailCode(_ context.Context, to, code string, _ time.Time) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.enrollmentFailure != nil {
+		return n.enrollmentFailure
+	}
+	n.codes["enroll:"+strings.ToLower(to)] = code
+	return nil
+}
+
 func (n *notificationRecorder) SendSecurityNotice(context.Context, string, string, string) error {
 	return nil
 }
@@ -86,12 +132,6 @@ func (n *notificationRecorder) verificationCode(to string) string {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return n.codes["verify:"+strings.ToLower(to)]
-}
-
-func (n *notificationRecorder) invitationCode(to string) string {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	return n.codes["invite:"+strings.ToLower(to)]
 }
 
 const (

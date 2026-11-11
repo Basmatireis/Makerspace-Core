@@ -1146,7 +1146,8 @@ func isVisitorEnrollmentPublicPath(path string) bool {
 	switch path {
 	case apiBasePath + "/visitor-enrollment/context", apiBasePath + "/visitor-enrollment/state",
 		apiBasePath + "/visitor-enrollment/lab-rules.pdf", apiBasePath + "/visitor-enrollment/submissions",
-		apiBasePath + "/visitor-enrollment/login-name-suggestions":
+		apiBasePath + "/visitor-enrollment/email-verification",
+		apiBasePath + "/visitor-enrollment/email-verification/confirm":
 		return true
 	default:
 		return false
@@ -1228,6 +1229,7 @@ func managedDeviceAllowsMode(device manageddevices.DeviceContext, mode managedde
 
 func isStaffSessionEntryPath(path string) bool {
 	return path == apiBasePath+"/auth/login" || path == apiBasePath+"/auth/pin/login" ||
+		path == apiBasePath+"/auth/email-code" || path == apiBasePath+"/auth/email-code/login" ||
 		strings.HasPrefix(path, apiBasePath+"/auth/login/") || strings.HasPrefix(path, apiBasePath+"/auth/passkey/") ||
 		path == apiBasePath+"/auth/oidc/callback" ||
 		(strings.HasPrefix(path, apiBasePath+"/auth/oidc/") && strings.HasSuffix(path, "/start"))

@@ -20,12 +20,25 @@
  */
 
 /**
- * @nullable
+ * The square of the camera frame a profile photo is taken from. The tablet keeps the square inside the frame.
  */
-export type VisitorEnrollmentResultInvitationDelivery = typeof VisitorEnrollmentResultInvitationDelivery[keyof typeof VisitorEnrollmentResultInvitationDelivery] | null;
-
-
-export const VisitorEnrollmentResultInvitationDelivery = {
-  sent: 'sent',
-  failed: 'failed',
-} as const;
+export interface KioskCameraCrop {
+  /**
+     * Centre of the square as a fraction of the frame width, from the left of the unmirrored frame.
+     * @minimum 0
+     * @maximum 1
+     */
+  centerX: number;
+  /**
+     * Centre of the square as a fraction of the frame height, from the top.
+     * @minimum 0
+     * @maximum 1
+     */
+  centerY: number;
+  /**
+     * Side of the square as a fraction of the frame's shorter side; 1 is the largest square.
+     * @minimum 0.2
+     * @maximum 1
+     */
+  size: number;
+}

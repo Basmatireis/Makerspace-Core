@@ -11,6 +11,18 @@ const (
 	ModeSignagePlayer ApplicationMode = "signage_player"
 )
 
+// KioskMethod is a way a person identifies at an entrance kiosk to check in or out.
+type KioskMethod string
+
+const (
+	KioskMethodEmailCode KioskMethod = "email_code"
+	KioskMethodPIN       KioskMethod = "pin"
+	KioskMethodPassword  KioskMethod = "password"
+)
+
+// AllKioskMethods lists every kiosk method in the order the kiosk offers them; stored sets keep this order.
+var AllKioskMethods = []KioskMethod{KioskMethodEmailCode, KioskMethodPIN, KioskMethodPassword}
+
 // Kiosk reset bounds in seconds: how long a tablet may sit idle before it returns to its start screen.
 const (
 	MinKioskResetSeconds     int32 = 15

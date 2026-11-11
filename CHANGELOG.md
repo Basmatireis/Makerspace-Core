@@ -10,8 +10,15 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Signage screen editor.** A screen (formerly scene) is a set of freely positioned blocks on a fixed grid, each with one widget and its own box style. The new editor (Signage › Screens) has a canvas with snapping, a palette, a block list, toolbars and properties panels, autosaves drafts, offers undo and redo and has no Save button. Layout templates, zones and custom layouts are gone: migration 00131 converts every stored screen (and, in memory, older publications) so displays look as before and nothing becomes a pending change. Manifests are version 4: players refetch cached older ones. The player bundles the IBM Plex fonts and its service worker precaches them; image and video pickers can upload in place. See [docs/signage.md](docs/signage.md).
 - **Signage colours.** Machine status, camera, timelapse, open-day/event/agenda lists and QR codes have their own optional colours (also transparent); absent colours keep the previous look. The Screen section lists every colour used on a screen and changes it everywhere at once. Calendar widgets can hide their legend and show planned competencies in the month view too. See [docs/signage.md](docs/signage.md).
 
+- **Sign-in with an emailed code.** Accounts can sign in on the web login page and check in or out at a kiosk with a six-digit code mailed to their login email (`/auth/email-code`, `/auth/email-code/login`, `/terminal/email-code`, `/terminal/check-in/email-code`, `/terminal/check-out/email-code`). People switch it on and off under their security settings (`accounts.email_code.manage.self`), administrators per account (`accounts.email_code.manage.all`) and can mail someone a code (`POST /accounts/{id}/email-code/send`). Kiosk code requests are limited per device. See `docs/authentication.md`.
+
+### Changed
+
+- **Visitor enrollment verifies the email address.** Visitors enter their address, receive a code and confirm it (`/visitor-enrollment/email-verification` and `/confirm`) and then sign in with emailed codes only. The PIN/password choice, the login-name suggestions endpoint, `allowedMethods` in the enrollment configuration and state (and in configuration exports; older files are still accepted), the submission's `email`/`authMethods`/`pinLoginName`/`pin` and the result's `invitationDelivery` are gone, and no invitation is mailed.
+
 ### Upgrade notes
 
+- **Migration 00132 (emailed sign-in code).** Existing visitors (Visitor membership, not master) are switched to the emailed code: their passwords, pending invitations, reset codes and password sessions are removed; PINs stay. Grants of `accounts.pin.enroll.self`/`.all` are copied to the new email-code permissions. The Down migration cannot restore removed passwords.
 - **Migrations 00130 (signage web embeds) and 00131 (signage scene blocks).** 00131 converts every stored scene into blocks; see `docs/signage.md`.
 
 ## [0.18.2] - 2026-11-10

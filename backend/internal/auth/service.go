@@ -68,6 +68,7 @@ type NotificationService interface {
 	SendPasswordReset(context.Context, string, string, time.Time) error
 	SendInvitation(context.Context, string, string, time.Time) error
 	SendEmailVerification(context.Context, string, string, time.Time) error
+	SendEmailLoginCode(context.Context, string, string, time.Time) error
 	SendSecurityNotice(context.Context, string, string, string) error
 }
 
@@ -182,7 +183,7 @@ func (s *Service) Login(
 		return LoginResult{}, err
 	}
 	if state.TotpEnrolled || state.PasskeyCount > 0 {
-		pending, err := s.createPendingLogin(ctx, queries, login.AccountID, login.AuthIdentityID, state)
+		pending, err := s.createPendingLogin(ctx, queries, login.AccountID, login.AuthIdentityID, MethodPassword, state)
 		if err != nil {
 			return LoginResult{}, err
 		}
@@ -193,7 +194,8 @@ func (s *Service) Login(
 		return LoginResult{Pending: &pending}, nil
 	}
 	session, err := s.createSession(
-		ctx, queries, login.AccountID, login.AuthIdentityID, authorization.AssuranceNormal, state.Required,
+		ctx, queries, login.AccountID, login.AuthIdentityID, MethodPassword, authorization.AssuranceNormal,
+		state.Required,
 	)
 	if err != nil {
 		return LoginResult{}, err
@@ -425,7 +427,7 @@ func (s *Service) ChangePassword(
 		return Session{}, err
 	}
 	session, err := s.createSession(
-		ctx, queries, principal.AccountID, credential.AuthIdentityID, rotatedAssurance,
+		ctx, queries, principal.AccountID, credential.AuthIdentityID, MethodPassword, rotatedAssurance,
 		state.Required && !state.TotpEnrolled && state.PasskeyCount == 0,
 	)
 	if err != nil {
@@ -480,7 +482,17 @@ func (s *Service) RemovePassword(
 	if !security.VerifyPassword(credential.PasswordHash, currentPassword) {
 		return apperror.New(http.StatusUnprocessableEntity, "current_password_invalid", "Current password is invalid")
 	}
-	if err := queries.DeletePasswordIdentity(ctx, credential.AuthIdentityID); err != nil {
+	identity, err := queries.GetPasswordIdentityTargetForAccount(ctx, principal.AccountID)
+	if err != nil {
+		return err
+	}
+	// The login email stays when it also signs in with an emailed code; only the password goes.
+	if identity.EmailCodeEnabled {
+		err = queries.DeletePasswordCredential(ctx, credential.AuthIdentityID)
+	} else {
+		err = queries.DeletePasswordIdentity(ctx, credential.AuthIdentityID)
+	}
+	if err != nil {
 		return err
 	}
 	if err := queries.RevokeSessionsForAccount(
@@ -593,6 +605,7 @@ func (s *Service) createSession(
 	ctx context.Context,
 	queries *authdb.Queries,
 	accountID, identityID uuid.UUID,
+	method LoginMethod,
 	assurance authorization.Assurance,
 	mfaSetupRequired bool,
 ) (Session, error) {
@@ -611,7 +624,7 @@ func (s *Service) createSession(
 	}
 	id := ids.New()
 	if _, err := queries.CreateSession(ctx, authdb.CreateSessionParams{
-		ID: id, AccountID: accountID, AuthIdentityID: identityID,
+		ID: id, AccountID: accountID, AuthIdentityID: identityID, AuthMethod: string(method),
 		Assurance: string(assurance), MfaSetupRequired: mfaSetupRequired,
 		TokenDigest: tokenDigest, CsrfDigest: csrfDigest,
 		IdleExpiresAt: idle, AbsoluteExpiresAt: absolute, ManagedDeviceID: policy.ManagedDeviceID,

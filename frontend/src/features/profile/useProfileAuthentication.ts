@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import {
   changeOwnPassword,
+  disableOwnEmailCode,
+  enableOwnEmailCode,
   enrollOwnPin,
   removeOwnPassword,
   removeOwnPin,
@@ -84,6 +86,10 @@ export function useProfileAuthentication() {
       await queryClient.invalidateQueries({ queryKey: authQueryKey });
     },
   });
+  const emailCodeMutation = useMutation({
+    mutationFn: (enable: boolean) => (enable ? enableOwnEmailCode() : disableOwnEmailCode()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
+  });
   const emailVerificationMutation = useMutation({ mutationFn: () => requestOwnEmailVerification() });
   const linkOIDCMutation = useSecretMutation(
     ({ slug, currentPassword }: { slug: string; currentPassword: string }) =>
@@ -109,6 +115,7 @@ export function useProfileAuthentication() {
   });
   const mayEnrollPIN = hasPermission(currentUser, PermissionId.accountspinenrollself);
   const mayRemovePIN = hasPermission(currentUser, PermissionId.accountspinremoveself);
+  const mayManageEmailCode = hasPermission(currentUser, PermissionId.accountsemail_codemanageself);
   const mayRemovePassword = hasPermission(currentUser, PermissionId.accountspasswordremoveself);
   const mayLinkOIDC = hasPermission(currentUser, PermissionId.identitiesoidclinkself);
   const mayUnlinkOIDC = hasPermission(currentUser, PermissionId.identitiesoidcunlinkself);
@@ -183,12 +190,14 @@ export function useProfileAuthentication() {
     closePINModal,
     closePasswordModal,
     closeRemovePasswordModal,
+    emailCodeMutation,
     emailVerificationMutation,
     freshEnoughForMethods,
     hasUsableAuthenticationMethod,
     linkOIDCMutation,
     mayEnrollPIN,
     mayLinkOIDC,
+    mayManageEmailCode,
     mayRemovePIN,
     mayRemovePassword,
     mayUnlinkOIDC,

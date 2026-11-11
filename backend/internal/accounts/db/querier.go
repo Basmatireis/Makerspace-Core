@@ -20,10 +20,13 @@ type Querier interface {
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
 	DeleteAccount(ctx context.Context, arg DeleteAccountParams) (uuid.UUID, error)
 	DeleteAuthIdentityForAccount(ctx context.Context, arg DeleteAuthIdentityForAccountParams) (int64, error)
+	DeleteEmailLoginChallengesForAccount(ctx context.Context, accountID uuid.UUID) error
 	DeletePINEnrollmentChallengesForAccount(ctx context.Context, accountID uuid.UUID) error
 	// Sessions signed in with one of these passkeys are deleted with it.
 	DeletePasskeysForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	DeletePasswordChallengesForAccount(ctx context.Context, accountID uuid.UUID) error
+	// Removes only the password of a login email identity that also signs in with an emailed code.
+	DeletePasswordCredentialForIdentity(ctx context.Context, authIdentityID uuid.UUID) error
 	DeletePasswordResetForAccount(ctx context.Context, accountID uuid.UUID) error
 	DeletePendingLoginsForAccount(ctx context.Context, accountID uuid.UUID) error
 	DeleteRecoveryCodesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
@@ -48,6 +51,7 @@ type Querier interface {
 	RestorePasswordIdentity(ctx context.Context, id uuid.UUID) error
 	RevokeSessionsForAccount(ctx context.Context, arg RevokeSessionsForAccountParams) error
 	SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChallengeDeliveryParams) error
+	SetEmailCodeEnabled(ctx context.Context, arg SetEmailCodeEnabledParams) (int64, error)
 	// Mirrors the login email into the person row (people.email is the single readable email of an account holder).
 	SetPersonEmail(ctx context.Context, arg SetPersonEmailParams) error
 	SyncPersonEmailFromLoginEmail(ctx context.Context, accountID uuid.UUID) error

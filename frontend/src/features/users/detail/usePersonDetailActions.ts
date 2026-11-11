@@ -12,6 +12,9 @@ import {
   issueAccountPasswordReset,
   removeAccountAuthIdentity,
   setAccountPin,
+  enableAccountEmailCode,
+  disableAccountEmailCode,
+  sendAccountEmailCode,
   setAccountPassword,
   updateAccountLoginEmail,
 } from '../../../api/generated/accounts/accounts';
@@ -146,6 +149,15 @@ export function usePersonDetailActions({
       await refresh();
     },
   });
+  const emailCodeMutation = useMutation({
+    mutationFn: (enable: boolean) =>
+      enable
+        ? enableAccountEmailCode(account!.id, { expectedVersion: account!.version })
+        : disableAccountEmailCode(account!.id, { expectedVersion: account!.version }),
+    onSuccess: () => refresh(),
+  });
+  // Not part of mutationError: its outcome (sent, failed, rate limited) is shown beside the Email code row.
+  const sendEmailCodeMutation = useMutation({ mutationFn: () => sendAccountEmailCode(account!.id) });
   const pinMutation = useSecretMutation(
     ({ loginName, pin }: AccountPINForm) =>
       setAccountPin(account!.id, { loginName: loginName.trim(), pin, expectedVersion: account!.version }),
@@ -400,6 +412,7 @@ export function usePersonDetailActions({
     personMutation.isError ||
     createAccountMutation.isError ||
     emailMutation.isError ||
+    emailCodeMutation.isError ||
     passwordMutation.isError ||
     pinMutation.isError ||
     enableMutation.isError ||
@@ -444,6 +457,8 @@ export function usePersonDetailActions({
     personMutation,
     createAccountMutation,
     emailMutation,
+    emailCodeMutation,
+    sendEmailCodeMutation,
     pinMutation,
     passwordMutation,
     enableMutation,

@@ -187,6 +187,7 @@ export function currentUser(permissions: string[], membership: Membership = 'sup
     id: ids.account,
     personId: ids.person,
     loginEmail: 'ada.login@example.test',
+    emailCodeEnabled: false,
     provisioningSource: 'local',
     firstAuthenticatedAt: timestamp,
     authIdentities: [identity],

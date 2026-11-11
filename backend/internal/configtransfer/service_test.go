@@ -248,8 +248,7 @@ func (e *env) seed() {
 		Exceptions: []staffing.ExceptionInput{{RoleID: board.ID, Minimum: 1}},
 	}, nil))
 	must(e.s.Visitor.UpdateConfiguration(ctx, p, visitor.ConfigurationInput{
-		Enabled: true, DeviceTypeIDs: []uuid.UUID{kiosk.ID},
-		AllowedMethods: []visitor.AuthMethod{visitor.MethodPIN}, ExpectedVersion: 1,
+		Enabled: true, DeviceTypeIDs: []uuid.UUID{kiosk.ID}, ExpectedVersion: 1,
 	}, nil))
 	current := must(e.s.Branding.Get(ctx, p))
 	updated := must(e.s.Branding.Update(ctx, p, branding.ConfigurationInput{

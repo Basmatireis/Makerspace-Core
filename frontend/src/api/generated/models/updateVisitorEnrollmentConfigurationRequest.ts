@@ -20,11 +20,9 @@
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
-import type { VisitorAuthenticationMethod } from './visitorAuthenticationMethod';
 
 export interface UpdateVisitorEnrollmentConfigurationRequest {
   enabled: boolean;
   deviceTypeIds: UUIDv7[];
-  allowedMethods: VisitorAuthenticationMethod[];
   expectedVersion: Version;
 }

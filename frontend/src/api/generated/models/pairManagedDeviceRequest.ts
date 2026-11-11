@@ -18,9 +18,9 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { AuthenticationAssurance } from './authenticationAssurance';
 import type { DeviceApplicationMode } from './deviceApplicationMode';
 import type { DeviceCapability } from './deviceCapability';
+import type { KioskAuthenticationMethod } from './kioskAuthenticationMethod';
 import type { UUIDv7 } from './uUIDv7';
 
 /**
@@ -48,8 +48,17 @@ export interface PairManagedDeviceRequest {
      * @maxItems 2
      */
   allowedApplicationModes: DeviceApplicationMode[];
-  checkInAssurance: AuthenticationAssurance;
-  checkOutAssurance: AuthenticationAssurance;
+  /**
+     * How people may identify to check in at this kiosk.
+     * @minItems 1
+     * @maxItems 3
+     */
+  checkInMethods: KioskAuthenticationMethod[];
+  /**
+     * How people may identify to check out at this kiosk. Empty only while `allowTapCheckout` is on.
+     * @maxItems 3
+     */
+  checkOutMethods: KioskAuthenticationMethod[];
   allowTapCheckout: boolean;
   offerSurveysAtCheckout: boolean;
   /**

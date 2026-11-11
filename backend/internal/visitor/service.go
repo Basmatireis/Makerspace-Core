@@ -19,7 +19,6 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/attendance"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
@@ -29,6 +28,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	visitordb "github.com/Basmatireis/Makerspace-Core/backend/internal/visitor/db"
 	"github.com/google/uuid"
@@ -47,22 +47,21 @@ var errLabRulesChanged = apperror.New(
 	"The Lab Rules changed while enrolling; read and accept the current version",
 )
 
-type InvitationNotifier interface {
-	SendInvitation(context.Context, string, string, time.Time) error
+// EnrollmentNotifier mails the code that verifies a visitor's address.
+type EnrollmentNotifier interface {
+	SendEnrollmentEmailCode(context.Context, string, string, time.Time) error
 }
 
 type Configuration struct {
-	Enabled        bool
-	DeviceTypeIDs  []uuid.UUID
-	AllowedMethods []AuthMethod
-	Version        int64
-	UpdatedAt      time.Time
+	Enabled       bool
+	DeviceTypeIDs []uuid.UUID
+	Version       int64
+	UpdatedAt     time.Time
 }
 
 type ConfigurationInput struct {
 	Enabled         bool
 	DeviceTypeIDs   []uuid.UUID
-	AllowedMethods  []AuthMethod
 	ExpectedVersion int64
 }
 
@@ -71,6 +70,9 @@ type Context struct {
 	ManagedDeviceID uuid.UUID
 	CSRFTokenDigest []byte
 	ExpiresAt       time.Time
+	// Email and EmailVerified are the context's address under verification, as read when the request began.
+	Email         string
+	EmailVerified bool
 }
 
 type ContextIssue struct {
@@ -87,7 +89,10 @@ type LabRulesVersion struct {
 }
 
 type EnrollmentState struct {
-	AllowedMethods []AuthMethod
+	// Email is the address the last verification code went to on this context; empty before one was sent.
+	Email string
+	// EmailVerified is whether that address was confirmed with its code.
+	EmailVerified bool
 	// Capabilities are the effective capabilities of the enrolling device.
 	Capabilities    []string
 	CurrentLabRules *LabRulesVersion
@@ -97,14 +102,10 @@ type EnrollmentState struct {
 	ExpiresAt        time.Time
 }
 
+// SubmissionInput is what the visitor enters besides the email address, which is the one verified on the context.
 type SubmissionInput struct {
 	FirstName string
 	LastName  string
-	// Email is required: the visitor's contact address and the account's login email.
-	Email        string
-	AuthMethods  []AuthMethod
-	PINLoginName *string
-	PIN          *string
 	// ProfileImage is required when the device can take or upload a photo and ignored otherwise.
 	ProfileImage         []byte
 	ProfileImageFilename string
@@ -115,11 +116,10 @@ type SubmissionInput struct {
 }
 
 type SubmissionResult struct {
-	PersonID           uuid.UUID
-	AccountID          uuid.UUID
-	AccountStatus      authorization.AccountStatus
-	InvitationDelivery *auth.DeliveryStatus
-	Admission          Admission
+	PersonID      uuid.UUID
+	AccountID     uuid.UUID
+	AccountStatus authorization.AccountStatus
+	Admission     Admission
 	// Attendance reports the check-in that completing enrollment implies.
 	Attendance Attendance
 }
@@ -152,9 +152,11 @@ type Service struct {
 	config     config.Config
 	files      *files.Service
 	labRules   *laborordnung.Service
-	notifier   InvitationNotifier
+	notifier   EnrollmentNotifier
 	attendance EnrollmentAttendance
 	consents   EnrollmentConsents
+	// emailSends bounds the verification mails one address receives across enrollment contexts.
+	emailSends *ratelimit.Limiter
 }
 
 // SetAttendance wires the attendance module, which itself depends on services built after this one.
@@ -168,9 +170,12 @@ func NewService(
 	cfg config.Config,
 	fileService *files.Service,
 	labRules *laborordnung.Service,
-	notifier InvitationNotifier,
+	notifier EnrollmentNotifier,
 ) *Service {
-	return &Service{pool: pool, config: cfg, files: fileService, labRules: labRules, notifier: notifier}
+	return &Service{
+		pool: pool, config: cfg, files: fileService, labRules: labRules, notifier: notifier,
+		emailSends: ratelimit.New(EmailCodesPerContext, emailCodeRateWindow),
+	}
 }
 
 func (s *Service) GetConfiguration(ctx context.Context, principal authorization.Principal) (Configuration, error) {
@@ -208,12 +213,8 @@ func (s *Service) UpdateConfigurationTx(
 	if !principal.Has(authorization.VisitorEnrollmentManage) {
 		return Configuration{}, apperror.PermissionDenied
 	}
-	methods, err := normalizeMethods(input.AllowedMethods)
-	if err != nil || input.ExpectedVersion < 1 ||
-		(input.Enabled && (len(input.DeviceTypeIDs) == 0 || len(methods) == 0)) {
-		return Configuration{}, apperror.InvalidField(
-			"enabled enrollment requires at least one Device Type and at least one authentication method",
-		)
+	if input.ExpectedVersion < 1 || (input.Enabled && len(input.DeviceTypeIDs) == 0) {
+		return Configuration{}, apperror.InvalidField("enabled enrollment requires at least one Device Type")
 	}
 	deviceTypes, err := uniqueUUIDs(input.DeviceTypeIDs)
 	if err != nil {
@@ -240,7 +241,6 @@ func (s *Service) UpdateConfigurationTx(
 		ctx,
 		visitordb.UpdateConfigurationParams{
 			Enabled:            input.Enabled,
-			AllowedMethods:     optional.ConvertSlice[string](methods),
 			UpdatedByAccountID: &actor,
 			ExpectedVersion:    input.ExpectedVersion,
 		},
@@ -267,17 +267,16 @@ func (s *Service) UpdateConfigurationTx(
 			Action:         "visitor_enrollment.configuration_updated",
 			ResourceType:   "visitor_enrollment_configuration",
 			RequestID:      requestID,
-			ChangedFields:  []string{"enabled", "deviceTypeIds", "allowedMethods"},
+			ChangedFields:  []string{"enabled", "deviceTypeIds"},
 		},
 	); err != nil {
 		return Configuration{}, err
 	}
 	return Configuration{
-		Enabled:        row.Enabled,
-		DeviceTypeIDs:  deviceTypes,
-		AllowedMethods: optional.ConvertSlice[AuthMethod](row.AllowedMethods),
-		Version:        row.Version,
-		UpdatedAt:      row.UpdatedAt,
+		Enabled:       row.Enabled,
+		DeviceTypeIDs: deviceTypes,
+		Version:       row.Version,
+		UpdatedAt:     row.UpdatedAt,
 	}, nil
 }
 
@@ -350,6 +349,8 @@ func (s *Service) AuthenticateContext(ctx context.Context, raw string) (Context,
 		ManagedDeviceID: row.ManagedDeviceID,
 		CSRFTokenDigest: row.CsrfDigest,
 		ExpiresAt:       row.ExpiresAt,
+		Email:           optional.Value(row.EmailDisplay),
+		EmailVerified:   row.EmailVerifiedAt.Valid,
 	}, nil
 }
 
@@ -362,10 +363,6 @@ func ValidateCSRF(context Context, cookie, header string) error {
 }
 
 func (s *Service) State(ctx context.Context, enrollment Context) (EnrollmentState, error) {
-	configuration, err := s.loadConfiguration(ctx, visitordb.New(s.pool))
-	if err != nil {
-		return EnrollmentState{}, err
-	}
 	queries := visitordb.New(s.pool)
 	role, err := queries.GetVisitorRole(ctx)
 	if err != nil {
@@ -380,7 +377,8 @@ func (s *Service) State(ctx context.Context, enrollment Context) (EnrollmentStat
 		return EnrollmentState{}, err
 	}
 	return EnrollmentState{
-		AllowedMethods:   configuration.AllowedMethods,
+		Email:            enrollment.Email,
+		EmailVerified:    enrollment.EmailVerified,
 		Capabilities:     capabilities,
 		CurrentLabRules:  version,
 		LabRulesRequired: laborordnung.Mode(role.LaborordnungMode) != laborordnung.ModeNotRequired,
@@ -409,10 +407,7 @@ func (s *Service) Submit(
 	if err != nil {
 		return SubmissionResult{}, err
 	}
-	clean, pinDisplay, pinNormalized, pinHash, imageBytes, err := s.validateSubmission(
-		input,
-		PhotoRequired(capabilities),
-	)
+	clean, imageBytes, err := validateSubmission(input, PhotoRequired(capabilities))
 	if err != nil {
 		return SubmissionResult{}, err
 	}
@@ -438,34 +433,26 @@ func (s *Service) Submit(
 			_ = s.files.DeleteSystem(context.Background(), *storedImageID, requestID)
 		}
 	}()
-	var invitationCode string
-	var invitationExpiresAt time.Time
-	if slices.Contains(clean.AuthMethods, MethodPassword) {
-		invitationCode, err = security.NewChallengeCode()
-		if err != nil {
-			return SubmissionResult{}, err
-		}
-		invitationExpiresAt = time.Now().UTC().Add(s.config.PasswordResetTTL)
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return SubmissionResult{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := visitordb.New(tx)
-	if _, err := queries.GetEnrollmentContextForUpdate(ctx, enrollment.ID); errors.Is(err, pgx.ErrNoRows) {
+	locked, err := queries.GetEnrollmentContextForUpdate(ctx, enrollment.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return SubmissionResult{}, apperror.Unauthenticated
 	} else if err != nil {
 		return SubmissionResult{}, err
 	}
+	// The login email is the address verified on this context, read under the context lock.
+	if !locked.EmailVerifiedAt.Valid || locked.EmailDisplay == nil || locked.EmailNormalized == nil {
+		return SubmissionResult{}, errEmailVerificationRequired
+	}
+	emailDisplay, emailNormalized := *locked.EmailDisplay, *locked.EmailNormalized
 	configuration, err := s.loadConfiguration(ctx, queries)
 	if err != nil {
 		return SubmissionResult{}, err
-	}
-	for _, method := range clean.AuthMethods {
-		if !slices.Contains(configuration.AllowedMethods, method) {
-			return SubmissionResult{}, apperror.PermissionDenied
-		}
 	}
 	if !configuration.Enabled {
 		return SubmissionResult{}, apperror.New(
@@ -485,7 +472,7 @@ func (s *Service) Submit(
 			ID:                 personID,
 			FirstName:          clean.FirstName,
 			LastName:           clean.LastName,
-			Email:              &clean.Email,
+			Email:              &emailDisplay,
 			ProfileImageFileID: storedImageID,
 			MemberSince:        dates.TodayUTC(),
 		},
@@ -499,70 +486,15 @@ func (s *Service) Submit(
 	); err != nil {
 		return SubmissionResult{}, databaseError(err)
 	}
-	var challengeID *uuid.UUID
-	if !slices.Contains(clean.AuthMethods, MethodPassword) {
-		// The visitor's email is the account's login email even when they enrol with a PIN only (a password
-		// can be set later). Another account already using the address leaves this account without one.
-		if display, normalized, normalizeErr := security.NormalizeEmail(clean.Email); normalizeErr == nil {
-			if _, err := accounts.TrySetProvisionedLoginEmail(ctx, tx, accountID, display, normalized, false); err != nil {
-				return SubmissionResult{}, err
-			}
-		}
+	// The verified address becomes the login email, which signs in with an emailed code only: no password, no PIN
+	// and no invitation. Another account that took the address meanwhile makes this a conflict.
+	if err := accounts.SetProvisionedLoginEmail(ctx, tx, accountID, emailDisplay, emailNormalized, true); err != nil {
+		return SubmissionResult{}, databaseError(err)
 	}
-	if slices.Contains(clean.AuthMethods, MethodPassword) {
-		display, normalized, _ := security.NormalizeEmail(clean.Email)
-		identity, err := queries.CreateVisitorPasswordIdentity(
-			ctx,
-			visitordb.CreateVisitorPasswordIdentityParams{
-				ID:                   ids.New(),
-				AccountID:            accountID,
-				IdentifierDisplay:    &display,
-				IdentifierNormalized: &normalized,
-			},
-		)
-		if err != nil {
-			return SubmissionResult{}, databaseError(err)
-		}
-		id := ids.New()
-		if _, err := queries.CreateVisitorInvitation(
-			ctx,
-			visitordb.CreateVisitorInvitationParams{
-				ID:             id,
-				AccountID:      accountID,
-				AuthIdentityID: &identity.ID,
-				CodeDigest: security.ChallengeDigest(
-					s.config.ChallengeHMACKey,
-					"invitation",
-					accountID,
-					invitationCode,
-				),
-				DeliveryAddress: &display,
-				ExpiresAt:       invitationExpiresAt,
-			},
-		); err != nil {
-			return SubmissionResult{}, err
-		}
-		challengeID = &id
-	}
-	if slices.Contains(clean.AuthMethods, MethodPIN) {
-		identity, err := queries.CreateVisitorPINIdentity(
-			ctx,
-			visitordb.CreateVisitorPINIdentityParams{
-				ID:                   ids.New(),
-				AccountID:            accountID,
-				IdentifierDisplay:    &pinDisplay,
-				IdentifierNormalized: &pinNormalized,
-			},
-		)
-		if err != nil {
-			return SubmissionResult{}, databaseError(err)
-		}
-		if err := queries.CreateVisitorPINCredential(
-			ctx,
-			visitordb.CreateVisitorPINCredentialParams{AuthIdentityID: identity.ID, PinHash: pinHash},
-		); err != nil {
-			return SubmissionResult{}, err
-		}
+	if enabled, err := queries.EnableVisitorEmailCode(ctx, accountID); err != nil {
+		return SubmissionResult{}, err
+	} else if enabled != 1 {
+		return SubmissionResult{}, errors.New("visitor login email was not created")
 	}
 	result := SubmissionResult{
 		PersonID:      personID,
@@ -633,7 +565,7 @@ func (s *Service) Submit(
 			ResourceType:  "account",
 			ResourceID:    &accountID,
 			RequestID:     requestID,
-			ChangedFields: []string{"authMethods"},
+			ChangedFields: []string{"loginEmail", "emailCodeMethod"},
 		},
 	} {
 		if err := audit.Write(ctx, tx, event); err != nil {
@@ -644,27 +576,6 @@ func (s *Service) Submit(
 		return SubmissionResult{}, err
 	}
 	linked = true
-	if challengeID != nil {
-		delivery := auth.DeliveryFailed
-		var deliveryFailure *string
-		if s.notifier != nil &&
-			s.notifier.SendInvitation(ctx, clean.Email, invitationCode, invitationExpiresAt) == nil {
-			delivery = auth.DeliverySent
-		} else {
-			value := "provider_error"
-			deliveryFailure = &value
-		}
-		_ = visitordb.New(s.pool).
-			SetChallengeDelivery(
-				ctx,
-				visitordb.SetChallengeDeliveryParams{
-					ID:                  *challengeID,
-					DeliveryStatus:      string(delivery),
-					DeliveryFailureCode: deliveryFailure,
-				},
-			)
-		result.InvitationDelivery = &delivery
-	}
 	return result, nil
 }
 
@@ -700,43 +611,17 @@ func PhotoRequired(capabilities []string) bool {
 		slices.Contains(capabilities, manageddevices.CapabilityFileUpload)
 }
 
-func (s *Service) validateSubmission(input SubmissionInput, photoRequired bool) (SubmissionInput, string, string, string, []byte, error) {
+func validateSubmission(input SubmissionInput, photoRequired bool) (SubmissionInput, []byte, error) {
 	input.FirstName, input.LastName = strings.TrimSpace(input.FirstName), strings.TrimSpace(input.LastName)
 	if input.FirstName == "" || input.LastName == "" || len([]rune(input.FirstName)) > 100 ||
 		len([]rune(input.LastName)) > 100 {
-		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("firstName and lastName are required")
-	}
-	display, _, err := security.NormalizeEmail(strings.TrimSpace(input.Email))
-	if err != nil {
-		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("email is required and must be valid")
-	}
-	input.Email = display
-	methods, err := normalizeMethods(input.AuthMethods)
-	if err != nil || len(methods) == 0 {
-		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField(
-			"at least one supported authentication method is required",
-		)
-	}
-	input.AuthMethods = methods
-	var pinDisplay, pinNormalized, pinHash string
-	if slices.Contains(methods, MethodPIN) {
-		if input.PINLoginName == nil || input.PIN == nil {
-			return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("PIN username and PIN are required")
-		}
-		pinDisplay, pinNormalized, err = auth.NormalizePINLoginName(*input.PINLoginName)
-		if err != nil {
-			return SubmissionInput{}, "", "", "", nil, apperror.InvalidField(err.Error())
-		}
-		pinHash, err = security.HashPIN(s.config.PINPepper, *input.PIN)
-		if err != nil {
-			return SubmissionInput{}, "", "", "", nil, apperror.InvalidField(err.Error())
-		}
+		return SubmissionInput{}, nil, apperror.InvalidField("firstName and lastName are required")
 	}
 	imageBytes := input.ProfileImage
 	if len(imageBytes) == 0 && photoRequired {
-		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("profile image is invalid")
+		return SubmissionInput{}, nil, apperror.InvalidField("profile image is invalid")
 	}
-	return input, pinDisplay, pinNormalized, pinHash, imageBytes, nil
+	return input, imageBytes, nil
 }
 
 func (s *Service) loadConfiguration(ctx context.Context, queries *visitordb.Queries) (Configuration, error) {
@@ -749,11 +634,10 @@ func (s *Service) loadConfiguration(ctx context.Context, queries *visitordb.Quer
 		return Configuration{}, err
 	}
 	return Configuration{
-		Enabled:        row.Enabled,
-		DeviceTypeIDs:  deviceTypes,
-		AllowedMethods: optional.ConvertSlice[AuthMethod](row.AllowedMethods),
-		Version:        row.Version,
-		UpdatedAt:      row.UpdatedAt,
+		Enabled:       row.Enabled,
+		DeviceTypeIDs: deviceTypes,
+		Version:       row.Version,
+		UpdatedAt:     row.UpdatedAt,
 	}, nil
 }
 
@@ -816,23 +700,6 @@ func authorizeVisitorRole(
 	return nil
 }
 
-func normalizeMethods(values []AuthMethod) ([]AuthMethod, error) {
-	seen := map[AuthMethod]struct{}{}
-	for _, value := range values {
-		value = AuthMethod(strings.ToLower(strings.TrimSpace(string(value))))
-		if value != MethodPassword && value != MethodPIN {
-			return nil, errors.New("unsupported authentication method")
-		}
-		seen[value] = struct{}{}
-	}
-	result := make([]AuthMethod, 0, len(seen))
-	for value := range seen {
-		result = append(result, value)
-	}
-	slices.Sort(result)
-	return result, nil
-}
-
 func uniqueUUIDs(values []uuid.UUID) ([]uuid.UUID, error) {
 	seen := map[uuid.UUID]struct{}{}
 	result := make([]uuid.UUID, 0, len(values))
@@ -853,11 +720,7 @@ func uniqueUUIDs(values []uuid.UUID) ([]uuid.UUID, error) {
 func databaseError(err error) error {
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
-		return apperror.New(
-			http.StatusConflict,
-			"authentication_identifier_exists",
-			"This login identifier already belongs to an Account; use returning-user login",
-		)
+		return errIdentifierExists()
 	}
 	return err
 }

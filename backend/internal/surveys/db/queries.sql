@@ -442,14 +442,16 @@ DELETE FROM survey_offers WHERE expires_at < now();
 DELETE FROM survey_offers WHERE expires_at < sqlc.arg(cutoff);
 
 -- name: CreateSurveyOffer :exec
-INSERT INTO survey_offers (id, token_digest, visit_id, person_id, device_id, survey_id, survey_version_id, expires_at)
+INSERT INTO survey_offers (id, token_digest, visit_id, person_id, device_id, survey_id, survey_version_id, expires_at,
+  after_tap)
 VALUES (sqlc.arg(id), sqlc.arg(token_digest), sqlc.arg(visit_id), sqlc.arg(person_id), sqlc.arg(device_id), sqlc.arg(survey_id),
-  sqlc.arg(survey_version_id), sqlc.arg(expires_at));
+  sqlc.arg(survey_version_id), sqlc.arg(expires_at), sqlc.arg(after_tap));
 
 -- name: GetSurveyOffer :one
--- An offer that is still usable on this tablet; every other case reads as not found.
-SELECT o.id, o.visit_id, o.survey_id, o.survey_version_id, o.expires_at, s.anonymous, s.status AS survey_status,
-  sv.title, sv.introduction
+-- An offer that is still usable on this tablet; every other case reads as not found. An offer after a tap check-out
+-- is answered anonymously whatever the survey says.
+SELECT o.id, o.visit_id, o.survey_id, o.survey_version_id, o.expires_at,
+  (s.anonymous OR o.after_tap)::boolean AS anonymous, s.status AS survey_status, sv.title, sv.introduction
 FROM survey_offers o
 JOIN surveys s ON s.id = o.survey_id
 JOIN survey_versions sv ON sv.id = o.survey_version_id
@@ -457,7 +459,8 @@ WHERE o.token_digest = sqlc.arg(token_digest) AND o.device_id = sqlc.arg(device_
   AND o.consumed_at IS NULL AND o.expires_at > now();
 
 -- name: GetSurveyOfferForUpdate :one
-SELECT o.id, o.visit_id, o.person_id, o.survey_id, o.survey_version_id, o.expires_at, s.anonymous, s.status AS survey_status
+SELECT o.id, o.visit_id, o.person_id, o.survey_id, o.survey_version_id, o.expires_at, o.after_tap,
+  (s.anonymous OR o.after_tap)::boolean AS anonymous, s.status AS survey_status
 FROM survey_offers o
 JOIN surveys s ON s.id = o.survey_id
 WHERE o.token_digest = sqlc.arg(token_digest) AND o.device_id = sqlc.arg(device_id)
@@ -484,6 +487,15 @@ UPDATE survey_invitations SET due_at = sqlc.arg(not_before)::timestamptz,
   expires_at = sqlc.arg(not_before)::timestamptz + interval '14 days'
 WHERE visit_id = sqlc.arg(visit_id) AND survey_version_id = sqlc.arg(survey_version_id)
   AND status = 'pending' AND due_at < sqlc.arg(not_before)::timestamptz;
+
+-- name: HasPendingSurveyInvitationForVisit :one
+-- Whether the automatic e-mail of this check-out will bring the survey anyway: it exists only when the person agreed
+-- to Surveys & feedback and has an address.
+SELECT EXISTS (
+  SELECT 1 FROM survey_invitations
+  WHERE visit_id = sqlc.arg(visit_id) AND survey_version_id = sqlc.arg(survey_version_id)
+    AND status = 'pending' AND recipient_email IS NOT NULL
+)::boolean AS pending;
 
 -- name: SendSurveyInvitationNow :execrows
 UPDATE survey_invitations SET due_at = now(), expires_at = now() + interval '14 days',

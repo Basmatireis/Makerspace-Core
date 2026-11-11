@@ -15,6 +15,7 @@ function currentUser(permissions: string[]) {
     id: accountId,
     personId,
     loginEmail: 'ada.login@example.test',
+    emailCodeEnabled: false,
     provisioningSource: 'local',
     firstAuthenticatedAt: timestamp,
     authIdentities: [
