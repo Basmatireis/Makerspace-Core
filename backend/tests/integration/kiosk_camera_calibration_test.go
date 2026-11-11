@@ -108,7 +108,7 @@ func TestKioskCameraCalibrationWindow(t *testing.T) {
 	}
 	started, err := service.StartCameraCalibration(ctx, manager, kiosk.id, nil)
 	if err != nil || started.CalibrationExpiresAt == nil ||
-		started.CalibrationExpiresAt.Sub(time.Now()) > manageddevices.CameraCalibrationWindow+time.Minute {
+		time.Until(*started.CalibrationExpiresAt) > manageddevices.CameraCalibrationWindow+time.Minute {
 		t.Fatalf("start = %+v, %v", started, err)
 	}
 	if context, err := service.KioskCamera(ctx, kiosk.id); err != nil || context.CalibrationExpiresAt == nil {
