@@ -335,7 +335,8 @@ describe('fonts', () => {
       />,
     );
     expect(fontRules()).toContain(`font-family: "Preview Display"; src: url("/api/v1/signage/assets/${id}/content?v=`);
-    expect(blockEl(container).style.fontFamily).toMatch(/^"Preview Display", /);
+    // jsdom 31 serializes the family without the quotes the renderer writes; both name the same font.
+    expect(blockEl(container).style.fontFamily).toMatch(/^"?Preview Display"?, /);
   });
 
   it('gives the scene root the scene font and lets blocks inherit it', () => {
@@ -348,7 +349,7 @@ describe('fonts', () => {
       <SceneRenderer scene={scene({ main: text() }, { fontFamily: 'custom', fontAssetId: id })} data={withFont} />,
     );
     expect(fontRules()).toContain('font-family: "Scene Display"');
-    expect(container.querySelector<HTMLElement>('.sg-scene')!.style.fontFamily).toMatch(/^"Scene Display", /);
+    expect(container.querySelector<HTMLElement>('.sg-scene')!.style.fontFamily).toMatch(/^"?Scene Display"?, /);
     expect(blockEl(container).style.fontFamily).toBe('');
   });
 
