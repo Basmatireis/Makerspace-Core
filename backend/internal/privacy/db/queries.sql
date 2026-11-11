@@ -125,6 +125,9 @@ RETURNING *;
 INSERT INTO privacy_retention_run_items (run_id, category_id, policy_id, action, cutoff, affected_count, status, error_code)
 VALUES (sqlc.arg(run_id), sqlc.arg(category_id), sqlc.narg(policy_id), sqlc.arg(action), sqlc.arg(cutoff), sqlc.arg(affected_count), sqlc.arg(status), sqlc.narg(error_code));
 
+-- name: DeleteRun :exec
+DELETE FROM privacy_retention_runs WHERE id = sqlc.arg(id);
+
 -- name: ListRuns :many
 SELECT * FROM privacy_retention_runs ORDER BY started_at DESC LIMIT sqlc.arg(row_limit);
 

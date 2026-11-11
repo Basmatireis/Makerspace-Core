@@ -272,6 +272,36 @@ func TestRetentionPoliciesLifecycleAndScheduledRuns(t *testing.T) {
 	}
 }
 
+// A scheduled run that changes nothing is neither kept in the run history nor audited.
+func TestScheduledRetentionRunWithoutChangesIsNotRecorded(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	engine := retentionEngine(t, pool, 365*24*time.Hour, 180*24*time.Hour)
+	// The first run may still clean up what the migrations or other tests left behind.
+	if _, err := engine.RunScheduled(ctx); err != nil {
+		t.Fatal(err)
+	}
+	runs := countRows(t, pool, `SELECT count(*) FROM privacy_retention_runs`)
+	audits := countRows(t, pool, `SELECT count(*) FROM audit_events WHERE resource_type = 'privacy_retention_run'`)
+	run, err := engine.RunScheduled(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.ID != uuid.Nil {
+		t.Fatalf("empty scheduled run returned %+v", run)
+	}
+	if countRows(t, pool, `SELECT count(*) FROM privacy_retention_runs`) != runs ||
+		countRows(t, pool, `SELECT count(*) FROM audit_events WHERE resource_type = 'privacy_retention_run'`) != audits {
+		t.Fatal("an empty scheduled run was recorded or audited")
+	}
+	// A manual run is recorded even when it changes nothing.
+	master := seedAccount(t, pool, "retention-master", true)
+	manual, err := engine.StartRun(ctx, authorization.Principal{AccountID: master.accountID, PersonID: master.personID, Master: true}, privacy.ModeExecute, nil, nil)
+	if err != nil || manual.ID == uuid.Nil {
+		t.Fatalf("manual run = %+v err=%v", manual, err)
+	}
+}
+
 // admin cleanup applies the active policy of a category instead of its legacy period, in both directions,
 // and refuses a one-off audit cutoff while audit events follow a policy.
 func TestCleanupFollowsActivePolicies(t *testing.T) {
