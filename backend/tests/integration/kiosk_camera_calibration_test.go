@@ -79,6 +79,7 @@ func TestKioskCameraCalibrationWindow(t *testing.T) {
 	calibrated := manageddevices.CameraSettings{
 		Crop:      &manageddevices.CameraCrop{CenterX: 0.62, CenterY: 0.45, Size: 0.7},
 		Indicator: &manageddevices.CameraIndicator{Edge: manageddevices.IndicatorEdgeTop, Offset: 61.5},
+		Mirror:    true,
 	}
 
 	// Defaults until anything is set; reading needs managed_devices.read.
@@ -137,13 +138,14 @@ func TestKioskCameraCalibrationWindow(t *testing.T) {
 
 	// Saving inside the window stores the values and closes it: the credential is good for one save.
 	saved, err := service.SaveKioskCameraCalibration(ctx, kiosk.device, calibrated, nil)
-	if err != nil || saved.Crop == nil || *saved.Crop != *calibrated.Crop || *saved.Indicator != *calibrated.Indicator {
+	if err != nil || saved.Crop == nil || *saved.Crop != *calibrated.Crop || *saved.Indicator != *calibrated.Indicator ||
+		!saved.Mirror {
 		t.Fatalf("save = %+v, %v", saved, err)
 	}
 	_, err = service.SaveKioskCameraCalibration(ctx, kiosk.device, manageddevices.CameraSettings{}, nil)
 	wantAppError(t, err, http.StatusConflict, "camera_calibration_closed")
 	if camera, err := service.GetCamera(ctx, reader, kiosk.id); err != nil || camera.CalibrationExpiresAt != nil ||
-		camera.Crop == nil || camera.Crop.CenterX != 0.62 || camera.Indicator.Offset != 61.5 {
+		camera.Crop == nil || camera.Crop.CenterX != 0.62 || camera.Indicator.Offset != 61.5 || !camera.Mirror {
 		t.Fatalf("after save = %+v, %v", camera, err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='managed_device.camera_calibration_started'
@@ -171,7 +173,7 @@ func TestKioskCameraCalibrationWindow(t *testing.T) {
 	}
 	_, err = service.SaveKioskCameraCalibration(ctx, kiosk.device, manageddevices.CameraSettings{}, nil)
 	wantAppError(t, err, http.StatusConflict, "camera_calibration_closed")
-	if camera, _ := service.KioskCamera(ctx, kiosk.id); camera.Crop == nil || camera.CalibrationExpiresAt != nil {
+	if camera, _ := service.KioskCamera(ctx, kiosk.id); camera.Crop == nil || !camera.Mirror || camera.CalibrationExpiresAt != nil {
 		t.Fatalf("cancel changed the calibration: %+v", camera)
 	}
 
@@ -198,11 +200,20 @@ func TestKioskCameraCalibrationWindow(t *testing.T) {
 		t.Fatalf("update without manage: %v", err)
 	}
 	reset, err := service.UpdateCamera(ctx, manager, kiosk.id, manageddevices.CameraSettings{}, nil)
-	if err != nil || reset.Crop != nil || reset.Indicator != nil {
+	if err != nil || reset.Crop != nil || reset.Indicator != nil || reset.Mirror {
 		t.Fatalf("reset = %+v, %v", reset, err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='managed_device.camera_updated'
 		AND resource_id=$1`, 1, kiosk.id)
+
+	// The mirror flag is set from the device settings on its own, leaving crop and pointer untouched.
+	mirrored, err := service.UpdateCamera(ctx, manager, kiosk.id, manageddevices.CameraSettings{Mirror: true}, nil)
+	if err != nil || !mirrored.Mirror || mirrored.Crop != nil {
+		t.Fatalf("mirror only = %+v, %v", mirrored, err)
+	}
+	if camera, err := service.KioskCamera(ctx, kiosk.id); err != nil || !camera.Mirror {
+		t.Fatalf("kiosk does not see the mirror flag: %+v %v", camera, err)
+	}
 
 	// A device that is no longer a kiosk cannot calibrate with its credential.
 	notKiosk := kiosk.device

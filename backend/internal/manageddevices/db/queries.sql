@@ -209,16 +209,18 @@ SELECT * FROM managed_device_camera_settings WHERE managed_device_id = sqlc.arg(
 -- name: UpsertManagedDeviceCameraSettings :one
 INSERT INTO managed_device_camera_settings (
     managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset,
-    calibration_expires_at, updated_at)
+    mirror, calibration_expires_at, updated_at)
 VALUES (
     sqlc.arg(managed_device_id), sqlc.narg(crop_center_x), sqlc.narg(crop_center_y), sqlc.narg(crop_size),
-    sqlc.narg(indicator_edge), sqlc.narg(indicator_offset), sqlc.narg(calibration_expires_at), sqlc.arg(updated_at))
+    sqlc.narg(indicator_edge), sqlc.narg(indicator_offset), sqlc.arg(mirror), sqlc.narg(calibration_expires_at),
+    sqlc.arg(updated_at))
 ON CONFLICT (managed_device_id) DO UPDATE SET
     crop_center_x = EXCLUDED.crop_center_x,
     crop_center_y = EXCLUDED.crop_center_y,
     crop_size = EXCLUDED.crop_size,
     indicator_edge = EXCLUDED.indicator_edge,
     indicator_offset = EXCLUDED.indicator_offset,
+    mirror = EXCLUDED.mirror,
     calibration_expires_at = EXCLUDED.calibration_expires_at,
     updated_at = EXCLUDED.updated_at
 RETURNING *;

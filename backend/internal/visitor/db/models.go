@@ -839,6 +839,7 @@ type ManagedDeviceCameraSetting struct {
 	IndicatorOffset      *float64
 	CalibrationExpiresAt pgtype.Timestamptz
 	UpdatedAt            time.Time
+	Mirror               bool
 }
 
 type ManagedDeviceCapability struct {

@@ -473,7 +473,7 @@ func (q *Queries) GetManagedDevice(ctx context.Context, id uuid.UUID) (GetManage
 }
 
 const getManagedDeviceCameraSettings = `-- name: GetManagedDeviceCameraSettings :one
-SELECT managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset, calibration_expires_at, updated_at FROM managed_device_camera_settings WHERE managed_device_id = $1
+SELECT managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset, calibration_expires_at, updated_at, mirror FROM managed_device_camera_settings WHERE managed_device_id = $1
 `
 
 func (q *Queries) GetManagedDeviceCameraSettings(ctx context.Context, managedDeviceID uuid.UUID) (ManagedDeviceCameraSetting, error) {
@@ -488,12 +488,13 @@ func (q *Queries) GetManagedDeviceCameraSettings(ctx context.Context, managedDev
 		&i.IndicatorOffset,
 		&i.CalibrationExpiresAt,
 		&i.UpdatedAt,
+		&i.Mirror,
 	)
 	return i, err
 }
 
 const getManagedDeviceCameraSettingsForUpdate = `-- name: GetManagedDeviceCameraSettingsForUpdate :one
-SELECT managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset, calibration_expires_at, updated_at FROM managed_device_camera_settings WHERE managed_device_id = $1 FOR UPDATE
+SELECT managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset, calibration_expires_at, updated_at, mirror FROM managed_device_camera_settings WHERE managed_device_id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetManagedDeviceCameraSettingsForUpdate(ctx context.Context, managedDeviceID uuid.UUID) (ManagedDeviceCameraSetting, error) {
@@ -508,6 +509,7 @@ func (q *Queries) GetManagedDeviceCameraSettingsForUpdate(ctx context.Context, m
 		&i.IndicatorOffset,
 		&i.CalibrationExpiresAt,
 		&i.UpdatedAt,
+		&i.Mirror,
 	)
 	return i, err
 }
@@ -1144,19 +1146,21 @@ func (q *Queries) UpdateSessionPolicy(ctx context.Context, arg UpdateSessionPoli
 const upsertManagedDeviceCameraSettings = `-- name: UpsertManagedDeviceCameraSettings :one
 INSERT INTO managed_device_camera_settings (
     managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset,
-    calibration_expires_at, updated_at)
+    mirror, calibration_expires_at, updated_at)
 VALUES (
     $1, $2, $3, $4,
-    $5, $6, $7, $8)
+    $5, $6, $7, $8,
+    $9)
 ON CONFLICT (managed_device_id) DO UPDATE SET
     crop_center_x = EXCLUDED.crop_center_x,
     crop_center_y = EXCLUDED.crop_center_y,
     crop_size = EXCLUDED.crop_size,
     indicator_edge = EXCLUDED.indicator_edge,
     indicator_offset = EXCLUDED.indicator_offset,
+    mirror = EXCLUDED.mirror,
     calibration_expires_at = EXCLUDED.calibration_expires_at,
     updated_at = EXCLUDED.updated_at
-RETURNING managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset, calibration_expires_at, updated_at
+RETURNING managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset, calibration_expires_at, updated_at, mirror
 `
 
 type UpsertManagedDeviceCameraSettingsParams struct {
@@ -1166,6 +1170,7 @@ type UpsertManagedDeviceCameraSettingsParams struct {
 	CropSize             *float64
 	IndicatorEdge        *string
 	IndicatorOffset      *float64
+	Mirror               bool
 	CalibrationExpiresAt pgtype.Timestamptz
 	UpdatedAt            time.Time
 }
@@ -1178,6 +1183,7 @@ func (q *Queries) UpsertManagedDeviceCameraSettings(ctx context.Context, arg Ups
 		arg.CropSize,
 		arg.IndicatorEdge,
 		arg.IndicatorOffset,
+		arg.Mirror,
 		arg.CalibrationExpiresAt,
 		arg.UpdatedAt,
 	)
@@ -1191,6 +1197,7 @@ func (q *Queries) UpsertManagedDeviceCameraSettings(ctx context.Context, arg Ups
 		&i.IndicatorOffset,
 		&i.CalibrationExpiresAt,
 		&i.UpdatedAt,
+		&i.Mirror,
 	)
 	return i, err
 }

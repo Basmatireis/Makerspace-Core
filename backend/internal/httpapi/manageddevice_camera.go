@@ -13,6 +13,7 @@ func cameraSettingsDTO(value manageddevices.CameraSettings) openapi.KioskCameraS
 	result := openapi.KioskCameraSettings{
 		Crop:      nullable.NewNullNullable[openapi.KioskCameraCrop](),
 		Indicator: nullable.NewNullNullable[openapi.KioskCameraIndicator](),
+		Mirror:    value.Mirror,
 	}
 	if crop := value.Crop; crop != nil {
 		result.Crop = nullable.NewNullableWithValue(
@@ -33,6 +34,7 @@ func managedDeviceCameraDTO(value manageddevices.Camera) openapi.ManagedDeviceCa
 	result := openapi.ManagedDeviceCamera{
 		Crop:                 settings.Crop,
 		Indicator:            settings.Indicator,
+		Mirror:               settings.Mirror,
 		CalibrationExpiresAt: nullable.NewNullNullable[time.Time](),
 	}
 	if value.CalibrationExpiresAt != nil {
@@ -46,7 +48,7 @@ func cameraSettingsInput(body *openapi.KioskCameraSettings) (manageddevices.Came
 	if body == nil {
 		return manageddevices.CameraSettings{}, invalidRequest("request body is required")
 	}
-	var result manageddevices.CameraSettings
+	result := manageddevices.CameraSettings{Mirror: body.Mirror}
 	if crop, err := body.Crop.Get(); err == nil {
 		result.Crop = &manageddevices.CameraCrop{CenterX: crop.CenterX, CenterY: crop.CenterY, Size: crop.Size}
 	}

@@ -24,6 +24,7 @@ import type { KioskCameraIndicator } from './kioskCameraIndicator';
 export interface ManagedDeviceCamera {
   crop: KioskCameraCrop | null;
   indicator: KioskCameraIndicator | null;
+  mirror: boolean;
   /**
      * End of the open calibration window, or null when none is open.
      * @nullable

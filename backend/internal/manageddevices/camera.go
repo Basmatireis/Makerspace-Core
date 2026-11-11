@@ -51,9 +51,11 @@ type CameraIndicator struct {
 }
 
 // CameraSettings is a kiosk's calibration. A nil Crop is the centred largest square; a nil Indicator shows no pointer.
+// Mirror flips the preview and the captured photo horizontally; the crop stays in unmirrored frame coordinates.
 type CameraSettings struct {
 	Crop      *CameraCrop
 	Indicator *CameraIndicator
+	Mirror    bool
 }
 
 // Camera is a device's calibration with the end of its open calibration window, if any.
@@ -92,7 +94,7 @@ func validCameraSettings(settings CameraSettings) error {
 }
 
 func cameraFromRow(row manageddevicesdb.ManagedDeviceCameraSetting, now time.Time) Camera {
-	var result Camera
+	result := Camera{CameraSettings: CameraSettings{Mirror: row.Mirror}}
 	if row.CropCenterX != nil && row.CropCenterY != nil && row.CropSize != nil {
 		result.Crop = &CameraCrop{CenterX: *row.CropCenterX, CenterY: *row.CropCenterY, Size: *row.CropSize}
 	}
@@ -115,6 +117,7 @@ func upsertCameraParams(
 ) manageddevicesdb.UpsertManagedDeviceCameraSettingsParams {
 	params := manageddevicesdb.UpsertManagedDeviceCameraSettingsParams{
 		ManagedDeviceID:      deviceID,
+		Mirror:               settings.Mirror,
 		CalibrationExpiresAt: timestamp(expiresAt),
 		UpdatedAt:            now,
 	}
@@ -255,7 +258,7 @@ func (s *Service) UpdateCamera(
 			ResourceType:   "managed_device",
 			ResourceID:     &deviceID,
 			RequestID:      requestID,
-			ChangedFields:  []string{"crop", "indicator"},
+			ChangedFields:  []string{"crop", "indicator", "mirror"},
 		})
 	})
 }
@@ -367,7 +370,7 @@ func (s *Service) kioskCalibrationTx(
 		}
 		next, action, changed := current.CameraSettings, "managed_device.camera_calibration_cancelled", []string(nil)
 		if settings != nil {
-			next, action, changed = *settings, "managed_device.camera_calibrated", []string{"crop", "indicator"}
+			next, action, changed = *settings, "managed_device.camera_calibrated", []string{"crop", "indicator", "mirror"}
 		}
 		if result, err = s.writeCamera(ctx, q, device.ID, next, nil, now); err != nil {
 			return err

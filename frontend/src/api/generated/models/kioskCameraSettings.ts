@@ -26,4 +26,6 @@ export interface KioskCameraSettings {
   crop: KioskCameraCrop | null;
   /** Null when the kiosk shows no lens pointer. */
   indicator: KioskCameraIndicator | null;
+  /** Whether the preview and the captured photo are mirrored horizontally. The crop stays in unmirrored frame coordinates. */
+  mirror: boolean;
 }
