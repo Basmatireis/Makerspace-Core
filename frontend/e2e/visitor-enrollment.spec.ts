@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
 
 // A real one-page PDF (pdf.js tolerates the missing xref, so offsets need not be exact).
@@ -48,8 +48,16 @@ function photoPng(): Buffer {
 }
 
 test('clears a completed kiosk enrollment before the next visitor', async ({ page }, testInfo) => {
-  // Carbon button transitions would let the accessibility scan measure half-faded colours.
+  // Carbon button transitions would let the accessibility scan measure half-faded colours, and Carbon keeps its
+  // colour transitions under reduced motion, so they are switched off for the page.
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.textContent = '*, *::before, *::after { transition-duration: 0s !important; }';
+      document.head.append(style);
+    });
+  });
   const errors: Error[] = [];
   page.on('pageerror', (error) => errors.push(error));
   let contexts = 0;
@@ -128,10 +136,11 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   await expect(page.getByRole('heading', { name: 'Code' })).toBeVisible();
   await expect(page.getByLabel('Code', { exact: true })).toBeFocused();
   // A wrong code stays on the step; the mock accepts 123456.
-  await page.getByLabel('Code', { exact: true }).fill('000000');
+  await enterCode(page, '000000');
   await page.getByRole('button', { name: 'Verify code' }).click();
   await expect(page.getByText(/The code is not correct or has expired/)).toBeVisible();
-  await page.getByLabel('Code', { exact: true }).fill('123456');
+  await page.getByRole('group', { name: 'Code keypad' }).getByRole('button', { name: 'Clear' }).click();
+  await enterCode(page, '123456');
   await page.mouse.move(0, 0);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('visitor-code.png') });
@@ -143,6 +152,7 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   // Positioning the photo fits the screen; "Retake photo" and "Use photo" stand in the footer in place of Next.
   await expect(page.getByRole('button', { name: 'Retake photo' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Next' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Use photo' })).toBeEnabled();
   await page.mouse.move(0, 0);
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
@@ -165,8 +175,15 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   const rules = page.getByRole('dialog', { name: 'Lab Rules, revision 2026-09' });
   await expect(rules.getByRole('img', { name: 'Page 1 of 1' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('visitor-lab-rules-pdf.png') });
+  // The agreement unlocks only once the rules were scrolled to their end.
+  // A person scrolls and then closes; the scroll event is dispatched here so the immediate Escape cannot outrun it.
+  await rules.locator('.cds--modal-content').evaluate((box) => {
+    box.scrollTo({ top: box.scrollHeight });
+    box.dispatchEvent(new Event('scroll'));
+  });
   await page.keyboard.press('Escape');
   await expect(rules).toBeHidden();
+  await expect(page.getByLabel('I have read and accept the Lab Rules')).toBeEnabled();
   await page.getByText(/I have read and accept the Lab Rules/).click();
   await page.screenshot({ path: testInfo.outputPath('visitor-step-4.png') });
   await page.getByRole('button', { name: 'Register and check in' }).click();
@@ -231,3 +248,10 @@ test('opens an external privacy policy in a dialog instead of leaving the kiosk'
   await expect(dialog).toBeHidden();
   await expect(page).toHaveURL(/\/visitor-enrollment$/);
 });
+
+/** Types a code on the on-screen keypad, the way a visitor enters it at the kiosk. */
+async function enterCode(page: Page, code: string) {
+  const keypad = page.getByRole('group', { name: 'Code keypad' });
+  for (const digit of code) await keypad.getByRole('button', { name: digit, exact: true }).click();
+  await expect(page.getByLabel('Code', { exact: true })).toHaveValue(code);
+}

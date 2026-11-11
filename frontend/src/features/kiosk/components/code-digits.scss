@@ -51,7 +51,8 @@
   outline: none;
 }
 
+// Styled here rather than with Carbon's form-requirement class, which Carbon hides outside its own invalid fields.
 .code-digits__error {
-  display: block;
+  @include type-style('helper-text-01');
   color: $text-error;
 }

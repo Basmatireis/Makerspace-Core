@@ -65,7 +65,7 @@ export function CodeDigits({
         />
       </div>
       {invalid && invalidText && (
-        <p id={errorId} className="cds--form-requirement code-digits__error">
+        <p id={errorId} className="code-digits__error" role="alert">
           {invalidText}
         </p>
       )}
