@@ -14,6 +14,7 @@ type Querier interface {
 	ActivatePolicy(ctx context.Context, arg ActivatePolicyParams) (PrivacyPolicyVersion, error)
 	ApprovePolicy(ctx context.Context, arg ApprovePolicyParams) (PrivacyPolicyVersion, error)
 	CountPoliciesForCategory(ctx context.Context, categoryID string) (int64, error)
+	DeleteRun(ctx context.Context, id uuid.UUID) error
 	FinishRun(ctx context.Context, arg FinishRunParams) (PrivacyRetentionRun, error)
 	GetPolicy(ctx context.Context, id uuid.UUID) (PrivacyPolicyVersion, error)
 	GetPrivacySettings(ctx context.Context) (PrivacySetting, error)

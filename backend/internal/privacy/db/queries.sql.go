@@ -101,6 +101,15 @@ func (q *Queries) CountPoliciesForCategory(ctx context.Context, categoryID strin
 	return count, err
 }
 
+const deleteRun = `-- name: DeleteRun :exec
+DELETE FROM privacy_retention_runs WHERE id = $1
+`
+
+func (q *Queries) DeleteRun(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRun, id)
+	return err
+}
+
 const finishRun = `-- name: FinishRun :one
 UPDATE privacy_retention_runs
 SET status = $1, finished_at = now(), error_code = $2

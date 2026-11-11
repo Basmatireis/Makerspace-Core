@@ -130,6 +130,15 @@ type Run struct {
 	Items      []RunItem
 }
 
+func (r Run) changedRows() bool {
+	for _, item := range r.Items {
+		if item.Affected > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // Register adds the handler for a category. Registering twice is a
 // programming error.
 func (s *Service) Register(category CategoryID, handler RetentionHandler) {
@@ -378,6 +387,11 @@ func (s *Service) run(ctx context.Context, request RunRequest) (Run, error) {
 			return run, err
 		}
 		run.Items = append(run.Items, result)
+	}
+	if request.Trigger == TriggerScheduled && failure == "" && !run.changedRows() {
+		// A scheduled run that changed nothing is not kept: every five minutes it would
+		// push the runs that did something out of the history and fill the audit log.
+		return Run{}, q.DeleteRun(ctx, run.ID)
 	}
 	status := "completed"
 	var code *string
