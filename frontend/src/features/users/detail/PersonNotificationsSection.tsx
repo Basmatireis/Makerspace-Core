@@ -7,7 +7,7 @@ import {
 } from '../../../api/generated/notification-rules/notification-rules';
 import { ApiError } from '../../../api/http-client';
 import { DetailSection } from '../../../app/DetailSection';
-import { InlineLoadingState } from '../../../app/PageState';
+import { ErrorState, InlineLoadingState } from '../../../app/PageState';
 import { useNotify } from '../../../app/toasts';
 import { ConsentCardsView } from '../../mynotifications/ConsentCards';
 import { ReachingRulesView } from '../../mynotifications/ReachingRulesTable';
@@ -67,12 +67,10 @@ export function PersonNotificationsSection({ personId, canManage }: { personId: 
       {query.isPending ? (
         <InlineLoadingState label="Loading notification settings" />
       ) : query.isError ? (
-        <InlineNotification
-          kind="error"
-          lowContrast
-          hideCloseButton
-          title="Notification settings could not be loaded"
-          subtitle="Reload the page and try again."
+        <ErrorState
+          title="Unable to load notification settings"
+          message="Check the connection and try again."
+          onRetry={() => void query.refetch()}
         />
       ) : (
         <div className="mn-page">

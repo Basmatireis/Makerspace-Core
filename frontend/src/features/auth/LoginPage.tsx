@@ -63,6 +63,7 @@ export function LoginPage() {
   });
   const fromKiosk = (location.state as LocationState)?.origin === 'kiosk';
   // The mailed notification link needs no web permission: a code sign-in then opens a restricted session for that page.
+  // The purpose is only sent on the email-code path; password, PIN and passkey sign-ins never open a restricted session.
   const forNotificationSettings = safeReturnPath(location.state as LocationState) === notificationSettingsPath;
   const [method, setMethod] = useState<'password' | 'pin' | 'email_code'>(
     forNotificationSettings ? 'email_code' : 'password',
