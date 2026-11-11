@@ -296,9 +296,12 @@ export function ProfilePhotoPicker({
           )}
         </>
       )}
-      <p className="visitor-photo__hint">
-        {required ? 'A real photo is required for identification.' : 'A photo is optional.'}
-      </p>
+      {/* While the photo is positioned the screen belongs to it; the hint returns afterwards. */}
+      {!source && (
+        <p className="visitor-photo__hint">
+          {required ? 'A real photo is required for identification.' : 'A photo is optional.'}
+        </p>
+      )}
       {error && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Photo unavailable" subtitle={error} />
       )}
