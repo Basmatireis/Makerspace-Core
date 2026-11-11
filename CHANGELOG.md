@@ -6,6 +6,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Added
 
+- **Notification settings link and staff view.** Every branded mail ends with a "Notification settings" link to `/notification-settings` (no token or address), except automatic wiRef invoice mails, mails to organization contacts and to people without an enabled account. The standalone page offers own consents, channel choices and the feedback switch; visitors sign in with an emailed code (`purpose: notification_settings` on `POST /auth/email-code/login`) and get a restricted session. Staff see and change other people's settings on the People page (`GET /people/{personId}/notification-settings` and the `PUT` operations below it; permissions `notification_settings.read.all` and `.manage.all`, granted to the Supervisor role). Changes are audited (`notification_preference.changed`, `notification_feedback_at_checkout.changed`) and raise the new trigger `notification_settings_changed` (no seeded rule). Migration 00138. See [docs/notifications.md](docs/notifications.md).
 - **Signage web embeds.** A signage screen can be shown in an iframe on other websites: it lists the websites that may frame it, shows only public information, and shows cameras and timelapses only when switched on for it. Embeds are managed under `/signage/web-embeds` with the existing signage permissions and served by public endpoints under `/public/signage/embeds/{embedKey}` (migration 00130). See `docs/signage.md`.
 - **Signage screen editor.** A screen (formerly scene) is a set of freely positioned blocks on a fixed grid, each with one widget and its own box style. The new editor (Signage › Screens) has a canvas with snapping, a palette, a block list, toolbars and properties panels, autosaves drafts, offers undo and redo and has no Save button. Layout templates, zones and custom layouts are gone: migration 00131 converts every stored screen (and, in memory, older publications) so displays look as before and nothing becomes a pending change. Manifests are version 4: players refetch cached older ones. The player bundles the IBM Plex fonts and its service worker precaches them; image and video pickers can upload in place. See [docs/signage.md](docs/signage.md).
 - **Signage colours.** Machine status, camera, timelapse, open-day/event/agenda lists and QR codes have their own optional colours (also transparent); absent colours keep the previous look. The Screen section lists every colour used on a screen and changes it everywhere at once. Calendar widgets can hide their legend and show planned competencies in the month view too. See [docs/signage.md](docs/signage.md).
@@ -15,6 +16,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
+- **Assigning Supervisor needs the notification-settings permissions.** The Supervisor membership role now holds `notification_settings.read.all` and `.manage.all`, so whoever assigns it must hold both (privilege subset).
 - **Visitor enrollment verifies the email address.** Visitors enter their address, receive a code and confirm it (`/visitor-enrollment/email-verification` and `/confirm`) and then sign in with emailed codes only. The PIN/password choice, the login-name suggestions endpoint, `allowedMethods` in the enrollment configuration and state (and in configuration exports; older files are still accepted), the submission's `email`/`authMethods`/`pinLoginName`/`pin` and the result's `invitationDelivery` are gone, and no invitation is mailed.
 - **Kiosk check-in and check-out methods.** A kiosk lists the ways people may check in and out (password, PIN, emailed code) instead of an assurance level: `checkInMethods`/`checkOutMethods` replace `checkInAssurance`/`checkOutAssurance` on managed devices (migration 00133).
 - **Visitor sign-up on the kiosk.** Name and email come first, then the emailed code (six digit boxes with an on-screen keypad), the profile photo as its own step, notifications and the Lab Rules. The Lab Rules can only be confirmed after scrolling the document to its end, here and wherever they are confirmed.
@@ -22,8 +24,13 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - Dependency updates (Go modules, frontend and desktop-kiosk packages, GitHub Actions), combined from the open Dependabot pull requests.
 - Go 1.27.4 in all images and the toolchain, for the `net/http` vulnerability GO-2026-6859.
 
+### Security
+
+- **Restricted sessions.** A session can be confined to operations marked `x-restricted-session` in the contract; it has no permissions and everything else answers 403 `restricted_session`. Visitors without `web.sign_in` can obtain one only for `notification_settings`. See [docs/authorization.md](docs/authorization.md#restricted-sessions).
+
 ### Upgrade notes
 
+- **Migration 00138 (notification settings access).** Adds `sessions.restriction` and `pending_logins.restriction` and grants the two new permissions to the Supervisor role. The Down migration removes those grants and deletes restricted sessions and pending sign-ins.
 - **Migration 00132 (emailed sign-in code).** Existing visitors (Visitor membership, not master) are switched to the emailed code: their passwords, pending invitations, reset codes and password sessions are removed; PINs stay. Grants of `accounts.pin.enroll.self`/`.all` are copied to the new email-code permissions. The Down migration cannot restore removed passwords.
 - **Migrations 00130 (signage web embeds) and 00131 (signage scene blocks).** 00131 converts every stored scene into blocks; see `docs/signage.md`.
 - **Migration 00133 (kiosk methods).** Existing assurance levels become method sets: `low` allows all three methods, `normal` password and emailed code, anything stronger the password alone. Check the kiosk settings after the upgrade.
