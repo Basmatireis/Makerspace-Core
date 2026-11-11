@@ -4,6 +4,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-11
+
 ### Added
 
 - **Notification settings link and staff view.** Every branded mail ends with a "Notification settings" link to `/notification-settings` (no token or address), except automatic wiRef invoice mails, mails to organization contacts and to people without an enabled account. The standalone page offers own consents, channel choices and the feedback switch; visitors sign in with an emailed code (`purpose: notification_settings` on `POST /auth/email-code/login`) and get a restricted session. Staff see and change other people's settings on the People page (`GET /people/{personId}/notification-settings` and the `PUT` operations below it; permissions `notification_settings.read.all` and `.manage.all`, granted to the Supervisor role). Changes are audited (`notification_preference.changed`, `notification_feedback_at_checkout.changed`) and raise the new trigger `notification_settings_changed` (no seeded rule). Migration 00138. See [docs/notifications.md](docs/notifications.md).
@@ -953,6 +955,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.19.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.18.2...v0.19.0
 [0.18.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.18.1...v0.18.2
 [0.18.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.17.0...v0.18.0
