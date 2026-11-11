@@ -5,7 +5,7 @@ import './camera.scss';
 
 /**
  * A notch at the screen edge right next to the tablet's camera lens, so people look into it. It appears only where a
- * photo is taken (and while calibrating): quiet while the camera is off, pulsing with "Look here" while it is live.
+ * photo is taken (and while calibrating): quiet while the camera is off, red and pulsing while it is live.
  * It is never shown on the start screen, so it never suggests a camera is watching when none is on.
  */
 export function CameraIndicator({
@@ -24,8 +24,7 @@ export function CameraIndicator({
       aria-hidden="true"
     >
       <span className="camera-indicator__pill">
-        <Camera size={20} />
-        {live && <span className="camera-indicator__label">Look here</span>}
+        <Camera size={24} />
       </span>
     </div>
   );

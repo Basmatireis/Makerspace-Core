@@ -22,16 +22,27 @@
   transform: translateY(-50%);
 }
 
+// An icon-only notch, the same shape on every edge: longer along the edge than deep, turned to face the screen.
 .camera-indicator__pill {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: $spacing-02;
-  padding: $spacing-03 $spacing-05;
+  justify-content: center;
   background: $background-inverse;
   color: $text-inverse;
   fill: $icon-inverse;
-  @include type-style('heading-compact-01');
+}
+
+.camera-indicator--top .camera-indicator__pill,
+.camera-indicator--bottom .camera-indicator__pill {
+  inline-size: $spacing-10;
+  block-size: $spacing-08;
+}
+
+.camera-indicator--left .camera-indicator__pill,
+.camera-indicator--right .camera-indicator__pill {
+  inline-size: $spacing-08;
+  block-size: $spacing-10;
 }
 
 // A notch that hangs from the edge: rounded only on the side facing the screen.
