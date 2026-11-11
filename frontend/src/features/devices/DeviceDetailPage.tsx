@@ -27,6 +27,7 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { SettingsLoading } from '../settings/SettingsPageLayout';
 import { ConfirmationModal } from './components/ConfirmationModal';
+import { DeviceCameraSection } from './components/DeviceCameraSection';
 import { DeviceFormModal, OneTimeToken } from './components/DeviceFormModal';
 import { DeviceStatusTag } from './components/DeviceStatusTag';
 import {
@@ -292,6 +293,8 @@ export function DeviceDetailPage() {
               </StructuredListWrapper>
             )}
           </DetailSection>
+
+          {device.capabilities.includes('camera') && <DeviceCameraSection device={device} canManage={canManage} />}
 
           {canManage && (
             <DetailSection
