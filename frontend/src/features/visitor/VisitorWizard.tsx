@@ -34,11 +34,11 @@ import './visitor.scss';
 const idleSeconds = 30;
 const graceSeconds = 30;
 const codeLength = 6;
-type StepKey = 'about' | 'email' | 'code' | 'messages' | 'rules';
+type StepKey = 'about' | 'code' | 'photo' | 'messages' | 'rules';
 const stepTitles: Record<StepKey, string> = {
   about: 'About you',
-  email: 'Email',
   code: 'Code',
+  photo: 'Photo',
   messages: 'Messages',
   rules: 'Lab Rules',
 };
@@ -75,9 +75,9 @@ function emailProblemOf(error: unknown): EmailProblem {
 
 type EnrollmentState = Awaited<ReturnType<typeof getVisitorEnrollmentState>>;
 
-// Up to five steps that each fit one tablet screen. The email is verified with a mailed code before anything is
-// registered: the server creates the account with the address it verified, so the visitor signs in with it later.
-// Messages asks the notification consent of a tablet check-in, so a new visitor answers it right away; it is left out
+// Up to five steps that each fit one tablet screen. Names and email come first, and the email is verified with a mailed
+// code before anything is registered: the server creates the account with the address it verified, so the visitor
+// signs in with it later. The profile photo is a step of its own on a device that can take or upload one. Messages asks the notification consent of a tablet check-in, so a new visitor answers it right away; it is left out
 // when no category needs consent. The Lab Rules step appears only when the Visitor role asks for them, because only
 // then does enrollment record the confirmation. All entries live only in this component: leaving the page (back, Done
 // or inactivity) unmounts it, which releases the camera and discards everything.
@@ -101,10 +101,14 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const queryClient = useQueryClient();
   const heading = useRef<HTMLHeadingElement>(null);
   const [step, setStep] = useState(0);
+  // The kiosk device decides how a photo can be provided; one that can neither take nor upload one skips the step.
+  // The backend applies the same rule from the device's capabilities.
+  const sources = { camera: state.capabilities.includes('camera'), upload: state.capabilities.includes('file_upload') };
+  const photoRequired = sources.camera || sources.upload;
   const steps: StepKey[] = [
     'about',
-    'email',
     'code',
+    ...(photoRequired ? (['photo'] as const) : []),
     ...(state.consentCategories.length > 0 ? (['messages'] as const) : []),
     ...(state.labRulesRequired ? (['rules'] as const) : []),
   ];
@@ -145,18 +149,14 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
     else heading.current?.focus();
   }, [step, current]);
 
-  // The kiosk device decides how a photo can be provided; one that can neither take nor upload one skips the step.
-  // The backend applies the same rule from the device's capabilities.
-  const sources = { camera: state.capabilities.includes('camera'), upload: state.capabilities.includes('file_upload') };
-  const photoRequired = sources.camera || sources.upload;
   const emailIsVerified = verifiedEmail !== null && verifiedEmail === email.trim();
   const pending = mutation.isPending || sendMutation.isPending || confirmMutation.isPending;
   const names = { firstName: firstName.trim(), lastName: lastName.trim() };
 
   const valid: Record<StepKey, boolean> = {
-    about: names.firstName !== '' && names.lastName !== '' && (!photoRequired || Boolean(image)),
-    email: email.trim() !== '',
+    about: names.firstName !== '' && names.lastName !== '' && email.trim() !== '',
     code: code.length === codeLength,
+    photo: Boolean(image),
     // Nothing is preselected and every answer may be "No".
     messages: true,
     rules: rulesViewed && ready && Boolean(state.currentLabRules),
@@ -174,7 +174,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
     try {
       await sendMutation.mutateAsync({ email: address });
     } catch (error) {
-      if (resend) setStep(steps.indexOf('email'));
+      if (resend) setStep(steps.indexOf('about'));
       setEmailProblem(emailProblemOf(error));
       return;
     }
@@ -201,7 +201,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const changeEmail = () => {
     confirmMutation.reset();
     setCode('');
-    setStep(steps.indexOf('email'));
+    setStep(steps.indexOf('about'));
   };
 
   // Back skips the code step once the address is verified: its code has been used up.
@@ -240,7 +240,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
         // The server lost or never had the verified address: confirm it again.
         setVerifiedEmail(null);
         setEmailProblem('reverify');
-        setStep(steps.indexOf('email'));
+        setStep(steps.indexOf('about'));
         mutation.reset();
       }
       /* Other failures are rendered by the notification below. */
@@ -250,7 +250,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!valid[current] || pending) return;
-    if (current === 'email') {
+    if (current === 'about') {
       if (!emailIsVerified) await sendCode(false);
       else if (steps.indexOf('code') < lastStep) setStep(steps.indexOf('code') + 1);
       else await register();
@@ -268,9 +268,9 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   };
 
   const registering =
-    step === lastStep || (current === 'email' && emailIsVerified && steps.indexOf('code') === lastStep);
+    step === lastStep || (current === 'about' && emailIsVerified && steps.indexOf('code') === lastStep);
   const primaryLabel =
-    current === 'email' && !emailIsVerified
+    current === 'about' && !emailIsVerified
       ? sendMutation.isPending
         ? 'Sending…'
         : 'Send code'
@@ -331,48 +331,37 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
           )}
 
           {current === 'about' && (
-            <div className="visitor-flow__about">
-              <div className="visitor-flow__fields">
-                <p className="visitor-flow__note">
-                  All fields are required. How we use your data is explained in the{' '}
-                  <LegalDocumentLink kind="privacy" inline>
-                    privacy policy
-                  </LegalDocumentLink>
-                  .
-                </p>
-                <div className="visitor-flow__pair">
-                  <TextInput
-                    id="visitor-first-name"
-                    labelText="First name"
-                    required
-                    autoComplete="off"
-                    value={firstName}
-                    onChange={(event) => setFirstName(event.target.value)}
-                  />
-                  <TextInput
-                    id="visitor-last-name"
-                    labelText="Last name"
-                    required
-                    autoComplete="off"
-                    value={lastName}
-                    onChange={(event) => setLastName(event.target.value)}
-                  />
-                </div>
-              </div>
-              <ProfilePhotoPicker image={image} sources={sources} required={photoRequired} onChange={setImage} />
-            </div>
-          )}
-
-          {current === 'email' && (
             <div className="visitor-flow__email">
-              <p className="visitor-flow__lead">
-                We email you a six-digit code to confirm your address. Next time, you check in with this email and a new
-                code — no password or PIN to remember.
+              <p className="visitor-flow__note">
+                All fields are required. We email you a six-digit code to confirm your address; next time you check in
+                with this email and a new code — no password or PIN to remember. How we use your data is explained in
+                the{' '}
+                <LegalDocumentLink kind="privacy" inline>
+                  privacy policy
+                </LegalDocumentLink>
+                .
               </p>
+              <div className="visitor-flow__pair">
+                <TextInput
+                  id="visitor-first-name"
+                  labelText="First name"
+                  required
+                  autoComplete="off"
+                  value={firstName}
+                  onChange={(event) => setFirstName(event.target.value)}
+                />
+                <TextInput
+                  id="visitor-last-name"
+                  labelText="Last name"
+                  required
+                  autoComplete="off"
+                  value={lastName}
+                  onChange={(event) => setLastName(event.target.value)}
+                />
+              </div>
               <TextInput
                 id="visitor-email"
                 type="email"
-                size="lg"
                 labelText="Email"
                 required
                 autoComplete="off"
@@ -391,13 +380,18 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                   Go to check-in
                 </Button>
               )}
-              <p className="visitor-flow__note">
-                We only use your address to sign you in and to contact you about your account. Details in the{' '}
-                <LegalDocumentLink kind="privacy" inline size="sm">
-                  privacy policy
-                </LegalDocumentLink>
-                .
-              </p>
+            </div>
+          )}
+
+          {current === 'photo' && (
+            <div className="visitor-flow__photo">
+              <ProfilePhotoPicker
+                image={image}
+                sources={sources}
+                required={photoRequired}
+                camera={state.camera}
+                onChange={setImage}
+              />
             </div>
           )}
 

@@ -119,16 +119,14 @@ body:has(.visitor-flow) {
   min-inline-size: 12rem;
 }
 
-.visitor-flow__about {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: $spacing-08;
-  align-items: start;
-}
-
-.visitor-flow__about .visitor-photo {
+// The photo has a step of its own, so its preview may take more of the screen.
+.visitor-flow__photo .visitor-photo {
   justify-items: center;
   text-align: center;
+}
+
+.visitor-flow__photo .visitor-photo__frame {
+  inline-size: min(100%, 34rem, 44dvh);
 }
 
 .visitor-flow__fields,
@@ -222,6 +220,7 @@ body:has(.visitor-flow) {
 // Live preview and taken photo share one large centred square, so what the person sees is what is captured. The
 // preview is deliberately not mirrored: it matches the photo that is taken.
 .visitor-photo__frame {
+  position: relative;
   display: grid;
   place-items: center;
   inline-size: min(100%, 30rem, 38dvh);
@@ -333,7 +332,6 @@ body:has(.visitor-flow) {
 }
 
 @media (max-width: 66rem) {
-  .visitor-flow__about,
   .visitor-done__grid {
     grid-template-columns: 1fr;
     gap: $spacing-06;
@@ -387,11 +385,6 @@ body:has(.visitor-flow) {
 
   .visitor-flow__title {
     margin-block-start: 0;
-  }
-
-  .visitor-flow__about {
-    grid-template-columns: 1fr;
-    gap: $spacing-04;
   }
 
   .visitor-flow__footer {

@@ -107,29 +107,20 @@ describe('controlled visitor enrollment', () => {
     const user = userEvent.setup();
     const { queryClient } = renderKioskAware();
 
-    // Step 1: name and photo are required; the email has its own step.
+    // Step 1: names and email; nothing is sent until the visitor asks for the code.
     expect(await screen.findByRole('heading', { name: 'About you' })).toHaveFocus();
     expect(screen.getByText('Visitor enrollment · Step 1 of 5')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Legal information' })).toBeInTheDocument();
-    expect(screen.queryByLabelText('Email')).not.toBeInTheDocument();
-    const next = screen.getByRole('button', { name: 'Next' });
-    await user.type(screen.getByLabelText('First name'), 'New');
-    await user.type(screen.getByLabelText('Last name'), 'Visitor');
-    expect(next).toBeDisabled();
-    await choosePhoto(user);
-    expect(await screen.findByAltText('Selected profile')).toBeInTheDocument();
-    await waitFor(() => expect(next).toBeEnabled());
-    await user.click(next);
-
-    // Step 2: nothing is sent until the visitor asks for the code.
-    expect(await screen.findByRole('heading', { name: 'Email' })).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Start camera' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument();
     const sendCode = screen.getByRole('button', { name: 'Send code' });
+    await user.type(screen.getByLabelText('First name'), 'New');
+    await user.type(screen.getByLabelText('Last name'), 'Visitor');
     expect(sendCode).toBeDisabled();
     await user.type(screen.getByLabelText('Email'), 'new.visitor@example.test');
     await user.click(sendCode);
 
-    // Step 3: a wrong code stays on the step with an inline message.
+    // Step 2: a wrong code stays on the step with an inline message.
     expect(await screen.findByRole('heading', { name: 'Code' })).toBeInTheDocument();
     expect(sent).toEqual(['new.visitor@example.test']);
     expect(screen.getByText('new.visitor@example.test')).toBeInTheDocument();
@@ -147,6 +138,15 @@ describe('controlled visitor enrollment', () => {
     await user.click(screen.getByRole('button', { name: 'Verify code' }));
     expect(confirmed).toEqual(['123499', '123456']);
 
+    // Step 3: the profile photo is a step of its own and required on this device.
+    expect(await screen.findByRole('heading', { name: 'Photo' })).toHaveFocus();
+    const next = screen.getByRole('button', { name: 'Next' });
+    expect(next).toBeDisabled();
+    await choosePhoto(user);
+    expect(await screen.findByAltText('Selected profile')).toBeInTheDocument();
+    await waitFor(() => expect(next).toBeEnabled());
+    await user.click(next);
+
     // Step 4: nothing is preselected and every switch may stay off.
     expect(await screen.findByRole('heading', { name: 'Messages' })).toHaveFocus();
     expect(screen.getByText(/Which messages may we send to new.visitor@example.test\?/)).toBeInTheDocument();
@@ -155,10 +155,15 @@ describe('controlled visitor enrollment', () => {
     await user.click(news);
     expect(news).toBeChecked();
 
-    // Back skips the used-up code step.
+    // Back skips the used-up code step and keeps every entry.
     await user.click(screen.getByRole('button', { name: 'Back' }));
-    expect(await screen.findByRole('heading', { name: 'Email' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Photo' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(await screen.findByRole('heading', { name: 'About you' })).toBeInTheDocument();
     expect(screen.getByLabelText('Email')).toHaveValue('new.visitor@example.test');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByRole('heading', { name: 'Photo' })).toBeInTheDocument();
+    expect(screen.getByAltText('Selected profile')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByRole('heading', { name: 'Messages' })).toBeInTheDocument();
     expect(sent).toHaveLength(1);
@@ -212,7 +217,7 @@ describe('controlled visitor enrollment', () => {
     expect(await screen.findByText('Kiosk screen')).toBeInTheDocument();
   });
 
-  it('keeps the visitor on the email step with a clear message when the address or the delivery is refused', async () => {
+  it('keeps the visitor on the first step with a clear message when the address or the delivery is refused', async () => {
     serveState({ capabilities: [], labRulesRequired: false });
     const attempts: Array<{ status: number; code: string }> = [];
     server.use(
@@ -225,7 +230,6 @@ describe('controlled visitor enrollment', () => {
     renderKioskAware();
     await user.type(await screen.findByLabelText('First name'), 'Pia');
     await user.type(screen.getByLabelText('Last name'), 'Mail');
-    await user.click(screen.getByRole('button', { name: 'Next' }));
     const email = await screen.findByLabelText('Email');
 
     // Checked in the browser first: nothing is sent for an obviously wrong address.
@@ -246,7 +250,7 @@ describe('controlled visitor enrollment', () => {
       await user.click(screen.getByRole('button', { name: 'Send code' }));
       expect(await screen.findByText(text)).toBeInTheDocument();
       // Nothing moved on: still the email step, still no code field.
-      expect(screen.getByRole('heading', { name: 'Email' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'About you' })).toBeInTheDocument();
       expect(screen.queryByLabelText('Code')).not.toBeInTheDocument();
     }
   });
@@ -262,7 +266,6 @@ describe('controlled visitor enrollment', () => {
     renderKioskAware();
     await user.type(await screen.findByLabelText('First name'), 'Pia');
     await user.type(screen.getByLabelText('Last name'), 'Mail');
-    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.type(await screen.findByLabelText('Email'), 'pia@example.test');
     await user.click(screen.getByRole('button', { name: 'Send code' }));
 
@@ -280,7 +283,6 @@ describe('controlled visitor enrollment', () => {
     renderKioskAware();
     await user.type(await screen.findByLabelText('First name'), 'Pia');
     await user.type(screen.getByLabelText('Last name'), 'Mail');
-    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.type(await screen.findByLabelText('Email'), 'pia@example.test');
     await user.click(screen.getByRole('button', { name: 'Send code' }));
     expect(await screen.findByRole('heading', { name: 'Code' })).toBeInTheDocument();
@@ -312,11 +314,10 @@ describe('controlled visitor enrollment', () => {
     const user = userEvent.setup();
     renderKioskAware();
 
-    expect(await screen.findByText('Visitor enrollment · Step 1 of 3')).toBeInTheDocument();
+    expect(await screen.findByText('Visitor enrollment · Step 1 of 2')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Start camera' })).not.toBeInTheDocument();
     await user.type(screen.getByLabelText('First name'), 'Nora');
     await user.type(screen.getByLabelText('Last name'), 'Nophoto');
-    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.type(await screen.findByLabelText('Email'), 'nora@example.test');
     await user.click(screen.getByRole('button', { name: 'Send code' }));
     await user.type(await screen.findByLabelText('Code'), '123456');
@@ -358,7 +359,6 @@ describe('controlled visitor enrollment', () => {
     renderKioskAware();
     await user.type(await screen.findByLabelText('First name'), 'Nora');
     await user.type(screen.getByLabelText('Last name'), 'Nophoto');
-    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.type(await screen.findByLabelText('Email'), 'nora@example.test');
     await user.click(screen.getByRole('button', { name: 'Send code' }));
     await user.type(await screen.findByLabelText('Code'), '123456');
@@ -392,7 +392,6 @@ describe('controlled visitor enrollment', () => {
     renderKioskAware();
     await user.type(await screen.findByLabelText('First name'), 'Nora');
     await user.type(screen.getByLabelText('Last name'), 'Nophoto');
-    await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.type(await screen.findByLabelText('Email'), 'nora@example.test');
     await user.click(screen.getByRole('button', { name: 'Send code' }));
     await user.type(await screen.findByLabelText('Code'), '123456');

@@ -117,23 +117,13 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   await expect(page.getByRole('heading', { name: 'About you' })).toBeFocused();
   await page.getByLabel('First name', { exact: true }).fill('Local');
   await page.getByLabel('Last name', { exact: true }).fill('Visitor');
-  await page
-    .getByLabel('or upload a profile photo', { exact: true })
-    .setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: photoPng() });
-  await page.getByRole('button', { name: 'Use photo' }).click();
-  await expect(page.getByAltText('Selected profile')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
+  await page.getByLabel('Email', { exact: true }).fill('local@example.test');
+  await expect(page.getByRole('button', { name: 'Send code' })).toBeEnabled();
   await page.mouse.move(0, 0);
   // The whole step fits the viewport: the page itself never scrolls.
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('visitor-step-1.png') });
-  await page.getByRole('button', { name: 'Next' }).click();
-  await expect(page.getByRole('heading', { name: 'Email' })).toBeFocused();
-  await page.getByLabel('Email', { exact: true }).fill('local@example.test');
-  await expect(page.getByRole('button', { name: 'Send code' })).toBeEnabled();
-  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
-  await page.screenshot({ path: testInfo.outputPath('visitor-email.png') });
   await page.getByRole('button', { name: 'Send code' }).click();
   await expect(page.getByRole('heading', { name: 'Code' })).toBeVisible();
   await expect(page.getByLabel('Code', { exact: true })).toBeFocused();
@@ -146,6 +136,18 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('visitor-code.png') });
   await page.getByRole('button', { name: 'Verify code' }).click();
+  await expect(page.getByRole('heading', { name: 'Photo' })).toBeFocused();
+  await page
+    .getByLabel('or upload a profile photo', { exact: true })
+    .setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: photoPng() });
+  await page.getByRole('button', { name: 'Use photo' }).click();
+  await expect(page.getByAltText('Selected profile')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
+  await page.mouse.move(0, 0);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('visitor-photo.png') });
+  await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByRole('heading', { name: 'Messages' })).toBeFocused();
   // Carbon draws the switch over its button; a visitor taps the drawn switch.
   await page
