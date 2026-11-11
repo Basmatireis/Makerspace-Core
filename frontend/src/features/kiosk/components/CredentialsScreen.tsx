@@ -188,19 +188,37 @@ export function CredentialsScreen({
 
       {emailCode ? (
         <Stack gap={5} className="tablet-password">
-          <TextInput
-            id="tablet-code-email"
-            size="lg"
-            type="email"
-            labelText="Email"
-            helperText={codeSent ? 'We sent a six-digit code to this address. It is valid for ten minutes.' : undefined}
-            autoComplete="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            readOnly={codeSent}
-            value={identifier}
-            onChange={(event) => setIdentifier(event.target.value)}
-          />
+          <div className={codeSent ? 'tablet-code-email tablet-code-email--sent' : 'tablet-code-email'}>
+            <TextInput
+              id="tablet-code-email"
+              size="lg"
+              type="email"
+              labelText="Email"
+              helperText={
+                codeSent ? 'We sent a six-digit code to this address. It is valid for ten minutes.' : undefined
+              }
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              readOnly={codeSent}
+              value={identifier}
+              onChange={(event) => setIdentifier(event.target.value)}
+            />
+            {codeSent && (
+              <Button
+                type="button"
+                kind="ghost"
+                size="lg"
+                onClick={() => {
+                  setCodeSent(false);
+                  setSecret('');
+                  attendance.reset();
+                }}
+              >
+                Change email
+              </Button>
+            )}
+          </div>
           {codeSent && (
             <CodeDigits
               id="tablet-email-code"
@@ -232,22 +250,16 @@ export function CredentialsScreen({
           {error}
           {codeSent ? (
             <div className="tablet-code-actions">
-              {submitButton}
-              <Button type="button" kind="ghost" size="lg" disabled={sendCode.isPending} onClick={() => void send()}>
-                Send a new code
-              </Button>
               <Button
                 type="button"
-                kind="ghost"
-                size="lg"
-                onClick={() => {
-                  setCodeSent(false);
-                  setSecret('');
-                  attendance.reset();
-                }}
+                kind="tertiary"
+                size="2xl"
+                disabled={sendCode.isPending}
+                onClick={() => void send()}
               >
-                Change email
+                Send a new code
               </Button>
+              {submitButton}
             </div>
           ) : (
             <Button type="submit" size="2xl" className="tablet-submit" disabled={!ready || sendCode.isPending}>

@@ -319,9 +319,23 @@ body:has(.tablet) {
   inline-size: 100%;
 }
 
+// While a code is entered, "Change email" sits beside the address and "Send a new code" beside Check in.
+.tablet-code-email--sent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: $spacing-05;
+}
+
+// Level with the field rather than its label above it.
+.tablet-code-email--sent > .cds--btn {
+  margin-block-start: $spacing-06;
+}
+
 .tablet-code-actions {
   display: grid;
-  gap: $spacing-03;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: $spacing-05;
 }
 
 .tablet-identify__idle {
