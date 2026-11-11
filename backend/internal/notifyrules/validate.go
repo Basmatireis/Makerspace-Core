@@ -520,6 +520,9 @@ func (v *validator) action(path string, a *Action, delayAllowed bool) error {
 	default:
 		return fail(path+".channel", "must be in_app, email, signage or tablet")
 	}
+	if v.hasTrig && len(v.trigger.Channels) > 0 && !slices.Contains(v.trigger.Channels, a.Channel) {
+		return fail(path+".channel", "this trigger notifies only in the app or by e-mail")
+	}
 	if a.DelayMinutes < 0 || a.DelayMinutes > MaxDelayMinutes || (!delayAllowed && a.DelayMinutes != 0) {
 		return fail(path+".delayMinutes", "out of range")
 	}

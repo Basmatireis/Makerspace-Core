@@ -48,6 +48,26 @@ func personTargetLoader(personID uuid.UUID) targetLoader {
 	}
 }
 
+// changeableTargetLoader is personTargetLoader for a staff change: only a master may change a master's settings,
+// as for the master's password or second factors.
+func changeableTargetLoader(actor authorization.Principal, personID uuid.UUID) targetLoader {
+	load := personTargetLoader(personID)
+	return func(ctx context.Context, queries *notifyrulesdb.Queries) (settingsTarget, error) {
+		target, err := load(ctx, queries)
+		if err != nil || actor.Master || target.personID == actor.PersonID {
+			return target, err
+		}
+		master, err := queries.IsPersonMaster(ctx, target.personID)
+		if err != nil {
+			return settingsTarget{}, err
+		}
+		if master {
+			return settingsTarget{}, apperror.PermissionDenied
+		}
+		return target, nil
+	}
+}
+
 // PersonHasNoAccountCode answers a channel choice for a person without an account: choices belong to an account.
 const PersonHasNoAccountCode = "person_has_no_account"
 
@@ -87,6 +107,12 @@ func (s *Service) PersonSettings(
 	if err != nil {
 		return PersonSettings{}, err
 	}
+	// Staff who may not read the central rules see which rules reach the person, but not what the rules say.
+	if !p.Has(authorization.NotificationRulesRead) && !p.Has(authorization.NotificationRulesManage) {
+		for index := range settings.Rules {
+			settings.Rules[index].Description, settings.Rules[index].TriggerSummary = "", ""
+		}
+	}
 	return PersonSettings{PersonID: target.personID, HasAccount: target.accountID != nil, Settings: settings}, nil
 }
 
@@ -102,7 +128,7 @@ func (s *Service) SetPersonRulePreference(
 	if !p.Has(authorization.NotificationSettingsManageAll) {
 		return apperror.PermissionDenied
 	}
-	return s.setRulePreference(ctx, p, personTargetLoader(personID), ruleID, preference, requestID)
+	return s.setRulePreference(ctx, p, changeableTargetLoader(p, personID), ruleID, preference, requestID)
 }
 
 // SetPersonAskFeedbackAtCheckout stores a person's feedback-at-check-out switch on their behalf; it needs
@@ -117,11 +143,13 @@ func (s *Service) SetPersonAskFeedbackAtCheckout(
 	if !p.Has(authorization.NotificationSettingsManageAll) {
 		return apperror.PermissionDenied
 	}
-	return s.setAskFeedbackAtCheckout(ctx, p, personTargetLoader(personID), ask, requestID)
+	return s.setAskFeedbackAtCheckout(ctx, p, changeableTargetLoader(p, personID), ask, requestID)
 }
 
-// setRulePreference stores a channel choice. A choice equal to the channels the person gets now changes nothing;
-// otherwise the choice, its audit event and the notification_settings_changed event commit together.
+// setRulePreference stores a channel choice for a central rule that reaches the person; any other rule answers 404, so
+// the call cannot be used to learn about rules the person never hears of. A choice equal to the channels the person
+// gets now changes nothing; otherwise the choice, its audit event and the notification_settings_changed event commit
+// together.
 func (s *Service) setRulePreference(
 	ctx context.Context,
 	actor authorization.Principal,
@@ -146,9 +174,12 @@ func (s *Service) setRulePreference(
 		if row.Mandatory && !preference.InApp && !preference.Email {
 			return mandatoryNotification()
 		}
-		current, err := s.currentChannels(ctx, queries, target, row)
+		current, reaches, err := s.currentChannels(ctx, queries, target, row.ID)
 		if err != nil {
 			return err
+		}
+		if !reaches {
+			return apperror.NotFound
 		}
 		if current == preference {
 			return nil
@@ -176,43 +207,27 @@ func (s *Service) setRulePreference(
 	})
 }
 
-// currentChannels is what the person gets from a rule now: their stored choice, else the channels of the rule's
-// actions that reach them, else (for a rule that does not reach them) the channels the rule uses at all.
+// currentChannels is what the person gets from a rule now (their stored choice or the channels of the rule's actions
+// that reach them), and whether the rule reaches them at all.
 func (s *Service) currentChannels(
 	ctx context.Context,
 	queries *notifyrulesdb.Queries,
 	target settingsTarget,
-	rule notifyrulesdb.NotificationRule,
-) (Preference, error) {
-	preferences, err := queries.ListPreferencesOfAccount(ctx, *target.accountID)
-	if err != nil {
-		return Preference{}, err
-	}
-	for _, stored := range preferences {
-		if stored.RuleID == rule.ID {
-			return Preference{InApp: stored.InApp, Email: stored.Email}, nil
-		}
-	}
+	ruleID uuid.UUID,
+) (Preference, bool, error) {
 	reaching, err := s.reachingRules(ctx, queries, target, nil)
 	if err != nil {
-		return Preference{}, err
+		return Preference{}, false, err
 	}
-	var channels []Channel
 	for _, candidate := range reaching {
-		if candidate.RuleID == rule.ID {
-			channels = candidate.EffectiveChannels
+		if candidate.RuleID == ruleID {
+			channels := candidate.EffectiveChannels
+			return Preference{
+				InApp: slices.Contains(channels, ChannelInApp), Email: slices.Contains(channels, ChannelEmail),
+			}, true, nil
 		}
 	}
-	if channels == nil {
-		definition, err := ParseDefinition(rule.Definition)
-		if err != nil {
-			return Preference{}, err
-		}
-		for _, action := range definition.AllActions() {
-			channels = append(channels, action.Channel)
-		}
-	}
-	return Preference{InApp: slices.Contains(channels, ChannelInApp), Email: slices.Contains(channels, ChannelEmail)}, nil
+	return Preference{}, false, nil
 }
 
 // setAskFeedbackAtCheckout stores the feedback-at-check-out switch; the same value again changes nothing.

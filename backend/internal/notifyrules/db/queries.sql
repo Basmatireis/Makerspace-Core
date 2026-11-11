@@ -261,6 +261,22 @@ SELECT EXISTS (
           SELECT 1 FROM role_permission_grants g WHERE g.role_id = r.id AND g.permission_id = sqlc.arg(permission_id)::text))
 )::boolean;
 
+-- name: ListPeopleWithPermission :many
+-- Of the given people, those with an enabled account that holds the permission through a role (master holds all).
+SELECT DISTINCT a.person_id
+FROM accounts a
+JOIN person_roles pr ON pr.person_id = a.person_id
+JOIN roles r ON r.id = pr.role_id
+WHERE a.person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[]) AND a.status = 'enabled'
+  AND (r.system_key = 'master' OR EXISTS (
+      SELECT 1 FROM role_permission_grants g WHERE g.role_id = r.id AND g.permission_id = sqlc.arg(permission_id)::text));
+
+-- name: IsPersonMaster :one
+SELECT EXISTS (
+    SELECT 1 FROM person_roles pr JOIN roles r ON r.id = pr.role_id
+    WHERE pr.person_id = sqlc.arg(person_id) AND r.system_key = 'master'
+)::boolean;
+
 -- name: MailDeliveryEnabled :one
 SELECT COALESCE((SELECT enabled FROM mail_configuration LIMIT 1), false)::boolean;
 

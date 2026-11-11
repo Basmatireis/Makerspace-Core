@@ -380,6 +380,9 @@ func (d *Dispatcher) dryRunPeople(
 			return err
 		}
 		people = removePeople(people, occ.Event.ExcludedPeople)
+		if people, err = d.permittedRecipients(ctx, q, def, occ.Event, people); err != nil {
+			return err
+		}
 		filled, _ := fillAction(action, occ.Event, rule.Name)
 		actions = append(actions, resolved{action: filled, people: people})
 		everyone = append(everyone, people...)

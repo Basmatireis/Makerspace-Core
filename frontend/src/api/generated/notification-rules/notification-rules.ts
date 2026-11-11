@@ -560,7 +560,7 @@ export const getSetOwnNotificationRulePreferenceUrl = (ruleId: UUIDv7,) => {
 }
 
 /**
- * Any staff session, including one restricted to notification settings. Both channels off mutes the rule, which a mandatory rule refuses with 422 `mandatory_notification`. A personal subscription or an unknown rule answers 404. A choice equal to the channels the person gets now changes nothing; a change is audited as `notification_preference.changed` and raises the `notification_settings_changed` trigger.
+ * Any staff session, including one restricted to notification settings. Both channels off mutes the rule, which a mandatory rule refuses with 422 `mandatory_notification`. A rule that does not reach the person, a personal subscription or an unknown rule answers 404. A choice equal to the channels the person gets now changes nothing; a change is audited as `notification_preference.changed` and raises the `notification_settings_changed` trigger.
  * @summary Choose the channels for a central rule
  */
 export const setOwnNotificationRulePreference = async (ruleId: UUIDv7,
@@ -637,7 +637,7 @@ export const getGetPersonNotificationSettingsUrl = (personId: string,) => {
 }
 
 /**
- * Requires `notification_settings.read.all` or `notification_settings.manage.all`. The same view the person has of their own settings: consent answers (read-only for staff), the feedback-at-check-out switch and the central rules that reach the person with their channels. Channel choices belong to an account, so a person without an account has `hasAccount` false and no rules. Unknown people answer 404.
+ * Requires `notification_settings.read.all` or `notification_settings.manage.all`. The same view the person has of their own settings: consent answers (read-only for staff), the feedback-at-check-out switch and the central rules that reach the person with their channels. Without `notification_rules.read` (or `.manage`) the rules' `description` and `triggerSummary` are empty. Channel choices belong to an account, so a person without an account has `hasAccount` false and no rules. Unknown people answer 404.
  * @summary Get another person's notification settings
  */
 export const getPersonNotificationSettings = async (personId: string, options?: Parameters<typeof apiFetch>[1]): Promise<PersonNotificationSettings> => {
@@ -662,7 +662,7 @@ export const getSetPersonNotificationRulePreferenceUrl = (personId: string,
 }
 
 /**
- * Requires `notification_settings.manage.all`. The rules of the person's own choice apply: both channels off mutes the rule, which a mandatory rule refuses with 422 `mandatory_notification`; a personal subscription or an unknown rule answers 404, an unknown person 404. A person without an account has no channel choices (409 `person_has_no_account`). A change is audited as `notification_preference.changed` with the person and raises the `notification_settings_changed` trigger; the channels the person gets now change nothing.
+ * Requires `notification_settings.manage.all`; only a master may change a master's settings (403 otherwise). The rules of the person's own choice apply: both channels off mutes the rule, which a mandatory rule refuses with 422 `mandatory_notification`; a rule that does not reach the person, a personal subscription or an unknown rule answers 404, an unknown person 404. A person without an account has no channel choices (409 `person_has_no_account`). A change is audited as `notification_preference.changed` with the person and raises the `notification_settings_changed` trigger; the channels the person gets now change nothing.
  * @summary Choose the channels of a central rule for another person
  */
 export const setPersonNotificationRulePreference = async (personId: string,
@@ -702,7 +702,7 @@ export const getSetPersonFeedbackAtCheckoutUrl = (personId: string,) => {
 }
 
 /**
- * Requires `notification_settings.manage.all`; works for people without an account too. Unknown people answer 404. A change is audited as `notification_feedback_at_checkout.changed` with the person and raises the `notification_settings_changed` trigger; the same value again changes nothing.
+ * Requires `notification_settings.manage.all`; only a master may change a master's settings (403 otherwise). Works for people without an account too. Unknown people answer 404. A change is audited as `notification_feedback_at_checkout.changed` with the person and raises the `notification_settings_changed` trigger; the same value again changes nothing.
  * @summary Choose for another person whether the tablet may ask for feedback at check-out
  */
 export const setPersonFeedbackAtCheckout = async (personId: string,

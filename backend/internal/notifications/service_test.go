@@ -171,7 +171,7 @@ func TestBrandedMailsLinkTheNotificationSettingsWithoutPersonalData(t *testing.T
 	mail := &recordingMail{}
 	service := NewService(mail, fixedName("Portal"))
 	if err := service.SendNotice(
-		context.Background(), "member@example.test", "Printer error", "Nozzle clog", "/workshop",
+		context.Background(), "member@example.test", "Printer error", "Nozzle clog", "/workshop", true,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -196,5 +196,17 @@ func TestBrandedMailsLinkTheNotificationSettingsWithoutPersonalData(t *testing.T
 	}
 	if strings.Contains(withoutBase.message.Text+withoutBase.message.HTML, "Notification settings") {
 		t.Fatalf("a mail without a base URL must not link the settings: %#v", withoutBase.message)
+	}
+}
+
+func TestNoticesToRecipientsWhoCannotSignInCarryNoSettingsLink(t *testing.T) {
+	mail := &recordingMail{}
+	if err := NewService(mail, fixedName("Portal")).SendNotice(
+		context.Background(), "office@example.test", "Print finished", "Ready", "/workshop", false,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(mail.message.Text+mail.message.HTML, "notification-settings") {
+		t.Fatalf("a recipient without an account got the settings link: %#v", mail.message)
 	}
 }

@@ -38,8 +38,9 @@ type Querier interface {
 	// Recipient rows and role rows go with it (ON DELETE CASCADE).
 	DeleteSentMessage(ctx context.Context, arg DeleteSentMessageParams) (int64, error)
 	GetAccountPersonName(ctx context.Context, accountID uuid.UUID) (GetAccountPersonNameRow, error)
-	// The address is read only when the mail is sent; a deleted person or organization yields none.
-	GetNotificationMailAddress(ctx context.Context, arg GetNotificationMailAddressParams) (string, error)
+	// The address is read only when the mail is sent; a deleted person or organization yields none. can_sign_in says
+	// whether the recipient is a person with an enabled account, who can open the notification settings the mail links.
+	GetNotificationMailAddress(ctx context.Context, arg GetNotificationMailAddressParams) (GetNotificationMailAddressRow, error)
 	GetSentMessage(ctx context.Context, id uuid.UUID) (GetSentMessageRow, error)
 	GetSentMessageForUpdate(ctx context.Context, arg GetSentMessageForUpdateParams) (GetSentMessageForUpdateRow, error)
 	InsertNotification(ctx context.Context, arg InsertNotificationParams) (InboxNotification, error)

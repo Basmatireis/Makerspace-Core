@@ -271,7 +271,11 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 	// The login-time flag misses sessions created before second factors existed and accounts that gained the master
 	// role or a strong_mfa grant later, so an account that must and cannot yet use a second factor is confined here too.
 	mfaSetupRequired := row.MfaSetupRequired
-	if !mfaSetupRequired && assurance != authorization.AssuranceStrongMFA {
+	if restriction != "" {
+		// A restricted session can only touch its own notification settings and cannot set up a second factor, so
+		// confining it to second-factor setup as well would leave it nothing at all.
+		mfaSetupRequired = false
+	} else if !mfaSetupRequired && assurance != authorization.AssuranceStrongMFA {
 		state, err := s.SecondFactorState(ctx, row.AccountID)
 		if err != nil {
 			return Authenticated{}, err

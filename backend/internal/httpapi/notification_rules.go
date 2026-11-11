@@ -653,6 +653,7 @@ func notificationCatalogDTO(view notifyrules.CatalogView) openapi.NotificationCa
 			Placeholders:     catalogPlaceholdersDTO(trigger.Placeholders),
 			Resolutions:      catalogChoicesDTO(trigger.Resolutions),
 			ThrottleSubjects: catalogChoicesDTO(trigger.ThrottleSubjects),
+			Channels:         catalogChannelsDTO(trigger.Channels),
 		})
 	}
 	collections := make([]openapi.NotificationCatalogCollection, 0, len(view.Collections))
@@ -916,4 +917,16 @@ func (s *Server) ListNotificationActivity(
 		return nil, err
 	}
 	return openapi.ListNotificationActivity200JSONResponse(dto), nil
+}
+
+// catalogChannelsDTO is absent when the trigger allows every channel.
+func catalogChannelsDTO(channels []notifyrules.Channel) *[]string {
+	if len(channels) == 0 {
+		return nil
+	}
+	items := make([]string, 0, len(channels))
+	for _, channel := range channels {
+		items = append(items, string(channel))
+	}
+	return &items
 }

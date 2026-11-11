@@ -330,7 +330,7 @@ func (e *SystemEvents) NotificationSettingsChanged(
 		Placeholders: map[string]string{"person": name, "by": by, "changes": strings.Join(changes, "\n")},
 		Recipients:   map[string][]uuid.UUID{"self": {personID}},
 		Subjects:     map[string]string{"person": personID.String()},
-		Link:         "/people/" + personID.String(),
+		Link:         NotificationSettingsLink,
 	})
 }
 

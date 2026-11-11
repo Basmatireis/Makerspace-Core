@@ -98,6 +98,11 @@ type Trigger struct {
 	Placeholders     []Placeholder
 	Resolutions      []Choice
 	ThrottleSubjects []Choice
+	// Channels limits the action channels a rule on the trigger may use; empty allows every channel.
+	Channels []Channel
+	// RecipientsNeedPermission delivers the event to people other than its "self" recipients only while their
+	// account holds Permission, so that a central rule addressing a role cannot show the data to anyone else.
+	RecipientsNeedPermission bool
 }
 
 // Collection is a set of things a rule can loop over.

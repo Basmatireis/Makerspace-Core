@@ -162,6 +162,15 @@ func routeKey(method, pathTemplate string) string {
 	return method + " " + pathTemplate
 }
 
+// routingPath is the path chi dispatches on: the escaped path when the request has one, else the decoded path. Matching
+// the operation on any other spelling could attach one operation's policy to a request routed to another.
+func routingPath(r *http.Request) string {
+	if r.URL.RawPath != "" {
+		return r.URL.RawPath
+	}
+	return r.URL.Path
+}
+
 // matchedRoute returns the routeKey of the operation the request addresses, or "" when no
 // operation matches its method and path.
 func matchedRoute(routes chi.Routes, method, path string) string {

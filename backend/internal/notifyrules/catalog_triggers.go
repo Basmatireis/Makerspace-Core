@@ -120,8 +120,11 @@ var activityTriggers = []Trigger{
 		Key: "notification_settings_changed", Area: "People", Label: "Someone's notification settings change",
 		Help: "Fires once per save that changes a person's channel choices, their feedback-at-check-out switch or their " +
 			"consents, whether they saved it themselves or staff did. Consents given while enrolling at the kiosk stay " +
-			"quiet. {changes} lists one line per change, labels only.",
+			"quiet. {changes} lists one line per change, labels only. Only in-app and e-mail actions are possible. " +
+			"Besides the person themselves, only people allowed to see everyone's notification settings are told.",
 		Subject: SubjectLab, Permission: authorization.NotificationSettingsReadAll,
+		Channels:                 []Channel{ChannelInApp, ChannelEmail},
+		RecipientsNeedPermission: true,
 		Fields: []Field{
 			{Key: "bySelf", Label: "Changed by the person themselves", Type: FieldBool},
 			{Key: "consentChanged", Label: "A consent was given or withdrawn", Type: FieldBool},

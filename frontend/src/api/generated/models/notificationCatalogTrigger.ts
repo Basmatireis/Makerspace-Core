@@ -39,4 +39,9 @@ export interface NotificationCatalogTrigger {
   placeholders: NotificationCatalogPlaceholder[];
   resolutions: NotificationCatalogChoice[];
   throttleSubjects: NotificationCatalogChoice[];
+  /**
+     * The action channels a rule on this trigger may use (others answer 422 `validation_failed` at `….channel`). Absent when every channel is allowed.
+     * @items.maxLength 40
+     */
+  channels?: string[];
 }

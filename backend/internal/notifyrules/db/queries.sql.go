@@ -1791,6 +1791,20 @@ func (q *Queries) InsertSignageRuleNotice(ctx context.Context, arg InsertSignage
 	return result.RowsAffected(), nil
 }
 
+const isPersonMaster = `-- name: IsPersonMaster :one
+SELECT EXISTS (
+    SELECT 1 FROM person_roles pr JOIN roles r ON r.id = pr.role_id
+    WHERE pr.person_id = $1 AND r.system_key = 'master'
+)::boolean
+`
+
+func (q *Queries) IsPersonMaster(ctx context.Context, personID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, isPersonMaster, personID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const listActivity = `-- name: ListActivity :many
 SELECT f.id, f.rule_id, f.rule_name, f.trigger_type, f.summary, f.test, f.resolved_at, f.resolved_reason, f.created_at,
        (SELECT count(*) FROM notification_firing_recipients r WHERE r.firing_id = f.id AND r.status IN ('sent', 'fallback'))::bigint AS reached,
@@ -3144,6 +3158,42 @@ ORDER BY a.person_id
 // People who can sign in with a password: an enabled account with a usable password identity.
 func (q *Queries) ListPeopleWithPasswordAccount(ctx context.Context, personIds []string) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listPeopleWithPasswordAccount, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var person_id uuid.UUID
+		if err := rows.Scan(&person_id); err != nil {
+			return nil, err
+		}
+		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPeopleWithPermission = `-- name: ListPeopleWithPermission :many
+SELECT DISTINCT a.person_id
+FROM accounts a
+JOIN person_roles pr ON pr.person_id = a.person_id
+JOIN roles r ON r.id = pr.role_id
+WHERE a.person_id = ANY($1::text[]::uuid[]) AND a.status = 'enabled'
+  AND (r.system_key = 'master' OR EXISTS (
+      SELECT 1 FROM role_permission_grants g WHERE g.role_id = r.id AND g.permission_id = $2::text))
+`
+
+type ListPeopleWithPermissionParams struct {
+	PersonIds    []string
+	PermissionID string
+}
+
+// Of the given people, those with an enabled account that holds the permission through a role (master holds all).
+func (q *Queries) ListPeopleWithPermission(ctx context.Context, arg ListPeopleWithPermissionParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPeopleWithPermission, arg.PersonIds, arg.PermissionID)
 	if err != nil {
 		return nil, err
 	}

@@ -60,3 +60,20 @@ func TestNotificationSettingsSessionsReachOnlyTheirOperations(t *testing.T) {
 		t.Fatal("a restricted session must read its notification settings")
 	}
 }
+
+func TestOperationsAreMatchedOnThePathChiDispatches(t *testing.T) {
+	request, err := http.NewRequestWithContext(
+		context.Background(), http.MethodGet, "http://example.test/api/v1/people/a%2Fb/notification-settings", nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := routingPath(request); got != "/api/v1/people/a%2Fb/notification-settings" {
+		t.Fatalf("escaped path = %q", got)
+	}
+	request.URL.RawPath = ""
+	request.URL.Path = "/api/v1/me/notifications/settings"
+	if got := routingPath(request); got != "/api/v1/me/notifications/settings" {
+		t.Fatalf("plain path = %q", got)
+	}
+}

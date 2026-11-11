@@ -637,8 +637,11 @@ func TestRulePreferencesAndTheRulesThatReachAPerson(t *testing.T) {
 	if got := settings.Rules[0].EffectiveChannels; len(got) != 1 || got[0] != notifyrules.ChannelEmail {
 		t.Fatalf("effective channels = %v", got)
 	}
-	if err := e.rules.SetRulePreference(ctx, member, optionalRule.ID, notifyrules.Preference{}, nil); err != nil {
-		t.Fatalf("muting a normal rule: %v", err)
+	// A rule that does not reach the person takes no choice, so the call reveals nothing about it.
+	if err := e.rules.SetRulePreference(ctx, member, optionalRule.ID, notifyrules.Preference{}, nil); !apperror.IsCode(
+		err, "not_found",
+	) {
+		t.Fatalf("choice for a rule that does not reach the person: %v", err)
 	}
 	// Personal rules and unknown rules take no choice; choices belong to the account.
 	own, err := e.rules.CreateSubscription(ctx, member, eventRule("lab_rules_published", "me"), nil)

@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -464,5 +466,252 @@ func TestNotificationSettingsChangesRaiseOneEventPerSave(t *testing.T) {
 	}
 	if e.told(newcomer.PersonID, rule.ID) != 0 {
 		t.Fatal("enrolment answers raised notification_settings_changed")
+	}
+}
+
+// settingsMailer records which notification mails link the notification settings.
+type settingsMailer struct{ links map[string]bool }
+
+func (m *settingsMailer) SendNotice(_ context.Context, to, _, _, _ string, settingsLink bool) error {
+	m.links[to] = settingsLink
+	return nil
+}
+
+func TestStaffChangesRespectMastersRuleReachAndRuleVisibility(t *testing.T) {
+	h := newSettingsHTTP(t)
+	ctx := testContext(t)
+	manager := h.person("ns-reach-manager", h.grant(authorization.NotificationRulesManage))
+	crew := h.role("Reach crew", nil)
+	target := h.person("ns-reach-target", crew.ID)
+	outsider := h.person("ns-reach-outsider")
+	input := eventRule("lab_rules_published", "role:"+crew.ID.String())
+	input.CategoryID, input.Description = &h.service, "What the crew is told"
+	rule, err := h.rules.CreateRule(ctx, manager, input, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staff := h.person("ns-reach-staff", h.membershipRole("supervisor").ID)
+
+	// A rule that does not reach the person takes no choice, for staff and for the person alike.
+	if err := h.rules.SetPersonRulePreference(ctx, staff, outsider.PersonID, rule.ID, notifyrules.Preference{}, nil); !apperror.IsCode(
+		err, "not_found",
+	) {
+		t.Fatalf("staff choice for a rule that does not reach the person: %v", err)
+	}
+	if err := h.rules.SetRulePreference(ctx, outsider, rule.ID, notifyrules.Preference{Email: true}, nil); !apperror.IsCode(
+		err, "not_found",
+	) {
+		t.Fatalf("own choice for a rule that does not reach the person: %v", err)
+	}
+	if err := h.rules.SetPersonRulePreference(ctx, staff, target.PersonID, rule.ID, notifyrules.Preference{}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Only a master changes a master's settings.
+	masterAccount := seedAccount(t, h.pool, "ns-reach-master", true)
+	if err := h.rules.SetPersonAskFeedbackAtCheckout(ctx, staff, masterAccount.personID, false, nil); !apperror.IsCode(
+		err, "permission_denied",
+	) {
+		t.Fatalf("staff changed a master's feedback switch: %v", err)
+	}
+	if err := h.rules.SetPersonRulePreference(ctx, staff, masterAccount.personID, rule.ID, notifyrules.Preference{}, nil); !apperror.IsCode(
+		err, "permission_denied",
+	) {
+		t.Fatalf("staff changed a master's channels: %v", err)
+	}
+	master, err := authorization.LoadPermissionsFrom(ctx, h.pool, authorization.Principal{
+		AccountID: masterAccount.accountID, PersonID: masterAccount.personID, Assurance: authorization.AssuranceStrongMFA,
+		AuthenticatedAt: time.Now().UTC(),
+	})
+	if err != nil || !master.Master {
+		t.Fatalf("master principal: %v", err)
+	}
+	other := seedAccount(t, h.pool, "ns-reach-master-2", true)
+	if err := h.rules.SetPersonAskFeedbackAtCheckout(ctx, master, other.personID, false, nil); err != nil {
+		t.Fatalf("a master changing another master's switch: %v", err)
+	}
+	assertCount(t, h.pool, `SELECT count(*) FROM audit_events WHERE action='notification_feedback_at_checkout.changed'
+		AND resource_id=$1`, 0, masterAccount.personID)
+
+	// Staff who may not read the central rules see that a rule reaches the person, but not what it says.
+	view, err := h.rules.PersonSettings(ctx, staff, target.PersonID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader := h.person("ns-reach-reader", h.grant(authorization.NotificationSettingsReadAll, authorization.NotificationRulesRead))
+	full, err := h.rules.PersonSettings(ctx, reader, target.PersonID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	find := func(rules []notifyrules.ReachingRule) notifyrules.ReachingRule {
+		for _, reaching := range rules {
+			if reaching.RuleID == rule.ID {
+				return reaching
+			}
+		}
+		t.Fatalf("rule %s missing from %+v", rule.ID, rules)
+		return notifyrules.ReachingRule{}
+	}
+	redacted, shown := find(view.Settings.Rules), find(full.Settings.Rules)
+	if redacted.Description != "" || redacted.TriggerSummary != "" || redacted.Name == "" || redacted.CategoryName == "" ||
+		len(redacted.Why) == 0 || len(redacted.DefaultChannels) == 0 {
+		t.Fatalf("redacted rule = %+v", redacted)
+	}
+	if shown.Description != "What the crew is told" || shown.TriggerSummary == "" {
+		t.Fatalf("rule for a rules reader = %+v", shown)
+	}
+}
+
+func TestLowAssuranceStaffSessionsOnlyReadOtherPeoplesSettings(t *testing.T) {
+	h := newSettingsHTTP(t)
+	ctx := testContext(t)
+	target := h.person("ns-pin-target")
+	_, _, login := webSignInAccount(t, h.pool, "ns-pin-staff", h.membershipRole("supervisor").ID)
+	session, err := h.auth.LoginWithPIN(ctx, login, "246810", "203.0.113.91", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authenticated, err := h.auth.Authenticate(ctx, session.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin := authenticated.Principal
+	if pin.Assurance != authorization.AssuranceLow {
+		t.Fatalf("PIN session assurance = %s", pin.Assurance)
+	}
+	if _, err := h.rules.PersonSettings(ctx, pin, target.PersonID); err != nil {
+		t.Fatalf("PIN session reading another person's settings: %v", err)
+	}
+	if err := h.rules.SetPersonAskFeedbackAtCheckout(ctx, pin, target.PersonID, false, nil); !apperror.IsCode(
+		err, "permission_denied",
+	) {
+		t.Fatalf("PIN session changed another person's settings: %v", err)
+	}
+}
+
+func TestNotificationSettingsTriggerLimitsChannelsRecipientsAndSubscribers(t *testing.T) {
+	e := newTriggerEnv(t)
+	ctx := testContext(t)
+	// Rule managers see the trigger only with its permission.
+	e.manager = e.person("ns-limit-manager", e.grant(
+		authorization.NotificationRulesManage, authorization.NotificationSettingsReadAll,
+	))
+
+	signage := eventRule("notification_settings_changed", "self")
+	signage.CategoryID = &e.service
+	signage.Definition.Actions[0].Channel = notifyrules.ChannelSignage
+	if _, err := e.rules.CreateRule(ctx, e.manager, signage, nil); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("a signage action on notification_settings_changed: %v", err)
+	}
+	// A personal subscription needs the trigger's permission.
+	plain := e.person("ns-limit-plain")
+	if _, err := e.rules.CreateSubscription(ctx, plain, eventRule("notification_settings_changed", "me"), nil); err == nil {
+		t.Fatal("a person without notification_settings.read.all subscribed to everyone's settings changes")
+	}
+	watcher := e.person("ns-limit-watcher", e.grant(authorization.NotificationSettingsReadAll))
+	if _, err := e.rules.CreateSubscription(ctx, watcher, eventRule("notification_settings_changed", "me"), nil); err != nil {
+		t.Fatalf("subscription with notification_settings.read.all: %v", err)
+	}
+
+	// A central rule telling a role reaches only the role's members who may see everyone's settings.
+	crew := e.role("Settings watchers", nil)
+	allowed := e.person("ns-limit-allowed", crew.ID, e.grant(authorization.NotificationSettingsReadAll))
+	blind := e.person("ns-limit-blind", crew.ID)
+	input := eventRule("notification_settings_changed", "self", "role:"+crew.ID.String())
+	input.CategoryID = &e.service
+	rule, err := e.rules.CreateRule(ctx, e.manager, input, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	person := e.person("ns-limit-person")
+	if err := e.rules.SetAskFeedbackAtCheckout(ctx, person, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if e.told(person.PersonID, rule.ID) != 1 || e.told(allowed.PersonID, rule.ID) != 1 || e.told(blind.PersonID, rule.ID) != 0 {
+		t.Fatalf("told person %d, allowed %d, blind %d", e.told(person.PersonID, rule.ID),
+			e.told(allowed.PersonID, rule.ID), e.told(blind.PersonID, rule.ID))
+	}
+	assertCount(t, e.pool, `SELECT count(*) FROM inbox_notifications WHERE rule_id=$1 AND link='/notification-settings'`, 1,
+		rule.ID)
+}
+
+func TestNotificationMailsLinkTheSettingsOnlyForPeopleWhoCanSignIn(t *testing.T) {
+	e := newRulesEnv(t)
+	ctx := testContext(t)
+	member := e.person("ns-mail-member")
+	withoutAccount := ids.New()
+	e.exec(`INSERT INTO people(id,first_name,last_name,email) VALUES($1,'No','Account','ns-mail-none@example.test')`,
+		withoutAccount)
+	organization := ids.New()
+	e.exec(`INSERT INTO organizations(id,name,kind,contact_email) VALUES($1,'Lab Partner','company','office@example.test')`,
+		organization)
+	var memberEmail string
+	if err := e.pool.QueryRow(ctx, `SELECT email FROM people WHERE id=$1`, member.PersonID).Scan(&memberEmail); err != nil {
+		t.Fatal(err)
+	}
+	for _, recipient := range []struct{ person, organization *uuid.UUID }{
+		{person: &member.PersonID}, {person: &withoutAccount}, {organization: &organization},
+	} {
+		e.exec(`INSERT INTO notification_mail_outbox(id,kind,person_id,organization_id,subject,body)
+			VALUES($1,'rule',$2,$3,'Print finished','Ready')`, ids.New(), recipient.person, recipient.organization)
+	}
+	mailer := &settingsMailer{links: map[string]bool{}}
+	if sent, err := inbox.NewMailDelivery(e.pool, mailer).Deliver(ctx, inbox.MailDeliveryBatch); err != nil || sent != 3 {
+		t.Fatalf("delivered %d, %v", sent, err)
+	}
+	if !mailer.links[memberEmail] || mailer.links["ns-mail-none@example.test"] || mailer.links["office@example.test"] {
+		t.Fatalf("settings links = %v", mailer.links)
+	}
+}
+
+func TestRestrictedSessionEdgeCases(t *testing.T) {
+	h := newSettingsHTTP(t)
+	ctx := testContext(t)
+
+	// An account that must set up a second factor is not also confined to that setup in a restricted session.
+	mfaVisitor, mfaEmail := h.visitor("ns-edge-mfa")
+	role := ids.New()
+	h.exec(`INSERT INTO roles(id,name) VALUES($1,'Strong grant');
+		INSERT INTO role_permission_grants(id,role_id,permission_id,minimum_assurance) VALUES(uuidv7(),$1,'audit.read','strong_mfa');
+		INSERT INTO person_roles(person_id,role_id) VALUES($2,$1)`, role, mfaVisitor.PersonID)
+	client := newCookieClient(t)
+	h.expect(h.codeLogin(client, mfaEmail, "notification_settings"), http.StatusNoContent, "")
+	if current := h.me(client); current.Authentication.MfaSetupRequired || !current.Authentication.MfaRequired {
+		t.Fatalf("restricted session authentication = %+v", current.Authentication)
+	}
+	h.expect(h.do(client, http.MethodGet, "/me/notifications/settings", nil), http.StatusOK, "")
+
+	// The CSRF check applies to restricted sessions as to any other.
+	response := doJSON(t, client, http.MethodPut, h.server.URL+"/api/v1/me/notifications/feedback-at-checkout",
+		settingsOrigin, "", map[string]any{"ask": false})
+	h.expect(response, http.StatusForbidden, "csrf_invalid")
+
+	// A disabled account's restricted session stops working.
+	h.exec(`UPDATE accounts SET status='disabled' WHERE id=$1`, mfaVisitor.AccountID)
+	h.expect(h.do(client, http.MethodGet, "/me/notifications/settings", nil), http.StatusUnauthorized, "unauthenticated")
+
+	// A restricted sign-in waiting for its second factor becomes a normal session when the account gained
+	// web.sign_in meanwhile: the purpose only ever stands in for a missing right.
+	visitor, email := h.visitor("ns-edge-gain")
+	secret := []byte("12345678901234567890")
+	if err := h.auth.EnrollFixtureTOTP(ctx, visitor.AccountID, secret); err != nil {
+		t.Fatal(err)
+	}
+	result, err := h.auth.LoginWithEmailCodeForPurpose(
+		ctx, email, requestLoginCode(t, h.auth, h.notifier, email), "203.0.113.92",
+		auth.RestrictionNotificationSettings, nil,
+	)
+	if err != nil || result.Pending == nil {
+		t.Fatalf("restricted pending sign-in: %+v %v", result, err)
+	}
+	allowVisitorWebSignIn(t, h.pool)
+	totp := security.HOTP(secret, uint64(security.TOTPStep(time.Now())), security.TOTPDigits)
+	session, err := h.auth.CompleteSecondFactorLogin(ctx, result.Pending.Token, auth.SecondFactorTOTP, totp, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authenticated, err := h.auth.Authenticate(ctx, session.Token)
+	if err != nil || authenticated.Restriction != "" || !authenticated.Principal.Has(authorization.WebSignIn) {
+		t.Fatalf("second factor after gaining web.sign_in: restriction %q, %v", authenticated.Restriction, err)
 	}
 }

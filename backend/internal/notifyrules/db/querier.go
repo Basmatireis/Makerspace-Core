@@ -121,6 +121,7 @@ type Querier interface {
 	InsertRuleNotificationRecipients(ctx context.Context, arg InsertRuleNotificationRecipientsParams) error
 	// Notices on signage displays and entrance tablets ---------------------------------------------------------------------
 	InsertSignageRuleNotice(ctx context.Context, arg InsertSignageRuleNoticeParams) (int64, error)
+	IsPersonMaster(ctx context.Context, personID uuid.UUID) (bool, error)
 	ListActivity(ctx context.Context, arg ListActivityParams) ([]ListActivityRow, error)
 	ListActivityRecipients(ctx context.Context, firingIds []string) ([]ListActivityRecipientsRow, error)
 	ListAllCheckedInPeople(ctx context.Context) ([]uuid.UUID, error)
@@ -174,6 +175,8 @@ type Querier interface {
 	ListPeopleWithEnabledAccount(ctx context.Context, personIds []string) ([]uuid.UUID, error)
 	// People who can sign in with a password: an enabled account with a usable password identity.
 	ListPeopleWithPasswordAccount(ctx context.Context, personIds []string) ([]uuid.UUID, error)
+	// Of the given people, those with an enabled account that holds the permission through a role (master holds all).
+	ListPeopleWithPermission(ctx context.Context, arg ListPeopleWithPermissionParams) ([]uuid.UUID, error)
 	ListPersonIDsByRoles(ctx context.Context, roleIds []string) ([]uuid.UUID, error)
 	ListPersonIDsOfAccounts(ctx context.Context, accountIds []string) ([]uuid.UUID, error)
 	ListPreferencesOfAccount(ctx context.Context, accountID uuid.UUID) ([]NotificationRulePreference, error)

@@ -165,9 +165,12 @@ WHERE o.id IN (
 RETURNING o.id, o.kind, o.person_id, o.organization_id, o.subject, o.body, o.link, o.attempts;
 
 -- name: GetNotificationMailAddress :one
--- The address is read only when the mail is sent; a deleted person or organization yields none.
+-- The address is read only when the mail is sent; a deleted person or organization yields none. can_sign_in says
+-- whether the recipient is a person with an enabled account, who can open the notification settings the mail links.
 SELECT COALESCE((SELECT NULLIF(btrim(p.email), '') FROM people p WHERE p.id = sqlc.narg(person_id)),
-                (SELECT NULLIF(btrim(o.contact_email), '') FROM organizations o WHERE o.id = sqlc.narg(organization_id)), '')::text AS address;
+                (SELECT NULLIF(btrim(o.contact_email), '') FROM organizations o WHERE o.id = sqlc.narg(organization_id)), '')::text AS address,
+       EXISTS (SELECT 1 FROM accounts a WHERE a.person_id = sqlc.narg(person_id) AND a.status = 'enabled')::boolean
+           AS can_sign_in;
 
 -- name: DeleteNotificationMail :exec
 DELETE FROM notification_mail_outbox WHERE id = sqlc.arg(id);
