@@ -52,11 +52,16 @@ func (s *Server) LoginWithEmailCode(
 	if request.Body == nil || request.Body.Code == nil {
 		return nil, invalidRequest("email and code are required")
 	}
-	result, err := s.auth.LoginWithEmailCode(
+	var purpose auth.SessionRestriction
+	if request.Body.Purpose != nil {
+		purpose = auth.SessionRestriction(*request.Body.Purpose)
+	}
+	result, err := s.auth.LoginWithEmailCodeForPurpose(
 		ctx,
 		string(request.Body.Email),
 		*request.Body.Code,
 		sourceAddress(ctx),
+		purpose,
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -254,6 +259,7 @@ func (s *Server) GetCurrentUser(
 				IdleExpiresAt:          authenticated.IdleExpiresAt,
 				AbsoluteExpiresAt:      authenticated.AbsoluteExpiresAt,
 				PostSessionDestination: openapi.PostSessionDestination(authenticated.PostSessionDestination),
+				Restriction:            sessionRestrictionDTO(authenticated.Restriction),
 			},
 		},
 		Headers: openapi.GetCurrentUser200ResponseHeaders{CacheControl: "no-store"},
@@ -264,11 +270,11 @@ func (s *Server) RecordSessionActivity(
 	ctx context.Context,
 	_ openapi.RecordSessionActivityRequestObject,
 ) (openapi.RecordSessionActivityResponseObject, error) {
-	principal, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
+	authenticated, ok := ctx.Value(authenticatedContextKey).(auth.Authenticated)
+	if !ok {
+		return nil, apperror.Unauthenticated
 	}
-	session, err := s.auth.RecordActivity(ctx, principal)
+	session, err := s.auth.RecordActivity(ctx, authenticated.Principal)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +282,16 @@ func (s *Server) RecordSessionActivity(
 		IdleExpiresAt:          session.IdleExpiresAt,
 		AbsoluteExpiresAt:      session.AbsoluteExpiry,
 		PostSessionDestination: openapi.PostSessionDestination(session.PostSessionDestination),
+		Restriction:            sessionRestrictionDTO(authenticated.Restriction),
 	}, nil
+}
+
+// sessionRestrictionDTO is null for a normal session and the restriction's name otherwise.
+func sessionRestrictionDTO(restriction auth.SessionRestriction) nullable.Nullable[openapi.SessionRestriction] {
+	if restriction == "" {
+		return nullable.NewNullNullable[openapi.SessionRestriction]()
+	}
+	return nullable.NewNullableWithValue(openapi.SessionRestriction(restriction))
 }
 
 func (s *Server) ChangeOwnPassword(

@@ -228,13 +228,13 @@ func TestDispatchHonoursChannelChoicesAndMandatoryRules(t *testing.T) {
 	optional := e.newRule(e.service, nil, inAppAction("operator"))
 	mandatory := e.newRule(e.service, func(in *notifyrules.RuleInput) { in.Mandatory = true }, inAppAction("operator"))
 	ctx := testContext(t)
-	if err := e.rules.SetRulePreference(ctx, muted, optional.ID, notifyrules.Preference{}); err != nil {
+	if err := e.rules.SetRulePreference(ctx, muted, optional.ID, notifyrules.Preference{}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.rules.SetRulePreference(ctx, mailOnly, optional.ID, notifyrules.Preference{Email: true}); err != nil {
+	if err := e.rules.SetRulePreference(ctx, mailOnly, optional.ID, notifyrules.Preference{Email: true}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.rules.SetRulePreference(ctx, mailOnly, mandatory.ID, notifyrules.Preference{Email: true}); err != nil {
+	if err := e.rules.SetRulePreference(ctx, mailOnly, mandatory.ID, notifyrules.Preference{Email: true}, nil); err != nil {
 		t.Fatal(err)
 	}
 	// The service refuses to mute a mandatory rule; even a row that got there some other way keeps the defaults.

@@ -18,7 +18,14 @@ import type { LoginRequest, PinLoginRequest, SecondFactorMethod } from '../../ap
 import { ApiError, apiErrorCode } from '../../api/http-client';
 import { BrandMark } from '../../app/BrandMark';
 import { FullPageLoading } from '../../app/PageState';
-import { currentUserQueryOptions, useCurrentUserQuery, useEmailCodeLogin, useLogin, usePINLogin } from './auth';
+import {
+  currentUserQueryOptions,
+  notificationSettingsPath,
+  useCurrentUserQuery,
+  useEmailCodeLogin,
+  useLogin,
+  usePINLogin,
+} from './auth';
 import { useBranding, usePageTitle } from '../branding/branding';
 import { LegalLinks } from '../branding/LegalLinks';
 
@@ -55,7 +62,12 @@ export function LoginPage() {
     queryFn: ({ signal }) => listOIDCLoginProviders({ signal }),
   });
   const fromKiosk = (location.state as LocationState)?.origin === 'kiosk';
-  const [method, setMethod] = useState<'password' | 'pin' | 'email_code'>('password');
+  // The mailed notification link needs no web permission: a code sign-in then opens a restricted session for that page.
+  // The purpose is only sent on the email-code path; password, PIN and passkey sign-ins never open a restricted session.
+  const forNotificationSettings = safeReturnPath(location.state as LocationState) === notificationSettingsPath;
+  const [method, setMethod] = useState<'password' | 'pin' | 'email_code'>(
+    forNotificationSettings ? 'email_code' : 'password',
+  );
   // Two small forms with local state: the sign-in page is part of the initial bundle, where a form library would cost
   // more than it saves. Errors appear on submit and clear as the field changes, as elsewhere in the app.
   const [credentials, setCredentials] = useState<LoginRequest>({ email: '', password: '' });
@@ -146,7 +158,11 @@ export function LoginPage() {
     }
     setCodeError(undefined);
     try {
-      const pending = await emailCodeMutation.mutateAsync({ email: codeSentTo, code });
+      const pending = await emailCodeMutation.mutateAsync({
+        email: codeSentTo,
+        code,
+        ...(forNotificationSettings ? { purpose: 'notification_settings' as const } : {}),
+      });
       if (pending) {
         setSecondFactor(pending.methods);
         return;
@@ -206,7 +222,9 @@ export function LoginPage() {
                 <h1 id="login-title">{branding.identity.displayName}</h1>
               </div>
             </div>
-            <p className="auth-card__subtitle">Sign in to continue.</p>
+            <p className="auth-card__subtitle">
+              {forNotificationSettings ? 'Sign in to manage your notification settings.' : 'Sign in to continue.'}
+            </p>
           </div>
 
           {secondFactor ? (

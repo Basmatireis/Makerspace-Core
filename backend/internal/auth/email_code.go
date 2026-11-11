@@ -410,6 +410,21 @@ func (s *Service) LoginWithEmailCode(
 	email, code, sourceKey string,
 	requestID *uuid.UUID,
 ) (LoginResult, error) {
+	return s.LoginWithEmailCodeForPurpose(ctx, email, code, sourceKey, "", requestID)
+}
+
+// LoginWithEmailCodeForPurpose is LoginWithEmailCode for a sign-in with a purpose: an account without web.sign_in
+// that would be refused gets a session restricted to that purpose instead (through its second factor first, when it
+// has one). An account with web.sign_in ignores the purpose. The sign-in is audited with the restriction.
+func (s *Service) LoginWithEmailCodeForPurpose(
+	ctx context.Context,
+	email, code, sourceKey string,
+	purpose SessionRestriction,
+	requestID *uuid.UUID,
+) (LoginResult, error) {
+	if !purpose.Valid() {
+		return LoginResult{}, apperror.InvalidField("purpose: must be notification_settings")
+	}
 	_, normalized, normalizeErr := security.NormalizeEmail(email)
 	limitKey, allowed := s.limits.take("email_code", sourceKey, normalized, time.Now())
 	if !allowed {
@@ -428,7 +443,8 @@ func (s *Service) LoginWithEmailCode(
 		return LoginResult{}, err
 	}
 	accountID, identityID := proof.target.AccountID, proof.target.AuthIdentityID
-	if err := requireWebSignIn(ctx, tx, accountID); err != nil {
+	restriction, err := sessionRestrictionFor(ctx, tx, accountID, purpose)
+	if err != nil {
 		return LoginResult{}, err
 	}
 	queries := authdb.New(tx)
@@ -442,7 +458,7 @@ func (s *Service) LoginWithEmailCode(
 		return LoginResult{}, err
 	}
 	if state.TotpEnrolled || state.PasskeyCount > 0 {
-		pending, err := s.createPendingLogin(ctx, queries, accountID, identityID, MethodEmailCode, state)
+		pending, err := s.createPendingLogin(ctx, queries, accountID, identityID, MethodEmailCode, state, restriction)
 		if err != nil {
 			return LoginResult{}, err
 		}
@@ -455,6 +471,7 @@ func (s *Service) LoginWithEmailCode(
 	// An emailed code proves control of the mailbox, which already allows a password reset: normal assurance.
 	session, err := s.createSession(
 		ctx, queries, accountID, identityID, MethodEmailCode, authorization.AssuranceNormal, state.Required,
+		restriction,
 	)
 	if err != nil {
 		return LoginResult{}, err
@@ -466,7 +483,7 @@ func (s *Service) LoginWithEmailCode(
 	}
 	if err := audit.Write(ctx, tx, audit.Event{
 		ActorAccountID: &accountID, Action: "auth.email_code_login_succeeded", ResourceType: "account",
-		ResourceID: &accountID, RequestID: requestID,
+		ResourceID: &accountID, RequestID: requestID, Metadata: restrictionMetadata(restriction),
 	}); err != nil {
 		return LoginResult{}, err
 	}

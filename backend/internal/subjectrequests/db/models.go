@@ -1388,6 +1388,7 @@ type PendingLogin struct {
 	ExpiresAt       time.Time
 	CreatedAt       time.Time
 	AuthMethod      string
+	Restriction     *string
 }
 
 type Person struct {
@@ -2005,6 +2006,7 @@ type Session struct {
 	AuthenticatedAssurance *string
 	MfaSetupRequired       bool
 	WebauthnCredentialID   *uuid.UUID
+	Restriction            *string
 }
 
 type SessionPolicy struct {

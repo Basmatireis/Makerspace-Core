@@ -19,9 +19,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PostSessionDestination } from './postSessionDestination';
+import type { SessionRestriction } from './sessionRestriction';
 
 export interface SessionContext {
   idleExpiresAt: string;
   absoluteExpiresAt: string;
   postSessionDestination: PostSessionDestination;
+  /** Null for a normal session. `notification_settings` marks a session restricted to the own notification settings: the frontend shows only that page and never the application shell. Such a session reports no permissions. Always present; optional in the schema so older clients and fixtures keep compiling. */
+  restriction?: SessionRestriction | null;
 }

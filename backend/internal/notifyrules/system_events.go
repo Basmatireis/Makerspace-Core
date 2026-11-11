@@ -17,6 +17,10 @@ import (
 // notifications and their e-mails link to it.
 const LabRulesConfirmLink = "/lab-rules/confirm"
 
+// NotificationSettingsLink is the page where a person manages their own notification settings; the
+// notification_settings_changed notifications open it.
+const NotificationSettingsLink = "/notification-settings"
+
 // SystemEvents raises the events the application itself produces: it loads the facts of a business event, fills them
 // into a notifyrules.Event and hands it to the dispatcher inside the caller's transaction. What people are told, and
 // who is told, is decided by the seeded and custom rules of each trigger, never here. Feature packages declare the

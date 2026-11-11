@@ -40,6 +40,8 @@ type Authenticated struct {
 	AuthMethod                       string
 	IdleExpiresAt, AbsoluteExpiresAt time.Time
 	PostSessionDestination           string
+	// Restriction confines the session to one purpose; such a session carries no permissions.
+	Restriction SessionRestriction
 	// MFASetupRequired confines the session to second-factor setup: the account must use a second factor and has
 	// none yet.
 	MFASetupRequired bool
@@ -183,7 +185,9 @@ func (s *Service) Login(
 		return LoginResult{}, err
 	}
 	if state.TotpEnrolled || state.PasskeyCount > 0 {
-		pending, err := s.createPendingLogin(ctx, queries, login.AccountID, login.AuthIdentityID, MethodPassword, state)
+		pending, err := s.createPendingLogin(
+			ctx, queries, login.AccountID, login.AuthIdentityID, MethodPassword, state, "",
+		)
 		if err != nil {
 			return LoginResult{}, err
 		}
@@ -195,7 +199,7 @@ func (s *Service) Login(
 	}
 	session, err := s.createSession(
 		ctx, queries, login.AccountID, login.AuthIdentityID, MethodPassword, authorization.AssuranceNormal,
-		state.Required,
+		state.Required, "",
 	)
 	if err != nil {
 		return LoginResult{}, err
@@ -237,18 +241,27 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 	if row.AssuranceExpiresAt.Valid && !row.AssuranceExpiresAt.Time.After(time.Now().UTC()) {
 		assurance = authorization.Assurance(row.BaseAssurance)
 	}
-	principal, err := authorization.LoadPermissionsFrom(ctx, s.pool, authorization.Principal{
+	restriction := restrictionFromColumn(row.Restriction)
+	if !restriction.Valid() {
+		return Authenticated{}, apperror.Unauthenticated
+	}
+	principal := authorization.Principal{
 		SessionID: row.SessionID, AccountID: row.AccountID, PersonID: row.PersonID,
 		FirstName: row.FirstName, LastName: row.LastName,
 		Assurance: assurance, AuthenticatedAt: row.AuthenticatedAt,
 		AuthenticatedAssurance: authorization.Assurance(row.AuthenticatedAssurance),
-	})
-	if err != nil {
-		return Authenticated{}, err
 	}
-	// Sessions of accounts that lost web.sign_in stop working at once, except terminal sessions on a managed device.
-	if row.ManagedDeviceID == nil && !principal.MaySignInToWeb() {
-		return Authenticated{}, webSignInNotPermitted()
+	// A restricted session exists because its account has no web.sign_in, so it is accepted without it. It never gets
+	// the account's permissions: whatever it may call needs only a session, and nothing it reaches can widen it.
+	if restriction == "" {
+		if principal, err = authorization.LoadPermissionsFrom(ctx, s.pool, principal); err != nil {
+			return Authenticated{}, err
+		}
+		// Sessions of accounts that lost web.sign_in stop working at once, except terminal sessions on a managed
+		// device.
+		if row.ManagedDeviceID == nil && !principal.MaySignInToWeb() {
+			return Authenticated{}, webSignInNotPermitted()
+		}
 	}
 	currentDevice := managedDeviceFromContext(ctx)
 	if (row.ManagedDeviceID == nil) != (currentDevice == nil) ||
@@ -258,7 +271,11 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 	// The login-time flag misses sessions created before second factors existed and accounts that gained the master
 	// role or a strong_mfa grant later, so an account that must and cannot yet use a second factor is confined here too.
 	mfaSetupRequired := row.MfaSetupRequired
-	if !mfaSetupRequired && assurance != authorization.AssuranceStrongMFA {
+	if restriction != "" {
+		// A restricted session can only touch its own notification settings and cannot set up a second factor, so
+		// confining it to second-factor setup as well would leave it nothing at all.
+		mfaSetupRequired = false
+	} else if !mfaSetupRequired && assurance != authorization.AssuranceStrongMFA {
 		state, err := s.SecondFactorState(ctx, row.AccountID)
 		if err != nil {
 			return Authenticated{}, err
@@ -267,7 +284,8 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 	}
 	return Authenticated{Principal: principal, CSRFDigest: row.CsrfDigest, AuthMethod: row.AuthMethod,
 		IdleExpiresAt: row.IdleExpiresAt, AbsoluteExpiresAt: row.AbsoluteExpiresAt,
-		PostSessionDestination: row.PostSessionDestination, MFASetupRequired: mfaSetupRequired}, nil
+		PostSessionDestination: row.PostSessionDestination, Restriction: restriction,
+		MFASetupRequired: mfaSetupRequired}, nil
 }
 
 func (s *Service) unauthenticatedWithDestination(
@@ -428,7 +446,7 @@ func (s *Service) ChangePassword(
 	}
 	session, err := s.createSession(
 		ctx, queries, principal.AccountID, credential.AuthIdentityID, MethodPassword, rotatedAssurance,
-		state.Required && !state.TotpEnrolled && state.PasskeyCount == 0,
+		state.Required && !state.TotpEnrolled && state.PasskeyCount == 0, "",
 	)
 	if err != nil {
 		return Session{}, err
@@ -608,6 +626,7 @@ func (s *Service) createSession(
 	method LoginMethod,
 	assurance authorization.Assurance,
 	mfaSetupRequired bool,
+	restriction SessionRestriction,
 ) (Session, error) {
 	token, tokenDigest, err := security.NewOpaqueToken()
 	if err != nil {
@@ -631,6 +650,7 @@ func (s *Service) createSession(
 		SessionPolicyID: policy.ID, SessionPolicyVersion: policy.Version,
 		IdleTimeoutSeconds:     int32(policy.IdleTimeout / time.Second),
 		PostSessionDestination: policy.PostSessionDestination,
+		Restriction:            restriction.column(),
 	}); err != nil {
 		return Session{}, err
 	}

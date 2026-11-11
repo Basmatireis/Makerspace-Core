@@ -419,7 +419,7 @@ func (s *Server) SetOwnNotificationRulePreference(
 		return nil, invalidRequest("request body is required")
 	}
 	if err := s.notifyRules.SetRulePreference(
-		ctx, p, r.RuleId, notifyrules.Preference{InApp: r.Body.InApp, Email: r.Body.Email},
+		ctx, p, r.RuleId, notifyrules.Preference{InApp: r.Body.InApp, Email: r.Body.Email}, requestIDPointer(ctx),
 	); err != nil {
 		return nil, err
 	}
@@ -437,10 +437,66 @@ func (s *Server) SetOwnFeedbackAtCheckout(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	if err := s.notifyRules.SetAskFeedbackAtCheckout(ctx, p, r.Body.Ask); err != nil {
+	if err := s.notifyRules.SetAskFeedbackAtCheckout(ctx, p, r.Body.Ask, requestIDPointer(ctx)); err != nil {
 		return nil, err
 	}
 	return openapi.SetOwnFeedbackAtCheckout204Response{}, nil
+}
+
+func (s *Server) GetPersonNotificationSettings(
+	ctx context.Context,
+	r openapi.GetPersonNotificationSettingsRequestObject,
+) (openapi.GetPersonNotificationSettingsResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	settings, err := s.notifyRules.PersonSettings(ctx, p, r.PersonId)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.GetPersonNotificationSettings200JSONResponse{
+		PersonId: settings.PersonID, HasAccount: settings.HasAccount, Settings: notificationSettingsDTO(settings.Settings),
+	}, nil
+}
+
+func (s *Server) SetPersonNotificationRulePreference(
+	ctx context.Context,
+	r openapi.SetPersonNotificationRulePreferenceRequestObject,
+) (openapi.SetPersonNotificationRulePreferenceResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	if err := s.notifyRules.SetPersonRulePreference(
+		ctx, p, r.PersonId, r.RuleId, notifyrules.Preference{InApp: r.Body.InApp, Email: r.Body.Email},
+		requestIDPointer(ctx),
+	); err != nil {
+		return nil, err
+	}
+	return openapi.SetPersonNotificationRulePreference204Response{}, nil
+}
+
+func (s *Server) SetPersonFeedbackAtCheckout(
+	ctx context.Context,
+	r openapi.SetPersonFeedbackAtCheckoutRequestObject,
+) (openapi.SetPersonFeedbackAtCheckoutResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	if err := s.notifyRules.SetPersonAskFeedbackAtCheckout(
+		ctx, p, r.PersonId, r.Body.Ask, requestIDPointer(ctx),
+	); err != nil {
+		return nil, err
+	}
+	return openapi.SetPersonFeedbackAtCheckout204Response{}, nil
 }
 
 func (s *Server) ListOwnNotificationSubscriptions(
@@ -597,6 +653,7 @@ func notificationCatalogDTO(view notifyrules.CatalogView) openapi.NotificationCa
 			Placeholders:     catalogPlaceholdersDTO(trigger.Placeholders),
 			Resolutions:      catalogChoicesDTO(trigger.Resolutions),
 			ThrottleSubjects: catalogChoicesDTO(trigger.ThrottleSubjects),
+			Channels:         catalogChannelsDTO(trigger.Channels),
 		})
 	}
 	collections := make([]openapi.NotificationCatalogCollection, 0, len(view.Collections))
@@ -860,4 +917,16 @@ func (s *Server) ListNotificationActivity(
 		return nil, err
 	}
 	return openapi.ListNotificationActivity200JSONResponse(dto), nil
+}
+
+// catalogChannelsDTO is absent when the trigger allows every channel.
+func catalogChannelsDTO(channels []notifyrules.Channel) *[]string {
+	if len(channels) == 0 {
+		return nil
+	}
+	items := make([]string, 0, len(channels))
+	for _, channel := range channels {
+		items = append(items, string(channel))
+	}
+	return &items
 }

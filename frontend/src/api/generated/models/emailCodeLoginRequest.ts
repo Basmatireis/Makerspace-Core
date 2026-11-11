@@ -20,8 +20,11 @@
  */
 import type { Email } from './email';
 import type { EmailLoginCode } from './emailLoginCode';
+import type { SessionRestriction } from './sessionRestriction';
 
 export interface EmailCodeLoginRequest {
   email: Email;
   code: EmailLoginCode;
+  /** Why the person signs in. `notification_settings` lets an account without `web.sign_in` get a session restricted to its own notification settings instead of `403 web_sign_in_not_permitted`; accounts with `web.sign_in` ignore it. */
+  purpose?: SessionRestriction;
 }

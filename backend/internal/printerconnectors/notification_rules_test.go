@@ -9,10 +9,14 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 )
 
-type recordingMailer struct{ sent []string }
+type recordingMailer struct {
+	sent          []string
+	settingsLinks []bool
+}
 
-func (m *recordingMailer) SendNotice(_ context.Context, to, subject, _, link string) error {
+func (m *recordingMailer) SendNotice(_ context.Context, to, subject, _, link string, settingsLink bool) error {
 	m.sent = append(m.sent, to+"|"+subject+"|"+link)
+	m.settingsLinks = append(m.settingsLinks, settingsLink)
 	return nil
 }
 

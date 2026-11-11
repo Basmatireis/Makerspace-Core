@@ -303,6 +303,37 @@ func (e *SystemEvents) RoleChanged(
 	})
 }
 
+// NotificationSettingsChanged raises notification_settings_changed once for a save that changed a person's channel
+// choices, feedback-at-check-out switch or consents. changes are readable lines of what changed, labels only; the
+// actor is the person who saved, the person themselves or a staff member.
+func (e *SystemEvents) NotificationSettingsChanged(
+	ctx context.Context,
+	tx pgx.Tx,
+	personID, actorPersonID uuid.UUID,
+	changes []string,
+	consentChanged bool,
+) error {
+	q := notifyrulesdb.New(tx)
+	name, err := e.nameOf(ctx, q, &personID)
+	if err != nil {
+		return err
+	}
+	by := name
+	if actorPersonID != personID {
+		if by, err = e.nameOf(ctx, q, &actorPersonID); err != nil {
+			return err
+		}
+	}
+	return e.emit(ctx, tx, Event{
+		Trigger:      "notification_settings_changed",
+		Fields:       map[string]any{"bySelf": actorPersonID == personID, "consentChanged": consentChanged},
+		Placeholders: map[string]string{"person": name, "by": by, "changes": strings.Join(changes, "\n")},
+		Recipients:   map[string][]uuid.UUID{"self": {personID}},
+		Subjects:     map[string]string{"person": personID.String()},
+		Link:         NotificationSettingsLink,
+	})
+}
+
 // PrivacyRequestCreated raises privacy_request_created for a request that was just recorded. It has no person
 // recipients: rules name the roles that handle privacy requests.
 func (e *SystemEvents) PrivacyRequestCreated(ctx context.Context, tx pgx.Tx, requestID uuid.UUID) error {

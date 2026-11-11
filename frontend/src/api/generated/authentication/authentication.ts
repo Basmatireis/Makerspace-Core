@@ -200,7 +200,13 @@ export const getLoginWithEmailCodeUrl = () => {
  * control of the mailbox already allows resetting the password, so the emailed code proves no less. Second
  * factors work as with `POST /auth/login`: an account with an authenticator app or passkey gets `202` and a
  * pending-login cookie, and an account that must use a second factor but has none gets a session flagged
- * `mfaSetupRequired`. Accounts without `web.sign_in` answer `403 web_sign_in_not_permitted`.
+ * `mfaSetupRequired`. Accounts without `web.sign_in` answer `403 web_sign_in_not_permitted`, unless the request
+ * names `purpose: notification_settings`: such an account (a visitor) then gets a session restricted to its own
+ * notification settings (`session.restriction` in `GET /auth/me`), which may call only the operations marked
+ * `x-restricted-session: notification_settings` and answers `403 restricted_session` everywhere else. A second
+ * factor is still asked for first, and the completed sign-in yields the restricted session. An account with
+ * `web.sign_in` ignores the purpose and gets a normal session. A restricted sign-in is audited as
+ * `auth.email_code_login_succeeded` with the restriction in its metadata.
  * @summary Start a session with an emailed one-time code
  */
 export const loginWithEmailCode = async (emailCodeLoginRequest: EmailCodeLoginRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SecondFactorRequired | void> => {

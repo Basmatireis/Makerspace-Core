@@ -162,3 +162,21 @@ func TestWriteAcceptsOnlyNumericCountMetadata(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteAcceptsOnlyTheKnownSessionRestriction(t *testing.T) {
+	actorID := ids.New()
+	event := Event{
+		ActorAccountID: &actorID, Action: "auth.email_code_login_succeeded", ResourceType: "account",
+		Metadata: map[string]any{"restriction": "notification_settings"},
+	}
+	queries := &recordingAuditQueries{}
+	if err := write(context.Background(), queries, event); err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []any{"someone@example.test", "", 1} {
+		event.Metadata = map[string]any{"restriction": value}
+		if err := write(context.Background(), &recordingAuditQueries{}, event); err == nil {
+			t.Fatalf("restriction %#v was accepted", value)
+		}
+	}
+}

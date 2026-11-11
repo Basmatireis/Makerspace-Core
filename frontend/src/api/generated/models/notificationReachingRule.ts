@@ -23,13 +23,14 @@ import type { UUIDv7 } from './uUIDv7';
 export interface NotificationReachingRule {
   ruleId: UUIDv7;
   name: string;
+  /** Empty in another person's settings when the caller lacks `notification_rules.read`. */
   description: string;
   categoryId: UUIDv7;
   categoryName: string;
   mandatory: boolean;
   why: string[];
   /**
-     * The rule's When line as the rules list shows it, for example a trigger label, a schedule or 'When someone presses Run now', plus ' · For each <one>' for loops.
+     * Empty in another person's settings when the caller lacks `notification_rules.read`. The rule's When line as the rules list shows it, for example a trigger label, a schedule or 'When someone presses Run now', plus ' · For each <one>' for loops.
      * @maxLength 300
      */
   triggerSummary: string;

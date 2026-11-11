@@ -17,7 +17,8 @@ function ChannelCell({
 }: {
   rule: Row;
   channel: ChannelId;
-  onChange: (next: boolean) => void;
+  /** Without a handler the choice is shown, not changed. */
+  onChange?: (next: boolean) => void;
 }) {
   const other: ChannelId = channel === 'in_app' ? 'email' : 'in_app';
   const on = rule.effectiveChannels.includes(channel);
@@ -36,8 +37,8 @@ function ChannelCell({
           labelA="Off"
           labelB="On"
           toggled={on}
-          disabled={lastRequired}
-          onToggle={onChange}
+          disabled={lastRequired || !onChange}
+          onToggle={(next) => onChange?.(next)}
         />
         <span className="mn-channel__state">
           {lastRequired && <Locked size={16} aria-label="Required: keep at least one" />}
@@ -49,16 +50,26 @@ function ChannelCell({
   );
 }
 
-export function ReachingRulesTable({ settings }: { settings: NotificationSettings }) {
-  const preference = useChangeRulePreference();
+type RulesViewProps = {
+  settings: NotificationSettings;
+  subject?: 'you' | 'person';
+  /** Without a handler the channels are shown, not changed. */
+  onChange?: (change: { ruleId: string; name: string; inApp: boolean; email: boolean }) => void;
+};
+
+export function ReachingRulesView({ settings, subject = 'you', onChange }: RulesViewProps) {
+  const own = subject === 'you';
   const rows: Row[] = settings.rules.map((rule) => ({ ...rule, id: rule.ruleId }));
   const change = (rule: Row, channel: ChannelId, next: boolean) => {
     const inApp = channel === 'in_app' ? next : rule.effectiveChannels.includes('in_app');
     const email = channel === 'email' ? next : rule.effectiveChannels.includes('email');
-    preference.mutate({ ruleId: rule.ruleId, name: rule.name, inApp, email });
+    onChange?.({ ruleId: rule.ruleId, name: rule.name, inApp, email });
   };
   const blockedText = (rule: Row) => (
-    <span className="mn-sub">You don&apos;t get this: {rule.categoryName} is not allowed above.</span>
+    <span className="mn-sub">
+      {own ? "You don't get this" : "They don't get this"}: {rule.categoryName} is not allowed
+      {own ? ' above' : ''}.
+    </span>
   );
   const channelColumn = (channel: ChannelId): Column<Row> => ({
     key: channel,
@@ -67,7 +78,11 @@ export function ReachingRulesTable({ settings }: { settings: NotificationSetting
       rule.blockedByConsent ? (
         <span className="mn-dim">—</span>
       ) : (
-        <ChannelCell rule={rule} channel={channel} onChange={(next) => change(rule, channel, next)} />
+        <ChannelCell
+          rule={rule}
+          channel={channel}
+          onChange={onChange ? (next) => change(rule, channel, next) : undefined}
+        />
       ),
   });
   const columns: Column<Row>[] = [
@@ -81,7 +96,7 @@ export function ReachingRulesTable({ settings }: { settings: NotificationSetting
           <div className={rule.blockedByConsent ? 'mn-dim' : undefined}>
             <div className="mn-rule-name">{rule.name}</div>
             <div className="mn-sub">
-              {rule.categoryName} · {rule.triggerSummary}
+              {rule.triggerSummary ? `${rule.categoryName} · ${rule.triggerSummary}` : rule.categoryName}
             </div>
             {muted && (
               <Tag type="gray" size="sm">
@@ -99,7 +114,7 @@ export function ReachingRulesTable({ settings }: { settings: NotificationSetting
     },
     {
       key: 'why',
-      header: 'Why you get it',
+      header: own ? 'Why you get it' : 'Why they get it',
       narrow: true,
       render: (rule) =>
         rule.blockedByConsent ? (
@@ -118,19 +133,33 @@ export function ReachingRulesTable({ settings }: { settings: NotificationSetting
   return (
     <section aria-labelledby="mn-rules-title">
       <div className="mn-section-head">
-        <h2 id="mn-rules-title">Rules that can reach you</h2>
-        <p>Turn a channel off to stop a rule from using it. Required rules always keep one.</p>
+        <h2 id="mn-rules-title">{own ? 'Rules that can reach you' : 'Rules that reach this person'}</h2>
+        <p>
+          {own
+            ? 'Turn a channel off to stop a rule from using it.'
+            : 'Turn a channel off to stop a rule from using it for this person.'}{' '}
+          Required rules always keep one.
+        </p>
       </div>
       <DirectoryTable
         id="my-notification-rules"
-        label="Rules that can reach you"
+        label={own ? 'Rules that can reach you' : 'Rules that reach this person'}
         columns={columns}
         rows={rows}
         totalCount={rows.length}
         searchText={(rule) => `${rule.name} ${rule.categoryName} ${rule.description}`}
         defaultSort={{ key: 'name', direction: 'ASC' }}
-        empty={{ title: 'No rule reaches you right now', description: 'Rules that notify you will be listed here.' }}
+        empty={{
+          title: own ? 'No rule reaches you right now' : 'No rule reaches this person right now',
+          description: 'Rules that notify the person will be listed here.',
+        }}
       />
     </section>
   );
+}
+
+/** The signed-in person's own rules: every change is saved at once. */
+export function ReachingRulesTable({ settings }: { settings: NotificationSettings }) {
+  const preference = useChangeRulePreference();
+  return <ReachingRulesView settings={settings} onChange={(change) => preference.mutate(change)} />;
 }

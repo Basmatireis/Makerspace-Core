@@ -1,0 +1,73 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/breakpoint' as *;
+
+// Standalone page outside the application shell: a slim header and one centred column.
+.ns-page {
+  min-block-size: 100dvh;
+  background: $background;
+  color: $text-primary;
+}
+
+.ns-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-05;
+  padding: $spacing-03 $spacing-05;
+  border-block-end: 1px solid $border-subtle;
+  background: $layer-01;
+}
+
+.ns-page__brand {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+  min-inline-size: 0;
+  @include type-style('heading-compact-02');
+}
+
+.ns-page__logo {
+  inline-size: 1.75rem;
+  block-size: 2rem;
+}
+
+.ns-page__brand-name,
+.ns-page__who-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ns-page__who {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  min-inline-size: 0;
+  color: $text-secondary;
+  @include type-style('body-compact-01');
+}
+
+.ns-page__main {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-07;
+  max-inline-size: 75rem;
+  margin-inline: auto;
+  padding: $spacing-07 $spacing-05;
+}
+
+.ns-page__intro {
+  h1 {
+    margin: 0 0 $spacing-03;
+    @include type-style('productive-heading-05');
+  }
+
+  p {
+    margin: 0;
+    max-inline-size: 52rem;
+    color: $text-secondary;
+    @include type-style('body-02');
+  }
+}

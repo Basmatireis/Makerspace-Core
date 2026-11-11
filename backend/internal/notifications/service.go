@@ -116,16 +116,23 @@ func (s *Service) applicationName(ctx context.Context) string {
 	return name
 }
 
+// NotificationSettingsPath is the frontend page every branded mail links to in its footer, where the recipient signs
+// in (visitors with an emailed code) and chooses which notifications they get.
+const NotificationSettingsPath = "/notification-settings"
+
 // branding resolves the layout branding. Public asset and legal paths are made absolute with the
 // mail base URL; without a base URL, links that need one are dropped.
 func (s *Service) branding(ctx context.Context) Branding {
 	result := Branding{ApplicationName: s.applicationName(ctx)}
+	base := s.mail.BaseURL(ctx)
+	if base != "" {
+		result.NotificationSettingsURL = base + NotificationSettingsPath
+	}
 	provider, ok := s.names.(EmailIdentityProvider)
 	if !ok {
 		return result
 	}
 	identity := provider.EmailIdentity(ctx)
-	base := s.mail.BaseURL(ctx)
 	absolute := func(link string, internal bool) string {
 		if link == "" {
 			return ""

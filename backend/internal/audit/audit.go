@@ -95,6 +95,13 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 			}
 			continue
 		}
+		if key == "restriction" {
+			// A restricted sign-in names its restriction, a fixed key, never anything the person entered.
+			if text, ok := value.(string); !ok || text != "notification_settings" {
+				return fmt.Errorf("invalid audit %s metadata", key)
+			}
+			continue
+		}
 		if key == "fromMembership" || key == "toMembership" {
 			// Membership changes name the system role keys, never role names.
 			text, ok := value.(string)

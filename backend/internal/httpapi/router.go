@@ -689,6 +689,12 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 				return
 			}
 		}
+		// A restricted session (a visitor managing their notification settings) reaches only the operations the contract
+		// marks for its restriction.
+		if authenticated.Restriction != "" && !s.routes.allowsRestriction(r.Context(), authenticated.Restriction) {
+			writeAPIError(w, r, auth.RestrictedSession(), logger)
+			return
+		}
 		if authenticated.MFASetupRequired && !s.routes.allowsDuringMFASetup(r.Context()) {
 			writeAPIError(
 				w,
@@ -786,7 +792,7 @@ func requestMetadataMiddleware(next http.Handler, routes chi.Routes, trustedProx
 		ctx := context.WithValue(r.Context(), requestIDContextKey, requestID)
 		ctx = context.WithValue(ctx, sourceAddressContextKey, requestClientIP(r, trustedProxies))
 		ctx = context.WithValue(ctx, operationStateContextKey, &operationState{})
-		ctx = context.WithValue(ctx, normalizedRouteContextKey, matchedRoute(routes, r.Method, r.URL.Path))
+		ctx = context.WithValue(ctx, normalizedRouteContextKey, matchedRoute(routes, r.Method, routingPath(r)))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

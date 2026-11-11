@@ -76,6 +76,7 @@ export function currentUserFixture(permissions: PermissionId[] = [], master = fa
       idleExpiresAt: '2099-01-01T01:00:00Z',
       absoluteExpiresAt: '2099-01-02T00:00:00Z',
       postSessionDestination: 'login',
+      restriction: null,
     },
     person: {
       id: personId,
@@ -165,4 +166,10 @@ export function currentUserFixture(permissions: PermissionId[] = [], master = fa
       latestConfirmedAt: null,
     },
   };
+}
+
+/** A session opened from a mailed link: no permissions, and only the notification settings page. */
+export function restrictedUserFixture(): CurrentUser {
+  const user = currentUserFixture();
+  return { ...user, permissions: [], session: { ...user.session, restriction: 'notification_settings' } };
 }

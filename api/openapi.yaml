@@ -232,7 +232,13 @@ paths:
         control of the mailbox already allows resetting the password, so the emailed code proves no less. Second
         factors work as with `POST /auth/login`: an account with an authenticator app or passkey gets `202` and a
         pending-login cookie, and an account that must use a second factor but has none gets a session flagged
-        `mfaSetupRequired`. Accounts without `web.sign_in` answer `403 web_sign_in_not_permitted`.
+        `mfaSetupRequired`. Accounts without `web.sign_in` answer `403 web_sign_in_not_permitted`, unless the request
+        names `purpose: notification_settings`: such an account (a visitor) then gets a session restricted to its own
+        notification settings (`session.restriction` in `GET /auth/me`), which may call only the operations marked
+        `x-restricted-session: notification_settings` and answers `403 restricted_session` everywhere else. A second
+        factor is still asked for first, and the completed sign-in yields the restricted session. An account with
+        `web.sign_in` ignores the purpose and gets a normal session. A restricted sign-in is audited as
+        `auth.email_code_login_succeeded` with the restriction in its metadata.
       security: []
       requestBody:
         required: true
@@ -356,6 +362,7 @@ paths:
       operationId: logout
       summary: Revoke the current session
       x-mfa-setup-allowed: true
+      x-restricted-session: notification_settings
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -383,6 +390,7 @@ paths:
       summary: Return the authenticated principal and current permissions
       description: Permissions and account state are resolved from current server state. `authentication` tells the frontend whether a second factor must be set up and which permissions wait for a fresh sign-in.
       x-mfa-setup-allowed: true
+      x-restricted-session: notification_settings
       security:
         - sessionCookie: []
       responses:
@@ -4856,8 +4864,9 @@ paths:
       tags: [NotificationRules]
       operationId: getOwnNotificationSettings
       summary: Get the signed-in person's notification settings
+      x-restricted-session: notification_settings
       description: >-
-        Any staff session. Lists the categories with the person's consent answers, whether any consent is still pending,
+        Any staff session, including one restricted to notification settings. Lists the categories with the person's consent answers, whether any consent is still pending,
         the feedback-at-check-out switch and the central rules that reach the person: those whose actions name them
         directly, a role they hold, or a recipient such as "operator of the print" that can point to them.
       security: [{sessionCookie: []}]
@@ -4871,10 +4880,12 @@ paths:
       tags: [NotificationRules]
       operationId: answerOwnNotificationConsents
       summary: Answer notification consents
+      x-restricted-session: notification_settings
       description: >-
-        Any staff session. Only consent categories can be answered (422 `category_needs_no_consent` otherwise). An answer
-        equal to the stored one at the current text changes nothing. Each change is audited as
-        `notification_consent.answered` without any text.
+        Any staff session, including one restricted to notification settings. Only consent categories can be answered
+        (422 `category_needs_no_consent` otherwise). An answer equal to the stored one at the current text changes
+        nothing. Each change is audited as `notification_consent.answered` without any text, and a call that changed
+        something raises the `notification_settings_changed` trigger once.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AnswerNotificationConsentsRequest"}}}}
       responses:
@@ -4890,9 +4901,13 @@ paths:
       tags: [NotificationRules]
       operationId: setOwnNotificationRulePreference
       summary: Choose the channels for a central rule
+      x-restricted-session: notification_settings
       description: >-
-        Any staff session. Both channels off mutes the rule, which a mandatory rule refuses with 422
-        `mandatory_notification`. A personal subscription or an unknown rule answers 404.
+        Any staff session, including one restricted to notification settings. Both channels off mutes the rule, which a
+        mandatory rule refuses with 422 `mandatory_notification`. A rule that does not reach the person, a personal
+        subscription or an unknown rule answers 404.
+        A choice equal to the channels the person gets now changes nothing; a change is audited as
+        `notification_preference.changed` and raises the `notification_settings_changed` trigger.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetNotificationRulePreferenceRequest"}}}}
       responses:
@@ -4907,12 +4922,84 @@ paths:
       tags: [NotificationRules]
       operationId: setOwnFeedbackAtCheckout
       summary: Choose whether the tablet may ask for feedback at check-out
-      description: Any staff session.
+      x-restricted-session: notification_settings
+      description: >-
+        Any staff session, including one restricted to notification settings. A change is audited as
+        `notification_feedback_at_checkout.changed` and raises the `notification_settings_changed` trigger; the same
+        value again changes nothing.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetFeedbackAtCheckoutRequest"}}}}
       responses:
         "204": {description: Choice stored.}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /people/{personId}/notification-settings:
+    parameters:
+      - $ref: "#/components/parameters/PersonId"
+    get:
+      tags: [NotificationRules]
+      operationId: getPersonNotificationSettings
+      summary: Get another person's notification settings
+      description: >-
+        Requires `notification_settings.read.all` or `notification_settings.manage.all`. The same view the person has
+        of their own settings: consent answers (read-only for staff), the feedback-at-check-out switch and the central
+        rules that reach the person with their channels. Without `notification_rules.read` (or `.manage`) the rules'
+        `description` and `triggerSummary` are empty. Channel choices belong to an account, so a person without an
+        account has `hasAccount` false and no rules. Unknown people answer 404.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: The person's settings., content: {application/json: {schema: {$ref: "#/components/schemas/PersonNotificationSettings"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /people/{personId}/notification-settings/rules/{ruleId}/preference:
+    parameters:
+      - $ref: "#/components/parameters/PersonId"
+      - {name: ruleId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [NotificationRules]
+      operationId: setPersonNotificationRulePreference
+      summary: Choose the channels of a central rule for another person
+      description: >-
+        Requires `notification_settings.manage.all`; only a master may change a master's settings (403 otherwise). The
+        rules of the person's own choice apply: both channels off mutes the rule, which a mandatory rule refuses with
+        422 `mandatory_notification`; a rule that does not reach the person, a personal subscription or an unknown rule
+        answers 404, an unknown person 404. A person without an account has no channel choices (409
+        `person_has_no_account`). A change is audited as `notification_preference.changed` with the person and raises
+        the `notification_settings_changed` trigger; the channels the person gets now change nothing.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetNotificationRulePreferenceRequest"}}}}
+      responses:
+        "204": {description: Choice stored.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /people/{personId}/notification-settings/feedback-at-checkout:
+    parameters:
+      - $ref: "#/components/parameters/PersonId"
+    put:
+      tags: [NotificationRules]
+      operationId: setPersonFeedbackAtCheckout
+      summary: Choose for another person whether the tablet may ask for feedback at check-out
+      description: >-
+        Requires `notification_settings.manage.all`; only a master may change a master's settings (403 otherwise). Works
+        for people without an account too. Unknown people answer 404. A change is audited as `notification_feedback_at_checkout.changed` with the person and raises the
+        `notification_settings_changed` trigger; the same value again changes nothing.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetFeedbackAtCheckoutRequest"}}}}
+      responses:
+        "204": {description: Choice stored.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -11891,6 +11978,7 @@ paths:
       tags: [Authentication]
       operationId: recordSessionActivity
       x-mfa-setup-allowed: true
+      x-restricted-session: notification_settings
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
         "200": {description: Session expiry after recorded foreground activity., content: {application/json: {schema: {$ref: "#/components/schemas/SessionContext"}}}}
@@ -13100,6 +13188,8 @@ components:
         - notifications.send
         - notification_rules.read
         - notification_rules.manage
+        - notification_settings.read.all
+        - notification_settings.manage.all
         - privacy.read
         - privacy.settings.manage
         - privacy.policies.manage
@@ -13765,6 +13855,12 @@ components:
         placeholders: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogPlaceholder"}}
         resolutions: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogChoice"}}
         throttleSubjects: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogChoice"}}
+        channels:
+          type: array
+          items: {type: string, maxLength: 40, description: "One of in_app, email, signage, tablet."}
+          description: >-
+            The action channels a rule on this trigger may use (others answer 422 `validation_failed` at
+            `….channel`). Absent when every channel is allowed.
 
     NotificationCatalogCollection:
       type: object
@@ -13824,12 +13920,12 @@ components:
       properties:
         ruleId: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
-        description: {type: string}
+        description: {type: string, description: "Empty in another person's settings when the caller lacks `notification_rules.read`."}
         categoryId: {$ref: "#/components/schemas/UUIDv7"}
         categoryName: {type: string}
         mandatory: {type: boolean}
         why: {type: array, items: {type: string}}
-        triggerSummary: {type: string, maxLength: 300, description: "The rule's When line as the rules list shows it, for example a trigger label, a schedule or 'When someone presses Run now', plus ' · For each <one>' for loops."}
+        triggerSummary: {type: string, maxLength: 300, description: "Empty in another person's settings when the caller lacks `notification_rules.read`. The rule's When line as the rules list shows it, for example a trigger label, a schedule or 'When someone presses Run now', plus ' · For each <one>' for loops."}
         defaultChannels: {type: array, items: {type: string, maxLength: 40, description: "One of in_app, email."}}
         effectiveChannels: {type: array, items: {type: string, maxLength: 40, description: "One of in_app, email."}, description: "The person's own choice, or the defaults without one."}
         blockedByConsent: {type: boolean, description: The rule's category needs a consent the person has not given.}
@@ -13878,6 +13974,17 @@ components:
       required: [ask]
       properties:
         ask: {type: boolean}
+
+    PersonNotificationSettings:
+      type: object
+      additionalProperties: false
+      required: [personId, hasAccount, settings]
+      properties:
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        hasAccount:
+          type: boolean
+          description: Channel choices belong to an account; without one `settings.rules` is empty and choices are refused.
+        settings: {$ref: "#/components/schemas/NotificationSettings"}
 
     SentNotificationMessage:
       type: object
@@ -14233,6 +14340,19 @@ components:
       properties:
         email: {$ref: "#/components/schemas/Email"}
         code: {$ref: "#/components/schemas/EmailLoginCode"}
+        purpose:
+          $ref: "#/components/schemas/SessionRestriction"
+          description: >-
+            Why the person signs in. `notification_settings` lets an account without `web.sign_in` get a session
+            restricted to its own notification settings instead of `403 web_sign_in_not_permitted`; accounts with
+            `web.sign_in` ignore it.
+
+    SessionRestriction:
+      type: string
+      enum: [notification_settings]
+      description: >-
+        What a restricted session may do. `notification_settings`: only read and change the own notification settings
+        (plus reading the current user, keeping the session alive and signing out).
 
     PinLoginRequest:
       type: object
@@ -23292,6 +23412,13 @@ components:
         idleExpiresAt: {type: string, format: date-time}
         absoluteExpiresAt: {type: string, format: date-time}
         postSessionDestination: {$ref: "#/components/schemas/PostSessionDestination"}
+        restriction:
+          allOf: [{$ref: "#/components/schemas/SessionRestriction"}]
+          nullable: true
+          description: >-
+            Null for a normal session. `notification_settings` marks a session restricted to the own notification
+            settings: the frontend shows only that page and never the application shell. Such a session reports no
+            permissions. Always present; optional in the schema so older clients and fixtures keep compiling.
 
     TerminalContext:
       type: object

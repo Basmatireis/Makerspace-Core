@@ -147,6 +147,8 @@ export const PermissionId = {
   notificationssend: 'notifications.send',
   notification_rulesread: 'notification_rules.read',
   notification_rulesmanage: 'notification_rules.manage',
+  notification_settingsreadall: 'notification_settings.read.all',
+  notification_settingsmanageall: 'notification_settings.manage.all',
   privacyread: 'privacy.read',
   privacysettingsmanage: 'privacy.settings.manage',
   privacypoliciesmanage: 'privacy.policies.manage',

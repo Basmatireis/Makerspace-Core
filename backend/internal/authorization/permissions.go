@@ -141,6 +141,8 @@ const (
 	NotificationsSend                  Permission = Permission(openapi.NotificationsSend)
 	NotificationRulesRead              Permission = Permission(openapi.NotificationRulesRead)
 	NotificationRulesManage            Permission = Permission(openapi.NotificationRulesManage)
+	NotificationSettingsReadAll        Permission = Permission(openapi.NotificationSettingsReadAll)
+	NotificationSettingsManageAll      Permission = Permission(openapi.NotificationSettingsManageAll)
 	PrivacyRead                        Permission = Permission(openapi.PrivacyRead)
 	PrivacySettingsManage              Permission = Permission(openapi.PrivacySettingsManage)
 	PrivacyPoliciesManage              Permission = Permission(openapi.PrivacyPoliciesManage)
@@ -201,6 +203,7 @@ var registry = []Permission{
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 	SignageRead, SignageManage, SignageContentManage, SignagePublish, SignageOverride,
 	ConfigurationExport, ConfigurationImport, NotificationsSend, NotificationRulesRead, NotificationRulesManage,
+	NotificationSettingsReadAll, NotificationSettingsManageAll,
 	PrivacyRead, PrivacySettingsManage, PrivacyPoliciesManage, PrivacyRetentionExecute,
 	PrivacyRequestsManage, PrivacyRequestsExecute,
 }
@@ -340,6 +343,8 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	NotificationsSend:                  "Send in-app messages to roles and see sent messages.",
 	NotificationRulesRead:              "See the central notification rules, the notification categories and what the rules sent.",
 	NotificationRulesManage:            "Create, change and delete central notification rules and categories; run rules and test them.",
+	NotificationSettingsReadAll:        "See any person's notification settings: consents, channel choices and the feedback-at-check-out switch.",
+	NotificationSettingsManageAll:      "Change any person's channel choices and feedback-at-check-out switch. Consents stay the person's own.",
 	PrivacyRead:                        "Read the privacy registry: data categories, their owners, status and the privacy settings.",
 	PrivacySettingsManage:              "Change the installation's privacy settings (controller, contact, automatic retention runs).",
 	PrivacyPoliciesManage:              "Create, approve, activate and retire retention policies and place or release holds.",

@@ -98,7 +98,25 @@ export function useLogout(returnTo?: string) {
   });
 }
 
-export function ProtectedRoute({ children }: { children: ReactNode }) {
+/** Where a restricted session lives: the standalone notification settings page, nothing else. */
+export const notificationSettingsPath = '/notification-settings';
+
+/** A session opened from a mailed link that may only manage notification settings: no application shell, no permissions. */
+export function isRestrictedSession(currentUser: CurrentUser): boolean {
+  return currentUser.session.restriction === 'notification_settings';
+}
+
+/**
+ * Pages behind a sign-in. A restricted session (see `isRestrictedSession`) only gets the pages that say
+ * `allowRestricted`; everywhere else it is sent to the notification settings page.
+ */
+export function ProtectedRoute({
+  children,
+  allowRestricted = false,
+}: {
+  children: ReactNode;
+  allowRestricted?: boolean;
+}) {
   const location = useLocation();
   const currentUser = useCurrentUserQuery();
 
@@ -128,10 +146,15 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     );
   }
 
+  const restricted = isRestrictedSession(currentUser.data);
+  if (restricted && !allowRestricted) {
+    return <Navigate to={notificationSettingsPath} replace />;
+  }
+
   return (
     <AuthContext.Provider value={currentUser.data}>
       <SessionActivityHandler currentUser={currentUser.data} />
-      {currentUser.data.authentication.mfaSetupRequired ? (
+      {currentUser.data.authentication.mfaSetupRequired && !restricted ? (
         <Suspense fallback={<FullPageLoading label="Loading" />}>
           <MfaSetupPage />
         </Suspense>

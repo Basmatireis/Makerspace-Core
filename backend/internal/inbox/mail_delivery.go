@@ -28,7 +28,9 @@ var ErrMailUndeliverable = errors.New("notification mail cannot be delivered")
 
 // NoticeMailer sends one notification as an e-mail with the branded layout. link is an application path.
 type NoticeMailer interface {
-	SendNotice(ctx context.Context, to, subject, body, link string) error
+	// SendNotice mails one notification; settingsLink says whether the footer links the notification settings, which
+	// only a recipient with an account can open.
+	SendNotice(ctx context.Context, to, subject, body, link string, settingsLink bool) error
 }
 
 // MailDelivery sends the queued e-mails of notifications after their transaction committed.
@@ -60,19 +62,20 @@ func (d *MailDelivery) Deliver(ctx context.Context, limit int) (int, error) {
 	}
 	sent := 0
 	for _, mail := range claimed {
-		address, err := queries.GetNotificationMailAddress(ctx, inboxdb.GetNotificationMailAddressParams{
+		recipient, err := queries.GetNotificationMailAddress(ctx, inboxdb.GetNotificationMailAddressParams{
 			PersonID: mail.PersonID, OrganizationID: mail.OrganizationID,
 		})
 		if err != nil {
 			return sent, fmt.Errorf("read notification mail address: %w", err)
 		}
+		address := recipient.Address
 		link := ""
 		if mail.Link != nil {
 			link = *mail.Link
 		}
 		var sendErr error
 		if address != "" {
-			sendErr = d.mailer.SendNotice(ctx, address, mail.Subject, mail.Body, link)
+			sendErr = d.mailer.SendNotice(ctx, address, mail.Subject, mail.Body, link, recipient.CanSignIn)
 		}
 		switch {
 		case address == "" || sendErr == nil || errors.Is(sendErr, ErrMailUndeliverable) || mail.Attempts >= mailMaxAttempts:

@@ -202,3 +202,19 @@ func TestMailContentListsPayments(t *testing.T) {
 	}
 	t.Errorf("payment row missing: %+v", content.Rows)
 }
+
+func TestInvoiceMailCarriesNoNotificationSettingsLink(t *testing.T) {
+	_, content := defaultSettings().MailContent(SampleDocument(sampleTime()))
+	if !content.OmitNotificationSettingsLink {
+		t.Fatal("the wiRef mail goes to no person's account and must leave out the notification settings link")
+	}
+	brand := notifications.Branding{
+		ApplicationName: "Makerspace", NotificationSettingsURL: "https://portal.example.test/notification-settings",
+	}
+	text, html := notifications.RenderBranded(brand, content)
+	for _, part := range []string{text, html} {
+		if strings.Contains(part, "notification-settings") || strings.Contains(part, "Notification settings") {
+			t.Fatalf("invoice mail links the notification settings: %s", part)
+		}
+	}
+}

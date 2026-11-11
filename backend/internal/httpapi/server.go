@@ -300,8 +300,8 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 // noticeMailer sends printer notification mails; switched-off mail delivery is final, so the mail is dropped.
 type noticeMailer struct{ notifier *notifications.Service }
 
-func (m noticeMailer) SendNotice(ctx context.Context, to, subject, body, link string) error {
-	err := m.notifier.SendNotice(ctx, to, subject, body, link)
+func (m noticeMailer) SendNotice(ctx context.Context, to, subject, body, link string, settingsLink bool) error {
+	err := m.notifier.SendNotice(ctx, to, subject, body, link, settingsLink)
 	if errors.Is(err, mailservice.ErrDisabled) {
 		return inbox.ErrMailUndeliverable
 	}

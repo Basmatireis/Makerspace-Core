@@ -308,6 +308,9 @@ func (d *Dispatcher) buildPlan(
 			return err
 		}
 		people = removePeople(people, occ.Event.ExcludedPeople)
+		if people, err = d.permittedRecipients(ctx, q, def, occ.Event, people); err != nil {
+			return err
+		}
 		var orgs []uuid.UUID
 		if action.Channel == ChannelEmail {
 			orgs = resolveOrganizations(action.Recipients, occ.Event)
@@ -742,4 +745,32 @@ func (d *Dispatcher) recipientFacts(
 		}
 	}
 	return facts, supported, nil
+}
+
+// permittedRecipients leaves out, for a trigger whose recipients need its permission, everyone except the event's own
+// "self" people who does not hold that permission.
+func (d *Dispatcher) permittedRecipients(
+	ctx context.Context,
+	q *store,
+	def Definition,
+	ev Event,
+	people []uuid.UUID,
+) ([]uuid.UUID, error) {
+	trigger, ok := LookupTrigger(def.Trigger.Event)
+	if !ok || !trigger.RecipientsNeedPermission || trigger.Permission == "" || len(people) == 0 {
+		return people, nil
+	}
+	allowed, err := q.ListPeopleWithPermission(ctx, notifyrulesdb.ListPeopleWithPermissionParams{
+		PersonIds: uuidStrings(people), PermissionID: string(trigger.Permission),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load permitted recipients: %w", err)
+	}
+	kept := make([]uuid.UUID, 0, len(people))
+	for _, person := range people {
+		if slices.Contains(ev.Recipients["self"], person) || slices.Contains(allowed, person) {
+			kept = append(kept, person)
+		}
+	}
+	return kept, nil
 }

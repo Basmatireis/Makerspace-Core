@@ -361,7 +361,9 @@ func (q *Queries) GetAccountPersonName(ctx context.Context, accountID uuid.UUID)
 
 const getNotificationMailAddress = `-- name: GetNotificationMailAddress :one
 SELECT COALESCE((SELECT NULLIF(btrim(p.email), '') FROM people p WHERE p.id = $1),
-                (SELECT NULLIF(btrim(o.contact_email), '') FROM organizations o WHERE o.id = $2), '')::text AS address
+                (SELECT NULLIF(btrim(o.contact_email), '') FROM organizations o WHERE o.id = $2), '')::text AS address,
+       EXISTS (SELECT 1 FROM accounts a WHERE a.person_id = $1 AND a.status = 'enabled')::boolean
+           AS can_sign_in
 `
 
 type GetNotificationMailAddressParams struct {
@@ -369,12 +371,18 @@ type GetNotificationMailAddressParams struct {
 	OrganizationID *uuid.UUID
 }
 
-// The address is read only when the mail is sent; a deleted person or organization yields none.
-func (q *Queries) GetNotificationMailAddress(ctx context.Context, arg GetNotificationMailAddressParams) (string, error) {
+type GetNotificationMailAddressRow struct {
+	Address   string
+	CanSignIn bool
+}
+
+// The address is read only when the mail is sent; a deleted person or organization yields none. can_sign_in says
+// whether the recipient is a person with an enabled account, who can open the notification settings the mail links.
+func (q *Queries) GetNotificationMailAddress(ctx context.Context, arg GetNotificationMailAddressParams) (GetNotificationMailAddressRow, error) {
 	row := q.db.QueryRow(ctx, getNotificationMailAddress, arg.PersonID, arg.OrganizationID)
-	var address string
-	err := row.Scan(&address)
-	return address, err
+	var i GetNotificationMailAddressRow
+	err := row.Scan(&i.Address, &i.CanSignIn)
+	return i, err
 }
 
 const getSentMessage = `-- name: GetSentMessage :one

@@ -160,6 +160,8 @@ const catalog: Catalog = {
     ['notification_rules.read', 'View notification rules'],
     ['notifications.send', 'Send in-app messages'],
     ['notification_rules.manage', 'Manage notification rules'],
+    ['notification_settings.read.all', "View anyone's notification settings"],
+    ['notification_settings.manage.all', "Change anyone's notification settings"],
   ],
   'Devices & kiosk': [
     ['managed_devices.read', 'View managed devices'],

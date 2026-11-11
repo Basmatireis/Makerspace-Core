@@ -73,3 +73,38 @@ func TestRenderBrandedActionCodeAndContrast(t *testing.T) {
 		t.Fatal("white text expected on blue")
 	}
 }
+
+func TestRenderBrandedLinksNotificationSettingsInTheFooter(t *testing.T) {
+	brand := Branding{ApplicationName: "App", NotificationSettingsURL: "https://portal.example.test/notification-settings"}
+	text, html := RenderBranded(brand, Content{Heading: "H", Paragraphs: []string{"Body"}})
+	if !strings.Contains(html, `<a href="https://portal.example.test/notification-settings" style="color:#6f6f6f;">Notification settings</a>`) {
+		t.Fatalf("HTML footer lacks the notification settings link: %s", html)
+	}
+	if !strings.Contains(text, "\nNotification settings: https://portal.example.test/notification-settings\n") {
+		t.Fatalf("text footer lacks the notification settings link: %s", text)
+	}
+
+	text, html = RenderBranded(brand, Content{Heading: "H", OmitNotificationSettingsLink: true})
+	for _, part := range []string{text, html} {
+		if strings.Contains(part, "notification-settings") {
+			t.Fatalf("opted-out mail still links the notification settings: %s", part)
+		}
+	}
+
+	_, html = RenderBranded(
+		Branding{ApplicationName: "App", NotificationSettingsURL: "javascript:alert(1)"}, Content{Heading: "H"},
+	)
+	if strings.Contains(html, "javascript:") || strings.Contains(html, "Notification settings") {
+		t.Fatalf("unsafe notification settings link reached HTML: %s", html)
+	}
+}
+
+func TestRenderBrandedKeepsLineBreaksOfAParagraph(t *testing.T) {
+	text, html := RenderBranded(Branding{}, Content{Paragraphs: []string{"First <b>\nSecond"}})
+	if !strings.Contains(html, ">First &lt;b&gt;<br>Second</p>") {
+		t.Fatalf("line break not kept in HTML: %s", html)
+	}
+	if !strings.Contains(text, "First <b>\nSecond\n\n") {
+		t.Fatalf("line break not kept in text: %q", text)
+	}
+}
