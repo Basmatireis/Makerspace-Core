@@ -18,6 +18,9 @@ type Branding struct {
 	PrimaryColor string
 	// LogoURL, ImprintURL and PrivacyURL are absolute http(s) URLs.
 	LogoURL, ImprintURL, PrivacyURL string
+	// NotificationSettingsURL is the absolute address of the page where the recipient chooses which mails they get. It
+	// carries no address or token: the page asks the recipient to sign in.
+	NotificationSettingsURL string
 }
 
 // Content is the semantic body of a branded email. Every field is optional except that a message
@@ -31,6 +34,9 @@ type Content struct {
 	// Rows is an optional two-column table of labels and values (for example invoice details).
 	Rows     []Row
 	Footnote string
+	// OmitNotificationSettingsLink leaves out the footer link to the notification settings, for mails that do not go
+	// to a person's own account (the wiRef invoice mails).
+	OmitNotificationSettingsLink bool
 }
 
 // Action is the call-to-action button. URL must be an absolute http(s) URL.
@@ -50,7 +56,11 @@ type layoutData struct {
 	Color, ButtonText string
 }
 
-var layoutTemplate = template.Must(template.New("layout").Parse(`<!doctype html>
+// layoutFunctions are the template helpers. lines splits a paragraph at its single line breaks, which the HTML part
+// shows as <br> so that lists in a paragraph keep one entry per line like the plain-text part.
+var layoutFunctions = template.FuncMap{"lines": func(paragraph string) []string { return strings.Split(paragraph, "\n") }}
+
+var layoutTemplate = template.Must(template.New("layout").Funcs(layoutFunctions).Parse(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>{{.Heading}}</title></head>
 <body style="margin:0;padding:0;background-color:#f4f4f4;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f4;"><tr><td align="center" style="padding:24px 12px;">
@@ -61,7 +71,7 @@ var layoutTemplate = template.Must(template.New("layout").Parse(`<!doctype html>
 </td></tr>
 <tr><td style="padding:16px 32px 8px 32px;">
 {{- if .Heading}}<h1 style="margin:0 0 16px 0;font-size:24px;line-height:32px;font-weight:600;color:#161616;">{{.Heading}}</h1>{{end}}
-{{- range .Paragraphs}}<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#161616;">{{.}}</p>{{end}}
+{{- range .Paragraphs}}<p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#161616;">{{range $index, $line := lines .}}{{if $index}}<br>{{end}}{{$line}}{{end}}</p>{{end}}
 {{- if .Action}}<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px 0;"><tr><td bgcolor="{{.Color}}" style="background-color:{{.Color}};border-radius:2px;"><a href="{{.Action.URL}}" style="display:inline-block;padding:14px 24px;font-size:16px;font-weight:600;line-height:20px;color:{{.ButtonText}};text-decoration:none;">{{.Action.Label}}</a></td></tr></table>{{end}}
 {{- if .Code}}<p style="margin:0 0 8px 0;font-size:14px;line-height:20px;color:#525252;">Your code</p><p style="margin:0 0 24px 0;padding:12px 16px;background-color:#f4f4f4;border:1px solid #e0e0e0;font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:24px;line-height:32px;letter-spacing:4px;color:#161616;">{{.Code}}</p>{{end}}
 {{- if .Rows}}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;border-top:1px solid #e0e0e0;">{{range .Rows}}<tr><td style="padding:8px 0;border-bottom:1px solid #e0e0e0;font-size:14px;line-height:20px;color:#525252;">{{.Label}}</td><td align="right" style="padding:8px 0;border-bottom:1px solid #e0e0e0;font-size:14px;line-height:20px;color:#161616;">{{.Value}}</td></tr>{{end}}</table>{{end}}
@@ -71,6 +81,7 @@ var layoutTemplate = template.Must(template.New("layout").Parse(`<!doctype html>
 <tr><td style="padding:16px 32px 24px 32px;border-top:1px solid #e0e0e0;font-size:12px;line-height:18px;color:#6f6f6f;">
 {{- if .OrganizationName}}{{.OrganizationName}}<br>{{end -}}
 {{- if .ImprintURL}}<a href="{{.ImprintURL}}" style="color:#6f6f6f;">Imprint</a>{{end}}{{if and .ImprintURL .PrivacyURL}} &middot; {{end}}{{if .PrivacyURL}}<a href="{{.PrivacyURL}}" style="color:#6f6f6f;">Privacy policy</a>{{end -}}
+{{- if .NotificationSettingsURL}}{{if or .ImprintURL .PrivacyURL}} &middot; {{end}}<a href="{{.NotificationSettingsURL}}" style="color:#6f6f6f;">Notification settings</a>{{end -}}
 </td></tr>
 </table></td></tr></table></body></html>
 `))
@@ -78,6 +89,9 @@ var layoutTemplate = template.Must(template.New("layout").Parse(`<!doctype html>
 // RenderBranded renders the content into a plain-text part and an HTML part. The HTML is table
 // based with inline styles only (no scripts, remote CSS or tracking). All values are escaped.
 func RenderBranded(branding Branding, content Content) (text, htmlBody string) {
+	if content.OmitNotificationSettingsLink {
+		branding.NotificationSettingsURL = ""
+	}
 	branding = sanitizeBranding(branding)
 	if content.Action != nil && !safeURL(content.Action.URL) {
 		content.Action = nil
@@ -128,6 +142,9 @@ func renderText(branding Branding, content Content) string {
 	if branding.PrivacyURL != "" {
 		b.WriteString("Privacy policy: " + branding.PrivacyURL + "\n")
 	}
+	if branding.NotificationSettingsURL != "" {
+		b.WriteString("Notification settings: " + branding.NotificationSettingsURL + "\n")
+	}
 	return b.String()
 }
 
@@ -138,7 +155,9 @@ func sanitizeBranding(branding Branding) Branding {
 	if !hexColor.MatchString(branding.PrimaryColor) {
 		branding.PrimaryColor = defaultBrandColor
 	}
-	for _, link := range []*string{&branding.LogoURL, &branding.ImprintURL, &branding.PrivacyURL} {
+	for _, link := range []*string{
+		&branding.LogoURL, &branding.ImprintURL, &branding.PrivacyURL, &branding.NotificationSettingsURL,
+	} {
 		if !safeURL(*link) {
 			*link = ""
 		}

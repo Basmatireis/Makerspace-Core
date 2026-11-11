@@ -119,7 +119,11 @@ func (s Settings) renderTexts(d Document) (subject, heading string, intro []stri
 // MailContent builds the branded mail body for a document.
 func (s Settings) MailContent(d Document) (subject string, content notifications.Content) {
 	subject, heading, intro, closing := s.renderTexts(d)
-	content = notifications.Content{Heading: heading, Paragraphs: intro, Footnote: closing}
+	// The mail goes to the wiRef address, not to a person's account, so it carries no notification settings link; the
+	// preview and the test mail render this same content.
+	content = notifications.Content{
+		Heading: heading, Paragraphs: intro, Footnote: closing, OmitNotificationSettingsLink: true,
+	}
 	for _, row := range d.details(s) {
 		content.Rows = append(content.Rows, notifications.Row{Label: row.Label, Value: row.Value})
 	}

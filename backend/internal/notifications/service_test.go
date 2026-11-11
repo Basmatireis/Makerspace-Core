@@ -162,3 +162,39 @@ func TestBrandedMessagesUseBrandingConfiguration(t *testing.T) {
 		t.Fatalf("text footer missing legal link: %s", mail.message.Text)
 	}
 }
+
+type mailWithoutBase struct{ recordingMail }
+
+func (mail *mailWithoutBase) BaseURL(context.Context) string { return "" }
+
+func TestBrandedMailsLinkTheNotificationSettingsWithoutPersonalData(t *testing.T) {
+	mail := &recordingMail{}
+	service := NewService(mail, fixedName("Portal"))
+	if err := service.SendNotice(
+		context.Background(), "member@example.test", "Printer error", "Nozzle clog", "/workshop",
+	); err != nil {
+		t.Fatal(err)
+	}
+	const link = "https://portal.example.test/notification-settings"
+	if !strings.Contains(mail.message.Text, "Notification settings: "+link+"\n") ||
+		!strings.Contains(mail.message.HTML, `href="`+link+`"`) {
+		t.Fatalf("notification settings link missing: %#v", mail.message)
+	}
+	for _, part := range []string{mail.message.Text, mail.message.HTML} {
+		for _, line := range strings.Split(part, "\n") {
+			if strings.Contains(line, "notification-settings") && strings.Contains(line, "member") {
+				t.Fatalf("the link must not carry the address: %s", line)
+			}
+		}
+	}
+
+	withoutBase := &mailWithoutBase{}
+	if err := NewService(withoutBase, fixedName("Portal")).SendSecurityNotice(
+		context.Background(), "member@example.test", "Subject", "Text",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(withoutBase.message.Text+withoutBase.message.HTML, "Notification settings") {
+		t.Fatalf("a mail without a base URL must not link the settings: %#v", withoutBase.message)
+	}
+}
