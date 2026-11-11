@@ -1,5 +1,16 @@
 import { useState, type ReactNode } from 'react';
-import { AccordionItem, Button, NumberInput, Select, SelectItem, Slider, TextInput, Toggle } from '@carbon/react';
+import {
+  AccordionItem,
+  Button,
+  IconButton,
+  NumberInput,
+  Select,
+  SelectItem,
+  Slider,
+  TextInput,
+  Toggle,
+} from '@carbon/react';
+import { Opacity } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import type { SignageBlock, SignageBlockStyle } from '../../../api/generated/models';
 import { ColorFieldRow, ColorPicker } from '../../../app/ColorPicker';
@@ -18,6 +29,9 @@ export function ColorField({
   value,
   nullable = true,
   mixed = false,
+  emptyText = 'Not set',
+  fallback,
+  allowTransparent = false,
   onChange,
 }: {
   id: string;
@@ -25,34 +39,45 @@ export function ColorField({
   value: string | null;
   nullable?: boolean;
   mixed?: boolean;
+  /** Also takes the word "transparent". */
+  allowTransparent?: boolean;
+  /** Placeholder while no colour is set, e.g. what is used instead. */
+  emptyText?: string;
+  /** Swatch colour while no colour is set. */
+  fallback?: string;
   onChange: (value: string | null) => void;
 }) {
   // While typing, the half-finished text is kept here; it is dropped on blur so the field shows the stored value again.
   const [typed, setTyped] = useState<string | null>(null);
   const text = typed ?? value ?? '';
   const valid = HEX.test(text);
-  const invalid = typed !== null && !valid && !(nullable && typed === '');
+  const transparent = allowTransparent && text.toLowerCase() === 'transparent';
+  const invalid = typed !== null && !valid && !transparent && !(nullable && typed === '');
   return (
     <ColorFieldRow>
       <TextInput
         id={id}
         labelText={label}
-        placeholder={mixed ? 'Mixed' : nullable ? 'Not set' : '#rrggbb'}
+        placeholder={mixed ? 'Mixed' : nullable ? emptyText : '#rrggbb'}
         autoComplete="off"
         value={text}
         invalid={invalid}
-        invalidText="Enter a hex colour like #161616"
+        invalidText={
+          allowTransparent ? 'Enter a hex colour like #161616 or transparent' : 'Enter a hex colour like #161616'
+        }
         onChange={(event) => {
           const next = event.target.value.trim();
           setTyped(next);
-          if (HEX.test(next)) onChange(next.toLowerCase());
+          if (HEX.test(next) || (allowTransparent && next.toLowerCase() === 'transparent'))
+            onChange(next.toLowerCase());
           else if (next === '' && nullable) onChange(null);
         }}
         onBlur={() => setTyped(null)}
       />
       <ColorPicker
         label={label}
-        value={valid || (typed === null && value) ? text : null}
+        value={valid || (typed === null && value && !transparent) ? text : null}
+        fallback={fallback}
         onChange={(next) => {
           setTyped(null);
           onChange(next);
@@ -62,13 +87,16 @@ export function ColorField({
   );
 }
 
-/** A colour field with a button that clears it ("None" for fills, "Reset" for colours that have a fallback). */
+/** A colour field with a button that clears it ("None" for fills, "Reset" for colours that have a fallback), optionally one for transparent. */
 export function ColorRow({
   id,
   label,
   value,
   mixed = false,
   clearLabel,
+  emptyText,
+  fallback,
+  allowTransparent = false,
   onChange,
 }: {
   id: string;
@@ -76,11 +104,36 @@ export function ColorRow({
   value: string | null;
   mixed?: boolean;
   clearLabel: 'None' | 'Reset';
+  emptyText?: string;
+  fallback?: string;
+  /** Adds a button that makes the colour transparent. */
+  allowTransparent?: boolean;
   onChange: (value: string | null) => void;
 }) {
   return (
     <div className="sg-props__color">
-      <ColorField id={id} label={label} value={value} mixed={mixed} onChange={onChange} />
+      <ColorField
+        id={id}
+        label={label}
+        value={value}
+        mixed={mixed}
+        emptyText={emptyText}
+        fallback={fallback}
+        allowTransparent={allowTransparent}
+        onChange={onChange}
+      />
+      {allowTransparent && (
+        <IconButton
+          label={`${label}: transparent`}
+          kind="ghost"
+          size="sm"
+          align="top-end"
+          isSelected={value === 'transparent'}
+          onClick={() => onChange('transparent')}
+        >
+          <Opacity />
+        </IconButton>
+      )}
       <Button
         kind="ghost"
         size="sm"
@@ -104,6 +157,7 @@ export function NumField({
   max,
   step = 1,
   helperText,
+  hideSteppers = false,
   onChange,
 }: {
   id: string;
@@ -114,6 +168,8 @@ export function NumField({
   max: number;
   step?: number;
   helperText?: string;
+  /** Leaves out the − and + buttons, for fields that share a row and would be too narrow for them. */
+  hideSteppers?: boolean;
   onChange: (value: number) => void;
 }) {
   const [typed, setTyped] = useState<string | null>(null);
@@ -127,6 +183,7 @@ export function NumField({
       max={max}
       step={step}
       allowEmpty
+      hideSteppers={hideSteppers}
       placeholder={mixed ? 'Mixed' : undefined}
       helperText={helperText}
       value={typed ?? (mixed || value === undefined ? '' : value)}
@@ -256,7 +313,7 @@ const NO_TEXT = ['empty', 'image', 'video', 'slideshow'];
 export type StyleChange = (partial: Partial<SignageBlockStyle>, key?: string) => void;
 
 /**
- * The style sections of the properties panel (Fill, Border and shadow, Text, Block) for one or several blocks. Fields whose
+ * The style sections of the properties panel (Text, Fill, Border and shadow, Block) for one or several blocks. Fields whose
  * value differs between the selected blocks show "Mixed". Rendered inside the panel's accordion.
  */
 export function BlockStyleFields({
@@ -265,14 +322,17 @@ export function BlockStyleFields({
   onStyle,
   textExtra,
   blockExtra,
+  layout,
 }: {
   blocks: readonly SignageBlock[];
   canEdit: boolean;
   onStyle: StyleChange;
-  /** Shown in the Text section right after the text size (the text widget's "shrink to fit"). */
+  /** Shown beside Uppercase at the end of the Text section (the text widget's "shrink to fit"). */
   textExtra?: ReactNode;
   /** Shown at the end of the Block section. */
   blockExtra?: ReactNode;
+  /** A section placed between Text and Fill (the single block's position and size). */
+  layout?: ReactNode;
 }) {
   const ids = blocks.map((b) => b.id);
   const single = blocks.length === 1;
@@ -281,10 +341,11 @@ export function BlockStyleFields({
   const fonts = (useQuery(assetsQuery()).data?.items ?? []).filter((asset) => asset.kind === 'font');
   const get = <K extends keyof SignageBlockStyle>(k: K) => sharedValue(blocks, ids, (b) => b.style[k]);
   const num = (
-    k: 'textSize' | 'letterSpacing' | 'borderWidth' | 'radius' | 'padding',
+    k: 'textSize' | 'letterSpacing' | 'lineHeight' | 'borderWidth' | 'radius' | 'padding',
     label: string,
     min: number,
     max: number,
+    { step = 1, inRow = false }: { step?: number; inRow?: boolean } = {},
   ) => {
     const v = get(k);
     return (
@@ -295,12 +356,14 @@ export function BlockStyleFields({
         mixed={v.mixed}
         min={min}
         max={max}
+        step={step}
+        hideSteppers={inRow}
         onChange={(next) => onStyle({ [k]: next }, `style.${k}`)}
       />
     );
   };
   const range = (
-    k: 'backgroundOpacity' | 'backgroundDim' | 'opacity' | 'lineHeight',
+    k: 'backgroundOpacity' | 'backgroundDim' | 'opacity',
     label: string,
     min: number,
     max: number,
@@ -354,8 +417,63 @@ export function BlockStyleFields({
   const fontAsset = get('fontAssetId');
   const bgAsset = get('backgroundAssetId');
 
+  const text = showText && (
+    <AccordionItem title="Text" open>
+      <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
+        <div className="sg-props__pair">
+          {num('textSize', 'Text size', 8, 400, { inRow: true })}
+          {pick('fontWeight', 'Weight', WEIGHTS)}
+        </div>
+        <PickField
+          id="bs-fontFamily"
+          label="Font"
+          value={family.value}
+          mixed={family.mixed}
+          items={FONT_FAMILIES}
+          onChange={(next) =>
+            onStyle({ fontFamily: next, fontAssetId: next === 'custom' ? (fontAsset.value ?? null) : null })
+          }
+        />
+        {family.value === 'custom' && (
+          <AssetPicker
+            id="bs-fontAssetId"
+            label="Uploaded font"
+            kind="font"
+            assets={fonts}
+            value={fontAsset.value ?? null}
+            disabledHint={fonts.length === 0 ? 'Upload a WOFF2 font under Media first.' : undefined}
+            onChange={(assetId) => onStyle({ fontAssetId: assetId })}
+          />
+        )}
+        {color('textColor', 'Text colour', 'Reset')}
+        <div className="sg-props__pair">
+          {num('lineHeight', 'Line height (%)', 80, 250, { step: 5, inRow: true })}
+          {num('letterSpacing', 'Letter spacing', -10, 50, { inRow: true })}
+        </div>
+        <div className="sg-props__pair">
+          {pick('align', 'Horizontal align', ALIGNS)}
+          {pick('verticalAlign', 'Vertical align', VERTICAL_ALIGNS)}
+        </div>
+        <div className="sg-props__toggles">
+          <Toggle
+            id="bs-uppercase"
+            size="sm"
+            labelText="Uppercase"
+            labelA="Off"
+            labelB="On"
+            toggled={get('uppercase').value === true}
+            onToggle={(uppercase) => onStyle({ uppercase })}
+          />
+          {textExtra}
+        </div>
+      </fieldset>
+    </AccordionItem>
+  );
+
   return (
     <>
+      {text}
+      {layout}
       <AccordionItem title="Fill">
         <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
           {color('backgroundColor', 'Background colour', 'None')}
@@ -380,60 +498,16 @@ export function BlockStyleFields({
       <AccordionItem title="Border and shadow">
         <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
           <div className="sg-props__pair">
-            {num('borderWidth', 'Border width', 0, 40)}
+            {num('borderWidth', 'Border width', 0, 40, { inRow: true })}
             {pick('borderStyle', 'Border style', BORDER_STYLES)}
           </div>
           {color('borderColor', 'Border colour', 'Reset')}
-          {num('radius', 'Corner radius', 0, 400)}
-          {pick('shadow', 'Shadow', SHADOWS)}
+          <div className="sg-props__pair">
+            {num('radius', 'Corner radius', 0, 400, { inRow: true })}
+            {pick('shadow', 'Shadow', SHADOWS)}
+          </div>
         </fieldset>
       </AccordionItem>
-      {showText && (
-        <AccordionItem title="Text" open>
-          <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
-            {num('textSize', 'Text size', 8, 400)}
-            {textExtra}
-            {color('textColor', 'Text colour', 'Reset')}
-            <PickField
-              id="bs-fontFamily"
-              label="Font"
-              value={family.value}
-              mixed={family.mixed}
-              items={FONT_FAMILIES}
-              onChange={(next) =>
-                onStyle({ fontFamily: next, fontAssetId: next === 'custom' ? (fontAsset.value ?? null) : null })
-              }
-            />
-            {family.value === 'custom' && (
-              <AssetPicker
-                id="bs-fontAssetId"
-                label="Uploaded font"
-                kind="font"
-                assets={fonts}
-                value={fontAsset.value ?? null}
-                disabledHint={fonts.length === 0 ? 'Upload a WOFF2 font under Media first.' : undefined}
-                onChange={(assetId) => onStyle({ fontAssetId: assetId })}
-              />
-            )}
-            {pick('fontWeight', 'Weight', WEIGHTS)}
-            {range('lineHeight', 'Line height', 80, 250)}
-            {num('letterSpacing', 'Letter spacing', -10, 50)}
-            <Toggle
-              id="bs-uppercase"
-              size="sm"
-              labelText="Uppercase"
-              labelA="Off"
-              labelB="On"
-              toggled={get('uppercase').value === true}
-              onToggle={(uppercase) => onStyle({ uppercase })}
-            />
-            <div className="sg-props__pair">
-              {pick('align', 'Horizontal alignment', ALIGNS)}
-              {pick('verticalAlign', 'Vertical alignment', VERTICAL_ALIGNS)}
-            </div>
-          </fieldset>
-        </AccordionItem>
-      )}
       <AccordionItem title="Block">
         <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
           {num('padding', 'Padding', 0, 400)}

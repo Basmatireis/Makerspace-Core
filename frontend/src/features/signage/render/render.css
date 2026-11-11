@@ -201,7 +201,7 @@
 }
 .sg-progress__bar {
   block-size: 100%;
-  background: #42be65;
+  background: var(--sg-progress, #42be65);
 }
 
 /* Announcement widget: tone colours follow Carbon's support colours. */
@@ -333,7 +333,7 @@
   inline-size: calc(var(--u) * 1.1);
   block-size: calc(var(--u) * 1.1);
   border-radius: 50%;
-  background: #fa4d56;
+  background: var(--sg-live, #fa4d56);
 }
 .sg-camera__caption {
   position: absolute;
@@ -385,15 +385,16 @@
 .sg-status__state {
   padding: calc(var(--u) * 0.3) calc(var(--u) * 1.4);
   font-size: calc(var(--u) * 2.4);
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--sg-idle, rgba(255, 255, 255, 0.18));
+  color: var(--sg-idle-text, inherit);
 }
 .sg-status__state--busy {
-  background: #198038;
-  color: #fff;
+  background: var(--sg-busy, #198038);
+  color: var(--sg-busy-text, #fff);
 }
 .sg-status__state--unknown {
-  background: #f1c21b;
-  color: #161616;
+  background: var(--sg-unknown, #f1c21b);
+  color: var(--sg-unknown-text, #161616);
 }
 .sg-list {
   display: flex;
@@ -411,8 +412,12 @@
   gap: calc(var(--u) * 2);
 }
 .sg-list__row span:last-child {
+  color: var(--sg-accent, inherit);
   opacity: 0.8;
   text-align: end;
+}
+.sg-list .sg-chips {
+  color: var(--sg-competency, inherit);
 }
 .sg-list__empty {
   opacity: 0.7;
@@ -487,9 +492,7 @@
   font-variant-numeric: tabular-nums;
 }
 .sg-cal__day {
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--u) * 0.2);
+  container: sg-cal-day / size;
   min-inline-size: 0;
   min-block-size: 0;
   overflow: hidden;
@@ -497,11 +500,22 @@
   background: rgba(127, 127, 127, 0.14);
   outline: 1px solid transparent;
 }
+/* One spacing inside a day: the same as its padding, between the number and the entries and between entries. */
+.sg-cal__cell {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.4);
+  block-size: 100%;
+  min-inline-size: 0;
+}
 .sg-cal__day--weekend {
   background: rgba(127, 127, 127, 0.08);
 }
 .sg-cal__day--outside {
-  opacity: 0.45;
+  background: rgba(127, 127, 127, 0.06);
+}
+.sg-cal__day--outside .sg-cal__cell > * {
+  opacity: 0.55;
 }
 .sg-cal__day--today {
   outline: calc(var(--u) * 0.25) solid currentColor;
@@ -513,29 +527,129 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
+/* An entry is the time on its own line above the name, so neither is cut off in a narrow day cell. */
 .sg-cal__entry {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  overflow: hidden;
+  padding: calc(var(--u) * 0.25) calc(var(--u) * 0.5);
+  border-inline-start: calc(var(--u) * 0.4) solid currentColor;
+  border-radius: calc(var(--u) * 0.2);
+  font-size: calc(var(--u) * 1.5);
+  line-height: 1.2;
+}
+/* Competencies in a calendar entry: a quiet line of names instead of outlined chips. */
+.sg-cal .sg-chips {
   display: block;
   overflow: hidden;
-  padding: calc(var(--u) * 0.1) calc(var(--u) * 0.4);
-  border-inline-start: calc(var(--u) * 0.4) solid currentColor;
-  font-size: calc(var(--u) * 1.4);
-  line-height: 1.15;
+  margin: 0;
+  font-size: 0.85em;
+  opacity: 0.8;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sg-cal__entry--detailed {
-  white-space: normal;
+.sg-cal .sg-chip {
+  display: inline;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: inherit;
 }
-.sg-cal__entry--detailed .sg-chips {
-  margin-block-start: calc(var(--u) * 0.2);
+.sg-cal .sg-chip + .sg-chip::before {
+  content: ' · ';
 }
 .sg-cal__entry--cancelled {
   text-decoration: line-through;
   opacity: 0.7;
 }
 .sg-cal__time {
+  overflow: hidden;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  opacity: 0.85;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Names wrap to at most two lines, long single words with a hyphen. */
+.sg-cal__label {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+/*
+ * Small day cells, measured in lines of entry text (em of the day). A full entry with competencies needs about five
+ * lines, without them four. Going down: the competencies go, entries become one line, then only the start time
+ * stays. The time sits beside the day number when the cell is short but wide enough for both (about 5.6em); in a
+ * narrow cell it stays below the number; where neither fits, an entry is a slim bar in its colour.
+ */
+@container sg-cal-day (max-height: 5.2em) {
+  .sg-cal .sg-chips {
+    display: none;
+  }
+}
+@container sg-cal-day (max-height: 4.2em) {
+  .sg-cal__entry {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.35em;
+    padding-block: 0.1em;
+    white-space: nowrap;
+  }
+  .sg-cal__label {
+    display: block;
+    min-inline-size: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+@container sg-cal-day (max-height: 3.4em) or (max-width: 6em) {
+  .sg-cal__entry:has(.sg-cal__time) .sg-cal__label {
+    display: none;
+  }
+}
+@container sg-cal-day (max-height: 3.4em) or (max-width: 7.5em) {
+  .sg-cal__until {
+    display: none;
+  }
+  .sg-cal__label {
+    -webkit-line-clamp: 1;
+  }
+}
+@container sg-cal-day (max-height: 3.4em) and (min-width: 5.6em) {
+  .sg-cal__cell {
+    flex-direction: row;
+    align-items: center;
+  }
+  /* Room for two digits, so the entries of single- and double-digit days start at the same place. */
+  .sg-cal__number {
+    flex: none;
+    min-inline-size: 2ch;
+  }
+  .sg-cal__entry {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+  }
+  .sg-cal__time {
+    min-inline-size: 0;
+  }
+}
+@container sg-cal-day (max-width: 3.8em) or ((max-width: 5.6em) and (max-height: 3.1em)) {
+  .sg-cal__entry {
+    flex: none;
+    block-size: 0.3em;
+    padding: 0;
+    border: 0;
+    border-radius: 0.15em;
+    /* Covers the translucent inline fill with the full colour. */
+    box-shadow: inset 0 0 0 1em var(--sg-cal-color);
+  }
+  .sg-cal__entry > *,
+  .sg-cal__more {
+    display: none;
+  }
 }
 .sg-cal__more {
   font-size: calc(var(--u) * 1.2);
@@ -580,7 +694,7 @@
   padding: calc(var(--u) * 0.4) calc(var(--u) * 1);
   border-radius: calc(var(--u) * 0.4);
   background: rgb(0 0 0 / 60%);
-  color: #fff;
+  color: var(--sg-caption, #fff);
   font-size: calc(var(--u) * 1.8);
 }
 

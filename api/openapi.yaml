@@ -24046,6 +24046,8 @@ components:
         type: {type: string, enum: [qr], x-enum-varnames: [SignageQrWidgetTypeQr]}
         url: {type: string, maxLength: 500, pattern: "^https://", description: Absolute https URL.}
         caption: {type: string, maxLength: 200}
+        darkColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Colour of the modules; absent is black."}
+        lightColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Colour of the background and quiet zone; absent is white."}
     SignageClockWidget:
       type: object
       additionalProperties: false
@@ -24069,6 +24071,8 @@ components:
         fallback: {type: string, enum: [image, text, hide], x-enum-varnames: [SignageCameraWidgetFallbackImage, SignageCameraWidgetFallbackText, SignageCameraWidgetFallbackHide]}
         fallbackMediaId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Image asset; only kept when `fallback` is `image`.}
         machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Only for `auto`: the machines the camera may show (empty or missing means every machine with a camera). Distinct, existing machines; cleared for `machine`."}
+        liveColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Colour of the live dot; absent is red."}
+        progressColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Colour of the progress bar; absent is green."}
     SignageStatusWidget:
       type: object
       additionalProperties: false
@@ -24078,6 +24082,10 @@ components:
         machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
         showProgress: {type: boolean}
         showRemaining: {type: boolean}
+        busyColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Badge colour of a printing machine; absent is green."}
+        idleColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Badge colour of an idle machine; absent is a light veil."}
+        unknownColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Badge colour of a machine with unknown state; absent is yellow."}
+        progressColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Colour of the progress bar; absent is green."}
     SignageOpenDaysWidget:
       type: object
       additionalProperties: false
@@ -24092,6 +24100,8 @@ components:
         format: {$ref: "#/components/schemas/SignageRichTextFormat"}
         css: {type: string, maxLength: 20000}
         fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}}
+        accentColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Colour of the date and time column; absent keeps the text colour."}
+        competencyColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Colour of the planned competencies; absent keeps the text colour."}
     SignageEventsWidget:
       type: object
       additionalProperties: false
@@ -24105,6 +24115,8 @@ components:
         format: {$ref: "#/components/schemas/SignageRichTextFormat"}
         css: {type: string, maxLength: 20000}
         fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}}
+        accentColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Colour of the date and time column; absent keeps the text colour."}
+        competencyColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Colour of the planned competencies; absent keeps the text colour."}
     SignageAgendaWidget:
       type: object
       additionalProperties: false
@@ -24123,6 +24135,8 @@ components:
         format: {$ref: "#/components/schemas/SignageRichTextFormat"}
         css: {type: string, maxLength: 20000}
         fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}}
+        accentColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Colour of the date and time column; absent keeps the text colour."}
+        competencyColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Colour of the planned competencies; absent keeps the text colour."}
     SignageCalendarColors:
       type: object
       additionalProperties: false
@@ -24148,7 +24162,8 @@ components:
         colors: {$ref: "#/components/schemas/SignageCalendarColors"}
         showWeekNumbers: {type: boolean}
         title: {type: string, maxLength: 200, description: Heading; empty hides it.}
-        showCompetencies: {type: boolean, description: "Weeks view: adds the planned competencies to open days, the first two and +N; absent means false."}
+        showCompetencies: {type: boolean, description: "Adds the planned competencies to open days: the first one (month view) or two (weeks view) and +N; absent means false."}
+        hideLegend: {type: boolean, description: "Leaves out the colour legend below the calendar; absent means false (legend shown)."}
     SignageTimelapseWidget:
       type: object
       additionalProperties: false
@@ -24164,6 +24179,7 @@ components:
         transition: {$ref: "#/components/schemas/SignageTransition"}
         showCaption: {type: boolean, description: "Shows the machine name and the day the print ended; never the job, file or person."}
         fit: {$ref: "#/components/schemas/SignageFit"}
+        captionColor: {type: string, pattern: "^(#[0-9a-f]{6}|transparent)$", description: "Text colour of the caption; absent is white."}
     SignageAnnouncementWidget:
       type: object
       additionalProperties: false

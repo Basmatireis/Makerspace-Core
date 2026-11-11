@@ -1,16 +1,7 @@
 import './styles.scss';
 import { useEffect, useState } from 'react';
-import {
-  Button,
-  ContentSwitcher,
-  IconButton,
-  InlineLoading,
-  InlineNotification,
-  Switch,
-  TextInput,
-  Toggle,
-} from '@carbon/react';
-import { ArrowLeft, Checkmark, Redo, Send, Undo, View, WarningFilled } from '@carbon/icons-react';
+import { Button, IconButton, InlineLoading, InlineNotification, Toggle } from '@carbon/react';
+import { ArrowLeft, Checkmark, Redo, Send, Undo, View, WarningFilled, ZoomIn, ZoomOut } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SignageBlock, SignageScene } from '../../api/generated/models';
@@ -44,7 +35,8 @@ import {
   type ArrangeAction,
 } from './editor/blockOps';
 import { runArrange } from './editor/arrangeActions';
-import { Canvas, type Zoom } from './editor/Canvas';
+import { Canvas } from './editor/Canvas';
+import { clampZoom, MAX_ZOOM, MIN_ZOOM, type Zoom } from './editor/zoom';
 import { isInlineText } from './editor/canvasModel';
 import { Palette } from './editor/Palette';
 import { PreviewModal } from './editor/PreviewModal';
@@ -82,11 +74,8 @@ export function SceneEditorPage() {
   return <Editor key={query.data.id} scene={query.data} />;
 }
 
-const ZOOMS: { zoom: Zoom; label: string }[] = [
-  { zoom: 'fit', label: 'Fit' },
-  { zoom: 0.5, label: '50 %' },
-  { zoom: 1, label: '100 %' },
-];
+/** Steps of the zoom buttons. */
+const ZOOM_STEP = 1.25;
 
 function Editor({ scene }: { scene: SignageScene }) {
   const navigate = useNavigate();
@@ -102,6 +91,7 @@ function Editor({ scene }: { scene: SignageScene }) {
   const [dragType, setDragType] = useState<WidgetType | null>(null);
   const [snapping, setSnapping] = useState(true);
   const [zoom, setZoom] = useState<Zoom>('fit');
+  const [scale, setScale] = useState(1);
   const [showMargins, setShowMargins] = useState(false);
   const [overflowKey, setOverflowKey] = useState('');
   const [dialog, setDialog] = useState<'preview' | 'publish' | null>(null);
@@ -279,19 +269,9 @@ function Editor({ scene }: { scene: SignageScene }) {
         >
           <ArrowLeft />
         </IconButton>
-        <TextInput
-          id="sg-screen-name"
-          className="sg-se__name"
-          labelText="Screen name"
-          hideLabel
-          size="md"
-          maxLength={100}
-          readOnly={!canEdit}
-          value={draft.name}
-          invalid={draft.name.trim() === ''}
-          invalidText="Give the screen a name"
-          onChange={(event) => apply({ ...draft, name: event.target.value }, 'name')}
-        />
+        <h1 className="sg-se__title" title={draft.name}>
+          {draft.name.trim() || 'Untitled screen'}
+        </h1>
         <div className="sg-se__spacer" />
         {canEdit ? (
           <SaveState status={autosave.status} onRetry={autosave.retry} />
@@ -400,6 +380,8 @@ function Editor({ scene }: { scene: SignageScene }) {
             canEdit={canEdit}
             snapping={snapping}
             zoom={zoom}
+            onZoom={setZoom}
+            onScale={setScale}
             showMargins={showMargins}
             overflowIds={overflowIds}
             onOverflow={onOverflow}
@@ -416,13 +398,6 @@ function Editor({ scene }: { scene: SignageScene }) {
             onArrange={arrangeAction}
           />
           <footer className="sg-se__foot">
-            <span
-              className="sg-se__fidelity"
-              title="Every display of this shape scales the same layout to its size, so line breaks match."
-            >
-              <Checkmark aria-hidden="true" />
-              Looks exactly like on every {aspectLabel(draft.aspectRatio)} display
-            </span>
             <div className="sg-se__spacer" />
             <Toggle
               id="sg-show-margins"
@@ -434,16 +409,37 @@ function Editor({ scene }: { scene: SignageScene }) {
               toggled={showMargins}
               onToggle={setShowMargins}
             />
-            <ContentSwitcher
-              size="sm"
-              className="sg-se__zoom"
-              selectedIndex={ZOOMS.findIndex((item) => item.zoom === zoom)}
-              onChange={({ index }) => setZoom(ZOOMS[index ?? 0].zoom)}
-            >
-              {ZOOMS.map((item) => (
-                <Switch key={item.label} name={item.label} text={item.label} />
-              ))}
-            </ContentSwitcher>
+            <div className="sg-se__zoom" role="group" aria-label="Zoom">
+              <IconButton
+                label="Zoom out (Ctrl or ⌘ with the scroll wheel)"
+                kind="ghost"
+                size="sm"
+                align="top"
+                disabled={scale <= MIN_ZOOM}
+                onClick={() => setZoom(clampZoom(scale / ZOOM_STEP))}
+              >
+                <ZoomOut />
+              </IconButton>
+              <span className="sg-se__zoom-value" aria-live="polite">
+                {Math.round(scale * 100)} %
+              </span>
+              <IconButton
+                label="Zoom in (Ctrl or ⌘ with the scroll wheel)"
+                kind="ghost"
+                size="sm"
+                align="top"
+                disabled={scale >= MAX_ZOOM}
+                onClick={() => setZoom(clampZoom(scale * ZOOM_STEP))}
+              >
+                <ZoomIn />
+              </IconButton>
+              <Button kind={zoom === 'fit' ? 'secondary' : 'ghost'} size="sm" onClick={() => setZoom('fit')}>
+                Fit
+              </Button>
+              <Button kind={zoom === 1 ? 'secondary' : 'ghost'} size="sm" onClick={() => setZoom(1)}>
+                100 %
+              </Button>
+            </div>
           </footer>
         </section>
         <div className="sg-se__right">

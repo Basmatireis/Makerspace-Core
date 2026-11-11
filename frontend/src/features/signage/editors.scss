@@ -34,10 +34,20 @@ textarea.sg-code {
   border: 0;
 }
 .sg-category-row {
-  display: grid;
-  grid-template-columns: minmax(8rem, 1fr) minmax(0, 1fr);
-  align-items: end;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: $spacing-04;
+}
+.sg-category-row .cds--form-item {
+  flex: 1 1 auto;
+  margin: 0;
+}
+// Without a label above it the swatch needs no offset, and a smaller one keeps the rows compact.
+.sg-category-row .app-color-picker {
+  inline-size: 2rem;
+  block-size: 2rem;
+  margin-block-start: 0;
 }
 .sg-form-row.sg-form-row--four {
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -45,9 +55,6 @@ textarea.sg-code {
 @media (max-width: 41.98rem) {
   .sg-form-row.sg-form-row--four {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .sg-category-row {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -287,9 +294,12 @@ textarea.sg-code {
   border-block-end: 1px solid theme.$border-subtle-01;
   background: theme.$layer-01;
 }
-.sg-se__name {
-  flex: 0 1 22rem;
-  min-inline-size: 8rem;
+.sg-se__title {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  @include type-style('heading-compact-02');
 }
 .sg-se__spacer {
   flex: 1 1 auto;
@@ -324,8 +334,11 @@ textarea.sg-code {
   grid-template-columns: 16rem minmax(0, 1fr) 21rem;
   min-block-size: 0;
 }
+// Positioned so absolutely placed control parts (Carbon toggles, hidden labels) scroll with the pane and do not make
+// the page itself taller, which let focusing a field scroll the whole editor away.
 .sg-se__left,
 .sg-se__right {
+  position: relative;
   min-block-size: 0;
   overflow-y: auto;
   background: theme.$layer-01;
@@ -355,18 +368,16 @@ textarea.sg-code {
   border-block-start: 1px solid theme.$border-subtle-01;
   background: theme.$layer-01;
 }
-.sg-se__fidelity {
-  display: inline-flex;
+.sg-se__zoom {
+  display: flex;
   align-items: center;
   gap: $spacing-02;
-  color: theme.$text-secondary;
-  @include type-style('helper-text-01');
 }
-.sg-se__fidelity svg {
-  fill: theme.$support-success;
-}
-.sg-se__zoom {
-  inline-size: 14rem;
+.sg-se__zoom-value {
+  min-inline-size: 3.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  @include type-style('body-compact-01');
 }
 .sg-se__foot .cds--form-item {
   flex: 0 0 auto;
@@ -405,25 +416,46 @@ textarea.sg-code {
   @include type-style('helper-text-01');
 }
 .sg-palette__label {
-  padding: $spacing-03 $spacing-05 $spacing-02;
+  padding: $spacing-04 $spacing-05 $spacing-03;
   color: theme.$text-secondary;
   @include type-style('label-01');
 }
+// Palette items are tiles in a three-column grid: icon above a label that may wrap to two lines.
 .sg-palette__items {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding-inline: $spacing-03;
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  gap: 1px;
+  margin-inline: $spacing-05;
 }
 .sg-palette__item.cds--btn {
+  flex-direction: column;
+  inline-size: 100%;
+  align-items: center;
   justify-content: flex-start;
-  gap: $spacing-03;
+  gap: $spacing-02;
   min-inline-size: 0;
-  padding-inline: $spacing-03;
+  max-inline-size: none;
+  min-block-size: 4.5rem;
+  padding: $spacing-04 $spacing-02 $spacing-03;
+  background: theme.$layer-02;
+  color: theme.$text-primary;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  hyphens: auto;
   cursor: grab;
+  @include type-style('label-01');
+}
+.sg-palette__item.cds--btn:hover {
+  background: theme.$layer-hover-02;
+  color: theme.$text-primary;
 }
 .sg-palette__item.cds--btn .cds--btn__icon {
   order: -1;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
   margin: 0;
+  fill: theme.$icon-primary;
 }
 .sg-layers__list {
   display: grid;
@@ -473,6 +505,20 @@ textarea.sg-code {
   padding: 0 $spacing-02;
   color: theme.$text-primary;
   text-align: start;
+}
+// The name button is the row's click target, not a visible button: the row shows hover, selection and keyboard focus.
+.sg-layers__name.cds--btn:hover,
+.sg-layers__name.cds--btn:active {
+  background: transparent;
+}
+.sg-layers__name.cds--btn:focus {
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
+}
+.sg-layers__row:has(.sg-layers__name:focus-visible) {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
 }
 .sg-layers__name svg {
   flex: 0 0 auto;
@@ -699,33 +745,81 @@ textarea.sg-code {
     font-style: italic;
   }
 }
+// Empty blocks: the choice of content fills the block. Only the buttons take the pointer, so the rest still selects
+// and moves the block; small blocks show icons only.
 .sg-quick {
-  display: grid;
-  place-items: center;
-  overflow: hidden;
+  container-type: size;
   pointer-events: none;
 }
-.sg-quick__label {
-  color: rgb(255 255 255 / 70%);
-  @include type-style('label-01');
+.sg-canvas__overlay--dragging .sg-quick__item.cds--btn {
+  pointer-events: none;
 }
 .sg-quick__panel {
-  display: grid;
-  justify-items: center;
-  gap: $spacing-02;
-  max-inline-size: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-03;
+  block-size: 100%;
+  overflow: hidden;
   padding: $spacing-03;
-  background: theme.$layer-01;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 30%);
-  pointer-events: auto;
+  border: 1px dashed theme.$border-strong-01;
+  background: color-mix(in srgb, theme.$layer-01 92%, transparent);
 }
-.sg-quick__panel .sg-quick__label {
+.sg-quick__label {
   color: theme.$text-secondary;
+  text-align: center;
+  @include type-style('label-01');
 }
 .sg-quick__items {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: $spacing-02;
+  inline-size: min(100%, 30rem);
+}
+.sg-quick__item.cds--btn {
+  flex-direction: column;
+  inline-size: 100%;
+  align-items: center;
   justify-content: center;
+  gap: $spacing-02;
+  min-inline-size: 0;
+  max-inline-size: none;
+  min-block-size: 3.5rem;
+  padding: $spacing-03;
+  text-align: center;
+  pointer-events: auto;
+}
+.sg-quick__item.cds--btn .cds--btn__icon {
+  order: -1;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin: 0;
+}
+.sg-quick__text {
+  overflow: hidden;
+  max-inline-size: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@container (max-width: 15rem) or (max-height: 11rem) {
+  .sg-quick__label {
+    display: none;
+  }
+  .sg-quick__items {
+    grid-template-columns: repeat(auto-fit, minmax(2rem, 2.5rem));
+    justify-content: center;
+  }
+  .sg-quick__item.cds--btn {
+    min-block-size: 2rem;
+    padding: $spacing-02;
+  }
+  .sg-quick__text {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    clip-path: inset(50%);
+  }
 }
 
 // Floating block, group and text toolbars

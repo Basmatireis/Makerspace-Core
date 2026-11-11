@@ -52,4 +52,14 @@ export interface SignageAgendaWidget {
   css?: string;
   /** @maxItems 10 */
   fontAssetIds?: UUIDv7[];
+  /**
+     * Colour of the date and time column; absent keeps the text colour.
+     * @pattern ^(#[0-9a-f]{6}|transparent)$
+     */
+  accentColor?: string;
+  /**
+     * Colour of the planned competencies; absent keeps the text colour.
+     * @pattern ^(#[0-9a-f]{6}|transparent)$
+     */
+  competencyColor?: string;
 }

@@ -112,6 +112,9 @@ type qrW struct {
 	Type    WidgetType `json:"type"`
 	URL     string     `json:"url"`
 	Caption string     `json:"caption"`
+	// DarkColor and LightColor replace the black modules and the white quiet zone; absent keeps them.
+	DarkColor  string `json:"darkColor,omitempty"`
+	LightColor string `json:"lightColor,omitempty"`
 }
 type clockW struct {
 	Type WidgetType `json:"type"`
@@ -129,12 +132,20 @@ type cameraW struct {
 	MachineIDs      []uuid.UUID    `json:"machineIds"`
 	ShowLive        bool           `json:"showLive"`
 	ShowName        bool           `json:"showName"`
+	// LiveColor (the live dot) and ProgressColor (the progress bar) are optional; absent keeps the defaults.
+	LiveColor     string `json:"liveColor,omitempty"`
+	ProgressColor string `json:"progressColor,omitempty"`
 }
 type statusW struct {
 	Type          WidgetType  `json:"type"`
 	MachineIDs    []uuid.UUID `json:"machineIds"`
 	ShowProgress  bool        `json:"showProgress"`
 	ShowRemaining bool        `json:"showRemaining"`
+	// State badge and progress bar colours; absent keeps the defaults.
+	BusyColor     string `json:"busyColor,omitempty"`
+	IdleColor     string `json:"idleColor,omitempty"`
+	UnknownColor  string `json:"unknownColor,omitempty"`
+	ProgressColor string `json:"progressColor,omitempty"`
 }
 
 // listW is the open days and events widget. Title nil keeps the previous heading, an empty
@@ -147,7 +158,14 @@ type listW struct {
 	EntryTemplate string     `json:"entryTemplate,omitempty"`
 	// ShowCompetencies adds the planned competencies to each open day; absent keeps the previous look. Open days only.
 	ShowCompetencies bool `json:"showCompetencies,omitempty"`
+	listColors
 	richFields
+}
+
+// listColors colour the date column and the competencies of the list widgets; absent keeps the text colour.
+type listColors struct {
+	AccentColor     string `json:"accentColor,omitempty"`
+	CompetencyColor string `json:"competencyColor,omitempty"`
 }
 
 // agendaW merges open days and events by start time.
@@ -162,6 +180,7 @@ type agendaW struct {
 	EventTemplate   string     `json:"eventTemplate,omitempty"`
 	// ShowCompetencies adds the planned competencies to open-day entries; absent keeps the previous look.
 	ShowCompetencies bool `json:"showCompetencies,omitempty"`
+	listColors
 	richFields
 }
 
@@ -183,8 +202,10 @@ type calendarW struct {
 	Colors          calendarColors `json:"colors"`
 	ShowWeekNumbers bool           `json:"showWeekNumbers"`
 	Title           *string        `json:"title,omitempty"`
-	// ShowCompetencies adds the planned competencies to open days in the weeks view; absent keeps the previous look.
+	// ShowCompetencies adds the planned competencies to open days; absent keeps the previous look.
 	ShowCompetencies bool `json:"showCompetencies,omitempty"`
+	// HideLegend leaves out the colour legend; absent shows it as before.
+	HideLegend bool `json:"hideLegend,omitempty"`
 }
 
 // timelapseW is the slideshow of recent finished prints' timelapse videos.
@@ -198,6 +219,8 @@ type timelapseW struct {
 	Transition  Transition      `json:"transition"`
 	ShowCaption bool            `json:"showCaption"`
 	Fit         MediaFit        `json:"fit"`
+	// CaptionColor is the caption's text colour; absent keeps white.
+	CaptionColor string `json:"captionColor,omitempty"`
 }
 
 // announcementW takes its title size from the block style's text size.
@@ -398,6 +421,9 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 				maxCaptionRunes,
 			)
 		}
+		if !optionalColors(w.DarkColor, w.LightColor) {
+			return nil, refs, blockError(block, "QR colours must be lowercase #rrggbb or transparent")
+		}
 	case WidgetClock:
 		var w clockW
 		if err := decode(&w); err != nil {
@@ -414,6 +440,9 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 		if !inSet(w.Source, CameraSourceMachine, CameraSourceAuto) || !inSet(w.Multi, MultiModeSplit, MultiModeAlternate) ||
 			!inSet(w.Fallback, CameraFallbackImage, CameraFallbackText, CameraFallbackHide) {
 			return nil, refs, blockError(block, "camera source, multi mode or fallback is invalid")
+		}
+		if !optionalColors(w.LiveColor, w.ProgressColor) {
+			return nil, refs, blockError(block, "camera colours must be lowercase #rrggbb or transparent")
 		}
 		if w.Source == CameraSourceMachine && w.MachineID == nil {
 			return nil, refs, blockError(block, "a camera bound to a machine needs machineId")
@@ -454,6 +483,9 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 		if len(w.MachineIDs) > maxStatusMachines {
 			return nil, refs, blockError(block, "a status widget lists at most %d machines", maxStatusMachines)
 		}
+		if !optionalColors(w.BusyColor, w.IdleColor, w.UnknownColor, w.ProgressColor) {
+			return nil, refs, blockError(block, "status colours must be lowercase #rrggbb or transparent")
+		}
 		w.MachineIDs = distinct(w.MachineIDs)
 		refs.Machines = append(refs.Machines, w.MachineIDs...)
 		value = &w
@@ -467,6 +499,9 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 		}
 		if w.Type == WidgetEvents && w.ShowCompetencies {
 			return nil, refs, blockError(block, "only open-day widgets show competencies")
+		}
+		if !w.valid() {
+			return nil, refs, blockError(block, "list colours must be lowercase #rrggbb or transparent")
 		}
 		if !validHeading(w.Title) || !multilineText(w.EmptyText, maxListEmptyRunes) ||
 			!multilineText(w.EntryTemplate, maxEntryTemplateRun) {
@@ -487,6 +522,9 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 		if !validHeading(w.Title) || !multilineText(w.EmptyText, maxListEmptyRunes) ||
 			!multilineText(w.OpenDayTemplate, maxEntryTemplateRun) || !multilineText(w.EventTemplate, maxEntryTemplateRun) {
 			return nil, refs, blockError(block, "title, emptyText or a template is too long or not text")
+		}
+		if !w.valid() {
+			return nil, refs, blockError(block, "list colours must be lowercase #rrggbb or transparent")
 		}
 		if err := w.validate(block, &refs); err != nil {
 			return nil, refs, err
@@ -540,6 +578,9 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 		}
 		if !inSet(w.Transition, TransitionCut, TransitionFade) || !inSet(w.Fit, MediaFitContain, MediaFitCover) {
 			return nil, refs, blockError(block, "transition must be cut or fade and fit contain or cover")
+		}
+		if !optionalColors(w.CaptionColor) {
+			return nil, refs, blockError(block, "timelapse caption colour must be lowercase #rrggbb or transparent")
 		}
 		// Only checked to exist: the clips never add machines to the live machine list.
 		refs.Machines = append(refs.Machines, w.MachineIDs...)
@@ -601,3 +642,15 @@ func validateHTTPSURL(raw string) error {
 	}
 	return nil
 }
+
+// optionalColors reports whether every colour is absent, lowercase #rrggbb or "transparent".
+func optionalColors(colors ...string) bool {
+	for _, color := range colors {
+		if color != "" && color != "transparent" && !colorPattern.MatchString(color) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c listColors) valid() bool { return optionalColors(c.AccentColor, c.CompetencyColor) }

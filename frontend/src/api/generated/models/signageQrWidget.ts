@@ -30,4 +30,14 @@ export interface SignageQrWidget {
   url: string;
   /** @maxLength 200 */
   caption: string;
+  /**
+     * Colour of the modules; absent is black.
+     * @pattern ^(#[0-9a-f]{6}|transparent)$
+     */
+  darkColor?: string;
+  /**
+     * Colour of the background and quiet zone; absent is white.
+     * @pattern ^(#[0-9a-f]{6}|transparent)$
+     */
+  lightColor?: string;
 }

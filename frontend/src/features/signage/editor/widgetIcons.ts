@@ -4,7 +4,6 @@ import {
   Calendar,
   Camera,
   CarouselHorizontal,
-  Checkbox,
   Dashboard,
   EventSchedule,
   Events,
@@ -12,6 +11,7 @@ import {
   Image,
   ListBulleted,
   QrCode,
+  Select_01,
   TextFont,
   Time,
   Video,
@@ -20,7 +20,7 @@ import {
 import type { WidgetType } from '../widgets';
 
 export const WIDGET_ICONS: Record<WidgetType, CarbonIconType> = {
-  empty: Checkbox,
+  empty: Select_01,
   text: TextFont,
   image: Image,
   video: Video,

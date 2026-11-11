@@ -62,7 +62,6 @@ describe('Screen editor', () => {
     expect(block('header')).toHaveStyle({ left: '0px', top: '0px', width: '1080px' });
     expect(block('main')).not.toBeNull();
     expect(screen.getByText('Draft saved')).toBeInTheDocument();
-    expect(screen.getByText(/Looks exactly like on every 9:16 display/)).toBeInTheDocument();
   });
 
   it('adds a block from the palette and fills a selected empty block', async () => {
@@ -119,6 +118,31 @@ describe('Screen editor', () => {
     await user.keyboard('{Delete}');
     expect(block('header')).toBeNull();
     expect(screen.getByText('Nothing selected')).toBeInTheDocument();
+  });
+
+  it('zooms in steps, back to fit and to 100 %', async () => {
+    mockSignage(editing);
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    const zoom = await screen.findByRole('group', { name: 'Zoom' });
+    const before = zoom.querySelector('.sg-se__zoom-value')!.textContent;
+    await user.click(within(zoom).getByRole('button', { name: /^Zoom in/ }));
+    expect(zoom.querySelector('.sg-se__zoom-value')!.textContent).not.toBe(before);
+    await user.click(within(zoom).getByRole('button', { name: '100 %' }));
+    expect(zoom.querySelector('.sg-se__zoom-value')).toHaveTextContent('100 %');
+    await user.click(within(zoom).getByRole('button', { name: 'Fit' }));
+    expect(zoom.querySelector('.sg-se__zoom-value')!.textContent).toBe(before);
+  });
+
+  it('clears the selection on a click around the screen', async () => {
+    mockSignage(editing);
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    await user.click(await layer('header'));
+    expect(screen.getByRole('button', { name: 'header', pressed: true })).toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByRole('application', { name: 'Screen canvas' }), { button: 0 });
+    expect(screen.getByRole('button', { name: 'header', pressed: false })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Screen name' })).toBeInTheDocument();
   });
 
   it('selects several blocks with Shift and aligns them with the group toolbar', async () => {

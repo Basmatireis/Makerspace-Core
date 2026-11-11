@@ -151,6 +151,47 @@ export function blockBoxCss(
   return css as CSSProperties;
 }
 
+/** Black or white text, whichever reads better on the colour. */
+export function readableOn(hex: string): string {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b) > 0.179 ? '#161616' : '#ffffff';
+}
+
+/** Widget colours a block sets for its content, as custom properties the renderer CSS falls back from. */
+export function widgetColorCss(widget: SignageWidget): CSSProperties {
+  const css: Record<string, string> = {};
+  const put = (name: string, color: string | undefined, withText = false) => {
+    if (!color) return;
+    css[name] = color;
+    if (withText && color !== 'transparent') css[`${name}-text`] = readableOn(color);
+  };
+  switch (widget.type) {
+    case 'status':
+      put('--sg-busy', widget.busyColor, true);
+      put('--sg-idle', widget.idleColor, true);
+      put('--sg-unknown', widget.unknownColor, true);
+      put('--sg-progress', widget.progressColor);
+      break;
+    case 'camera':
+      put('--sg-live', widget.liveColor);
+      put('--sg-progress', widget.progressColor);
+      break;
+    case 'timelapse':
+      put('--sg-caption', widget.captionColor);
+      break;
+    case 'open_days':
+    case 'events':
+    case 'agenda':
+      put('--sg-accent', widget.accentColor);
+      put('--sg-competency', widget.competencyColor);
+      break;
+    default:
+      break;
+  }
+  return css as CSSProperties;
+}
+
 /** CSS of a block's content box: the padding and the vertical alignment of the widget. */
 export const blockInnerCss = (style: Pick<SignageBlockStyle, 'padding' | 'verticalAlign'>): CSSProperties => ({
   padding: style.padding > 0 ? `${style.padding}px` : undefined,

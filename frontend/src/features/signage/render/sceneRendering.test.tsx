@@ -661,7 +661,7 @@ describe('calendar widget', () => {
     expect(within(day(container, '2026-10-22')).getByText(/Soldering workshop/)).toBeInTheDocument();
     expect(within(day(container, '2026-10-22')).getByText('20:00')).toBeInTheDocument();
     expect(within(day(container, '2026-10-23')).getByText(/Open day/)).toBeInTheDocument();
-    expect(within(day(container, '2026-10-23')).getByText('16:00–20:00')).toBeInTheDocument();
+    expect(day(container, '2026-10-23').querySelector('.sg-cal__time')).toHaveTextContent('16:00–20:00');
     expect(within(day(container, '2026-10-26')).getByText('National Day')).toBeInTheDocument();
   });
 
@@ -706,6 +706,15 @@ describe('calendar widget', () => {
     expect(legend.getByText('Open day')).toBeInTheDocument();
     expect(legend.queryByText('Holiday')).not.toBeInTheDocument();
     expect(container.querySelector<HTMLElement>('.sg-cal__swatch')?.style.background).toBe('rgb(25, 128, 56)');
+  });
+
+  it('leaves out the legend when hideLegend is set', async () => {
+    const { container } = render(
+      <SceneRenderer scene={scene({ main: widget({ hideLegend: true }) })} data={data({ calendar })} />,
+    );
+    await ready();
+    expect(container.querySelector('.sg-cal__day')).not.toBeNull();
+    expect(container.querySelector('.sg-cal__legend')).toBeNull();
   });
 
   it('shows the colours of the widget on its entries', async () => {

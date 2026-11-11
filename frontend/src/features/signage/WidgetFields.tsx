@@ -32,6 +32,7 @@ import type { MachineOption } from './preview';
 import { CodeArea, FormatSelect, RichTextAdvanced } from './RichTextFields';
 import { MediaPicker } from './MediaPicker';
 import { TimelapseFields } from './TimelapseFields';
+import { WidgetColorFields } from './WidgetColorFields';
 import { clampInt, formatOf, LIMITS, widgetError, withRichText } from './widgets';
 
 type Option = { id: string; label: string };
@@ -75,9 +76,14 @@ type Props = {
   onChange: (widget: SignageWidget) => void;
 };
 
-/** The content fields of the selected block's widget. Text size, colours and the box style live in the style sections. */
+/** The content fields of the selected block's widget and its own colours; text size and the box style live in the style sections. */
 export function WidgetFields(props: Props) {
-  return <TypeFields {...props} />;
+  return (
+    <>
+      <TypeFields {...props} />
+      <WidgetColorFields widget={props.widget} onChange={props.onChange} />
+    </>
+  );
 }
 
 function TypeFields({

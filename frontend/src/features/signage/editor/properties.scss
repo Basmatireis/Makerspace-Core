@@ -39,27 +39,74 @@
   padding: 0;
   border: 0;
 }
+// Carbon keeps a quarter of an accordion's width free for reading text; the form fields here use the whole pane.
+.sg-props .cds--accordion__content {
+  padding-inline-end: $spacing-05;
+}
 .sg-props__section {
   display: grid;
   gap: $spacing-05;
   min-inline-size: 0;
-  padding-inline-end: $spacing-05;
 }
 .sg-props__pair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
   gap: $spacing-04;
+}
+// X, Y, width and height in a two-by-two grid of stepper-less number fields.
+.sg-props__quad {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-04 $spacing-04;
+}
+.sg-props__help {
+  margin-block-start: calc(-1 * #{$spacing-03});
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+.sg-props__help--top {
+  margin-block-start: 0;
+}
+.sg-props__group {
+  display: grid;
+  gap: $spacing-02;
+}
+.sg-props__group .sg-props__help {
+  margin-block-start: 0;
+}
+.sg-props__label {
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+.sg-props__toggles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-05 $spacing-04;
+}
+// Number inputs ask for 9.375rem, too wide for two in a row.
+.sg-props .cds--number input[type='number'] {
+  min-inline-size: 0;
+}
+// Carbon's slider wants 12.5rem for its track; in the pane it takes what is left beside the range labels and the input.
+.sg-props .cds--slider-container {
+  inline-size: 100%;
+}
+.sg-props .cds--slider {
+  flex: 1 1 auto;
+  min-inline-size: 0;
 }
 .sg-props__color {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-auto-columns: auto;
+  grid-auto-flow: column;
+  grid-template-columns: minmax(0, 1fr);
   align-items: end;
   gap: $spacing-03;
 }
 .sg-props__tools {
   display: flex;
   flex-wrap: wrap;
-  gap: $spacing-02;
 }
 .sg-props__buttons {
   display: flex;

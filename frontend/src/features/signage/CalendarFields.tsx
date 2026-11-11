@@ -1,6 +1,6 @@
-import { NumberInput, RadioButton, RadioButtonGroup, TextInput, Toggle } from '@carbon/react';
+import { Checkbox, NumberInput, RadioButton, RadioButtonGroup, TextInput, Toggle } from '@carbon/react';
 import type { SignageCalendarColors, SignageCalendarWidget } from '../../api/generated/models';
-import { ColorField } from './editor/BlockStyleFields';
+import { ColorPicker } from '../../app/ColorPicker';
 import { clampInt, LIMITS, withField } from './widgets';
 
 type Category = {
@@ -15,7 +15,7 @@ const CATEGORIES: Category[] = [
   { show: 'showEvents', color: 'event', label: 'Events' },
 ];
 
-/** Calendar widget: month or the next weeks, which categories appear and in which colour. */
+/** Calendar widget: month or the next weeks, which categories appear (one checkbox each) and in which colour. */
 export function CalendarFields({
   widget,
   onChange,
@@ -60,27 +60,29 @@ export function CalendarFields({
         <legend className="cds--label">Show</legend>
         {CATEGORIES.map((category) => (
           <div className="sg-category-row" key={category.show}>
-            <Toggle
+            <Checkbox
               id={`wf-calendar-${category.show}`}
-              size="sm"
               labelText={category.label}
-              labelA="Off"
-              labelB="On"
-              toggled={widget[category.show]}
-              onToggle={(checked) => onChange({ ...widget, [category.show]: checked })}
+              checked={widget[category.show]}
+              onChange={(_, { checked }) => onChange({ ...widget, [category.show]: checked })}
             />
-            <ColorField
-              id={`wf-calendar-color-${category.color}`}
+            <ColorPicker
               label={`${category.label} colour`}
-              nullable={false}
               value={widget.colors[category.color]}
-              onChange={(color) => {
-                if (color) onChange({ ...widget, colors: { ...widget.colors, [category.color]: color } });
-              }}
+              onChange={(color) => onChange({ ...widget, colors: { ...widget.colors, [category.color]: color } })}
             />
           </div>
         ))}
       </fieldset>
+      <Toggle
+        id="wf-calendar-legend"
+        size="sm"
+        labelText="Colour legend"
+        labelA="Off"
+        labelB="On"
+        toggled={widget.hideLegend !== true}
+        onToggle={(shown) => onChange(withField(widget, 'hideLegend', shown ? undefined : true))}
+      />
       <Toggle
         id="wf-calendar-week-numbers"
         size="sm"
@@ -98,12 +100,13 @@ export function CalendarFields({
           labelA="Off"
           labelB="On"
           toggled={widget.showCompetencies === true}
-          disabled={widget.view === 'month'}
           onToggle={(checked) => onChange(withField(widget, 'showCompetencies', checked || undefined))}
         />
       )}
-      {widget.showOpenDays && widget.view === 'month' && (
-        <p className="sg-secondary">Month cells are too small for competencies; the weeks view shows the first two.</p>
+      {widget.showOpenDays && widget.showCompetencies && (
+        <p className="sg-secondary">
+          The month view shows the first competency of each open day, the weeks view the first two.
+        </p>
       )}
       <p className="sg-secondary">Weeks start on Monday. Dates are shown in the makerspace time zone.</p>
     </>

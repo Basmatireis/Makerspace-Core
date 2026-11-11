@@ -2,6 +2,7 @@
 @use '@carbon/styles/scss/type' as *;
 @use '@carbon/styles/scss/breakpoint' as *;
 @use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/components/slider';
 @use './editors';
 
 // Digital signage admin. Carbon components carry the controls; this file holds layout glue only.
@@ -196,16 +197,16 @@
 .sg-media-tile__name {
   overflow-wrap: anywhere;
 }
-.sg-toolbar {
+.sg-media-filters {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: $spacing-05;
 }
-.sg-toolbar > .cds--search {
+.sg-media-filters > .cds--search {
   flex: 1 1 16rem;
 }
-.sg-toolbar > .cds--form-item {
+.sg-media-filters > .cds--form-item {
   flex: 0 0 12rem;
 }
 .sg-media-detail {
@@ -422,6 +423,10 @@
 }
 
 // New screen: shape field and starter tiles
+.sg-new-screen {
+  display: grid;
+  gap: $spacing-06;
+}
 .sg-ratio {
   min-inline-size: 0;
   margin: 0;
@@ -429,150 +434,81 @@
   border: 0;
 }
 .sg-ratio__row {
-  display: flex;
-  align-items: flex-start;
-  gap: $spacing-03;
-}
-.sg-ratio__row .cds--number {
-  inline-size: 6rem;
-}
-.sg-ratio__colon {
-  padding-block-start: $spacing-04;
-}
-.sg-ratio__hint {
-  margin-block-start: $spacing-02;
-  @include type-style('helper-text-01');
-}
-.sg-ratio__hint--error {
-  color: var(--cds-text-error);
-}
-.sg-starters > .cds--tile-group__legend,
-.sg-starters legend {
-  margin-block-end: $spacing-03;
-}
-.sg-starters {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr));
-  gap: $spacing-03;
-}
-.sg-starters .cds--tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: $spacing-03;
-  min-inline-size: 0;
-  padding: $spacing-04;
-}
-.sg-starter__mini {
-  position: relative;
-  display: block;
-  background: var(--cds-layer-accent);
-  outline: 1px solid var(--cds-border-strong);
-}
-.sg-starter__mini--wide {
-  inline-size: 100%;
-}
-.sg-starter__mini--tall {
-  block-size: 5.25rem;
-  max-inline-size: 100%;
-}
-.sg-starter__mini i {
-  position: absolute;
-  box-sizing: border-box;
-  border: 1px solid var(--cds-border-strong);
-  background: var(--cds-layer);
-}
-.sg-starter__label {
-  @include type-style('label-01');
-  text-align: center;
-}
-
-// Media picker
-.sg-media-picker {
-  display: grid;
-  gap: $spacing-03;
-  min-inline-size: 0;
-}
-
-// Screens list
-.sg-screens-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: $spacing-03;
 }
-.sg-screens-toolbar .cds--search {
-  flex: 1 1 14rem;
-  max-inline-size: 28rem;
+// Carbon form items grow to fill a flex row and number inputs ask for 9.375rem; the two ratio parts stay narrow.
+.sg-ratio__row > .cds--form-item {
+  flex: 0 0 5rem;
+  min-inline-size: 0;
 }
-.sg-scene-card__menu {
-  position: absolute;
-  inset-block-start: $spacing-05;
-  inset-inline-end: $spacing-05;
-  z-index: 1;
-  background: var(--cds-layer);
+.sg-ratio__row .cds--number input[type='number'] {
+  min-inline-size: 0;
 }
-
-// New screen: shape field and starter tiles
-.sg-ratio {
+.sg-ratio__colon {
+  @include type-style('body-compact-02');
+}
+.sg-ratio__hint {
+  margin-inline-start: $spacing-03;
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+.sg-ratio__hint--error {
+  color: theme.$text-error;
+}
+.sg-starters {
   min-inline-size: 0;
   margin: 0;
   padding: 0;
   border: 0;
 }
-.sg-ratio__row {
-  display: flex;
-  align-items: flex-start;
-  gap: $spacing-03;
+.sg-starters > legend {
+  margin-block-end: $spacing-03;
 }
-.sg-ratio__row .cds--number {
-  inline-size: 6rem;
-}
-.sg-ratio__colon {
-  padding-block-start: $spacing-04;
-}
-.sg-ratio__hint {
-  margin-block-start: $spacing-02;
-  @include type-style('helper-text-01');
-}
-.sg-ratio__hint--error {
-  color: var(--cds-text-error);
-}
-.sg-starters {
+// TileGroup wraps the tiles in one div.
+.sg-starters > div {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr));
   gap: $spacing-03;
-}
-.sg-starters .cds--tile-group__legend,
-.sg-starters legend {
-  grid-column: 1 / -1;
 }
 .sg-starters .cds--tile {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: space-between;
   gap: $spacing-03;
+  block-size: 100%;
   min-inline-size: 0;
   padding: $spacing-04;
+}
+.sg-starter__frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 100%;
+  block-size: 5.5rem;
 }
 .sg-starter__mini {
   position: relative;
   display: block;
-  background: var(--cds-layer-accent);
-  outline: 1px solid var(--cds-border-strong);
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  background: theme.$layer-accent-01;
+  outline: 1px solid theme.$border-strong-01;
 }
 .sg-starter__mini--wide {
   inline-size: 100%;
 }
 .sg-starter__mini--tall {
-  block-size: 5.25rem;
-  max-inline-size: 100%;
+  block-size: 100%;
 }
 .sg-starter__mini i {
   position: absolute;
   box-sizing: border-box;
-  border: 1px solid var(--cds-border-strong);
-  background: var(--cds-layer);
+  border: 1px solid theme.$border-strong-01;
+  background: theme.$layer-01;
 }
 .sg-starter__label {
   @include type-style('label-01');

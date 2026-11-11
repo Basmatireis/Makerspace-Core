@@ -119,13 +119,19 @@ describe('planned competencies on signage', () => {
       expect(cell(container, '2026-10-30').querySelector('.sg-chips')).toBeNull();
     });
 
-    it('shows none without the option or in the month view', async () => {
-      for (const patch of [{}, { showCompetencies: true, view: 'month' }]) {
-        const { container, unmount } = render(<SceneRenderer scene={scene(widget(patch))} data={data({ calendar })} />);
-        await screen.findByRole('group');
-        expect(container.querySelector('.sg-chips')).toBeNull();
-        unmount();
-      }
+    it('shows the first one in the month view', async () => {
+      const { container } = render(
+        <SceneRenderer scene={scene(widget({ showCompetencies: true, view: 'month' }))} data={data({ calendar })} />,
+      );
+      await screen.findByRole('group');
+      const chips = within(cell(container, '2026-10-23')).getAllByText(/3D printing|Laser cutting|\+2/);
+      expect(chips.map((chip) => chip.textContent)).toEqual(['3D printing', '+2']);
+    });
+
+    it('shows none without the option', async () => {
+      const { container } = render(<SceneRenderer scene={scene(widget({}))} data={data({ calendar })} />);
+      await screen.findByRole('group');
+      expect(container.querySelector('.sg-chips')).toBeNull();
     });
   });
 });

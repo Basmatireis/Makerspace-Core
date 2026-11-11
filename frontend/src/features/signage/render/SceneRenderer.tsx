@@ -12,6 +12,7 @@ import { RichText } from './RichTextView';
 import {
   blockBoxCss,
   blockInnerCss,
+  widgetColorCss,
   cssUrl,
   fontAssetIdsOf,
   registerFontFaces,
@@ -362,7 +363,7 @@ function WidgetView({ block, data }: { block: SignageBlock; data: RenderData }) 
     case 'qr':
       return (
         <Suspense fallback={null}>
-          <QrCode url={widget.url} caption={widget.caption} />
+          <QrCode url={widget.url} caption={widget.caption} dark={widget.darkColor} light={widget.lightColor} />
         </Suspense>
       );
     case 'clock':
@@ -558,7 +559,12 @@ export function SceneRenderer({ scene, data, showHidden = false, selectedBlockId
           .filter(Boolean)
           .join(' ');
         return (
-          <div key={block.id} className={className} style={box} data-block-id={block.id}>
+          <div
+            key={block.id}
+            className={className}
+            style={{ ...box, ...widgetColorCss(block.widget) }}
+            data-block-id={block.id}
+          >
             <div className="sg-block__in" style={blockInnerCss(block.style)}>
               <WidgetView block={block} data={data} />
             </div>

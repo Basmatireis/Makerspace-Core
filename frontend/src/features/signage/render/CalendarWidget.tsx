@@ -14,12 +14,23 @@ const CATEGORY_LABEL: Record<CalendarCategory, string> = {
   openDay: 'Open day',
   event: 'Event',
 };
-/** Planned competencies per open day in the weeks view before "+n". */
-const CALENDAR_COMPETENCIES = 2;
+/** Planned competencies per open day before "+n"; a month cell has room for one. */
+const CALENDAR_COMPETENCIES = { month: 1, weeks: 2 } as const;
 /** Entries shown per day before "+n"; a month cell is small, a week row has room. */
 const MAX_ENTRIES = { month: 2, weeks: 4 } as const;
 
 type Props = { widget: SignageCalendarWidget; data: RenderData };
+
+/** `HH:MM–HH:MM` with the end in its own span, which small cells leave out. */
+function EntryTime({ time }: { time: string }) {
+  const [start, end] = time.split('–');
+  return (
+    <span className="sg-cal__time">
+      {start}
+      {end !== undefined && <span className="sg-cal__until">–{end}</span>}
+    </span>
+  );
+}
 
 function DayCell({ day, widget, limit }: { day: CalendarDay; widget: SignageCalendarWidget; limit: number }) {
   const shown = day.entries.slice(0, limit);
@@ -33,27 +44,38 @@ function DayCell({ day, widget, limit }: { day: CalendarDay; widget: SignageCale
       style={style}
       data-date={day.key}
     >
-      <span className="sg-cal__number">{day.day}</span>
-      {shown.map((entry, index) => {
-        const color = widget.colors[entry.category];
-        const entryStyle = {
-          borderInlineStartColor: color,
-          background: withOpacity(color, 30),
-        } satisfies CSSProperties;
-        return (
-          <span
-            key={`${entry.category}-${index}`}
-            className={`sg-cal__entry sg-cal__entry--${entry.category}${entry.cancelled ? ' sg-cal__entry--cancelled' : ''}${
-              entry.competencies ? ' sg-cal__entry--detailed' : ''
-            }`}
-            style={entryStyle}
-          >
-            {entry.time !== '' && <span className="sg-cal__time">{entry.time}</span>} {entry.label}
-            {entry.competencies && <CompetencyChips labels={entry.competencies} limit={CALENDAR_COMPETENCIES} />}
-          </span>
-        );
-      })}
-      {more > 0 && <span className="sg-cal__more">+{more}</span>}
+      {/* The day is the size container; its content is laid out by the inner box, which the size rules can restyle. */}
+      <div className="sg-cal__cell">
+        <span className="sg-cal__number">{day.day}</span>
+        {shown.map((entry, index) => {
+          const color = widget.colors[entry.category];
+          // The plain colour also draws the entry as a bar in the narrowest cells.
+          const entryStyle = {
+            borderInlineStartColor: color,
+            background: withOpacity(color, 30),
+            '--sg-cal-color': color,
+          } as CSSProperties;
+          return (
+            <span
+              key={`${entry.category}-${index}`}
+              className={`sg-cal__entry sg-cal__entry--${entry.category}${entry.cancelled ? ' sg-cal__entry--cancelled' : ''}${
+                entry.competencies ? ' sg-cal__entry--detailed' : ''
+              }`}
+              style={entryStyle}
+            >
+              {entry.time !== '' && <EntryTime time={entry.time} />}
+              {/* Holiday names come from the Austrian calendar in German; the language lets the browser hyphenate them. */}
+              <span className="sg-cal__label" lang={entry.category === 'holiday' ? 'de' : undefined}>
+                {entry.label}
+              </span>
+              {entry.competencies && (
+                <CompetencyChips labels={entry.competencies} limit={CALENDAR_COMPETENCIES[widget.view]} />
+              )}
+            </span>
+          );
+        })}
+        {more > 0 && <span className="sg-cal__more">+{more}</span>}
+      </div>
     </div>
   );
 }
@@ -102,7 +124,7 @@ export function CalendarWidget({ widget, data }: Props) {
           </Fragment>
         ))}
       </div>
-      {legend.length > 0 && (
+      {legend.length > 0 && widget.hideLegend !== true && (
         <ul className="sg-cal__legend" aria-label="Legend">
           {legend.map(([category]) => (
             <li key={category}>

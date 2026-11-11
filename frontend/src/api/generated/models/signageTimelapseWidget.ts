@@ -58,4 +58,9 @@ export interface SignageTimelapseWidget {
   /** Shows the machine name and the day the print ended; never the job, file or person. */
   showCaption: boolean;
   fit: SignageFit;
+  /**
+     * Text colour of the caption; absent is white.
+     * @pattern ^(#[0-9a-f]{6}|transparent)$
+     */
+  captionColor?: string;
 }

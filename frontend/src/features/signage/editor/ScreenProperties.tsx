@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AccordionItem, RadioButton, RadioButtonGroup, Tag, Toggle } from '@carbon/react';
+import { AccordionItem, RadioButton, RadioButtonGroup, Tag, TextInput, Toggle } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { AspectRatioInput } from '../AspectRatioInput';
 import { ratioOfParts, ratioPartsError, ratioPartsOf, type RatioParts } from '../aspectFields';
@@ -8,6 +8,7 @@ import { MediaPicker } from '../MediaPicker';
 import { assetsQuery } from '../queries';
 import { sceneGridSize } from '../render/aspect';
 import type { Draft } from '../sceneDraft';
+import { replaceScreenColor, screenColors } from '../widgetColors';
 import { stretchToRatio } from './blockOps';
 import { ColorField, PickField, RangeField } from './BlockStyleFields';
 import type { Change } from './arrangeActions';
@@ -27,7 +28,7 @@ const SHORTCUTS: [string, string][] = [
   ['Shift click', 'Add or remove a block from the selection'],
 ];
 
-/** Properties of the screen itself, shown while no block is selected. */
+/** Properties of the screen itself (name, shape, background, font), shown while no block is selected. */
 export function ScreenProperties({
   draft,
   canEdit,
@@ -52,6 +53,7 @@ export function ScreenProperties({
     setParts(ratioPartsOf(draft.aspectRatio));
   }
   const patch = (partial: Partial<Draft>, key?: string) => onChange({ ...draft, ...partial }, key);
+  const colors = screenColors(draft);
 
   /** Changing the shape stretches the blocks so they keep their relative place and size. */
   const commitShape = (next: RatioParts) => {
@@ -67,6 +69,16 @@ export function ScreenProperties({
     <>
       <AccordionItem title="Screen" open>
         <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
+          <TextInput
+            id="sg-screen-name"
+            labelText="Screen name"
+            maxLength={100}
+            readOnly={!canEdit}
+            value={draft.name}
+            invalid={draft.name.trim() === ''}
+            invalidText="Give the screen a name"
+            onChange={(event) => patch({ name: event.target.value }, 'name')}
+          />
           <div
             role="presentation"
             onBlur={(event) => {
@@ -121,6 +133,33 @@ export function ScreenProperties({
                 value={draft.backgroundDim}
                 onChange={(backgroundDim) => patch({ backgroundDim }, 'screen:backgroundDim')}
               />
+            </>
+          )}
+        </fieldset>
+      </AccordionItem>
+      <AccordionItem title="Screen colours" open>
+        <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
+          {colors.length === 0 ? (
+            <p className="sg-secondary">No colours are set on this screen yet.</p>
+          ) : (
+            <>
+              <p className="sg-props__help sg-props__help--top">
+                Every colour used on this screen. Changing one changes it everywhere it is used.
+              </p>
+              {colors.map((item, index) => (
+                <ColorField
+                  // By position, so the field keeps its picker open while its colour changes.
+                  key={index}
+                  id={`sp-screen-color-${index}`}
+                  label={item.count === 1 ? 'Used once' : `Used ${item.count} times`}
+                  nullable={false}
+                  value={item.color}
+                  onChange={(next) => {
+                    if (next && next !== item.color)
+                      onChange(replaceScreenColor(draft, item.color, next), `screen-colors:${index}`);
+                  }}
+                />
+              ))}
             </>
           )}
         </fieldset>
