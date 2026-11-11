@@ -72,7 +72,8 @@ WITH deleted AS (
 SELECT deleted.*, p.first_name, p.last_name FROM deleted JOIN people p ON p.id = deleted.person_id;
 
 -- name: ListPublicPresence :many
-SELECT v.id, v.checked_in_at, p.first_name, left(p.last_name, 1)::text AS last_initial
+-- The full last name only feeds the shortening in Go; the public list shows as few letters of it as tell people apart.
+SELECT v.id, v.checked_in_at, p.first_name, p.last_name
 FROM visits v JOIN people p ON p.id = v.person_id
 WHERE v.status = 'checked_in'
 ORDER BY lower(p.first_name), lower(p.last_name), v.checked_in_at, v.id;

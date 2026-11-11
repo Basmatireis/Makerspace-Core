@@ -288,29 +288,20 @@ func (s *Service) PublicPresence(ctx context.Context, device manageddevices.Devi
 	if err != nil {
 		return nil, err
 	}
+	names := make([]PersonName, len(rows))
+	for index, row := range rows {
+		names[index] = PersonName{First: row.FirstName, Last: row.LastName}
+	}
+	short := ShortNames(names)
 	result := make([]PublicPresence, 0, len(rows))
-	shortName := shortNamer()
-	for _, row := range rows {
+	for index, row := range rows {
 		result = append(result, PublicPresence{
 			VisitID:     row.ID,
-			DisplayName: shortName(row.FirstName, row.LastInitial),
+			DisplayName: short[index],
 			CheckedInAt: row.CheckedInAt,
 		})
 	}
 	return result, nil
-}
-
-// shortNamer numbers repeated "First L." names so people with the same short name stay distinguishable.
-func shortNamer() func(firstName, lastInitial string) string {
-	duplicates := map[string]int{}
-	return func(firstName, lastInitial string) string {
-		name := firstName + " " + lastInitial + "."
-		duplicates[name]++
-		if duplicates[name] > 1 {
-			name = fmt.Sprintf("%s (%d)", name, duplicates[name])
-		}
-		return name
-	}
 }
 
 func (s *Service) PasswordCheckIn(

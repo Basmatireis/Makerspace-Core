@@ -568,7 +568,7 @@ func (q *Queries) GetVisitByIDForUpdate(ctx context.Context, id uuid.UUID) (GetV
 }
 
 const listPublicPresence = `-- name: ListPublicPresence :many
-SELECT v.id, v.checked_in_at, p.first_name, left(p.last_name, 1)::text AS last_initial
+SELECT v.id, v.checked_in_at, p.first_name, p.last_name
 FROM visits v JOIN people p ON p.id = v.person_id
 WHERE v.status = 'checked_in'
 ORDER BY lower(p.first_name), lower(p.last_name), v.checked_in_at, v.id
@@ -578,9 +578,10 @@ type ListPublicPresenceRow struct {
 	ID          uuid.UUID
 	CheckedInAt time.Time
 	FirstName   string
-	LastInitial string
+	LastName    string
 }
 
+// The full last name only feeds the shortening in Go; the public list shows as few letters of it as tell people apart.
 func (q *Queries) ListPublicPresence(ctx context.Context) ([]ListPublicPresenceRow, error) {
 	rows, err := q.db.Query(ctx, listPublicPresence)
 	if err != nil {
@@ -594,7 +595,7 @@ func (q *Queries) ListPublicPresence(ctx context.Context) ([]ListPublicPresenceR
 			&i.ID,
 			&i.CheckedInAt,
 			&i.FirstName,
-			&i.LastInitial,
+			&i.LastName,
 		); err != nil {
 			return nil, err
 		}
