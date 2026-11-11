@@ -24,6 +24,7 @@ import type {
   AttendancePinRequest,
   AttendanceStatistics,
   GetAttendanceStatisticsParams,
+  KioskCameraSettings,
   PublicPresenceList,
   PublicSurvey,
   RequestEmailLoginCodeRequest,
@@ -588,6 +589,69 @@ export const terminalSurveyOfferNever = async (token: string, options?: Paramete
   {
     ...options,
     method: 'POST'
+
+
+  }
+);}
+
+
+export const getSaveTerminalCameraCalibrationUrl = () => {
+
+
+
+
+  return `/api/v1/terminal/camera-calibration`
+}
+
+/**
+ * Allowed only while an administrator's calibration window for this device is open (409
+ * `camera_calibration_closed` otherwise); saving closes it.
+ * @summary Save the camera calibration made on this kiosk
+ */
+export const saveTerminalCameraCalibration = async (kioskCameraSettings: KioskCameraSettings, options?: Parameters<typeof apiFetch>[1]): Promise<KioskCameraSettings> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<KioskCameraSettings>(getSaveTerminalCameraCalibrationUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(kioskCameraSettings)
+  }
+);}
+
+
+export const getCancelTerminalCameraCalibrationUrl = () => {
+
+
+
+
+  return `/api/v1/terminal/camera-calibration`
+}
+
+/**
+ * Closes the open calibration window; 409 `camera_calibration_closed` when none is open.
+ * @summary Leave the camera calibration on this kiosk without saving
+ */
+export const cancelTerminalCameraCalibration = async ( options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getCancelTerminalCameraCalibrationUrl(),
+  {
+    ...options,
+    method: 'DELETE'
 
 
   }

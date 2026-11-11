@@ -472,6 +472,46 @@ func (q *Queries) GetManagedDevice(ctx context.Context, id uuid.UUID) (GetManage
 	return i, err
 }
 
+const getManagedDeviceCameraSettings = `-- name: GetManagedDeviceCameraSettings :one
+SELECT managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset, calibration_expires_at, updated_at FROM managed_device_camera_settings WHERE managed_device_id = $1
+`
+
+func (q *Queries) GetManagedDeviceCameraSettings(ctx context.Context, managedDeviceID uuid.UUID) (ManagedDeviceCameraSetting, error) {
+	row := q.db.QueryRow(ctx, getManagedDeviceCameraSettings, managedDeviceID)
+	var i ManagedDeviceCameraSetting
+	err := row.Scan(
+		&i.ManagedDeviceID,
+		&i.CropCenterX,
+		&i.CropCenterY,
+		&i.CropSize,
+		&i.IndicatorEdge,
+		&i.IndicatorOffset,
+		&i.CalibrationExpiresAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getManagedDeviceCameraSettingsForUpdate = `-- name: GetManagedDeviceCameraSettingsForUpdate :one
+SELECT managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset, calibration_expires_at, updated_at FROM managed_device_camera_settings WHERE managed_device_id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetManagedDeviceCameraSettingsForUpdate(ctx context.Context, managedDeviceID uuid.UUID) (ManagedDeviceCameraSetting, error) {
+	row := q.db.QueryRow(ctx, getManagedDeviceCameraSettingsForUpdate, managedDeviceID)
+	var i ManagedDeviceCameraSetting
+	err := row.Scan(
+		&i.ManagedDeviceID,
+		&i.CropCenterX,
+		&i.CropCenterY,
+		&i.CropSize,
+		&i.IndicatorEdge,
+		&i.IndicatorOffset,
+		&i.CalibrationExpiresAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getManagedDeviceForMutation = `-- name: GetManagedDeviceForMutation :one
 SELECT id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds, check_in_methods, check_out_methods FROM managed_devices WHERE id = $1 FOR UPDATE
 `
@@ -1096,6 +1136,60 @@ func (q *Queries) UpdateSessionPolicy(ctx context.Context, arg UpdateSessionPoli
 		&i.IsDefault,
 		&i.Version,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertManagedDeviceCameraSettings = `-- name: UpsertManagedDeviceCameraSettings :one
+INSERT INTO managed_device_camera_settings (
+    managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset,
+    calibration_expires_at, updated_at)
+VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7, $8)
+ON CONFLICT (managed_device_id) DO UPDATE SET
+    crop_center_x = EXCLUDED.crop_center_x,
+    crop_center_y = EXCLUDED.crop_center_y,
+    crop_size = EXCLUDED.crop_size,
+    indicator_edge = EXCLUDED.indicator_edge,
+    indicator_offset = EXCLUDED.indicator_offset,
+    calibration_expires_at = EXCLUDED.calibration_expires_at,
+    updated_at = EXCLUDED.updated_at
+RETURNING managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset, calibration_expires_at, updated_at
+`
+
+type UpsertManagedDeviceCameraSettingsParams struct {
+	ManagedDeviceID      uuid.UUID
+	CropCenterX          *float64
+	CropCenterY          *float64
+	CropSize             *float64
+	IndicatorEdge        *string
+	IndicatorOffset      *float64
+	CalibrationExpiresAt pgtype.Timestamptz
+	UpdatedAt            time.Time
+}
+
+func (q *Queries) UpsertManagedDeviceCameraSettings(ctx context.Context, arg UpsertManagedDeviceCameraSettingsParams) (ManagedDeviceCameraSetting, error) {
+	row := q.db.QueryRow(ctx, upsertManagedDeviceCameraSettings,
+		arg.ManagedDeviceID,
+		arg.CropCenterX,
+		arg.CropCenterY,
+		arg.CropSize,
+		arg.IndicatorEdge,
+		arg.IndicatorOffset,
+		arg.CalibrationExpiresAt,
+		arg.UpdatedAt,
+	)
+	var i ManagedDeviceCameraSetting
+	err := row.Scan(
+		&i.ManagedDeviceID,
+		&i.CropCenterX,
+		&i.CropCenterY,
+		&i.CropSize,
+		&i.IndicatorEdge,
+		&i.IndicatorOffset,
+		&i.CalibrationExpiresAt,
 		&i.UpdatedAt,
 	)
 	return i, err

@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DeviceCapability } from './deviceCapability';
+import type { KioskCameraSettings } from './kioskCameraSettings';
 import type { TerminalConsentCategory } from './terminalConsentCategory';
 import type { VisitorLabRulesVersion } from './visitorLabRulesVersion';
 
@@ -42,4 +43,5 @@ export interface VisitorEnrollmentState {
   /** Whether the Visitor role asks for the Lab Rules. Only then does the kiosk show them and does enrollment record the confirmation. */
   labRulesRequired: boolean;
   expiresAt: string;
+  camera?: KioskCameraSettings;
 }

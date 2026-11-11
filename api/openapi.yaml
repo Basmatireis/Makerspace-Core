@@ -2312,6 +2312,67 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /managed-devices/{managedDeviceId}/camera:
+    parameters: [{$ref: "#/components/parameters/ManagedDeviceId"}]
+    get:
+      tags: [Managed Devices]
+      operationId: getManagedDeviceCamera
+      summary: Get a kiosk's camera crop, lens pointer and calibration window
+      description: Requires `managed_devices.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Camera settings of the device., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceCamera"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Managed Devices]
+      operationId: updateManagedDeviceCamera
+      summary: Set or reset a kiosk's camera crop and lens pointer
+      description: Requires `managed_devices.manage`. A null `crop` restores the centred largest square, a null `indicator` hides the lens pointer. An open calibration window stays open.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/KioskCameraSettings"}}}}
+      responses:
+        "200": {description: Camera settings saved., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceCamera"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /managed-devices/{managedDeviceId}/camera/calibration:
+    parameters: [{$ref: "#/components/parameters/ManagedDeviceId"}]
+    post:
+      tags: [Managed Devices]
+      operationId: startManagedDeviceCameraCalibration
+      summary: Open a short window in which the kiosk calibrates its camera on the tablet
+      description: |
+        Requires `managed_devices.manage`. The device must be an active kiosk configured with the `camera` capability
+        (422 `camera_not_configured`). For ten minutes the tablet shows its calibration screen and may save the result
+        once with its device credential. Starting again extends the window.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Calibration window opened., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceCamera"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Managed Devices]
+      operationId: closeManagedDeviceCameraCalibration
+      summary: Close an open camera calibration window
+      description: Requires `managed_devices.manage`. Closing a window that is not open changes nothing.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Calibration window closed., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceCamera"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /managed-devices/{managedDeviceId}/revoke:
     parameters: [{$ref: "#/components/parameters/ManagedDeviceId"}]
     post:
@@ -12055,6 +12116,36 @@ paths:
         "204": {description: Offer declined and the question switched off.}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/camera-calibration:
+    put:
+      tags: [Attendance]
+      operationId: saveTerminalCameraCalibration
+      summary: Save the camera calibration made on this kiosk
+      description: |
+        Allowed only while an administrator's calibration window for this device is open (409
+        `camera_calibration_closed` otherwise); saving closes it.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/KioskCameraSettings"}}}}
+      responses:
+        "200": {description: Calibration saved., content: {application/json: {schema: {$ref: "#/components/schemas/KioskCameraSettings"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Attendance]
+      operationId: cancelTerminalCameraCalibration
+      summary: Leave the camera calibration on this kiosk without saving
+      description: Closes the open calibration window; 409 `camera_calibration_closed` when none is open.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      responses:
+        "204": {description: Calibration window closed.}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /terminal/presence/{visitId}/check-out:
     parameters: [{name: visitId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
     post:
@@ -18241,6 +18332,7 @@ components:
         currentLabRules: {allOf: [{$ref: "#/components/schemas/VisitorLabRulesVersion"}], nullable: true}
         labRulesRequired: {type: boolean, description: "Whether the Visitor role asks for the Lab Rules. Only then does the kiosk show them and does enrollment record the confirmation."}
         expiresAt: {type: string, format: date-time}
+        camera: {$ref: "#/components/schemas/KioskCameraSettings"}
 
     VisitorEnrollmentSubmission:
       type: object
@@ -23186,7 +23278,41 @@ components:
           type: array
           maxItems: 50
           items: {$ref: "#/components/schemas/KioskNotice"}
-          description: Notices a notification rule put on this tablet that are in force now (start-screen banners and the notices for everyone who checks in today). Present for device-authenticated tablets only; the tablet polls this about once a minute.
+          description: Notices a notification rule put on this tablet that are in force now (start-screen banners and the notices for everyone who checks in today). Present for device-authenticated tablets only; the tablet polls this every 20 seconds.
+        camera: {$ref: "#/components/schemas/KioskCameraSettings"}
+        cameraCalibrationExpiresAt: {type: string, format: date-time, nullable: true, description: "End of the calibration window an administrator opened for this tablet; while set the tablet shows its camera calibration screen."}
+    KioskCameraCrop:
+      type: object
+      additionalProperties: false
+      required: [centerX, centerY, size]
+      description: The square of the camera frame a profile photo is taken from. The tablet keeps the square inside the frame.
+      properties:
+        centerX: {type: number, format: double, minimum: 0, maximum: 1, description: "Centre of the square as a fraction of the frame width, from the left of the unmirrored frame."}
+        centerY: {type: number, format: double, minimum: 0, maximum: 1, description: "Centre of the square as a fraction of the frame height, from the top."}
+        size: {type: number, format: double, minimum: 0.2, maximum: 1, description: "Side of the square as a fraction of the frame's shorter side; 1 is the largest square."}
+    KioskCameraIndicator:
+      type: object
+      additionalProperties: false
+      required: [edge, offset]
+      description: Where the tablet's camera lens is, so the kiosk can point people's eyes to it.
+      properties:
+        edge: {type: string, enum: [top, right, bottom, left]}
+        offset: {type: number, format: double, minimum: 0, maximum: 100, description: "Position along the edge in percent: from the left for top and bottom, from the top for left and right."}
+    KioskCameraSettings:
+      type: object
+      additionalProperties: false
+      required: [crop, indicator]
+      properties:
+        crop: {allOf: [{$ref: "#/components/schemas/KioskCameraCrop"}], nullable: true, description: "Null for the centred largest square."}
+        indicator: {allOf: [{$ref: "#/components/schemas/KioskCameraIndicator"}], nullable: true, description: "Null when the kiosk shows no lens pointer."}
+    ManagedDeviceCamera:
+      type: object
+      additionalProperties: false
+      required: [crop, indicator, calibrationExpiresAt]
+      properties:
+        crop: {allOf: [{$ref: "#/components/schemas/KioskCameraCrop"}], nullable: true}
+        indicator: {allOf: [{$ref: "#/components/schemas/KioskCameraIndicator"}], nullable: true}
+        calibrationExpiresAt: {type: string, format: date-time, nullable: true, description: "End of the open calibration window, or null when none is open."}
     KioskNotice:
       type: object
       additionalProperties: false

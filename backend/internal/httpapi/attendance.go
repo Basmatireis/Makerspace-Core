@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
+	"github.com/oapi-codegen/nullable"
 )
 
 func kioskDevice(ctx context.Context) (manageddevices.DeviceContext, error) {
@@ -39,7 +40,17 @@ func (s *Server) GetTerminalContext(
 	notices := s.kioskNotices(ctx, func(n *notifyrules.Notices) ([]notifyrules.KioskNotice, error) {
 		return n.ForDevice(ctx, device.ID)
 	})
+	camera, err := s.managedDevices.KioskCamera(ctx, device.ID)
+	if err != nil {
+		return nil, err
+	}
+	cameraSettings := cameraSettingsDTO(camera.CameraSettings)
+	calibration := nullable.NewNullNullable[time.Time]()
+	if camera.CalibrationExpiresAt != nil {
+		calibration = nullable.NewNullableWithValue(*camera.CalibrationExpiresAt)
+	}
 	return openapi.GetTerminalContext200JSONResponse{Notices: notices, DeviceId: value.DeviceID, DeviceName: value.DeviceName,
+		Camera: &cameraSettings, CameraCalibrationExpiresAt: calibration,
 		AllowTapCheckout: value.AllowTapCheckout, OfferSurveysAtCheckout: value.OfferSurveysAtCheckout,
 		KioskResetSeconds: int(value.KioskResetSeconds), CheckInMethods: kioskMethodsDTO(value.CheckInMethods),
 		CheckOutMethods: kioskMethodsDTO(value.CheckOutMethods),

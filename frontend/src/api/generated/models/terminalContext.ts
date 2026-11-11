@@ -20,6 +20,7 @@
  */
 import type { DeviceCapability } from './deviceCapability';
 import type { KioskAuthenticationMethod } from './kioskAuthenticationMethod';
+import type { KioskCameraSettings } from './kioskCameraSettings';
 import type { KioskNotice } from './kioskNotice';
 import type { TerminalContextStaffDestination } from './terminalContextStaffDestination';
 import type { UUIDv7 } from './uUIDv7';
@@ -51,8 +52,14 @@ export interface TerminalContext {
   capabilities: DeviceCapability[];
   staffDestination: TerminalContextStaffDestination;
   /**
-     * Notices a notification rule put on this tablet that are in force now (start-screen banners and the notices for everyone who checks in today). Present for device-authenticated tablets only; the tablet polls this about once a minute.
+     * Notices a notification rule put on this tablet that are in force now (start-screen banners and the notices for everyone who checks in today). Present for device-authenticated tablets only; the tablet polls this every 20 seconds.
      * @maxItems 50
      */
   notices?: KioskNotice[];
+  camera?: KioskCameraSettings;
+  /**
+     * End of the calibration window an administrator opened for this tablet; while set the tablet shows its camera calibration screen.
+     * @nullable
+     */
+  cameraCalibrationExpiresAt?: string | null;
 }

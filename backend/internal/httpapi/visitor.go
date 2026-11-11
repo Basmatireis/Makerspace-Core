@@ -97,7 +97,14 @@ func (s *Server) GetVisitorEnrollmentState(
 	if state.Email != "" {
 		email = nullable.NewNullableWithValue(state.Email)
 	}
+	// The tablet's calibrated crop and lens pointer, so the live preview shows exactly what the photo will contain.
+	camera, err := s.managedDevices.KioskCamera(ctx, enrollment.ManagedDeviceID)
+	if err != nil {
+		return nil, err
+	}
+	cameraSettings := cameraSettingsDTO(camera.CameraSettings)
 	result := openapi.VisitorEnrollmentState{
+		Camera:            &cameraSettings,
 		Email:             email,
 		EmailVerified:     state.EmailVerified,
 		Capabilities:      capabilities,

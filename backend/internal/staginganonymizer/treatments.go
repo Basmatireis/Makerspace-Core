@@ -279,6 +279,7 @@ var Tables = []Table{
 		"from_name":               Catalog,
 		"base_url":                Mailpit,
 	}},
+	{Name: "managed_device_camera_settings", Columns: map[string]Treatment{"indicator_edge": System}},
 	{Name: "managed_device_capabilities", Columns: map[string]Treatment{"capability": System}},
 	{Name: "managed_device_hardware_reports", Columns: map[string]Treatment{
 		"platform":       System,

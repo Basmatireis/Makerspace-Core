@@ -199,3 +199,26 @@ DELETE FROM managed_device_pairing_requests WHERE id = sqlc.arg(id);
 UPDATE managed_devices SET token_digest = sqlc.arg(token_digest), version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())
 RETURNING expires_at;
+
+-- name: GetManagedDeviceCameraSettings :one
+SELECT * FROM managed_device_camera_settings WHERE managed_device_id = sqlc.arg(managed_device_id);
+
+-- name: GetManagedDeviceCameraSettingsForUpdate :one
+SELECT * FROM managed_device_camera_settings WHERE managed_device_id = sqlc.arg(managed_device_id) FOR UPDATE;
+
+-- name: UpsertManagedDeviceCameraSettings :one
+INSERT INTO managed_device_camera_settings (
+    managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset,
+    calibration_expires_at, updated_at)
+VALUES (
+    sqlc.arg(managed_device_id), sqlc.narg(crop_center_x), sqlc.narg(crop_center_y), sqlc.narg(crop_size),
+    sqlc.narg(indicator_edge), sqlc.narg(indicator_offset), sqlc.narg(calibration_expires_at), sqlc.arg(updated_at))
+ON CONFLICT (managed_device_id) DO UPDATE SET
+    crop_center_x = EXCLUDED.crop_center_x,
+    crop_center_y = EXCLUDED.crop_center_y,
+    crop_size = EXCLUDED.crop_size,
+    indicator_edge = EXCLUDED.indicator_edge,
+    indicator_offset = EXCLUDED.indicator_offset,
+    calibration_expires_at = EXCLUDED.calibration_expires_at,
+    updated_at = EXCLUDED.updated_at
+RETURNING *;

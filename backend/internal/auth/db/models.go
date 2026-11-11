@@ -830,6 +830,17 @@ type ManagedDevice struct {
 	CheckOutMethods        []string
 }
 
+type ManagedDeviceCameraSetting struct {
+	ManagedDeviceID      uuid.UUID
+	CropCenterX          *float64
+	CropCenterY          *float64
+	CropSize             *float64
+	IndicatorEdge        *string
+	IndicatorOffset      *float64
+	CalibrationExpiresAt pgtype.Timestamptz
+	UpdatedAt            time.Time
+}
+
 type ManagedDeviceCapability struct {
 	ManagedDeviceID uuid.UUID
 	Capability      string

@@ -23,8 +23,10 @@ import type {
   CreateManagedDeviceTypeRequest,
   DeviceHardwareContext,
   DeviceHardwareReport,
+  KioskCameraSettings,
   ListManagedDevicesParams,
   ManagedDevice,
+  ManagedDeviceCamera,
   ManagedDeviceList,
   ManagedDevicePairingPoll,
   ManagedDevicePairingStart,
@@ -489,6 +491,119 @@ export const getManagedDeviceHardware = async (managedDeviceId: string, options?
   {
     ...options,
     method: 'GET'
+
+
+  }
+);}
+
+
+export const getGetManagedDeviceCameraUrl = (managedDeviceId: string,) => {
+
+
+
+
+  return `/api/v1/managed-devices/${managedDeviceId}/camera`
+}
+
+/**
+ * Requires `managed_devices.read`.
+ * @summary Get a kiosk's camera crop, lens pointer and calibration window
+ */
+export const getManagedDeviceCamera = async (managedDeviceId: string, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDeviceCamera> => {
+
+  return apiFetch<ManagedDeviceCamera>(getGetManagedDeviceCameraUrl(managedDeviceId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdateManagedDeviceCameraUrl = (managedDeviceId: string,) => {
+
+
+
+
+  return `/api/v1/managed-devices/${managedDeviceId}/camera`
+}
+
+/**
+ * Requires `managed_devices.manage`. A null `crop` restores the centred largest square, a null `indicator` hides the lens pointer. An open calibration window stays open.
+ * @summary Set or reset a kiosk's camera crop and lens pointer
+ */
+export const updateManagedDeviceCamera = async (managedDeviceId: string,
+    kioskCameraSettings: KioskCameraSettings, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDeviceCamera> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<ManagedDeviceCamera>(getUpdateManagedDeviceCameraUrl(managedDeviceId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(kioskCameraSettings)
+  }
+);}
+
+
+export const getStartManagedDeviceCameraCalibrationUrl = (managedDeviceId: string,) => {
+
+
+
+
+  return `/api/v1/managed-devices/${managedDeviceId}/camera/calibration`
+}
+
+/**
+ * Requires `managed_devices.manage`. The device must be an active kiosk configured with the `camera` capability
+ * (422 `camera_not_configured`). For ten minutes the tablet shows its calibration screen and may save the result
+ * once with its device credential. Starting again extends the window.
+ * @summary Open a short window in which the kiosk calibrates its camera on the tablet
+ */
+export const startManagedDeviceCameraCalibration = async (managedDeviceId: string, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDeviceCamera> => {
+
+  return apiFetch<ManagedDeviceCamera>(getStartManagedDeviceCameraCalibrationUrl(managedDeviceId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getCloseManagedDeviceCameraCalibrationUrl = (managedDeviceId: string,) => {
+
+
+
+
+  return `/api/v1/managed-devices/${managedDeviceId}/camera/calibration`
+}
+
+/**
+ * Requires `managed_devices.manage`. Closing a window that is not open changes nothing.
+ * @summary Close an open camera calibration window
+ */
+export const closeManagedDeviceCameraCalibration = async (managedDeviceId: string, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDeviceCamera> => {
+
+  return apiFetch<ManagedDeviceCamera>(getCloseManagedDeviceCameraCalibrationUrl(managedDeviceId),
+  {
+    ...options,
+    method: 'DELETE'
 
 
   }
