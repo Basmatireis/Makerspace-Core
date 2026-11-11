@@ -92,7 +92,7 @@ func ValidateRuleInput(input RuleInput) (RuleInput, error) {
 	if input.AlternateSeconds < 3 || input.AlternateSeconds > 600 {
 		return input, validation("alternateSeconds must be between 3 and 600")
 	}
-	scenes, err := checkSceneList(input.Scenes, "scenes")
+	scenes, err := checkSceneList(input.Scenes, ruleScenesName)
 	if err != nil {
 		return input, err
 	}
@@ -295,7 +295,7 @@ func verifyRuleReferences(ctx context.Context, q *signagedb.Queries, ratio Aspec
 			return validation("a referenced announcement template does not exist")
 		}
 	}
-	return verifySceneList(ctx, q, ratio, input.Scenes, "scenes")
+	return verifySceneList(ctx, q, ratio, input.Scenes, ruleScenesName)
 }
 
 func ruleParams(owner ruleOwner, ruleID uuid.UUID, position int, input RuleInput) signagedb.InsertSignageRuleParams {

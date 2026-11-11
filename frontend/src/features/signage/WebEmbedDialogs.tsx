@@ -1,7 +1,7 @@
 import { useEffect, useState, type RefObject } from 'react';
 import { Checkbox, InlineNotification, Modal, Stack, TextInput } from '@carbon/react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Controller, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import type { SignageWebEmbed } from '../../api/generated/models';
 import {
@@ -12,9 +12,12 @@ import {
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { aspectFieldsOf, aspectOfFields, type AspectFields } from './aspectFields';
 import { AspectRatioFields } from './AspectRatioFields';
-import { ASPECT_PRESETS, errorMessage, isStaleWrite } from './helpers';
+import { DisplayGroupSelect } from './DisplayGroupSelect';
+import { ASPECT_PRESETS, aspectLabel, errorMessage, isStaleWrite, sameRatio } from './helpers';
 import { signagePaths } from './paths';
-import { signageKeys } from './queries';
+import { groupsQuery, scenesQuery, signageKeys } from './queries';
+import { SceneListFields } from './SceneListFields';
+import { newSceneListItem, sceneListError, type SceneListDraftItem } from './sceneListDraft';
 import { hostOf, normalizeOrigin } from './webEmbeds';
 
 const staleText = 'This web embed was changed somewhere else. It was refreshed; try again.';
@@ -29,9 +32,17 @@ function useReturnFocus(launcherButtonRef: RefObject<HTMLElement | null> | undef
   }, [launcherButtonRef]);
 }
 
-type NewValues = AspectFields & { name: string; website: string };
+type NewValues = AspectFields & {
+  name: string;
+  website: string;
+  groupId: string;
+  defaultScenes: SceneListDraftItem[];
+};
 
-/** Creates a web embed from a name, an aspect ratio and the first website, then opens it. Content comes afterwards. */
+/**
+ * Creates a web embed from a name, an aspect ratio, the first website and its content (a display group or default
+ * scenes, as when pairing a display), then opens it. Rules and the data shown come afterwards.
+ */
 export function NewWebEmbedModal({
   launcherButtonRef,
   onClose,
@@ -42,16 +53,59 @@ export function NewWebEmbedModal({
   useReturnFocus(launcherButtonRef);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const scenes = useQuery(scenesQuery());
+  const groups = useQuery(groupsQuery()).data?.items;
   const form = useForm<NewValues>({
-    defaultValues: { name: '', website: '', ...aspectFieldsOf(ASPECT_PRESETS[0].ratio) },
+    defaultValues: {
+      name: '',
+      website: '',
+      ...aspectFieldsOf(ASPECT_PRESETS[0].ratio),
+      groupId: '',
+      defaultScenes: [newSceneListItem()],
+    },
   });
   const { errors } = form.formState;
+  const [aspectPreset, aspectCustom, groupId] = form.watch(['aspectPreset', 'aspectCustom', 'groupId']);
+  const ratio = aspectOfFields({ aspectPreset, aspectCustom });
+  const ratioKey = aspectLabel(ratio);
+
+  // Scenes and groups of another ratio cannot be used: drop them when the ratio changes.
+  useEffect(() => {
+    const all = scenes.data?.items;
+    if (!all) return;
+    const current = form.getValues('defaultScenes');
+    const kept = current.filter((item) => {
+      const scene = all.find((entry) => entry.id === item.sceneId);
+      return !scene || sameRatio(scene.aspectRatio, ratio);
+    });
+    if (kept.length !== current.length) form.setValue('defaultScenes', kept.length > 0 ? kept : [newSceneListItem()]);
+    // `ratio` is derived from `ratioKey`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ratioKey, scenes.data, form]);
+  useEffect(() => {
+    const chosen = form.getValues('groupId');
+    if (!chosen || !groups) return;
+    const group = groups.find((item) => item.id === chosen);
+    if (!group || !sameRatio(group.aspectRatio, ratio)) form.setValue('groupId', '');
+    // `ratio` is derived from `ratioKey`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ratioKey, groups, form]);
+
   const mutation = useMutation({
     mutationFn: (values: NewValues) =>
       createSignageWebEmbed({
         name: values.name.trim(),
         aspectRatio: aspectOfFields(values),
         allowedOrigins: [normalizeOrigin(values.website) ?? values.website.trim()],
+        ...(values.groupId
+          ? { groupId: values.groupId }
+          : {
+              defaultScenes: values.defaultScenes.map(({ sceneId, seconds, transition }) => ({
+                sceneId,
+                seconds: seconds >= 3 && seconds <= 3600 ? seconds : 20,
+                transition,
+              })),
+            }),
       }),
     onSuccess: async (embed) => {
       await queryClient.invalidateQueries({ queryKey: signageKeys.embeds() });
@@ -99,6 +153,46 @@ export function NewWebEmbedModal({
             invalidText="Enter the website's https address without a path."
             {...form.register('website', { validate: (value) => normalizeOrigin(value) !== null })}
           />
+          <DisplayGroupSelect
+            id="embed-group"
+            ratio={ratio}
+            value={groupId}
+            onChange={(value) => form.setValue('groupId', value)}
+            helperText="An embed in a group plays the group's rules and default scenes."
+          />
+          {groupId ? (
+            <p className="sg-secondary">The group's default scenes and rules apply to this embed.</p>
+          ) : (
+            <>
+              <Controller
+                control={form.control}
+                name="defaultScenes"
+                rules={{ validate: (value) => sceneListError(value) ?? true }}
+                render={({ field }) => (
+                  <SceneListFields
+                    idPrefix="embed"
+                    label="Default scenes"
+                    value={field.value}
+                    onChange={field.onChange}
+                    aspectRatio={ratio}
+                    invalidText={errors.defaultScenes?.message}
+                  />
+                )}
+              />
+              <p className="sg-secondary">
+                Shown when no rule matches. Only scenes of the chosen aspect ratio are offered.
+              </p>
+              {scenes.isSuccess && scenes.data.items.every((scene) => !sameRatio(scene.aspectRatio, ratio)) && (
+                <InlineNotification
+                  kind="info"
+                  lowContrast
+                  hideCloseButton
+                  title="No scenes for this aspect ratio"
+                  subtitle="A web embed needs at least one default scene or a group. Create a scene under Content first."
+                />
+              )}
+            </>
+          )}
           <p className="sg-secondary">
             New embeds show public information only. Cameras and timelapses can be switched on afterwards.
           </p>

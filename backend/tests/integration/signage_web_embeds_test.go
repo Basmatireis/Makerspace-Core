@@ -104,6 +104,56 @@ func TestSignageWebEmbedPermissions(t *testing.T) {
 	}
 }
 
+// The New web embed dialog sends either a display group or default scenes: an embed without either has nothing to
+// show and is refused with a message the dialog can show as it is.
+func TestSignageWebEmbedCreateNeedsContent(t *testing.T) {
+	e := newSignageEnv(t)
+	staff := e.allStaff()
+	_, defaults := e.seedContent("Embed create")
+	group := e.createGroup(staff, "Websites", defaults)
+	create := func(content map[string]any) *http.Response {
+		body := map[string]any{
+			"name": "Website Druckerstatus", "aspectRatio": map[string]any{"width": 16, "height": 9},
+			"allowedOrigins": []string{"https://makerspace.example"},
+		}
+		for key, value := range content {
+			body[key] = value
+		}
+		return e.as(staff, http.MethodPost, "/signage/web-embeds", body)
+	}
+
+	for name, content := range map[string]map[string]any{
+		"nothing":    {},
+		"empty list": {"defaultScenes": []any{}},
+		"null group": {"groupId": nil, "defaultScenes": []any{}},
+	} {
+		refused := e.expect(create(content), http.StatusUnprocessableEntity)
+		if refused["code"] != "validation_failed" || refused["message"] != "choose at least one default scene or a display group" {
+			t.Fatalf("%s: refused = %v", name, refused)
+		}
+	}
+	unknown := e.expect(create(map[string]any{"defaultScenes": sceneList(uuid.Must(uuid.NewV7()))}),
+		http.StatusUnprocessableEntity)
+	if unknown["message"] != "a scene of the default scenes does not exist any more" {
+		t.Fatalf("unknown scene = %v", unknown)
+	}
+	if e.count(`SELECT count(*) FROM signage_web_embeds`) != 0 {
+		t.Fatal("a refused embed was stored")
+	}
+
+	own := e.expect(create(map[string]any{"defaultScenes": defaults}), http.StatusCreated)
+	if own["groupId"] != nil || len(own["defaultScenes"].([]any)) != 1 {
+		t.Fatalf("embed with its own scenes = %v", own)
+	}
+	member := e.expect(create(map[string]any{"groupId": group["id"]}), http.StatusCreated)
+	if member["groupId"] != group["id"] || len(member["defaultScenes"].([]any)) != 0 {
+		t.Fatalf("embed in a group = %v", member)
+	}
+	// Both can be renamed afterwards without touching their content.
+	e.expect(e.patchEmbed(staff, own["id"].(string), map[string]any{"name": "Renamed"}), http.StatusOK)
+	e.expect(e.patchEmbed(staff, member["id"].(string), map[string]any{"name": "Renamed too"}), http.StatusOK)
+}
+
 func TestSignageWebEmbedOriginsKeyAndAudit(t *testing.T) {
 	e := newSignageEnv(t)
 	staff := e.allStaff()

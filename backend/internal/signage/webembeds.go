@@ -442,7 +442,7 @@ func (s *Service) CreateWebEmbed(
 		if err := lockJoinedGroup(ctx, q, *checked.GroupID, checked.AspectRatio, false); err != nil {
 			return WebEmbed{}, err
 		}
-	} else if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, "defaultScenes"); err != nil {
+	} else if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, defaultScenesName); err != nil {
 		return WebEmbed{}, err
 	}
 	id := ids.New()

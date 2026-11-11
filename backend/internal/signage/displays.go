@@ -399,10 +399,10 @@ func validateDisplayInput(input DisplayInput) (DisplayInput, error) {
 	defaultScenes := []SceneListItem{}
 	if input.GroupID != nil {
 		if len(input.DefaultScenes) > 0 {
-			return input, validation("defaultScenes must be empty for a display in a group (the group's list applies)")
+			return input, validation("a display in a group has no default scenes of its own; the group's apply")
 		}
 	} else if len(input.DefaultScenes) > 0 {
-		if defaultScenes, err = checkSceneList(input.DefaultScenes, "defaultScenes"); err != nil {
+		if defaultScenes, err = checkSceneList(input.DefaultScenes, defaultScenesName); err != nil {
 			return input, err
 		}
 	}
@@ -411,7 +411,7 @@ func validateDisplayInput(input DisplayInput) (DisplayInput, error) {
 }
 
 func defaultScenesRequired() error {
-	return validation("defaultScenes must list 1 to %d scenes for a display without a group", maxSceneListItems)
+	return validation("choose at least one default scene or a display group")
 }
 
 // lockJoinedGroup share-locks the group a display joins or stays in and checks that it exists and has the
@@ -570,7 +570,7 @@ func applyDisplayDraft(
 	// The default list is checked against the requested ratio, so a ratio change and a matching new
 	// default list can be saved together.
 	if len(finalDefault) > 0 {
-		if err := verifySceneList(ctx, q, checked.AspectRatio, finalDefault, "defaultScenes"); err != nil {
+		if err := verifySceneList(ctx, q, checked.AspectRatio, finalDefault, defaultScenesName); err != nil {
 			return nil, err
 		}
 	}

@@ -51,21 +51,27 @@ func (o ruleOwner) groupArg() *uuid.UUID {
 	return &id
 }
 
+// Names of the scene lists in validation messages, which the admin pages show as they are.
+const (
+	defaultScenesName = "default scenes"
+	ruleScenesName    = "rule's scenes"
+)
+
 // checkSceneList validates the shape of a scene list (1–100 items, seconds, transitions) and returns a copy.
-// field names the list in messages (scenes or defaultScenes).
-func checkSceneList(list []SceneListItem, field string) ([]SceneListItem, error) {
+// list names the list in messages that people read ("default scenes" or "rule's scenes"), never a JSON field.
+func checkSceneList(list []SceneListItem, name string) ([]SceneListItem, error) {
 	if len(list) == 0 || len(list) > maxSceneListItems {
-		return nil, validation("%s must list 1 to %d scenes", field, maxSceneListItems)
+		return nil, validation("the %s must have 1 to %d scenes", name, maxSceneListItems)
 	}
 	for _, item := range list {
 		if item.SceneID == uuid.Nil {
-			return nil, validation("every item of %s needs a sceneId", field)
+			return nil, validation("choose a scene for every entry of the %s", name)
 		}
 		if item.Seconds < minItemSeconds || item.Seconds > maxItemSeconds {
-			return nil, validation("%s item seconds must be between %d and %d", field, minItemSeconds, maxItemSeconds)
+			return nil, validation("show every scene of the %s for %d to %d seconds", name, minItemSeconds, maxItemSeconds)
 		}
 		if item.Transition != TransitionCut && item.Transition != TransitionFade {
-			return nil, validation("%s item transition must be cut or fade", field)
+			return nil, validation("every scene of the %s needs the transition cut or fade", name)
 		}
 	}
 	return append([]SceneListItem{}, list...), nil
@@ -79,7 +85,7 @@ func verifySceneList(
 	q *signagedb.Queries,
 	ratio AspectRatio,
 	list []SceneListItem,
-	field string,
+	name string,
 ) error {
 	ids := make([]uuid.UUID, 0, len(list))
 	for _, item := range list {
@@ -91,11 +97,11 @@ func verifySceneList(
 		return err
 	}
 	if len(rows) != len(ids) {
-		return validation("a scene of %s does not exist", field)
+		return validation("a scene of the %s does not exist any more", name)
 	}
 	for _, row := range rows {
 		if aspectRatioOf(row.AspectWidth, row.AspectHeight) != ratio {
-			return validation("every scene of %s must have the display's aspect ratio (%s)", field, ratio)
+			return validation("every scene of the %s must have the aspect ratio %s", name, ratio)
 		}
 	}
 	return nil
