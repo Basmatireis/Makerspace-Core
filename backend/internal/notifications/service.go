@@ -255,6 +255,38 @@ func (s *Service) SendEmailVerification(ctx context.Context, to, code string, ex
 	})
 }
 
+// SendEmailLoginCode mails a one-time sign-in code. It carries no link: the code is typed where it was requested,
+// on the sign-in page or at a kiosk.
+func (s *Service) SendEmailLoginCode(ctx context.Context, to, code string, expiresAt time.Time) error {
+	name := s.applicationName(ctx)
+	return s.SendBranded(ctx, to, "Your "+name+" sign-in code", Content{
+		Heading:    "Your sign-in code",
+		Paragraphs: []string{fmt.Sprintf("Enter this code to sign in to %s or to check in or out at the kiosk.", name)},
+		Code:       code,
+		Footnote: fmt.Sprintf(
+			"The code is valid until %s and works once. If you did not request it, ignore this message.",
+			formatDateTime(expiresAt),
+		),
+	})
+}
+
+// SendEnrollmentEmailCode mails the code that confirms a visitor's address while they enroll at a kiosk.
+func (s *Service) SendEnrollmentEmailCode(ctx context.Context, to, code string, expiresAt time.Time) error {
+	name := s.applicationName(ctx)
+	return s.SendBranded(ctx, to, "Confirm your email address for "+name, Content{
+		Heading: "Confirm your email address",
+		Paragraphs: []string{
+			fmt.Sprintf("Enter this code at the kiosk to confirm your email address for %s.", name),
+			"Afterwards you sign in and check in with a code that we send to this address.",
+		},
+		Code: code,
+		Footnote: fmt.Sprintf(
+			"The code is valid until %s. If you are not registering right now, ignore this message.",
+			formatDateTime(expiresAt),
+		),
+	})
+}
+
 // SendSecurityNotice sends a security notification. Text paragraphs are separated by blank lines.
 func (s *Service) SendSecurityNotice(ctx context.Context, to, subject, text string) error {
 	name := s.applicationName(ctx)

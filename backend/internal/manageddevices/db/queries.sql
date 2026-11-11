@@ -34,18 +34,18 @@ SELECT * FROM managed_devices WHERE id = sqlc.arg(id) FOR UPDATE;
 
 -- name: CreateManagedDevice :one
 INSERT INTO managed_devices (id, name, device_type_id, token_digest, expires_at, session_policy_id,
-  terminal_enabled, allowed_app_modes, check_in_assurance, check_out_assurance, allow_tap_checkout,
+  terminal_enabled, allowed_app_modes, check_in_methods, check_out_methods, allow_tap_checkout,
   offer_surveys_at_checkout, kiosk_reset_seconds)
 VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(device_type_id), sqlc.arg(token_digest), sqlc.narg(expires_at),
-  sqlc.narg(session_policy_id), sqlc.arg(terminal_enabled), sqlc.arg(allowed_app_modes), sqlc.arg(check_in_assurance),
-  sqlc.arg(check_out_assurance), sqlc.arg(allow_tap_checkout), sqlc.arg(offer_surveys_at_checkout),
+  sqlc.narg(session_policy_id), sqlc.arg(terminal_enabled), sqlc.arg(allowed_app_modes), sqlc.arg(check_in_methods),
+  sqlc.arg(check_out_methods), sqlc.arg(allow_tap_checkout), sqlc.arg(offer_surveys_at_checkout),
   sqlc.arg(kiosk_reset_seconds)) RETURNING *;
 
 -- name: UpdateManagedDevice :one
 UPDATE managed_devices SET name = sqlc.arg(name), device_type_id = sqlc.arg(device_type_id),
   expires_at = sqlc.narg(expires_at), session_policy_id = sqlc.narg(session_policy_id),
-  terminal_enabled = sqlc.arg(terminal_enabled), allowed_app_modes = sqlc.arg(allowed_app_modes), check_in_assurance = sqlc.arg(check_in_assurance),
-  check_out_assurance = sqlc.arg(check_out_assurance), allow_tap_checkout = sqlc.arg(allow_tap_checkout),
+  terminal_enabled = sqlc.arg(terminal_enabled), allowed_app_modes = sqlc.arg(allowed_app_modes), check_in_methods = sqlc.arg(check_in_methods),
+  check_out_methods = sqlc.arg(check_out_methods), allow_tap_checkout = sqlc.arg(allow_tap_checkout),
   offer_surveys_at_checkout = sqlc.arg(offer_surveys_at_checkout), kiosk_reset_seconds = sqlc.arg(kiosk_reset_seconds),
   version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING *;
@@ -65,7 +65,7 @@ DELETE FROM managed_devices WHERE id = sqlc.arg(id) AND version = sqlc.arg(expec
 
 -- name: GetValidManagedDeviceByDigest :one
 SELECT md.id, md.name, md.device_type_id, dt.name AS device_type_name, md.expires_at,
-       md.session_policy_id, md.terminal_enabled, md.allowed_app_modes, md.check_in_assurance, md.check_out_assurance,
+       md.session_policy_id, md.terminal_enabled, md.allowed_app_modes, md.check_in_methods, md.check_out_methods,
        md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds
 FROM managed_devices md JOIN device_types dt ON dt.id = md.device_type_id
 WHERE md.token_digest = sqlc.arg(token_digest) AND md.revoked_at IS NULL
@@ -199,3 +199,28 @@ DELETE FROM managed_device_pairing_requests WHERE id = sqlc.arg(id);
 UPDATE managed_devices SET token_digest = sqlc.arg(token_digest), version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())
 RETURNING expires_at;
+
+-- name: GetManagedDeviceCameraSettings :one
+SELECT * FROM managed_device_camera_settings WHERE managed_device_id = sqlc.arg(managed_device_id);
+
+-- name: GetManagedDeviceCameraSettingsForUpdate :one
+SELECT * FROM managed_device_camera_settings WHERE managed_device_id = sqlc.arg(managed_device_id) FOR UPDATE;
+
+-- name: UpsertManagedDeviceCameraSettings :one
+INSERT INTO managed_device_camera_settings (
+    managed_device_id, crop_center_x, crop_center_y, crop_size, indicator_edge, indicator_offset,
+    mirror, calibration_expires_at, updated_at)
+VALUES (
+    sqlc.arg(managed_device_id), sqlc.narg(crop_center_x), sqlc.narg(crop_center_y), sqlc.narg(crop_size),
+    sqlc.narg(indicator_edge), sqlc.narg(indicator_offset), sqlc.arg(mirror), sqlc.narg(calibration_expires_at),
+    sqlc.arg(updated_at))
+ON CONFLICT (managed_device_id) DO UPDATE SET
+    crop_center_x = EXCLUDED.crop_center_x,
+    crop_center_y = EXCLUDED.crop_center_y,
+    crop_size = EXCLUDED.crop_size,
+    indicator_edge = EXCLUDED.indicator_edge,
+    indicator_offset = EXCLUDED.indicator_offset,
+    mirror = EXCLUDED.mirror,
+    calibration_expires_at = EXCLUDED.calibration_expires_at,
+    updated_at = EXCLUDED.updated_at
+RETURNING *;

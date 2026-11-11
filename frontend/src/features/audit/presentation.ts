@@ -6,6 +6,8 @@ export const actionLabels: Record<string, string> = {
   'account.deleted': 'Deleted account',
   'account.disabled': 'Deactivated account',
   'account.email_verification_requested': 'Requested email verification',
+  'account.email_code_disabled': 'Turned off sign-in by emailed code',
+  'account.email_code_enabled': 'Turned on sign-in by emailed code',
   'account.email_verified': 'Verified email address',
   'account.invitation_completed': 'Completed account invitation',
   'account.invitation_issued': 'Issued account invitation',
@@ -25,6 +27,8 @@ export const actionLabels: Record<string, string> = {
   'account.role_assigned': 'Assigned role',
   'account.role_removed': 'Removed role',
   'account.enabled': 'Activated account',
+  'auth.email_code_login_succeeded': 'Signed in with emailed code',
+  'auth.email_code_requested': 'Requested sign-in code',
   'auth.login_succeeded': 'Signed in',
   'auth.logout': 'Signed out',
   'auth.oidc_jit_provisioned': 'Provisioned account with OpenID Connect',
@@ -166,6 +170,8 @@ export const actionLabels: Record<string, string> = {
   'visitor_enrollment.account_created': 'Created visitor account',
   'visitor_enrollment.configuration_updated': 'Updated visitor enrollment configuration',
   'visitor_enrollment.context_created': 'Started visitor enrollment',
+  'visitor_enrollment.email_code_sent': 'Sent visitor email confirmation code',
+  'visitor_enrollment.email_verified': 'Confirmed visitor email address',
   'visitor_enrollment.person_created': 'Created visitor person',
 };
 

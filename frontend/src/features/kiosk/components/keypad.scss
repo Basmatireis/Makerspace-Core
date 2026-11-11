@@ -1,0 +1,22 @@
+// The on-screen digit keypad of the kiosk (PIN entry) and the visitor sign-up (emailed code).
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.tablet-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: $spacing-03;
+}
+
+.tablet-keypad__key.cds--btn {
+  @include type-style('heading-04');
+  max-inline-size: none;
+  inline-size: 100%;
+  min-block-size: 4.5rem;
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.tablet-keypad__key--small.cds--btn {
+  @include type-style('body-compact-02');
+}

@@ -22,7 +22,8 @@ type Step =
   { kind: 'offer' } | { kind: 'questions'; survey: PublicSurvey } | { kind: 'done'; how: 'answered' | 'mailed' };
 
 /**
- * The tablet's check-out question: "Got a minute?" with answer now, send by e-mail or no thanks. The answers live
+ * The tablet's check-out question: "Got a minute?" with answer now and send by e-mail. "No thanks" appears only when
+ * the person has not agreed to survey e-mails; otherwise the survey reaches them by e-mail anyway. The answers live
  * only in this component and are dropped when the person leaves or the tablet goes idle.
  */
 export function SurveyOfferScreen({
@@ -99,6 +100,8 @@ function OfferStep({
   const never = useMutation({ mutationFn: () => terminalSurveyOfferNever(token), onSuccess: onDeclined });
   const busy = answerNow.isPending || sendEmail.isPending || decline.isPending || never.isPending;
   const error = answerNow.error ?? sendEmail.error ?? decline.error ?? never.error;
+  // With the survey e-mail consent the invitation arrives anyway, so "No thanks" would promise something it cannot.
+  const mailedAnyway = offer.mailConsent && offer.canSendByEmail;
   return (
     <div className="tablet-offer">
       <p className="tablet-offer__seen">
@@ -108,6 +111,7 @@ function OfferStep({
       <p className="tablet-offer__lead">
         {offer.questionCount === 1 ? 'One short question' : `${offer.questionCount} short questions`} about today:{' '}
         {offer.surveyName}.{offer.anonymous && ' Anonymous: your answers are not linked to you.'}
+        {mailedAnyway && ' Otherwise it comes to you by e-mail later.'}
       </p>
       {error && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Not done" subtitle={errorMessage(error)} />
@@ -118,24 +122,28 @@ function OfferStep({
             Answer now
           </Button>
         )}
-        {offer.canSendByEmail && (
-          <Button size="2xl" kind="secondary" disabled={busy} onClick={() => sendEmail.mutate()}>
-            Send it by e-mail
+        {!mailedAnyway && (
+          <Button size="2xl" kind="secondary" disabled={busy} onClick={() => decline.mutate()}>
+            No thanks
           </Button>
         )}
-        <Button size="2xl" kind="secondary" disabled={busy} onClick={() => decline.mutate()}>
-          No thanks
-        </Button>
+        {offer.canSendByEmail && (
+          <Button size="2xl" kind="secondary" disabled={busy} onClick={() => sendEmail.mutate()}>
+            Send by e-mail
+          </Button>
+        )}
       </div>
-      <Link
-        href="#never"
-        onClick={(event) => {
-          event.preventDefault();
-          if (!busy) never.mutate();
-        }}
-      >
-        Don&apos;t ask me at check-out again
-      </Link>
+      {offer.canStopAsking && (
+        <Link
+          href="#never"
+          onClick={(event) => {
+            event.preventDefault();
+            if (!busy) never.mutate();
+          }}
+        >
+          Don&apos;t ask me at check-out again
+        </Link>
+      )}
     </div>
   );
 }

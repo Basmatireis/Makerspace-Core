@@ -309,25 +309,6 @@ body:has(.tablet) {
   font-variant-numeric: tabular-nums;
 }
 
-.tablet-keypad {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: $spacing-03;
-}
-
-.tablet-keypad__key.cds--btn {
-  @include type-style('heading-04');
-  max-inline-size: none;
-  inline-size: 100%;
-  min-block-size: 4.5rem;
-  justify-content: center;
-  padding-inline: 0;
-}
-
-.tablet-keypad__key--small.cds--btn {
-  @include type-style('body-compact-02');
-}
-
 .tablet-submit.cds--btn {
   max-inline-size: none;
   inline-size: 100%;
@@ -336,6 +317,31 @@ body:has(.tablet) {
 // The email form spans the method switcher like the PIN layout does, instead of a narrow column.
 .tablet-password {
   inline-size: 100%;
+}
+
+// While a code is entered, "Change email" sits beside the address and "Send a new code" beside Check in.
+.tablet-code-email--sent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: $spacing-05;
+}
+
+// Level with the field rather than its label above it.
+.tablet-code-email--sent > .cds--btn {
+  margin-block-start: $spacing-06;
+}
+
+.tablet-code-hint {
+  @include type-style('helper-text-01');
+  color: $text-secondary;
+  text-align: center;
+}
+
+.tablet-code-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: $spacing-05;
 }
 
 .tablet-identify__idle {

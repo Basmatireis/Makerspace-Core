@@ -111,8 +111,8 @@ func (s *Service) GetHardware(
 		SessionPolicyID:         device.SessionPolicyID,
 		KioskEnabled:            device.KioskEnabled,
 		AllowedApplicationModes: device.AllowedApplicationModes,
-		CheckInAssurance:        device.CheckInAssurance,
-		CheckOutAssurance:       device.CheckOutAssurance,
+		CheckInMethods:          device.CheckInMethods,
+		CheckOutMethods:         device.CheckOutMethods,
 		AllowTapCheckout:        device.AllowTapCheckout,
 		OfferSurveysAtCheckout:  device.OfferSurveysAtCheckout,
 		KioskResetSeconds:       device.KioskResetSeconds,
@@ -143,8 +143,8 @@ func (s *Service) Update(
 	return s.UpdateConfigured(ctx, principal, id, name, typeID, expiresAt, DeviceSettings{
 		SessionPolicyID: current.SessionPolicyID, KioskEnabled: current.TerminalEnabled,
 		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](current.AllowedAppModes),
-		CheckInAssurance:        authorization.Assurance(current.CheckInAssurance),
-		CheckOutAssurance:       authorization.Assurance(current.CheckOutAssurance),
+		CheckInMethods:          optional.ConvertSlice[KioskMethod](current.CheckInMethods),
+		CheckOutMethods:         optional.ConvertSlice[KioskMethod](current.CheckOutMethods),
 		AllowTapCheckout:        current.AllowTapCheckout, OfferSurveysAtCheckout: current.OfferSurveysAtCheckout,
 		KioskResetSeconds: current.KioskResetSeconds, Capabilities: capabilities,
 	}, version, requestID)
@@ -225,7 +225,8 @@ func (s *Service) UpdateConfigured(
 				expiresAt,
 			), SessionPolicyID: settings.SessionPolicyID, TerminalEnabled: settings.KioskEnabled,
 			AllowedAppModes:  optional.ConvertSlice[string](settings.AllowedApplicationModes),
-			CheckInAssurance: string(settings.CheckInAssurance), CheckOutAssurance: string(settings.CheckOutAssurance),
+			CheckInMethods:   optional.ConvertSlice[string](settings.CheckInMethods),
+			CheckOutMethods:  optional.ConvertSlice[string](settings.CheckOutMethods),
 			AllowTapCheckout: settings.AllowTapCheckout, OfferSurveysAtCheckout: settings.OfferSurveysAtCheckout,
 			KioskResetSeconds: settings.KioskResetSeconds, ExpectedVersion: version},
 	)
@@ -359,7 +360,7 @@ func (s *Service) Create(
 	return s.CreateConfigured(ctx, principal, name, typeID, expiresAt, DeviceSettings{
 		AllowedApplicationModes: []ApplicationMode{
 			ModeStaffUI,
-		}, CheckInAssurance: authorization.AssuranceLow, CheckOutAssurance: authorization.AssuranceLow,
+		}, CheckInMethods: AllKioskMethods, CheckOutMethods: AllKioskMethods,
 		KioskResetSeconds: DefaultKioskResetSeconds,
 	}, requestID)
 }
@@ -464,9 +465,10 @@ func insertDeviceTx(
 			TokenDigest:     tokenDigest,
 			ExpiresAt:       timestamp(expiresAt),
 			SessionPolicyID: settings.SessionPolicyID,
-			TerminalEnabled: settings.KioskEnabled, CheckInAssurance: string(settings.CheckInAssurance),
-			AllowedAppModes:   optional.ConvertSlice[string](settings.AllowedApplicationModes),
-			CheckOutAssurance: string(settings.CheckOutAssurance), AllowTapCheckout: settings.AllowTapCheckout,
+			TerminalEnabled: settings.KioskEnabled,
+			CheckInMethods:  optional.ConvertSlice[string](settings.CheckInMethods),
+			AllowedAppModes: optional.ConvertSlice[string](settings.AllowedApplicationModes),
+			CheckOutMethods: optional.ConvertSlice[string](settings.CheckOutMethods), AllowTapCheckout: settings.AllowTapCheckout,
 			OfferSurveysAtCheckout: settings.OfferSurveysAtCheckout, KioskResetSeconds: settings.KioskResetSeconds},
 	)
 	if err != nil {
@@ -653,9 +655,9 @@ func deviceFromListRow(row manageddevicesdb.ListManagedDevicesRow) Device {
 		), RevokedAt: timePointer(row.RevokedAt), LastSeenAt: timePointer(row.LastSeenAt),
 		SessionPolicyID:         row.SessionPolicyID,
 		KioskEnabled:            row.TerminalEnabled,
-		CheckInAssurance:        authorization.Assurance(row.CheckInAssurance),
+		CheckInMethods:          optional.ConvertSlice[KioskMethod](row.CheckInMethods),
 		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](row.AllowedAppModes),
-		CheckOutAssurance:       authorization.Assurance(row.CheckOutAssurance), AllowTapCheckout: row.AllowTapCheckout,
+		CheckOutMethods:         optional.ConvertSlice[KioskMethod](row.CheckOutMethods), AllowTapCheckout: row.AllowTapCheckout,
 		OfferSurveysAtCheckout: row.OfferSurveysAtCheckout, KioskResetSeconds: row.KioskResetSeconds,
 		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
@@ -666,9 +668,9 @@ func deviceFromGetRow(row manageddevicesdb.GetManagedDeviceRow) Device {
 		), RevokedAt: timePointer(row.RevokedAt), LastSeenAt: timePointer(row.LastSeenAt),
 		SessionPolicyID:         row.SessionPolicyID,
 		KioskEnabled:            row.TerminalEnabled,
-		CheckInAssurance:        authorization.Assurance(row.CheckInAssurance),
+		CheckInMethods:          optional.ConvertSlice[KioskMethod](row.CheckInMethods),
 		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](row.AllowedAppModes),
-		CheckOutAssurance:       authorization.Assurance(row.CheckOutAssurance), AllowTapCheckout: row.AllowTapCheckout,
+		CheckOutMethods:         optional.ConvertSlice[KioskMethod](row.CheckOutMethods), AllowTapCheckout: row.AllowTapCheckout,
 		OfferSurveysAtCheckout: row.OfferSurveysAtCheckout, KioskResetSeconds: row.KioskResetSeconds,
 		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }

@@ -6,7 +6,6 @@ import {
   getVisitorEnrollmentConfiguration,
   updateVisitorEnrollmentConfiguration,
 } from '../../api/generated/visitor-enrollment/visitor-enrollment';
-import type { VisitorAuthenticationMethod } from '../../api/generated/models';
 import { SettingsLoading, SettingsSection } from '../settings/SettingsPageLayout';
 import { ErrorState } from '../../app/PageState';
 
@@ -23,19 +22,16 @@ export function VisitorSignUpPanel() {
   });
   const [enabled, setEnabled] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [methods, setMethods] = useState<VisitorAuthenticationMethod[]>([]);
   useEffect(() => {
     if (!configuration.data) return;
     setEnabled(configuration.data.enabled);
     setSelectedTypes(configuration.data.deviceTypeIds);
-    setMethods(configuration.data.allowedMethods);
   }, [configuration.data]);
   const mutation = useMutation({
     mutationFn: () =>
       updateVisitorEnrollmentConfiguration({
         enabled,
         deviceTypeIds: selectedTypes,
-        allowedMethods: methods,
         expectedVersion: configuration.data!.version,
       }),
     onSuccess: async () => client.invalidateQueries({ queryKey: ['visitor-enrollment'] }),
@@ -46,7 +42,7 @@ export function VisitorSignUpPanel() {
   return (
     <SettingsSection
       title="Visitor sign-up"
-      description="Approved kiosks, the initial role and the authentication methods visitors can choose."
+      description="Approved kiosks for visitor enrollment. Visitors confirm their email address and sign in with an emailed code."
     >
       {(configuration.isPending || deviceTypes.isPending) && (
         <SettingsLoading label="Loading visitor enrollment configuration" />
@@ -103,23 +99,6 @@ export function VisitorSignUpPanel() {
                 ))}
               </Stack>
             </fieldset>
-            <fieldset>
-              <legend>Allowed authentication methods</legend>
-              <Stack gap={3}>
-                <Checkbox
-                  id="visitor-method-password"
-                  labelText="Email invitation for local password"
-                  checked={methods.includes('password')}
-                  onChange={(_, data) => setMethods(toggle(methods, 'password', data.checked))}
-                />
-                <Checkbox
-                  id="visitor-method-pin"
-                  labelText="Username and PIN"
-                  checked={methods.includes('pin')}
-                  onChange={(_, data) => setMethods(toggle(methods, 'pin', data.checked))}
-                />
-              </Stack>
-            </fieldset>
             <InlineNotification
               kind="info"
               lowContrast
@@ -129,7 +108,7 @@ export function VisitorSignUpPanel() {
             />
             <div>
               <Button
-                disabled={mutation.isPending || (enabled && (selectedTypes.length === 0 || methods.length === 0))}
+                disabled={mutation.isPending || (enabled && selectedTypes.length === 0)}
                 onClick={() => mutation.mutate()}
               >
                 {mutation.isPending ? 'Saving…' : 'Save configuration'}

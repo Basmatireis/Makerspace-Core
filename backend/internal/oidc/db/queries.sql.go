@@ -147,7 +147,7 @@ func (q *Queries) CreateJITPerson(ctx context.Context, arg CreateJITPersonParams
 const createOIDCIdentity = `-- name: CreateOIDCIdentity :one
 INSERT INTO auth_identities (id, account_id, kind, provider_id, issuer, subject, verified_at)
 VALUES ($1, $2, 'oidc', $3, $4, $5, now())
-RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
+RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at, email_code_enabled
 `
 
 type CreateOIDCIdentityParams struct {
@@ -181,6 +181,7 @@ func (q *Queries) CreateOIDCIdentity(ctx context.Context, arg CreateOIDCIdentity
 		&i.VerifiedAt,
 		&i.DisabledAt,
 		&i.LastUsedAt,
+		&i.EmailCodeEnabled,
 	)
 	return i, err
 }
@@ -377,7 +378,7 @@ func (q *Queries) GetFlowForCallback(ctx context.Context, arg GetFlowForCallback
 }
 
 const getOIDCIdentityForUnlink = `-- name: GetOIDCIdentityForUnlink :one
-SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at FROM auth_identities WHERE id = $1 AND kind = 'oidc' FOR UPDATE
+SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at, email_code_enabled FROM auth_identities WHERE id = $1 AND kind = 'oidc' FOR UPDATE
 `
 
 func (q *Queries) GetOIDCIdentityForUnlink(ctx context.Context, id uuid.UUID) (AuthIdentity, error) {
@@ -397,6 +398,7 @@ func (q *Queries) GetOIDCIdentityForUnlink(ctx context.Context, id uuid.UUID) (A
 		&i.VerifiedAt,
 		&i.DisabledAt,
 		&i.LastUsedAt,
+		&i.EmailCodeEnabled,
 	)
 	return i, err
 }

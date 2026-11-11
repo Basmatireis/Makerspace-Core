@@ -55,12 +55,12 @@ func TestVisitorEnrollmentPhotoFollowsDeviceCapabilities(t *testing.T) {
 		t.Fatal(err)
 	}
 	fileService := files.NewService(pool, localStore)
+	notifier := newNotificationRecorder()
 	service := visitor.NewService(
-		pool, cfg, fileService, laborordnung.NewService(pool, notifyrules.NewSystemEvents(nil), fileService), newNotificationRecorder(),
+		pool, cfg, fileService, laborordnung.NewService(pool, notifyrules.NewSystemEvents(nil), fileService), notifier,
 	)
 	if _, err := service.UpdateConfiguration(ctx, master, visitor.ConfigurationInput{
-		Enabled: true, DeviceTypeIDs: []uuid.UUID{deviceType.ID},
-		AllowedMethods: []visitor.AuthMethod{"pin"}, ExpectedVersion: 1,
+		Enabled: true, DeviceTypeIDs: []uuid.UUID{deviceType.ID}, ExpectedVersion: 1,
 	}, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -139,10 +139,15 @@ func TestVisitorEnrollmentPhotoFollowsDeviceCapabilities(t *testing.T) {
 				return enrollment
 			}
 			submit := func(enrollment visitor.Context, loginName string, image []byte) error {
-				email, pin := loginName+"@example.test", "654321"
+				email := loginName + "@example.test"
+				if err := service.SendEmailCode(ctx, enrollment, email, nil); err != nil {
+					t.Fatal(err)
+				}
+				if err := service.ConfirmEmail(ctx, enrollment, notifier.enrollmentCode(email), nil); err != nil {
+					t.Fatal(err)
+				}
 				_, err := service.Submit(ctx, enrollment, visitor.SubmissionInput{
-					FirstName: "Photo", LastName: "Visitor", Email: email, AuthMethods: []visitor.AuthMethod{"pin"},
-					PINLoginName: &loginName, PIN: &pin, ProfileImage: image, LabRulesAccepted: true,
+					FirstName: "Photo", LastName: "Visitor", ProfileImage: image, LabRulesAccepted: true,
 				}, nil)
 				return err
 			}

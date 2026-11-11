@@ -27,10 +27,11 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { SettingsLoading } from '../settings/SettingsPageLayout';
 import { ConfirmationModal } from './components/ConfirmationModal';
+import { DeviceCameraSection } from './components/DeviceCameraSection';
 import { DeviceFormModal, OneTimeToken } from './components/DeviceFormModal';
 import { DeviceStatusTag } from './components/DeviceStatusTag';
 import {
-  assuranceLabels,
+  describeKioskMethods,
   deviceUseOf,
   deviceUseOptions,
   capabilityLabels,
@@ -226,8 +227,18 @@ export function DeviceDetailPage() {
                 />
                 {device.terminalEnabled && (
                   <>
-                    <DetailRow label="Check-in assurance" value={assuranceLabels[device.checkInAssurance]} />
-                    <DetailRow label="Check-out assurance" value={assuranceLabels[device.checkOutAssurance]} />
+                    <DetailRow
+                      label="Check in with"
+                      value={sentenceStart(describeKioskMethods(device.checkInMethods))}
+                    />
+                    <DetailRow
+                      label="Check out with"
+                      value={
+                        device.checkOutMethods.length > 0
+                          ? sentenceStart(describeKioskMethods(device.checkOutMethods))
+                          : 'Only a tap in the list'
+                      }
+                    />
                     <DetailRow label="Tap check-out" value={device.allowTapCheckout ? 'Allowed' : 'Off'} />
                     <DetailRow label="Surveys at check-out" value={device.offerSurveysAtCheckout ? 'Offered' : 'Off'} />
                     <DetailRow label="Back to the start screen after" value={`${device.kioskResetSeconds} s`} />
@@ -282,6 +293,8 @@ export function DeviceDetailPage() {
               </StructuredListWrapper>
             )}
           </DetailSection>
+
+          {device.capabilities.includes('camera') && <DeviceCameraSection device={device} canManage={canManage} />}
 
           {canManage && (
             <DetailSection
@@ -371,3 +384,5 @@ function CapabilityTags({ values }: { values: DeviceCapability[] }) {
     </span>
   );
 }
+
+const sentenceStart = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);

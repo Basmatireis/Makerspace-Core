@@ -26,3 +26,9 @@
     line-height: 1.28572;
   }
 }
+
+.device-camera__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: $spacing-05;
+}

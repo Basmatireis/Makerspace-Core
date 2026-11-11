@@ -469,7 +469,7 @@ func (q *Queries) GetPersonDisplay(ctx context.Context, id uuid.UUID) (GetPerson
 }
 
 const getTerminalDevice = `-- name: GetTerminalDevice :one
-SELECT md.id, md.name, md.terminal_enabled, md.check_in_assurance, md.check_out_assurance,
+SELECT md.id, md.name, md.terminal_enabled, md.check_in_methods, md.check_out_methods,
        md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds, md.revoked_at, md.expires_at
 FROM managed_devices md
 WHERE md.id = $1 AND md.terminal_enabled AND md.revoked_at IS NULL
@@ -480,8 +480,8 @@ type GetTerminalDeviceRow struct {
 	ID                     uuid.UUID
 	Name                   string
 	TerminalEnabled        bool
-	CheckInAssurance       string
-	CheckOutAssurance      string
+	CheckInMethods         []string
+	CheckOutMethods        []string
 	AllowTapCheckout       bool
 	OfferSurveysAtCheckout bool
 	KioskResetSeconds      int32
@@ -496,8 +496,8 @@ func (q *Queries) GetTerminalDevice(ctx context.Context, id uuid.UUID) (GetTermi
 		&i.ID,
 		&i.Name,
 		&i.TerminalEnabled,
-		&i.CheckInAssurance,
-		&i.CheckOutAssurance,
+		&i.CheckInMethods,
+		&i.CheckOutMethods,
 		&i.AllowTapCheckout,
 		&i.OfferSurveysAtCheckout,
 		&i.KioskResetSeconds,
@@ -568,7 +568,7 @@ func (q *Queries) GetVisitByIDForUpdate(ctx context.Context, id uuid.UUID) (GetV
 }
 
 const listPublicPresence = `-- name: ListPublicPresence :many
-SELECT v.id, v.checked_in_at, p.first_name, left(p.last_name, 1)::text AS last_initial
+SELECT v.id, v.checked_in_at, p.first_name, p.last_name
 FROM visits v JOIN people p ON p.id = v.person_id
 WHERE v.status = 'checked_in'
 ORDER BY lower(p.first_name), lower(p.last_name), v.checked_in_at, v.id
@@ -578,9 +578,10 @@ type ListPublicPresenceRow struct {
 	ID          uuid.UUID
 	CheckedInAt time.Time
 	FirstName   string
-	LastInitial string
+	LastName    string
 }
 
+// The full last name only feeds the shortening in Go; the public list shows as few letters of it as tell people apart.
 func (q *Queries) ListPublicPresence(ctx context.Context) ([]ListPublicPresenceRow, error) {
 	rows, err := q.db.Query(ctx, listPublicPresence)
 	if err != nil {
@@ -594,7 +595,7 @@ func (q *Queries) ListPublicPresence(ctx context.Context) ([]ListPublicPresenceR
 			&i.ID,
 			&i.CheckedInAt,
 			&i.FirstName,
-			&i.LastInitial,
+			&i.LastName,
 		); err != nil {
 			return nil, err
 		}

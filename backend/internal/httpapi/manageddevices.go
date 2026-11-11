@@ -203,10 +203,9 @@ func (s *Server) CreateManagedDevice(
 		manageddevices.DeviceSettings{
 			SessionPolicyID: nullableUUID(r.Body.SessionPolicyId), KioskEnabled: r.Body.TerminalEnabled,
 			AllowedApplicationModes: applicationModeStrings(r.Body.AllowedApplicationModes),
-			CheckInAssurance: authorization.Assurance(
-				r.Body.CheckInAssurance,
-			), CheckOutAssurance: authorization.Assurance(r.Body.CheckOutAssurance),
-			AllowTapCheckout: r.Body.AllowTapCheckout, OfferSurveysAtCheckout: r.Body.OfferSurveysAtCheckout,
+			CheckInMethods:          kioskMethodsFromDTO(r.Body.CheckInMethods),
+			CheckOutMethods:         kioskMethodsFromDTO(r.Body.CheckOutMethods),
+			AllowTapCheckout:        r.Body.AllowTapCheckout, OfferSurveysAtCheckout: r.Body.OfferSurveysAtCheckout,
 			KioskResetSeconds: int32(r.Body.KioskResetSeconds), Capabilities: capabilities,
 		},
 		requestIDPointer(ctx),
@@ -246,10 +245,9 @@ func (s *Server) UpdateManagedDevice(
 		manageddevices.DeviceSettings{
 			SessionPolicyID: nullableUUID(r.Body.SessionPolicyId), KioskEnabled: r.Body.TerminalEnabled,
 			AllowedApplicationModes: applicationModeStrings(r.Body.AllowedApplicationModes),
-			CheckInAssurance: authorization.Assurance(
-				r.Body.CheckInAssurance,
-			), CheckOutAssurance: authorization.Assurance(r.Body.CheckOutAssurance),
-			AllowTapCheckout: r.Body.AllowTapCheckout, OfferSurveysAtCheckout: r.Body.OfferSurveysAtCheckout,
+			CheckInMethods:          kioskMethodsFromDTO(r.Body.CheckInMethods),
+			CheckOutMethods:         kioskMethodsFromDTO(r.Body.CheckOutMethods),
+			AllowTapCheckout:        r.Body.AllowTapCheckout, OfferSurveysAtCheckout: r.Body.OfferSurveysAtCheckout,
 			KioskResetSeconds: int32(r.Body.KioskResetSeconds), Capabilities: capabilities,
 		},
 		r.Body.ExpectedVersion,
@@ -435,8 +433,8 @@ func managedDeviceDTO(v manageddevices.Device) openapi.ManagedDevice {
 		),
 		TerminalEnabled:         v.KioskEnabled,
 		AllowedApplicationModes: applicationModes(v.AllowedApplicationModes),
-		CheckInAssurance:        openapi.AuthenticationAssurance(v.CheckInAssurance),
-		CheckOutAssurance:       openapi.AuthenticationAssurance(v.CheckOutAssurance),
+		CheckInMethods:          kioskMethodsDTO(v.CheckInMethods),
+		CheckOutMethods:         kioskMethodsDTO(v.CheckOutMethods),
 		AllowTapCheckout:        v.AllowTapCheckout,
 		OfferSurveysAtCheckout:  v.OfferSurveysAtCheckout,
 		KioskResetSeconds:       int(v.KioskResetSeconds),
@@ -445,6 +443,23 @@ func managedDeviceDTO(v manageddevices.Device) openapi.ManagedDevice {
 		CreatedAt:               v.CreatedAt,
 		UpdatedAt:               v.UpdatedAt,
 	}
+}
+
+func kioskMethodsFromDTO(values []openapi.KioskAuthenticationMethod) []manageddevices.KioskMethod {
+	result := make([]manageddevices.KioskMethod, len(values))
+	for i, value := range values {
+		result[i] = manageddevices.KioskMethod(value)
+	}
+	return result
+}
+
+// kioskMethodsDTO never returns nil: an empty check-out set is an empty list, not null.
+func kioskMethodsDTO(values []manageddevices.KioskMethod) []openapi.KioskAuthenticationMethod {
+	result := make([]openapi.KioskAuthenticationMethod, len(values))
+	for i, value := range values {
+		result[i] = openapi.KioskAuthenticationMethod(value)
+	}
+	return result
 }
 
 func applicationModeStrings(values []openapi.DeviceApplicationMode) []manageddevices.ApplicationMode {

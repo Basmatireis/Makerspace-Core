@@ -1,5 +1,6 @@
 import { Button, InlineNotification, OverflowMenu, OverflowMenuItem, Tag } from '@carbon/react';
 import { Link } from 'react-router-dom';
+import { apiErrorCode } from '../../api/http-client';
 import { useCurrentUser } from '../auth/auth';
 import { AuthenticationMethod, DetailSection } from '../users/PersonDetailComponents';
 import type { ProfileAuthentication } from './useProfileAuthentication';
@@ -24,6 +25,7 @@ export function AuthenticationMethodsSection({ authentication }: { authenticatio
     removePasswordMutation,
     pinMutation,
     removePINMutation,
+    emailCodeMutation,
     emailVerificationMutation,
     linkOIDCMutation,
     reauthenticateOIDCMutation,
@@ -32,6 +34,7 @@ export function AuthenticationMethodsSection({ authentication }: { authenticatio
     mayRemovePIN,
     mayRemovePassword,
     mayLinkOIDC,
+    mayManageEmailCode,
     mayUnlinkOIDC,
     pinIdentity,
     passwordIdentity,
@@ -88,6 +91,21 @@ export function AuthenticationMethodsSection({ authentication }: { authenticatio
           hideCloseButton
           title="Verification email not sent"
           subtitle="Email delivery may be unavailable. Try again later."
+        />
+      )}
+      {emailCodeMutation.isError && (
+        <InlineNotification
+          kind="error"
+          lowContrast
+          hideCloseButton
+          title="Email code setting not changed"
+          subtitle={
+            apiErrorCode(emailCodeMutation.error) === 'fresh_authentication_required'
+              ? 'Sign in again with your password or an already linked OIDC provider, then try again.'
+              : apiErrorCode(emailCodeMutation.error) === 'login_email_required'
+                ? 'Your account needs a login email first.'
+                : 'Try again in a moment.'
+          }
         />
       )}
       {reauthenticateOIDCMutation.isError && (
@@ -226,6 +244,34 @@ export function AuthenticationMethodsSection({ authentication }: { authenticatio
           }
         />
 
+        {(mayManageEmailCode || currentUser.account.emailCodeEnabled) && (
+          <AuthenticationMethod
+            label="Email code sign-in"
+            status={currentUser.account.emailCodeEnabled ? 'On' : 'Off'}
+            detail={
+              currentUser.account.loginEmail
+                ? `Sign in with a six-digit code sent to ${currentUser.account.loginEmail}`
+                : 'Needs a login email'
+            }
+            active={currentUser.account.emailCodeEnabled}
+            action={
+              mayManageEmailCode ? (
+                <Button
+                  kind="tertiary"
+                  size="sm"
+                  disabled={
+                    emailCodeMutation.isPending ||
+                    !freshEnoughForMethods ||
+                    (!currentUser.account.emailCodeEnabled && !currentUser.account.loginEmail)
+                  }
+                  onClick={() => emailCodeMutation.mutate(!currentUser.account.emailCodeEnabled)}
+                >
+                  {currentUser.account.emailCodeEnabled ? 'Turn off' : 'Turn on'}
+                </Button>
+              ) : undefined
+            }
+          />
+        )}
         <AuthenticationMethod
           label="OIDC / SSO"
           status={

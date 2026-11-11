@@ -19,12 +19,19 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DeviceCapability } from './deviceCapability';
+import type { KioskCameraSettings } from './kioskCameraSettings';
 import type { TerminalConsentCategory } from './terminalConsentCategory';
-import type { VisitorAuthenticationMethod } from './visitorAuthenticationMethod';
 import type { VisitorLabRulesVersion } from './visitorLabRulesVersion';
 
 export interface VisitorEnrollmentState {
-  allowedMethods: VisitorAuthenticationMethod[];
+  /**
+     * The address the last verification code was mailed to on this context, or null before one was sent.
+     * @maxLength 254
+     * @nullable
+     */
+  email: string | null;
+  /** Whether that address was confirmed with its code; the submission needs it. */
+  emailVerified: boolean;
   /**
      * Notification categories that need the visitor's consent, asked during enrollment. Nothing is preselected.
      * @maxItems 50
@@ -36,4 +43,5 @@ export interface VisitorEnrollmentState {
   /** Whether the Visitor role asks for the Lab Rules. Only then does the kiosk show them and does enrollment record the confirmation. */
   labRulesRequired: boolean;
   expiresAt: string;
+  camera?: KioskCameraSettings;
 }

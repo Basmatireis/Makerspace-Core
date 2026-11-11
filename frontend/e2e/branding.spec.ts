@@ -9,6 +9,7 @@ function currentUser() {
     id: accountId,
     personId,
     loginEmail: 'brand.admin@example.test',
+    emailCodeEnabled: false,
     provisioningSource: 'local',
     firstAuthenticatedAt: '2026-10-03T10:00:00Z',
     authIdentities: [],

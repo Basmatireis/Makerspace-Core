@@ -48,8 +48,17 @@
   margin-block-end: $spacing-05;
 }
 
-// Touch targets on the entrance tablet: a larger label to tap and read.
+// Touch targets on the entrance tablet: a larger label to tap and read. Carbon draws the box absolutely at the label's
+// top edge, so it moves down by the added padding plus 1px to sit level with the first line of the larger text.
+.lab-rules-agreement__checkbox--lg .cds--checkbox-label {
+  padding-block: $spacing-03;
+}
+
 .lab-rules-agreement__checkbox--lg .cds--checkbox-label-text {
   @include type-style('body-02');
-  padding-block: $spacing-03;
+}
+
+.lab-rules-agreement__checkbox--lg .cds--checkbox-label::before,
+.lab-rules-agreement__checkbox--lg .cds--checkbox-label::after {
+  translate: 0 calc(#{$spacing-03} + 1px);
 }

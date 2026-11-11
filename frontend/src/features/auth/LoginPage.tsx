@@ -10,14 +10,15 @@ import {
   Tile,
 } from '@carbon/react';
 import { ArrowLeft, FingerprintRecognition, Login } from '@carbon/icons-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { requestEmailLoginCode } from '../../api/generated/authentication/authentication';
 import { getStartOIDCLoginUrl, listOIDCLoginProviders } from '../../api/generated/oidc/oidc';
 import type { LoginRequest, PinLoginRequest, SecondFactorMethod } from '../../api/generated/models';
 import { ApiError, apiErrorCode } from '../../api/http-client';
 import { BrandMark } from '../../app/BrandMark';
 import { FullPageLoading } from '../../app/PageState';
-import { currentUserQueryOptions, useCurrentUserQuery, useLogin, usePINLogin } from './auth';
+import { currentUserQueryOptions, useCurrentUserQuery, useEmailCodeLogin, useLogin, usePINLogin } from './auth';
 import { useBranding, usePageTitle } from '../branding/branding';
 import { LegalLinks } from '../branding/LegalLinks';
 
@@ -46,12 +47,15 @@ export function LoginPage() {
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   const loginMutation = useLogin();
   const pinLoginMutation = usePINLogin();
+  const emailCodeMutation = useEmailCodeLogin();
+  // The answer is the same for every address, so only a transport failure can show.
+  const sendCodeMutation = useMutation({ mutationFn: (email: string) => requestEmailLoginCode({ email }) });
   const oidcProviders = useQuery({
     queryKey: ['oidc', 'login-providers'],
     queryFn: ({ signal }) => listOIDCLoginProviders({ signal }),
   });
   const fromKiosk = (location.state as LocationState)?.origin === 'kiosk';
-  const [method, setMethod] = useState<'password' | 'pin'>('password');
+  const [method, setMethod] = useState<'password' | 'pin' | 'email_code'>('password');
   // Two small forms with local state: the sign-in page is part of the initial bundle, where a form library would cost
   // more than it saves. Errors appear on submit and clear as the field changes, as elsewhere in the app.
   const [credentials, setCredentials] = useState<LoginRequest>({ email: '', password: '' });
@@ -59,6 +63,12 @@ export function LoginPage() {
   const [pinCredentials, setPinCredentials] = useState<PinLoginRequest>({ loginName: '', pin: '' });
   const [pinErrors, setPinErrors] = useState<Partial<Record<keyof PinLoginRequest, string>>>({});
   const emailRef = useRef<HTMLInputElement>(null);
+  const [codeEmail, setCodeEmail] = useState('');
+  const [codeEmailError, setCodeEmailError] = useState<string>();
+  const [codeSentTo, setCodeSentTo] = useState<string>();
+  const [code, setCode] = useState('');
+  const [codeError, setCodeError] = useState<string>();
+  const codeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     emailRef.current?.focus();
@@ -106,6 +116,47 @@ export function LoginPage() {
     }
   };
 
+  const sendCode = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    const address = codeEmail.trim();
+    if (!/^\S+@\S+\.\S+$/.test(address)) {
+      setCodeEmailError('Enter a valid email address.');
+      return;
+    }
+    setCodeEmailError(undefined);
+    try {
+      await sendCodeMutation.mutateAsync(address);
+    } catch {
+      setCodeEmailError('We could not send the code. Try again in a moment.');
+      return;
+    }
+    emailCodeMutation.reset();
+    setCode('');
+    setCodeError(undefined);
+    setCodeSentTo(address);
+    // The field only exists after this render.
+    setTimeout(() => codeRef.current?.focus(), 0);
+  };
+  const submitCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!codeSentTo) return;
+    if (!/^[0-9]{6}$/.test(code)) {
+      setCodeError('Enter the six-digit code.');
+      return;
+    }
+    setCodeError(undefined);
+    try {
+      const pending = await emailCodeMutation.mutateAsync({ email: codeSentTo, code });
+      if (pending) {
+        setSecondFactor(pending.methods);
+        return;
+      }
+      void navigate(safeReturnPath(location.state as LocationState), { replace: true });
+    } catch {
+      setCode('');
+    }
+  };
+
   const signInWithPasskey = async () => {
     setPasskeyBusy(true);
     setPasskeyError(null);
@@ -127,12 +178,14 @@ export function LoginPage() {
 
   const rateLimited =
     (loginMutation.error instanceof ApiError && loginMutation.error.status === 429) ||
-    (pinLoginMutation.error instanceof ApiError && pinLoginMutation.error.status === 429);
-  const loginError = loginMutation.isError || pinLoginMutation.isError;
+    (pinLoginMutation.error instanceof ApiError && pinLoginMutation.error.status === 429) ||
+    (emailCodeMutation.error instanceof ApiError && emailCodeMutation.error.status === 429);
+  const loginError = loginMutation.isError || pinLoginMutation.isError || emailCodeMutation.isError;
   // The server only answers this after the credentials were right, so naming the reason leaks nothing.
   const notPermitted =
     apiErrorCode(loginMutation.error) === 'web_sign_in_not_permitted' ||
-    apiErrorCode(pinLoginMutation.error) === 'web_sign_in_not_permitted';
+    apiErrorCode(pinLoginMutation.error) === 'web_sign_in_not_permitted' ||
+    apiErrorCode(emailCodeMutation.error) === 'web_sign_in_not_permitted';
 
   return (
     <main className="auth-page auth-page--login">
@@ -177,7 +230,9 @@ export function LoginPage() {
                       ? 'Wait a moment before trying again.'
                       : notPermitted
                         ? 'This account may not sign in to the web application. Use the terminal at the makerspace instead.'
-                        : 'The credentials are incorrect.'
+                        : emailCodeMutation.isError
+                          ? 'The code is not correct or has expired.'
+                          : 'The credentials are incorrect.'
                   }
                 />
               )}
@@ -192,6 +247,13 @@ export function LoginPage() {
                 </Button>
                 <Button size="sm" kind={method === 'pin' ? 'primary' : 'ghost'} onClick={() => setMethod('pin')}>
                   PIN
+                </Button>
+                <Button
+                  size="sm"
+                  kind={method === 'email_code' ? 'primary' : 'ghost'}
+                  onClick={() => setMethod('email_code')}
+                >
+                  Email code
                 </Button>
               </div>
 
@@ -227,6 +289,80 @@ export function LoginPage() {
                     <Button type="submit" renderIcon={Login} disabled={loginMutation.isPending}>
                       {loginMutation.isPending ? 'Signing in…' : 'Sign in'}
                     </Button>
+                  </Stack>
+                </Form>
+              ) : method === 'email_code' ? (
+                <Form noValidate onSubmit={(event) => void (codeSentTo ? submitCode(event) : sendCode(event))}>
+                  <Stack gap={6}>
+                    <TextInput
+                      id="code-login-email"
+                      type="email"
+                      autoComplete="username"
+                      labelText="Email"
+                      helperText={
+                        codeSentTo
+                          ? `If this address can sign in with a code, we sent one to ${codeSentTo}.`
+                          : undefined
+                      }
+                      readOnly={Boolean(codeSentTo)}
+                      value={codeEmail}
+                      invalid={Boolean(codeEmailError)}
+                      invalidText={codeEmailError}
+                      onChange={(event) => {
+                        setCodeEmail(event.target.value);
+                        setCodeEmailError(undefined);
+                      }}
+                    />
+                    {codeSentTo ? (
+                      <>
+                        <TextInput
+                          id="login-email-code"
+                          ref={codeRef}
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={6}
+                          autoComplete="one-time-code"
+                          labelText="Code"
+                          value={code}
+                          invalid={Boolean(codeError)}
+                          invalidText={codeError}
+                          onChange={(event) => {
+                            setCode(event.target.value.replace(/\D/g, ''));
+                            setCodeError(undefined);
+                          }}
+                        />
+                        <Button type="submit" renderIcon={Login} disabled={emailCodeMutation.isPending}>
+                          {emailCodeMutation.isPending ? 'Signing in…' : 'Sign in with code'}
+                        </Button>
+                        <div className="button-cluster">
+                          <Button
+                            type="button"
+                            kind="ghost"
+                            size="sm"
+                            disabled={sendCodeMutation.isPending}
+                            onClick={() => void sendCode()}
+                          >
+                            Send a new code
+                          </Button>
+                          <Button
+                            type="button"
+                            kind="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setCodeSentTo(undefined);
+                              setCode('');
+                              emailCodeMutation.reset();
+                            }}
+                          >
+                            Change email
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <Button type="submit" renderIcon={Login} disabled={sendCodeMutation.isPending}>
+                        {sendCodeMutation.isPending ? 'Sending…' : 'Email me a sign-in code'}
+                      </Button>
+                    )}
                   </Stack>
                 </Form>
               ) : (

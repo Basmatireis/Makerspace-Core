@@ -99,6 +99,7 @@ type AuthIdentity struct {
 	VerifiedAt           pgtype.Timestamptz
 	DisabledAt           pgtype.Timestamptz
 	LastUsedAt           pgtype.Timestamptz
+	EmailCodeEnabled     bool
 }
 
 type AuthRateLimit struct {
@@ -208,6 +209,12 @@ type DeviceType struct {
 	Version     int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type EmailCodeFailure struct {
+	ID        uuid.UUID
+	AccountID uuid.UUID
+	FailedAt  time.Time
 }
 
 type Event struct {
@@ -815,12 +822,24 @@ type ManagedDevice struct {
 	UpdatedAt              time.Time
 	SessionPolicyID        *uuid.UUID
 	TerminalEnabled        bool
-	CheckInAssurance       string
-	CheckOutAssurance      string
 	AllowedAppModes        []string
 	AllowTapCheckout       bool
 	OfferSurveysAtCheckout bool
 	KioskResetSeconds      int32
+	CheckInMethods         []string
+	CheckOutMethods        []string
+}
+
+type ManagedDeviceCameraSetting struct {
+	ManagedDeviceID      uuid.UUID
+	CropCenterX          *float64
+	CropCenterY          *float64
+	CropSize             *float64
+	IndicatorEdge        *string
+	IndicatorOffset      *float64
+	CalibrationExpiresAt pgtype.Timestamptz
+	UpdatedAt            time.Time
+	Mirror               bool
 }
 
 type ManagedDeviceCapability struct {
@@ -1368,6 +1387,7 @@ type PendingLogin struct {
 	FailedAttempts  int32
 	ExpiresAt       time.Time
 	CreatedAt       time.Time
+	AuthMethod      string
 }
 
 type Person struct {
@@ -2289,6 +2309,7 @@ type SurveyOffer struct {
 	ConsumedAt      pgtype.Timestamptz
 	CreatedAt       time.Time
 	PersonID        *uuid.UUID
+	AfterTap        bool
 }
 
 type SurveyQuestion struct {
@@ -2417,7 +2438,6 @@ type Visit struct {
 type VisitorEnrollmentConfiguration struct {
 	Singleton          bool
 	Enabled            bool
-	AllowedMethods     []string
 	Version            int64
 	UpdatedByAccountID *uuid.UUID
 	CreatedAt          time.Time
@@ -2425,14 +2445,21 @@ type VisitorEnrollmentConfiguration struct {
 }
 
 type VisitorEnrollmentContext struct {
-	ID                uuid.UUID
-	ManagedDeviceID   uuid.UUID
-	TokenDigest       []byte
-	CsrfDigest        []byte
-	ExpiresAt         time.Time
-	UsedAt            pgtype.Timestamptz
-	CreatedAt         time.Time
-	LabRulesVersionID *uuid.UUID
+	ID                 uuid.UUID
+	ManagedDeviceID    uuid.UUID
+	TokenDigest        []byte
+	CsrfDigest         []byte
+	ExpiresAt          time.Time
+	UsedAt             pgtype.Timestamptz
+	CreatedAt          time.Time
+	LabRulesVersionID  *uuid.UUID
+	EmailDisplay       *string
+	EmailNormalized    *string
+	EmailCodeDigest    []byte
+	EmailCodeExpiresAt pgtype.Timestamptz
+	EmailCodeAttempts  int16
+	EmailCodesSent     int16
+	EmailVerifiedAt    pgtype.Timestamptz
 }
 
 type VisitorEnrollmentDeviceType struct {

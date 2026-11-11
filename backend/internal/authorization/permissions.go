@@ -59,6 +59,8 @@ const (
 	AccountsPINRemoveSelf              Permission = Permission(openapi.AccountsPinRemoveSelf)
 	AccountsPINRemoveAll               Permission = Permission(openapi.AccountsPinRemoveAll)
 	AccountsPINReset                   Permission = Permission(openapi.AccountsPinReset)
+	AccountsEmailCodeManageSelf        Permission = Permission(openapi.AccountsEmailCodeManageSelf)
+	AccountsEmailCodeManageAll         Permission = Permission(openapi.AccountsEmailCodeManageAll)
 	AccountsMFAReset                   Permission = Permission(openapi.AccountsMfaReset)
 	WebSignIn                          Permission = Permission(openapi.WebSignIn)
 	PeopleRolesAssign                  Permission = Permission(openapi.PeopleRolesAssign)
@@ -176,6 +178,7 @@ var registry = []Permission{
 	AccountsLoginEmailUpdate, AccountsPasswordSet, AccountsPasswordReset,
 	AccountsPasswordEnrollSelf, AccountsPasswordEnrollAll, AccountsPasswordRemoveSelf, AccountsPasswordRemoveAll,
 	AccountsPINEnrollSelf, AccountsPINEnrollAll, AccountsPINRemoveSelf, AccountsPINRemoveAll, AccountsPINReset,
+	AccountsEmailCodeManageSelf, AccountsEmailCodeManageAll,
 	AccountsMFAReset,
 	WebSignIn,
 	PeopleRolesAssign,
@@ -255,6 +258,8 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	AccountsPINRemoveSelf:              "Remove the current account's PIN method.",
 	AccountsPINRemoveAll:               "Remove another account's PIN method and revoke its sessions.",
 	AccountsPINReset:                   "Replace or issue a one-time PIN setup challenge for another account.",
+	AccountsEmailCodeManageSelf:        "Turn sign-in with an emailed one-time code on or off for the current account.",
+	AccountsEmailCodeManageAll:         "Turn sign-in with an emailed one-time code on or off for any account and revoke its sessions.",
 	AccountsMFAReset:                   "Remove every second factor of another account (a master account's only by a master).",
 	WebSignIn:                          "Sign in to the web application (password, single sign-on, passkey); the kiosk is unaffected.",
 	PeopleRolesAssign:                  "Assign or remove permitted roles on people.",

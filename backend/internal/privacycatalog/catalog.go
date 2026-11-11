@@ -126,7 +126,7 @@ func declarations() []privacy.Definition {
 			Fields: []string{
 				"sessions.token_digest", "sessions.csrf_digest", "password_reset_tokens.token_digest",
 				"auth_challenges.delivery_address", "auth_challenges.code_digest", "auth_rate_limits.key_digest",
-				"pin_login_throttles.key_digest",
+				"pin_login_throttles.key_digest", "email_code_failures.*",
 			},
 			Triggers: []privacy.Trigger{privacy.TriggerExpiredAt},
 			Actions:  []privacy.Action{privacy.ActionDelete},
@@ -135,8 +135,8 @@ func declarations() []privacy.Definition {
 		},
 		{
 			ID: AuthPendingState, Owner: Identity, Name: "Pending sign-in and enrollment state",
-			Description:    "Pending second-factor logins, passkey challenges, OIDC flows and kiosk enrollment contexts that expired.",
-			Contains:       "Pending second-factor logins, passkey challenges, OIDC flows, kiosk enrollment contexts",
+			Description:    "Pending second-factor logins, passkey challenges, OIDC flows and kiosk enrollment contexts (with the address being verified and its code digest) that expired.",
+			Contains:       "Pending second-factor logins, passkey challenges, OIDC flows, kiosk enrollment contexts with the visitor's email address under verification",
 			ErasureOutcome: privacy.ErasureErased,
 			Fields: []string{
 				"pending_logins.token_digest", "webauthn_challenges.*", "oidc_flows.*", "visitor_enrollment_contexts.*",
@@ -187,8 +187,8 @@ func declarations() []privacy.Definition {
 		},
 		{
 			ID: SurveyOffers, Owner: Attendance, Name: "Tablet survey offers",
-			Description: "A survey the tablet offered after a check-out: the digest of its single-use token, the person, the tablet and the survey, valid for 15 minutes.",
-			Contains:    "The digest of the offer's token, the person and a check-out reference (both cleared when the offer is used), the tablet, the survey and the expiry time",
+			Description: "A survey the tablet offered after a check-out, also after a tap in the presence list: the digest of its single-use token, the person, the tablet and the survey, valid for 15 minutes. Answers after a tap are stored without a person.",
+			Contains:    "The digest of the offer's token, the person and a check-out reference (both cleared when the offer is used), whether it followed a tap, the tablet, the survey and the expiry time",
 			Fields:      []string{"survey_offers.token_digest", "survey_offers.visit_id"},
 			Triggers:    []privacy.Trigger{privacy.TriggerExpiredAt},
 			Actions:     []privacy.Action{privacy.ActionDelete},

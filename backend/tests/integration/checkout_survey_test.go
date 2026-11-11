@@ -21,7 +21,10 @@ import (
 )
 
 // identityVerifier accepts every credential and answers with the person registered for the login.
-type identityVerifier struct{ people map[string]seededAccount }
+type identityVerifier struct {
+	noEmailCodes
+	people map[string]seededAccount
+}
 
 func (v identityVerifier) verify(email string) (auth.VerifiedIdentity, error) {
 	account, ok := v.people[email]
@@ -86,8 +89,9 @@ func (e *checkoutEnv) newDevice(name string, offerSurveys, allowTap bool) manage
 	device, err := e.devices.CreateConfigured(e.ctx, e.principal, name, deviceType.ID, nil, manageddevices.DeviceSettings{
 		SessionPolicyID: &policyID, KioskEnabled: true,
 		AllowedApplicationModes: []manageddevices.ApplicationMode{"visitor_terminal"},
-		CheckInAssurance:        "low", CheckOutAssurance: "low", OfferSurveysAtCheckout: offerSurveys,
-		AllowTapCheckout: allowTap, KioskResetSeconds: 60,
+		CheckInMethods:          manageddevices.AllKioskMethods, CheckOutMethods: manageddevices.AllKioskMethods,
+		OfferSurveysAtCheckout: offerSurveys,
+		AllowTapCheckout:       allowTap, KioskResetSeconds: 60,
 	}, nil)
 	if err != nil {
 		e.t.Fatal(err)
@@ -216,14 +220,7 @@ func TestSurveyIsOfferedOnlyAfterASelfCheckOutThatQualifies(t *testing.T) {
 		t.Fatal("offered although the person turned feedback at check-out off")
 	}
 
-	// Tapping a name is not a self check-out, and a supervisor's check-out is not either.
-	tap := e.newDevice("Tap tablet", true, true)
-	d, dVisit := e.person("d", true, tap.Device.ID)
-	_ = d
-	tapped, err := e.attendance.PublicCheckOut(e.ctx, e.deviceContext(tap), dVisit, nil)
-	if err != nil || tapped.SurveyOffer != nil || tapped.CheckOutMethod == nil || *tapped.CheckOutMethod != "public_tap" {
-		t.Fatalf("tap check-out: %+v, %v", tapped, err)
-	}
+	// A supervisor's check-out is not at a tablet. (Tapping a name offers an anonymous survey, tested below.)
 	_, f := e.person("f", true, e.device.Device.ID)
 	supervised, err := e.attendance.SupervisedCheckOut(e.ctx, e.supervisor(), f, nil)
 	if err != nil || supervised.SurveyOffer != nil {
@@ -301,6 +298,38 @@ func TestOfferedIdentifiedSurveyLinksTheResponseToThePerson(t *testing.T) {
 	}
 	if e.count(`SELECT count(*) FROM survey_responses WHERE identified_person_id = $1`, a.personID) != 1 {
 		t.Fatal("identified response is not linked to the person")
+	}
+}
+
+// mailConsent tells the tablet whether the survey reaches the person by e-mail anyway; an answer on the tablet then
+// keeps that e-mail from following, for anonymous and identified surveys alike.
+func TestAnsweringTheOfferAtTheTabletKeepsTheSurveyOutOfTheMailbox(t *testing.T) {
+	for _, anonymous := range []bool{true, false} {
+		e := newCheckoutEnv(t, anonymous)
+		without, _ := e.person("noconsent", false, e.device.Device.ID)
+		if offer := e.selfCheckOut(without, e.device).SurveyOffer; offer == nil || offer.MailConsent || !offer.CanSendByEmail {
+			t.Fatalf("offer without consent = %+v", offer)
+		}
+		a, _ := e.person("answers", true, e.device.Device.ID)
+		offer := e.selfCheckOut(a, e.device).SurveyOffer
+		if offer == nil || !offer.MailConsent || !offer.CanStopAsking || offer.Anonymous != anonymous {
+			t.Fatalf("offer with consent = %+v", offer)
+		}
+		survey, err := e.svc.OfferedSurvey(e.ctx, e.device.Device.ID, offer.Token)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = e.svc.SubmitOffered(e.ctx, e.device.Device.ID, offer.Token,
+			[]surveys.AnswerInput{answerChoice(survey.Questions[0], "No")}); err != nil {
+			t.Fatal(err)
+		}
+		if e.count(`SELECT count(*) FROM survey_invitations WHERE status <> 'cancelled' OR person_id IS NOT NULL
+			OR recipient_email IS NOT NULL`) != 0 {
+			t.Fatal("the invitation of the answered survey is still deliverable")
+		}
+		if sent := e.deliver(); sent != 0 {
+			t.Fatalf("%d survey e-mails followed an answer on the tablet (anonymous=%v)", sent, anonymous)
+		}
 	}
 }
 
@@ -503,7 +532,8 @@ func TestDeviceSettingsValidateTheResetTimeAndMigrateTapCheckOut(t *testing.T) {
 			manageddevices.DeviceSettings{
 				SessionPolicyID: device.SessionPolicyID, KioskEnabled: true,
 				AllowedApplicationModes: []manageddevices.ApplicationMode{"visitor_terminal"},
-				KioskResetSeconds:       seconds,
+				CheckInMethods:          manageddevices.AllKioskMethods, CheckOutMethods: manageddevices.AllKioskMethods,
+				KioskResetSeconds: seconds,
 			}, device.Version, nil)
 		if err == nil {
 			t.Fatalf("reset time %d accepted: %v", seconds, err)
@@ -513,7 +543,8 @@ func TestDeviceSettingsValidateTheResetTimeAndMigrateTapCheckOut(t *testing.T) {
 		manageddevices.DeviceSettings{
 			SessionPolicyID: device.SessionPolicyID, KioskEnabled: true,
 			AllowedApplicationModes: []manageddevices.ApplicationMode{"visitor_terminal"},
-			AllowTapCheckout:        true, OfferSurveysAtCheckout: true, KioskResetSeconds: 600,
+			CheckInMethods:          manageddevices.AllKioskMethods, CheckOutMethods: manageddevices.AllKioskMethods,
+			AllowTapCheckout: true, OfferSurveysAtCheckout: true, KioskResetSeconds: 600,
 		}, device.Version, nil)
 	if err != nil || !updated.AllowTapCheckout || !updated.OfferSurveysAtCheckout || updated.KioskResetSeconds != 600 {
 		t.Fatalf("updated = %+v, %v", updated, err)

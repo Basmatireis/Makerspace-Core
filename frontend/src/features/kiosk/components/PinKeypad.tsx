@@ -1,17 +1,20 @@
 import { Button } from '@carbon/react';
 import { Erase } from '@carbon/icons-react';
+import './keypad.scss';
 
 export function PinKeypad({
   onDigit,
   onBackspace,
   onClear,
+  label = 'PIN keypad',
 }: {
   onDigit: (digit: string) => void;
   onBackspace: () => void;
   onClear: () => void;
+  label?: string;
 }) {
   return (
-    <div className="tablet-keypad" role="group" aria-label="PIN keypad">
+    <div className="tablet-keypad" role="group" aria-label={label}>
       {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
         <Button key={digit} kind="tertiary" className="tablet-keypad__key" onClick={() => onDigit(digit)}>
           {digit}

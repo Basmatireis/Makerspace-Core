@@ -35,6 +35,7 @@ func (s *Service) createPendingLogin(
 	ctx context.Context,
 	queries *authdb.Queries,
 	accountID, identityID uuid.UUID,
+	method LoginMethod,
 	state authdb.GetAccountSecondFactorStateRow,
 ) (PendingLogin, error) {
 	token, digest, err := security.NewOpaqueToken()
@@ -44,7 +45,7 @@ func (s *Service) createPendingLogin(
 	expiresAt := time.Now().UTC().Add(PendingLoginTTL)
 	if err := queries.CreatePendingLogin(ctx, authdb.CreatePendingLoginParams{
 		ID: ids.New(), TokenDigest: digest, AccountID: accountID, AuthIdentityID: identityID,
-		ManagedDeviceID: managedDeviceFromContext(ctx), ExpiresAt: expiresAt,
+		ManagedDeviceID: managedDeviceFromContext(ctx), ExpiresAt: expiresAt, AuthMethod: string(method),
 	}); err != nil {
 		return PendingLogin{}, err
 	}
@@ -121,8 +122,8 @@ func (s *Service) CompleteSecondFactorLogin(
 	return s.finishPendingLogin(ctx, tx, locked, requestID)
 }
 
-// lockPendingLogin takes the Account lock and then the pending login, and rechecks that the password identity is
-// still usable: a password change or reset after the first step invalidates the pending login.
+// lockPendingLogin takes the Account lock and then the pending login, and rechecks that the first step's method is
+// still usable: a password change or reset, or switching off the emailed code, invalidates the pending login.
 func lockPendingLogin(
 	ctx context.Context,
 	queries *authdb.Queries,
@@ -143,6 +144,14 @@ func lockPendingLogin(
 	}
 	if err != nil {
 		return pending, err
+	}
+	if LoginMethod(locked.AuthMethod) == MethodEmailCode {
+		identity, err := queries.GetPasswordIdentityTargetForAccount(ctx, locked.AccountID)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && (identity.AuthIdentityID != locked.AuthIdentityID ||
+			!identity.EmailCodeEnabled)) {
+			return pending, pendingLoginInvalid()
+		}
+		return locked, err
 	}
 	credential, err := queries.GetPasswordCredentialForAccount(ctx, locked.AccountID)
 	if errors.Is(err, pgx.ErrNoRows) ||
@@ -168,7 +177,8 @@ func (s *Service) finishPendingLogin(
 		return Session{}, err
 	}
 	session, err := s.createSession(
-		ctx, queries, pending.AccountID, pending.AuthIdentityID, authorization.AssuranceStrongMFA, false,
+		ctx, queries, pending.AccountID, pending.AuthIdentityID, LoginMethod(pending.AuthMethod),
+		authorization.AssuranceStrongMFA, false,
 	)
 	if err != nil {
 		return Session{}, err

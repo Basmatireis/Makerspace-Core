@@ -13,7 +13,7 @@ export function SurveyQuestionsTab({ survey, lockReason }: { survey: Survey; loc
         <p className="settings-section__description">
           {survey.anonymous
             ? 'Responses are stored without a person identifier.'
-            : 'Responses from invitations are linked to the invited person.'}
+            : 'Responses from invitations are linked to the invited person; answers given at a tablet after a tap check-out are stored without a person.'}
         </p>
         <ol className="survey-question-list">
           {[...survey.questions]

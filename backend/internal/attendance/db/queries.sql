@@ -1,5 +1,5 @@
 -- name: GetTerminalDevice :one
-SELECT md.id, md.name, md.terminal_enabled, md.check_in_assurance, md.check_out_assurance,
+SELECT md.id, md.name, md.terminal_enabled, md.check_in_methods, md.check_out_methods,
        md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds, md.revoked_at, md.expires_at
 FROM managed_devices md
 WHERE md.id = sqlc.arg(id) AND md.terminal_enabled AND md.revoked_at IS NULL
@@ -72,7 +72,8 @@ WITH deleted AS (
 SELECT deleted.*, p.first_name, p.last_name FROM deleted JOIN people p ON p.id = deleted.person_id;
 
 -- name: ListPublicPresence :many
-SELECT v.id, v.checked_in_at, p.first_name, left(p.last_name, 1)::text AS last_initial
+-- The full last name only feeds the shortening in Go; the public list shows as few letters of it as tell people apart.
+SELECT v.id, v.checked_in_at, p.first_name, p.last_name
 FROM visits v JOIN people p ON p.id = v.person_id
 WHERE v.status = 'checked_in'
 ORDER BY lower(p.first_name), lower(p.last_name), v.checked_in_at, v.id;

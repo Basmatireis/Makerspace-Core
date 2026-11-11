@@ -23,6 +23,10 @@ func (response cookieNoContentResponse) VisitLoginResponse(w http.ResponseWriter
 	return response.write(w)
 }
 
+func (response cookieNoContentResponse) VisitLoginWithEmailCodeResponse(w http.ResponseWriter) error {
+	return response.write(w)
+}
+
 func (response cookieNoContentResponse) VisitLoginWithPinResponse(w http.ResponseWriter) error {
 	return response.write(w)
 }
@@ -98,6 +102,10 @@ func pendingLoginCookieName(cfg config.Config) string {
 type pendingLoginResponse struct {
 	config  config.Config
 	pending auth.PendingLogin
+}
+
+func (response pendingLoginResponse) VisitLoginWithEmailCodeResponse(w http.ResponseWriter) error {
+	return response.VisitLoginResponse(w)
 }
 
 func (response pendingLoginResponse) VisitLoginResponse(w http.ResponseWriter) error {

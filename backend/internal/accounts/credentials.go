@@ -294,14 +294,21 @@ func (s *Service) RemoveAuthIdentity(
 			return err
 		}
 	}
-	deleted, err := queries.DeleteAuthIdentityForAccount(ctx, accountsdb.DeleteAuthIdentityForAccountParams{
-		ID: identityID, AccountID: accountID,
-	})
-	if err != nil {
-		return err
-	}
-	if deleted != 1 {
-		return apperror.NotFound
+	if identity.Kind == IdentityPassword && identity.EmailCodeEnabled {
+		// The login email keeps signing in with an emailed code; only the password goes.
+		if err := queries.DeletePasswordCredentialForIdentity(ctx, identityID); err != nil {
+			return err
+		}
+	} else {
+		deleted, err := queries.DeleteAuthIdentityForAccount(ctx, accountsdb.DeleteAuthIdentityForAccountParams{
+			ID: identityID, AccountID: accountID,
+		})
+		if err != nil {
+			return err
+		}
+		if deleted != 1 {
+			return apperror.NotFound
+		}
 	}
 	if err := queries.RevokeSessionsForAccount(
 		ctx,

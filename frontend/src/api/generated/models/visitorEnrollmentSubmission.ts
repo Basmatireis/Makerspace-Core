@@ -19,8 +19,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ConsentAnswer } from './consentAnswer';
-import type { VisitorAuthenticationMethod } from './visitorAuthenticationMethod';
 
+/**
+ * The account's login email is the address verified on the enrollment context; it is not part of the submission.
+ */
 export interface VisitorEnrollmentSubmission {
   /**
      * @minLength 1
@@ -32,25 +34,6 @@ export interface VisitorEnrollmentSubmission {
      * @maxLength 100
      */
   lastName: string;
-  /**
-     * Required: the visitor's contact address and the account's login email.
-     * @minLength 3
-     * @maxLength 320
-     */
-  email: string;
-  /** @minItems 1 */
-  authMethods: VisitorAuthenticationMethod[];
-  /**
-     * @minLength 3
-     * @maxLength 64
-     * @nullable
-     */
-  pinLoginName: string | null;
-  /**
-     * @nullable
-     * @pattern ^[0-9]{6,12}$
-     */
-  pin: string | null;
   /**
      * Required when the enrolling device's effective capabilities include camera or file_upload; otherwise it may be null.
      * @minLength 4

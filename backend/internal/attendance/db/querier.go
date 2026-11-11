@@ -26,6 +26,7 @@ type Querier interface {
 	GetPersonDisplay(ctx context.Context, id uuid.UUID) (GetPersonDisplayRow, error)
 	GetTerminalDevice(ctx context.Context, id uuid.UUID) (GetTerminalDeviceRow, error)
 	GetVisitByIDForUpdate(ctx context.Context, id uuid.UUID) (GetVisitByIDForUpdateRow, error)
+	// The full last name only feeds the shortening in Go; the public list shows as few letters of it as tell people apart.
 	ListPublicPresence(ctx context.Context) ([]ListPublicPresenceRow, error)
 	ListTerminalCapabilities(ctx context.Context, managedDeviceID uuid.UUID) ([]string, error)
 	// Only open visits exist: check-out deletes the visit.

@@ -36,6 +36,8 @@ type Querier interface {
 	GetDeviceTypeByName(ctx context.Context, name string) (DeviceType, error)
 	GetDeviceTypeForMutation(ctx context.Context, id uuid.UUID) (DeviceType, error)
 	GetManagedDevice(ctx context.Context, id uuid.UUID) (GetManagedDeviceRow, error)
+	GetManagedDeviceCameraSettings(ctx context.Context, managedDeviceID uuid.UUID) (ManagedDeviceCameraSetting, error)
+	GetManagedDeviceCameraSettingsForUpdate(ctx context.Context, managedDeviceID uuid.UUID) (ManagedDeviceCameraSetting, error)
 	GetManagedDeviceForMutation(ctx context.Context, id uuid.UUID) (ManagedDevice, error)
 	GetManagedDeviceHardwareReport(ctx context.Context, managedDeviceID uuid.UUID) (GetManagedDeviceHardwareReportRow, error)
 	// Locks the request so that two concurrent polls cannot both collect the credential.
@@ -60,6 +62,7 @@ type Querier interface {
 	UpdateDeviceType(ctx context.Context, arg UpdateDeviceTypeParams) (DeviceType, error)
 	UpdateManagedDevice(ctx context.Context, arg UpdateManagedDeviceParams) (ManagedDevice, error)
 	UpdateSessionPolicy(ctx context.Context, arg UpdateSessionPolicyParams) (SessionPolicy, error)
+	UpsertManagedDeviceCameraSettings(ctx context.Context, arg UpsertManagedDeviceCameraSettingsParams) (ManagedDeviceCameraSetting, error)
 	UpsertManagedDeviceHardwareReport(ctx context.Context, arg UpsertManagedDeviceHardwareReportParams) error
 }
 

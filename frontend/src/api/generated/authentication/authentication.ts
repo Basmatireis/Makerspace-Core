@@ -27,6 +27,7 @@ import type {
   CompletePinEnrollmentRequest,
   CurrentAuthentication,
   CurrentUser,
+  EmailCodeLoginRequest,
   EnrollPinRequest,
   LoginRequest,
   Passkey,
@@ -37,6 +38,7 @@ import type {
   RecoveryCodeList,
   RemoveOwnPasswordRequest,
   RenamePasskeyRequest,
+  RequestEmailLoginCodeRequest,
   RequestPasswordResetRequest,
   SecondFactorCodeRequest,
   SecondFactorEnrollmentResult,
@@ -134,6 +136,145 @@ return apiFetch<void>(getLoginWithPinUrl(),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(pinLoginRequest)
+  }
+);}
+
+
+export const getRequestEmailLoginCodeUrl = () => {
+
+
+
+
+  return `/api/v1/auth/email-code`
+}
+
+/**
+ * Mails a six-digit sign-in code to the login email when that account is enabled, has sign-in with an emailed
+ * code turned on and no password reset pending. The code is valid for ten minutes and for five wrong entries; a
+ * new request replaces the previous code. After ten wrong codes within 24 hours, across all its codes, an
+ * account gets no new codes and accepts none until the oldest of them is a day old. The answer is the same
+ * `202` for known, unknown, ineligible, blocked and rate-limited addresses; the account is looked up and the
+ * code issued and mailed only after the answer, so neither the answer nor its timing tells whether the address
+ * belongs to an account. The code works only for `POST /auth/email-code/login`, not at a kiosk.
+ * @summary Mail a one-time sign-in code
+ */
+export const requestEmailLoginCode = async (requestEmailLoginCodeRequest: RequestEmailLoginCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getRequestEmailLoginCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(requestEmailLoginCodeRequest)
+  }
+);}
+
+
+export const getLoginWithEmailCodeUrl = () => {
+
+
+
+
+  return `/api/v1/auth/email-code/login`
+}
+
+/**
+ * Signs in with the code from `POST /auth/email-code`. Wrong, expired, used and unknown codes, accounts with a
+ * pending password reset and accounts whose budget of ten wrong codes per 24 hours is used up all answer the
+ * same `401 invalid_credentials`; after five wrong codes the code is invalid and a new one must be requested.
+ * The code is consumed by a successful sign-in. The session has `normal` assurance like a password session:
+ * control of the mailbox already allows resetting the password, so the emailed code proves no less. Second
+ * factors work as with `POST /auth/login`: an account with an authenticator app or passkey gets `202` and a
+ * pending-login cookie, and an account that must use a second factor but has none gets a session flagged
+ * `mfaSetupRequired`. Accounts without `web.sign_in` answer `403 web_sign_in_not_permitted`.
+ * @summary Start a session with an emailed one-time code
+ */
+export const loginWithEmailCode = async (emailCodeLoginRequest: EmailCodeLoginRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SecondFactorRequired | void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SecondFactorRequired | void>(getLoginWithEmailCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(emailCodeLoginRequest)
+  }
+);}
+
+
+export const getEnableOwnEmailCodeUrl = () => {
+
+
+
+
+  return `/api/v1/auth/methods/email-code`
+}
+
+/**
+ * Requires `accounts.email_code.manage.self` and a sign-in at `normal` assurance within the last ten minutes
+ * (`403 fresh_authentication_required` otherwise). The account needs a login email (`422 login_email_required`).
+ * @summary Turn on sign-in with an emailed code for the current account
+ */
+export const enableOwnEmailCode = async ( options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getEnableOwnEmailCodeUrl(),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+export const getDisableOwnEmailCodeUrl = () => {
+
+
+
+
+  return `/api/v1/auth/methods/email-code`
+}
+
+/**
+ * Requires `accounts.email_code.manage.self` and a sign-in at `normal` assurance within the last ten minutes.
+ * Outstanding sign-in codes are deleted and the account's other sessions are revoked.
+ * @summary Turn off sign-in with an emailed code for the current account
+ */
+export const disableOwnEmailCode = async ( options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDisableOwnEmailCodeUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
   }
 );}
 

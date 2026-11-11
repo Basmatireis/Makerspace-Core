@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import {
   getTerminalContext,
   listTerminalPresence,
@@ -25,6 +25,13 @@ import './kiosk.scss';
 
 const presenceKey = ['kiosk', 'presence'] as const;
 
+// Only shown while staff calibrate this tablet, so it stays out of the kiosk's own chunk.
+const CameraCalibrationScreen = lazy(() =>
+  import('./camera/CameraCalibrationScreen').then(({ CameraCalibrationScreen }) => ({
+    default: CameraCalibrationScreen,
+  })),
+);
+
 type ResultState = {
   kind: 'result';
   mode: 'check-in' | 'check-out';
@@ -38,6 +45,8 @@ type Screen =
   | { kind: 'home' }
   | { kind: 'check-in' }
   | { kind: 'check-out'; preselected: string | null }
+  /** Check-out with credentials on a kiosk that also checks out by a tap. */
+  | { kind: 'check-out-credentials' }
   | { kind: 'lab-rules'; credentials: Credentials; need: LabRulesNeed }
   | { kind: 'consent'; visitId: string; categories: TerminalConsentCategory[]; result: ResultState }
   | { kind: 'survey-offer'; offer: TerminalSurveyOffer; result: ResultState }
@@ -48,8 +57,8 @@ export function VisitorKioskPage() {
     queryKey: ['kiosk', 'context'],
     queryFn: ({ signal }) => getTerminalContext({ signal }),
     retry: false,
-    // Rule notices arrive with the context, so the tablet asks again now and then.
-    refetchInterval: 60_000,
+    // Rule notices and a camera calibration started by staff arrive with the context, so the tablet asks again often.
+    refetchInterval: 20_000,
   });
   const presence = useQuery({
     queryKey: presenceKey,
@@ -61,16 +70,20 @@ export function VisitorKioskPage() {
   const branding = useBranding();
   const [screen, setScreen] = useState<Screen>({ kind: 'home' });
   const now = useClock();
+  // The calibration window this tablet finished locally, so it leaves the screen before the next context poll.
+  const [calibrated, setCalibrated] = useState<string>();
   const publicCheckout = useMutation({
     mutationFn: (visitId: string) => terminalPublicCheckOut(visitId),
     onSuccess: (visit) => {
-      setScreen({
+      const result: ResultState = {
         kind: 'result',
         mode: 'check-out',
         displayName: visit.displayName,
         at: visit.checkedOutAt ?? new Date().toISOString(),
         notices: [],
-      });
+      };
+      // After a tap the answers are stored anonymously; Send by e-mail goes to the tapped person.
+      setScreen(visit.surveyOffer ? { kind: 'survey-offer', offer: visit.surveyOffer, result } : result);
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: presenceKey }),
   });
@@ -105,6 +118,25 @@ export function VisitorKioskPage() {
     );
 
   const context = kiosk.data;
+  const calibrationUntil = context.cameraCalibrationExpiresAt;
+  if (
+    calibrationUntil &&
+    calibrationUntil !== calibrated &&
+    new Date(calibrationUntil) > now &&
+    context.capabilities.includes('camera')
+  )
+    return (
+      <Suspense fallback={<FullPageLoading label="Loading camera calibration" />}>
+        <CameraCalibrationScreen
+          camera={context.camera}
+          expiresAt={calibrationUntil}
+          onDone={() => {
+            setCalibrated(calibrationUntil);
+            void queryClient.invalidateQueries({ queryKey: ['kiosk', 'context'] });
+          }}
+        />
+      </Suspense>
+    );
   const contextNotices = context.notices ?? [];
   const publicTap = context.allowTapCheckout;
   const home = () => {
@@ -165,7 +197,7 @@ export function VisitorKioskPage() {
         {screen.kind === 'check-in' && (
           <CredentialsScreen
             mode="check-in"
-            methods={context.authenticationMethods}
+            methods={context.checkInMethods}
             onSuccess={(result) => credentialsDone('check-in', result)}
             onLabRulesNeeded={(credentials, need) => setScreen({ kind: 'lab-rules', credentials, need })}
             onCancel={home}
@@ -180,16 +212,27 @@ export function VisitorKioskPage() {
               pending={publicCheckout.isPending}
               error={publicCheckout.isError ? publicCheckout.error.message : ''}
               onCheckOut={(visit) => publicCheckout.mutate(visit.visitId)}
+              onUseCredentials={
+                context.checkOutMethods.length > 0 ? () => setScreen({ kind: 'check-out-credentials' }) : undefined
+              }
               onCancel={home}
             />
           ) : (
             <CredentialsScreen
               mode="check-out"
-              methods={context.authenticationMethods}
+              methods={context.checkOutMethods}
               onSuccess={(result) => credentialsDone('check-out', result)}
               onCancel={home}
             />
           ))}
+        {screen.kind === 'check-out-credentials' && (
+          <CredentialsScreen
+            mode="check-out"
+            methods={context.checkOutMethods}
+            onSuccess={(result) => credentialsDone('check-out', result)}
+            onCancel={home}
+          />
+        )}
         {screen.kind === 'lab-rules' && (
           <LabRulesScreen
             credentials={screen.credentials}

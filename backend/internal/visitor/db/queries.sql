@@ -6,8 +6,7 @@ SELECT * FROM visitor_enrollment_configuration WHERE singleton=true FOR UPDATE;
 
 -- name: UpdateConfiguration :one
 UPDATE visitor_enrollment_configuration
-SET enabled=sqlc.arg(enabled),
-    allowed_methods=sqlc.arg(allowed_methods), version=version+1,
+SET enabled=sqlc.arg(enabled), version=version+1,
     updated_by_account_id=sqlc.arg(updated_by_account_id), updated_at=now()
 WHERE singleton=true AND version=sqlc.arg(expected_version)
 RETURNING *;
@@ -69,7 +68,11 @@ WHERE ec.id=sqlc.arg(id) AND ec.used_at IS NULL AND ec.expires_at > now()
 FOR UPDATE OF ec;
 
 -- name: ConsumeEnrollmentContext :execrows
-UPDATE visitor_enrollment_contexts SET used_at=now() WHERE id=sqlc.arg(id) AND used_at IS NULL;
+-- The verified address now lives on the account; the used context keeps no copy of it.
+UPDATE visitor_enrollment_contexts
+SET used_at=now(), email_display=NULL, email_normalized=NULL, email_code_digest=NULL, email_code_expires_at=NULL,
+    email_verified_at=NULL
+WHERE id=sqlc.arg(id) AND used_at IS NULL;
 
 -- name: GetPinnedLabRulesVersion :one
 SELECT v.* FROM laborordnung_versions v
@@ -86,32 +89,40 @@ INSERT INTO accounts (id, person_id, status, provisioning_source)
 VALUES (sqlc.arg(id), sqlc.arg(person_id), sqlc.arg(status), 'visitor')
 RETURNING *;
 
--- name: CreateVisitorPasswordIdentity :one
-INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized)
-VALUES (sqlc.arg(id), sqlc.arg(account_id), 'password', sqlc.arg(identifier_display), sqlc.arg(identifier_normalized))
-RETURNING *;
-
--- name: CreateVisitorPINIdentity :one
-INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized, verified_at)
-VALUES (sqlc.arg(id), sqlc.arg(account_id), 'pin', sqlc.arg(identifier_display), sqlc.arg(identifier_normalized), now())
-RETURNING *;
-
--- name: CreateVisitorPINCredential :exec
-INSERT INTO pin_credentials (auth_identity_id, pin_hash) VALUES (sqlc.arg(auth_identity_id), sqlc.arg(pin_hash));
-
--- name: CreateVisitorInvitation :one
-INSERT INTO auth_challenges (id, kind, account_id, auth_identity_id, code_digest, delivery_address, expires_at)
-VALUES (sqlc.arg(id), 'invitation', sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.arg(code_digest), sqlc.arg(delivery_address), sqlc.arg(expires_at))
-RETURNING *;
-
--- name: SetChallengeDelivery :exec
-UPDATE auth_challenges SET delivery_status=sqlc.arg(delivery_status), delivery_attempted_at=now(), delivery_failure_code=sqlc.narg(delivery_failure_code)
-WHERE id=sqlc.arg(id);
-
 -- name: DeleteExpiredEnrollmentContexts :execrows
 DELETE FROM visitor_enrollment_contexts WHERE expires_at < sqlc.arg(before_time);
 
--- name: PINLoginNameTaken :one
+-- name: LoginEmailTaken :one
 SELECT EXISTS (
-    SELECT 1 FROM auth_identities WHERE kind = 'pin' AND identifier_normalized = sqlc.arg(identifier_normalized)
+    SELECT 1 FROM auth_identities WHERE kind = 'password' AND identifier_normalized = sqlc.arg(identifier_normalized)::text
 )::boolean AS taken;
+
+-- name: SetEnrollmentEmailCode :exec
+-- A new code replaces the previous one and its address, and clears an earlier verification.
+UPDATE visitor_enrollment_contexts
+SET email_display=sqlc.arg(email_display), email_normalized=sqlc.arg(email_normalized),
+    email_code_digest=sqlc.arg(email_code_digest), email_code_expires_at=sqlc.arg(email_code_expires_at),
+    email_code_attempts=0, email_verified_at=NULL
+WHERE id=sqlc.arg(id);
+
+-- name: CountEnrollmentEmailCodeSend :exec
+-- Every send attempt counts, also one refused because the address already has an account, so a kiosk cannot probe
+-- addresses beyond the per-context limit.
+UPDATE visitor_enrollment_contexts SET email_codes_sent=email_codes_sent+1 WHERE id=sqlc.arg(id);
+
+-- name: ClearEnrollmentEmailCode :exec
+-- Withdraws a code whose mail could not be delivered, unless a newer code replaced it meanwhile.
+UPDATE visitor_enrollment_contexts SET email_code_digest=NULL, email_code_expires_at=NULL
+WHERE id=sqlc.arg(id) AND email_code_digest=sqlc.arg(email_code_digest);
+
+-- name: RecordEnrollmentEmailCodeFailure :exec
+UPDATE visitor_enrollment_contexts SET email_code_attempts=LEAST(email_code_attempts+1, 5) WHERE id=sqlc.arg(id);
+
+-- name: VerifyEnrollmentEmail :exec
+UPDATE visitor_enrollment_contexts
+SET email_verified_at=now(), email_code_digest=NULL, email_code_expires_at=NULL
+WHERE id=sqlc.arg(id);
+
+-- name: EnableVisitorEmailCode :execrows
+UPDATE auth_identities SET email_code_enabled=true, updated_at=now()
+WHERE account_id=sqlc.arg(account_id) AND kind='password';

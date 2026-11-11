@@ -16,11 +16,35 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // fixedIdentityVerifier stands in for PIN/password verification so the tests exercise admission, not credentials.
-type fixedIdentityVerifier struct{ identity auth.VerifiedIdentity }
+type fixedIdentityVerifier struct {
+	noEmailCodes
+	identity auth.VerifiedIdentity
+}
+
+// noEmailCodes completes a test verifier that only knows passwords and PINs.
+type noEmailCodes struct{}
+
+func (noEmailCodes) VerifyEmailCodeForAttendance(
+	context.Context,
+	string,
+	string,
+	string,
+) (auth.VerifiedIdentity, error) {
+	return auth.VerifiedIdentity{}, apperror.InvalidCredentials
+}
+
+func (noEmailCodes) RequestCheckInEmailCode(context.Context, string, uuid.UUID, *uuid.UUID) error {
+	return nil
+}
+
+func (noEmailCodes) ConsumeVerifiedTx(context.Context, pgx.Tx, auth.VerifiedIdentity) error {
+	return nil
+}
 
 func (v fixedIdentityVerifier) VerifyPasswordForAttendance(
 	context.Context,
@@ -41,7 +65,7 @@ func (v fixedIdentityVerifier) VerifyPINForAttendance(
 }
 
 // rejectingVerifier refuses every credential, like a wrong PIN.
-type rejectingVerifier struct{}
+type rejectingVerifier struct{ noEmailCodes }
 
 func (rejectingVerifier) VerifyPasswordForAttendance(
 	context.Context,

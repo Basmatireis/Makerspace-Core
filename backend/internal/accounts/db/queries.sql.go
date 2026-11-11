@@ -104,7 +104,7 @@ func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (A
 const createAuthIdentity = `-- name: CreateAuthIdentity :one
 INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized)
 VALUES ($1, $2, 'password', $3::text, $4::text)
-RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
+RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at, email_code_enabled
 `
 
 type CreateAuthIdentityParams struct {
@@ -136,6 +136,7 @@ func (q *Queries) CreateAuthIdentity(ctx context.Context, arg CreateAuthIdentity
 		&i.VerifiedAt,
 		&i.DisabledAt,
 		&i.LastUsedAt,
+		&i.EmailCodeEnabled,
 	)
 	return i, err
 }
@@ -210,6 +211,15 @@ func (q *Queries) DeleteAuthIdentityForAccount(ctx context.Context, arg DeleteAu
 	return result.RowsAffected(), nil
 }
 
+const deleteEmailLoginChallengesForAccount = `-- name: DeleteEmailLoginChallengesForAccount :exec
+DELETE FROM auth_challenges WHERE account_id = $1 AND kind IN ('email_login', 'email_check_in')
+`
+
+func (q *Queries) DeleteEmailLoginChallengesForAccount(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteEmailLoginChallengesForAccount, accountID)
+	return err
+}
+
 const deletePINEnrollmentChallengesForAccount = `-- name: DeletePINEnrollmentChallengesForAccount :exec
 DELETE FROM auth_challenges
 WHERE account_id = $1 AND kind = 'pin_enrollment'
@@ -236,11 +246,21 @@ func (q *Queries) DeletePasskeysForAccount(ctx context.Context, accountID uuid.U
 const deletePasswordChallengesForAccount = `-- name: DeletePasswordChallengesForAccount :exec
 DELETE FROM auth_challenges
 WHERE account_id = $1
-  AND kind IN ('invitation', 'email_verification', 'password_reset')
+  AND kind IN ('invitation', 'email_verification', 'password_reset', 'email_login', 'email_check_in')
 `
 
 func (q *Queries) DeletePasswordChallengesForAccount(ctx context.Context, accountID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deletePasswordChallengesForAccount, accountID)
+	return err
+}
+
+const deletePasswordCredentialForIdentity = `-- name: DeletePasswordCredentialForIdentity :exec
+DELETE FROM password_credentials WHERE auth_identity_id = $1
+`
+
+// Removes only the password of a login email identity that also signs in with an emailed code.
+func (q *Queries) DeletePasswordCredentialForIdentity(ctx context.Context, authIdentityID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePasswordCredentialForIdentity, authIdentityID)
 	return err
 }
 
@@ -390,6 +410,7 @@ const getAccountView = `-- name: GetAccountView :one
 SELECT a.id, a.person_id, a.status, a.provisioning_source, a.first_authenticated_at,
        a.version, a.created_at, a.updated_at,
        i.id AS auth_identity_id, i.identifier_display AS login_email,
+       COALESCE(i.email_code_enabled, false)::boolean AS email_code_enabled,
        CASE WHEN prt.id IS NOT NULL OR pc.reset_required THEN 'reset_required'
             WHEN pc.auth_identity_id IS NULL THEN 'not_set' ELSE 'active' END AS password_status
 FROM accounts a
@@ -410,6 +431,7 @@ type GetAccountViewRow struct {
 	UpdatedAt            time.Time
 	AuthIdentityID       *uuid.UUID
 	LoginEmail           *string
+	EmailCodeEnabled     bool
 	PasswordStatus       string
 }
 
@@ -427,13 +449,14 @@ func (q *Queries) GetAccountView(ctx context.Context, id uuid.UUID) (GetAccountV
 		&i.UpdatedAt,
 		&i.AuthIdentityID,
 		&i.LoginEmail,
+		&i.EmailCodeEnabled,
 		&i.PasswordStatus,
 	)
 	return i, err
 }
 
 const getIdentityByAccount = `-- name: GetIdentityByAccount :one
-SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at FROM auth_identities WHERE account_id = $1 AND kind = 'password'
+SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at, email_code_enabled FROM auth_identities WHERE account_id = $1 AND kind = 'password'
 `
 
 func (q *Queries) GetIdentityByAccount(ctx context.Context, accountID uuid.UUID) (AuthIdentity, error) {
@@ -453,12 +476,13 @@ func (q *Queries) GetIdentityByAccount(ctx context.Context, accountID uuid.UUID)
 		&i.VerifiedAt,
 		&i.DisabledAt,
 		&i.LastUsedAt,
+		&i.EmailCodeEnabled,
 	)
 	return i, err
 }
 
 const getPasswordIdentityForAccountForUpdate = `-- name: GetPasswordIdentityForAccountForUpdate :one
-SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at FROM auth_identities
+SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at, email_code_enabled FROM auth_identities
 WHERE account_id = $1 AND kind = 'password'
 FOR UPDATE
 `
@@ -480,6 +504,7 @@ func (q *Queries) GetPasswordIdentityForAccountForUpdate(ctx context.Context, ac
 		&i.VerifiedAt,
 		&i.DisabledAt,
 		&i.LastUsedAt,
+		&i.EmailCodeEnabled,
 	)
 	return i, err
 }
@@ -527,6 +552,7 @@ const listAccountViewsByPeople = `-- name: ListAccountViewsByPeople :many
 SELECT a.id, a.person_id, a.status, a.provisioning_source, a.first_authenticated_at,
        a.version, a.created_at, a.updated_at,
        i.id AS auth_identity_id, i.identifier_display AS login_email,
+       COALESCE(i.email_code_enabled, false)::boolean AS email_code_enabled,
        CASE WHEN EXISTS (
                 SELECT 1 FROM password_reset_tokens prt
                 WHERE prt.account_id = a.id AND prt.expires_at > now()
@@ -550,6 +576,7 @@ type ListAccountViewsByPeopleRow struct {
 	UpdatedAt            time.Time
 	AuthIdentityID       *uuid.UUID
 	LoginEmail           *string
+	EmailCodeEnabled     bool
 	PasswordStatus       string
 }
 
@@ -573,6 +600,7 @@ func (q *Queries) ListAccountViewsByPeople(ctx context.Context, personIds []uuid
 			&i.UpdatedAt,
 			&i.AuthIdentityID,
 			&i.LoginEmail,
+			&i.EmailCodeEnabled,
 			&i.PasswordStatus,
 		); err != nil {
 			return nil, err
@@ -586,10 +614,10 @@ func (q *Queries) ListAccountViewsByPeople(ctx context.Context, personIds []uuid
 }
 
 const listAuthIdentitiesByAccount = `-- name: ListAuthIdentitiesByAccount :many
-SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug,
+SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, i.email_code_enabled, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug,
        CASE
          WHEN i.disabled_at IS NOT NULL THEN false
-         WHEN i.kind = 'password' THEN EXISTS (
+         WHEN i.kind = 'password' THEN i.email_code_enabled OR EXISTS (
            SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
          )
          WHEN i.kind = 'pin' THEN EXISTS (
@@ -618,6 +646,7 @@ type ListAuthIdentitiesByAccountRow struct {
 	VerifiedAt           pgtype.Timestamptz
 	DisabledAt           pgtype.Timestamptz
 	LastUsedAt           pgtype.Timestamptz
+	EmailCodeEnabled     bool
 	DisplayIdentifier    string
 	ProviderSlug         *string
 	Usable               bool
@@ -646,6 +675,7 @@ func (q *Queries) ListAuthIdentitiesByAccount(ctx context.Context, accountID uui
 			&i.VerifiedAt,
 			&i.DisabledAt,
 			&i.LastUsedAt,
+			&i.EmailCodeEnabled,
 			&i.DisplayIdentifier,
 			&i.ProviderSlug,
 			&i.Usable,
@@ -661,10 +691,10 @@ func (q *Queries) ListAuthIdentitiesByAccount(ctx context.Context, accountID uui
 }
 
 const listAuthIdentitiesByAccounts = `-- name: ListAuthIdentitiesByAccounts :many
-SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug,
+SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, i.email_code_enabled, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug,
        CASE
          WHEN i.disabled_at IS NOT NULL THEN false
-         WHEN i.kind = 'password' THEN EXISTS (
+         WHEN i.kind = 'password' THEN i.email_code_enabled OR EXISTS (
            SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
          )
          WHEN i.kind = 'pin' THEN EXISTS (
@@ -693,6 +723,7 @@ type ListAuthIdentitiesByAccountsRow struct {
 	VerifiedAt           pgtype.Timestamptz
 	DisabledAt           pgtype.Timestamptz
 	LastUsedAt           pgtype.Timestamptz
+	EmailCodeEnabled     bool
 	DisplayIdentifier    string
 	ProviderSlug         *string
 	Usable               bool
@@ -721,6 +752,7 @@ func (q *Queries) ListAuthIdentitiesByAccounts(ctx context.Context, accountIds [
 			&i.VerifiedAt,
 			&i.DisabledAt,
 			&i.LastUsedAt,
+			&i.EmailCodeEnabled,
 			&i.DisplayIdentifier,
 			&i.ProviderSlug,
 			&i.Usable,
@@ -834,6 +866,24 @@ type SetAuthChallengeDeliveryParams struct {
 func (q *Queries) SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChallengeDeliveryParams) error {
 	_, err := q.db.Exec(ctx, setAuthChallengeDelivery, arg.DeliveryStatus, arg.DeliveryFailureCode, arg.ID)
 	return err
+}
+
+const setEmailCodeEnabled = `-- name: SetEmailCodeEnabled :execrows
+UPDATE auth_identities SET email_code_enabled = $1, updated_at = now()
+WHERE id = $2 AND kind = 'password' AND email_code_enabled IS DISTINCT FROM $1
+`
+
+type SetEmailCodeEnabledParams struct {
+	Enabled bool
+	ID      uuid.UUID
+}
+
+func (q *Queries) SetEmailCodeEnabled(ctx context.Context, arg SetEmailCodeEnabledParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setEmailCodeEnabled, arg.Enabled, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setPersonEmail = `-- name: SetPersonEmail :exec
@@ -982,7 +1032,7 @@ SET identifier_display = EXCLUDED.identifier_display,
     verified_at = CASE WHEN auth_identities.identifier_normalized = EXCLUDED.identifier_normalized
                        THEN auth_identities.verified_at ELSE EXCLUDED.verified_at END,
     updated_at = now()
-RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
+RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at, email_code_enabled
 `
 
 type UpsertPasswordIdentityParams struct {
@@ -1018,6 +1068,7 @@ func (q *Queries) UpsertPasswordIdentity(ctx context.Context, arg UpsertPassword
 		&i.VerifiedAt,
 		&i.DisabledAt,
 		&i.LastUsedAt,
+		&i.EmailCodeEnabled,
 	)
 	return i, err
 }

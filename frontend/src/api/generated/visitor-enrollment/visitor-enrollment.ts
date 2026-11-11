@@ -22,11 +22,11 @@ import type {
   UpdateVisitorEnrollmentConfigurationRequest,
   VisitorAdmissionResult,
   VisitorEnrollmentConfiguration,
+  VisitorEnrollmentEmailConfirmation,
+  VisitorEnrollmentEmailRequest,
   VisitorEnrollmentResult,
   VisitorEnrollmentState,
-  VisitorEnrollmentSubmission,
-  VisitorLoginNameSuggestion,
-  VisitorLoginNameSuggestionRequest
+  VisitorEnrollmentSubmission
 } from '../models';
 
 import { apiFetch } from '../../http-client';
@@ -160,21 +160,26 @@ export const getVisitorEnrollmentLabRulesPDF = async ( options?: Parameters<type
 );}
 
 
-export const getSuggestVisitorPinLoginNameUrl = () => {
+export const getSendVisitorEnrollmentEmailCodeUrl = () => {
 
 
 
 
-  return `/api/v1/visitor-enrollment/login-name-suggestions`
+  return `/api/v1/visitor-enrollment/email-verification`
 }
 
 /**
- * Builds `firstname.lastname` (lower case, umlauts and accents transliterated, other characters dropped) and
- * appends a random number when that name is taken (a random number, so the answer does not tell which numbered names exist). Answers 403 when PIN enrollment is not allowed. It creates nothing; the name is checked again when the enrollment is
- * submitted. Answers 422 when no valid login name can be built from the name.
- * @summary Suggest a free PIN login name from the visitor's name
+ * Binds the address to the enrollment context and mails it a six-digit code, valid for ten minutes and five
+ * wrong entries. A new request replaces the previous code and address and clears an earlier verification.
+ * Delivery is synchronous so the kiosk can ask for another address: a provider error answers
+ * `422 email_delivery_failed`, disabled mail `503 mail_unavailable`. A syntactically invalid address answers
+ * `422 email_invalid`; an address that is already an account's login email answers
+ * `409 authentication_identifier_exists` (the visitor checks in instead). At most five send attempts, refused
+ * ones included, are allowed per enrollment context, and five codes per address within fifteen minutes
+ * (`429 verification_rate_limited`).
+ * @summary Mail a code that verifies the visitor's email address
  */
-export const suggestVisitorPinLoginName = async (visitorLoginNameSuggestionRequest: VisitorLoginNameSuggestionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<VisitorLoginNameSuggestion> => {
+export const sendVisitorEnrollmentEmailCode = async (visitorEnrollmentEmailRequest: VisitorEnrollmentEmailRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -190,12 +195,51 @@ export const suggestVisitorPinLoginName = async (visitorLoginNameSuggestionReque
     }
     return headers;
   };
-return apiFetch<VisitorLoginNameSuggestion>(getSuggestVisitorPinLoginNameUrl(),
+return apiFetch<void>(getSendVisitorEnrollmentEmailCodeUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(visitorLoginNameSuggestionRequest)
+    body: JSON.stringify(visitorEnrollmentEmailRequest)
+  }
+);}
+
+
+export const getConfirmVisitorEnrollmentEmailUrl = () => {
+
+
+
+
+  return `/api/v1/visitor-enrollment/email-verification/confirm`
+}
+
+/**
+ * A wrong, expired or exhausted code answers `422 challenge_invalid`; after five wrong codes a new one must be
+ * requested. A correct code marks the context's address as verified; the submission uses that address.
+ * @summary Verify the visitor's email address with the mailed code
+ */
+export const confirmVisitorEnrollmentEmail = async (visitorEnrollmentEmailConfirmation: VisitorEnrollmentEmailConfirmation, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getConfirmVisitorEnrollmentEmailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(visitorEnrollmentEmailConfirmation)
   }
 );}
 
@@ -215,7 +259,11 @@ export const getSubmitVisitorEnrollmentUrl = () => {
  * to the notification categories listed in the enrollment state (place `kiosk`); they are stored in the same
  * transaction, and a category left out is asked at a later check-in. When that version is no longer the
  * current one, the answer is 409 `lab_rules_changed` and the kiosk must start over with the new version.
- * Current device, method, and initial-role configuration is still enforced.
+ * The account's login email is the address verified on this context (`POST
+ * /visitor-enrollment/email-verification` and `/confirm`); without a verified address the answer is
+ * `409 email_verification_required`. The account signs in with an emailed code only: no password, PIN or
+ * invitation is created. An address that became another account's login email meanwhile answers
+ * `409 authentication_identifier_exists`. Current device and enrollment configuration is still enforced.
  * @summary Atomically create one visitor using the backend-configured Role
  */
 export const submitVisitorEnrollment = async (visitorEnrollmentSubmission: VisitorEnrollmentSubmission, options?: Parameters<typeof apiFetch>[1]): Promise<VisitorEnrollmentResult> => {

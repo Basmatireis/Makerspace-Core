@@ -20,15 +20,13 @@
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
-import type { VisitorAuthenticationMethod } from './visitorAuthenticationMethod';
 
 /**
- * Enrolled visitors get the Visitor membership like every new person.
+ * Enrolled visitors get the Visitor membership like every new person and sign in with a code mailed to their verified email address.
  */
 export interface VisitorEnrollmentConfiguration {
   enabled: boolean;
   deviceTypeIds: UUIDv7[];
-  allowedMethods: VisitorAuthenticationMethod[];
   version: Version;
   updatedAt: string;
 }

@@ -18,13 +18,8 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { Email } from './email';
 
-export type TerminalContextAuthenticationMethodsItem = typeof TerminalContextAuthenticationMethodsItem[keyof typeof TerminalContextAuthenticationMethodsItem];
-
-
-export const TerminalContextAuthenticationMethodsItem = {
-  password: 'password',
-  pin: 'pin',
-  oidc: 'oidc',
-  nfc: 'nfc',
-} as const;
+export interface RequestEmailLoginCodeRequest {
+  email: Email;
+}

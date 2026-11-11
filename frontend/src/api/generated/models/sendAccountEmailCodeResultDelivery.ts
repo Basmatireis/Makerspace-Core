@@ -19,10 +19,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type VisitorAuthenticationMethod = typeof VisitorAuthenticationMethod[keyof typeof VisitorAuthenticationMethod];
+export type SendAccountEmailCodeResultDelivery = typeof SendAccountEmailCodeResultDelivery[keyof typeof SendAccountEmailCodeResultDelivery];
 
 
-export const VisitorAuthenticationMethod = {
-  password: 'password',
-  pin: 'pin',
+export const SendAccountEmailCodeResultDelivery = {
+  sent: 'sent',
+  failed: 'failed',
 } as const;

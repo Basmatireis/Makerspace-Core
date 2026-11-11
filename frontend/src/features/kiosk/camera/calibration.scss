@@ -1,0 +1,100 @@
+// The tablet's camera calibration screen. Carbon supplies the controls; this is layout only.
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/components/slider';
+
+// Calibration screen on the tablet: the whole camera frame with the crop square, the resulting photo, and controls.
+.camera-calibration {
+  display: grid;
+  gap: $spacing-06;
+  box-sizing: border-box;
+  min-block-size: 100dvh;
+  padding: $spacing-07 $spacing-07 $spacing-06;
+  background: $background;
+  color: $text-primary;
+  align-content: start;
+}
+
+.camera-calibration__title {
+  @include type-style('heading-04');
+}
+
+.camera-calibration__lead {
+  @include type-style('body-02');
+  color: $text-secondary;
+  max-inline-size: 48rem;
+}
+
+.camera-calibration__body {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(16rem, 2fr);
+  gap: $spacing-07;
+  align-items: start;
+}
+
+.camera-calibration__frame {
+  position: relative;
+  overflow: hidden;
+  background: $layer-02;
+  touch-action: none;
+  user-select: none;
+}
+
+.camera-calibration__frame video,
+.camera-calibration__photo video {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+// The frame box has the camera's aspect ratio; the whole frame is shown, never cropped.
+.camera-calibration__frame video {
+  object-fit: contain;
+}
+
+.camera-calibration__crop {
+  position: absolute;
+  box-sizing: border-box;
+  border: 3px solid $focus-inverse;
+  outline: 1px solid $focus;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  cursor: move;
+}
+
+// The camera mode actually delivered, so a cropped stream is visible while calibrating.
+.camera-calibration__resolution {
+  @include type-style('label-01');
+  position: absolute;
+  inset-block-end: $spacing-03;
+  inset-inline-start: $spacing-03;
+  padding: $spacing-01 $spacing-03;
+  background: $background-inverse;
+  color: $text-inverse;
+  pointer-events: none;
+}
+
+.camera-calibration__side {
+  display: grid;
+  gap: $spacing-06;
+}
+
+.camera-calibration__photo {
+  position: relative;
+  overflow: hidden;
+  inline-size: min(100%, 16rem);
+  aspect-ratio: 1;
+  background: $layer-02;
+}
+
+.camera-calibration__actions {
+  display: flex;
+  gap: $spacing-05;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 66rem) {
+  .camera-calibration__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

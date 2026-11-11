@@ -175,20 +175,19 @@ func (q *Queries) GetStaffingRules(ctx context.Context) (GetStaffingRulesRow, er
 }
 
 const getVisitorEnrollmentConfiguration = `-- name: GetVisitorEnrollmentConfiguration :one
-SELECT c.enabled, c.allowed_methods, c.version
+SELECT c.enabled, c.version
 FROM visitor_enrollment_configuration c
 `
 
 type GetVisitorEnrollmentConfigurationRow struct {
-	Enabled        bool
-	AllowedMethods []string
-	Version        int64
+	Enabled bool
+	Version int64
 }
 
 func (q *Queries) GetVisitorEnrollmentConfiguration(ctx context.Context) (GetVisitorEnrollmentConfigurationRow, error) {
 	row := q.db.QueryRow(ctx, getVisitorEnrollmentConfiguration)
 	var i GetVisitorEnrollmentConfigurationRow
-	err := row.Scan(&i.Enabled, &i.AllowedMethods, &i.Version)
+	err := row.Scan(&i.Enabled, &i.Version)
 	return i, err
 }
 

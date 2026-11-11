@@ -20,6 +20,8 @@ type VerifiedIdentity struct {
 	PersonID  uuid.UUID
 	Method    string
 	Assurance authorization.Assurance
+	// emailChallengeID is the emailed code that proved the identity; ConsumeVerifiedTx uses it up.
+	emailChallengeID *uuid.UUID
 }
 
 func (s *Service) VerifyPasswordForAttendance(

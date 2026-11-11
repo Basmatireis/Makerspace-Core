@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -38,8 +38,8 @@ type Device struct {
 	SessionPolicyID                  *uuid.UUID
 	KioskEnabled                     bool
 	AllowedApplicationModes          []ApplicationMode
-	CheckInAssurance                 authorization.Assurance
-	CheckOutAssurance                authorization.Assurance
+	CheckInMethods                   []KioskMethod
+	CheckOutMethods                  []KioskMethod
 	AllowTapCheckout                 bool
 	OfferSurveysAtCheckout           bool
 	KioskResetSeconds                int32
@@ -67,28 +67,29 @@ func (d Device) Status(now time.Time) Status {
 }
 
 type DeviceContext struct {
-	ID                                  uuid.UUID
-	Name                                string
-	DeviceTypeID                        uuid.UUID
-	DeviceTypeName                      string
-	ExpiresAt                           *time.Time
-	SessionPolicyID                     *uuid.UUID
-	KioskEnabled                        bool
-	AllowedApplicationModes             []ApplicationMode
-	CheckInAssurance, CheckOutAssurance authorization.Assurance
-	AllowTapCheckout                    bool
-	OfferSurveysAtCheckout              bool
-	KioskResetSeconds                   int32
+	ID                              uuid.UUID
+	Name                            string
+	DeviceTypeID                    uuid.UUID
+	DeviceTypeName                  string
+	ExpiresAt                       *time.Time
+	SessionPolicyID                 *uuid.UUID
+	KioskEnabled                    bool
+	AllowedApplicationModes         []ApplicationMode
+	CheckInMethods, CheckOutMethods []KioskMethod
+	AllowTapCheckout                bool
+	OfferSurveysAtCheckout          bool
+	KioskResetSeconds               int32
 }
 
 type DeviceSettings struct {
 	SessionPolicyID         *uuid.UUID
 	KioskEnabled            bool
 	AllowedApplicationModes []ApplicationMode
-	CheckInAssurance        authorization.Assurance
-	CheckOutAssurance       authorization.Assurance
-	// AllowTapCheckout adds check-out by tapping a name in the presence list. Checking out with PIN or password is
-	// always possible on a kiosk.
+	// CheckInMethods and CheckOutMethods are the ways people may identify to check in and out. Check-in needs at least
+	// one; check-out may have none only while AllowTapCheckout is on, so a kiosk always offers a way out.
+	CheckInMethods  []KioskMethod
+	CheckOutMethods []KioskMethod
+	// AllowTapCheckout adds check-out by tapping a name in the presence list.
 	AllowTapCheckout       bool
 	OfferSurveysAtCheckout bool
 	// KioskResetSeconds is zero for "default" (60); otherwise 15..600.
@@ -185,8 +186,8 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (*DeviceContext,
 		SessionPolicyID:         row.SessionPolicyID,
 		KioskEnabled:            row.TerminalEnabled,
 		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](row.AllowedAppModes),
-		CheckInAssurance:        authorization.Assurance(row.CheckInAssurance),
-		CheckOutAssurance:       authorization.Assurance(row.CheckOutAssurance),
+		CheckInMethods:          optional.ConvertSlice[KioskMethod](row.CheckInMethods),
+		CheckOutMethods:         optional.ConvertSlice[KioskMethod](row.CheckOutMethods),
 		AllowTapCheckout:        row.AllowTapCheckout,
 		OfferSurveysAtCheckout:  row.OfferSurveysAtCheckout,
 		KioskResetSeconds:       row.KioskResetSeconds,
@@ -355,6 +356,24 @@ func sameStringSet[T ~string](left, right []T) bool {
 	return true
 }
 
+// normalizeKioskMethods rejects unknown and repeated methods and returns the set in the kiosk's order.
+func normalizeKioskMethods(methods []KioskMethod) ([]KioskMethod, error) {
+	chosen := make(map[KioskMethod]bool, len(methods))
+	for _, method := range methods {
+		if !slices.Contains(AllKioskMethods, method) || chosen[method] {
+			return nil, apperror.InvalidField("kiosk methods must contain unique supported values")
+		}
+		chosen[method] = true
+	}
+	result := make([]KioskMethod, 0, len(chosen))
+	for _, method := range AllKioskMethods {
+		if chosen[method] {
+			result = append(result, method)
+		}
+	}
+	return result, nil
+}
+
 func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 	if len(settings.AllowedApplicationModes) == 0 {
 		settings.AllowedApplicationModes = []ApplicationMode{ModeStaffUI}
@@ -369,21 +388,21 @@ func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 		}
 		seenModes[mode] = true
 	}
-	if settings.CheckInAssurance == "" {
-		settings.CheckInAssurance = authorization.AssuranceLow
-	}
-	if settings.CheckOutAssurance == "" {
-		settings.CheckOutAssurance = authorization.AssuranceLow
-	}
 	if settings.KioskResetSeconds == 0 {
 		settings.KioskResetSeconds = DefaultKioskResetSeconds
 	}
-	validAssurance := func(v authorization.Assurance) bool {
-		return v == authorization.AssuranceLow || v == authorization.AssuranceNormal || v == authorization.AssuranceStrong ||
-			v == authorization.AssuranceStrongMFA
+	var err error
+	if settings.CheckInMethods, err = normalizeKioskMethods(settings.CheckInMethods); err != nil {
+		return settings, err
 	}
-	if !validAssurance(settings.CheckInAssurance) || !validAssurance(settings.CheckOutAssurance) {
-		return settings, apperror.InvalidField("attendance assurance is invalid")
+	if settings.CheckOutMethods, err = normalizeKioskMethods(settings.CheckOutMethods); err != nil {
+		return settings, err
+	}
+	if len(settings.CheckInMethods) == 0 {
+		return settings, apperror.InvalidField("checkInMethods must name at least one method")
+	}
+	if len(settings.CheckOutMethods) == 0 && !settings.AllowTapCheckout {
+		return settings, apperror.InvalidField("checkOutMethods may be empty only while tap check-out is allowed")
 	}
 	if settings.KioskResetSeconds < MinKioskResetSeconds || settings.KioskResetSeconds > MaxKioskResetSeconds {
 		return settings, apperror.InvalidField("kioskResetSeconds must be between 15 and 600")

@@ -52,7 +52,8 @@ func TestKioskCheckInOverHTTPRecordsConfirmationInHistory(t *testing.T) {
 	device, err := devices.CreateConfigured(ctx, principal, "Entrance tablet", deviceType.ID, nil, manageddevices.DeviceSettings{
 		SessionPolicyID: &policyID, KioskEnabled: true,
 		AllowedApplicationModes: []manageddevices.ApplicationMode{"visitor_terminal"},
-		CheckInAssurance:        "low", CheckOutAssurance: "low", KioskResetSeconds: 60,
+		CheckInMethods:          manageddevices.AllKioskMethods, CheckOutMethods: manageddevices.AllKioskMethods,
+		KioskResetSeconds: 60,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)

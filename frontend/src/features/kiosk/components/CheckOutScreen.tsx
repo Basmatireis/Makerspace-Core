@@ -12,6 +12,7 @@ export function CheckOutScreen({
   pending,
   error,
   onCheckOut,
+  onUseCredentials,
   onCancel,
 }: {
   presence: PublicPresence[];
@@ -19,6 +20,8 @@ export function CheckOutScreen({
   pending: boolean;
   error: string;
   onCheckOut: (visit: PublicPresence) => void;
+  /** Set when the kiosk also checks out with credentials. */
+  onUseCredentials?: () => void;
   onCancel: () => void;
 }) {
   const [selected, setSelected] = useState<string | null>(preselected);
@@ -73,6 +76,11 @@ export function CheckOutScreen({
       >
         {visit ? `Check out ${visit.displayName}` : 'Check out'}
       </Button>
+      {onUseCredentials && (
+        <Button kind="ghost" size="lg" onClick={onUseCredentials}>
+          Check out with your sign-in instead
+        </Button>
+      )}
     </div>
   );
 }

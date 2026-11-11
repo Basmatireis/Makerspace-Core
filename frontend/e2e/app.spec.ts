@@ -75,6 +75,7 @@ function currentUser(permissions: string[] = []) {
         id: accountId,
         personId,
         loginEmail: 'ada.login@example.test',
+        emailCodeEnabled: false,
         provisioningSource: 'local',
         firstAuthenticatedAt: '2026-01-01T00:00:00Z',
         authIdentities: [
@@ -101,6 +102,7 @@ function currentUser(permissions: string[] = []) {
       id: accountId,
       personId,
       loginEmail: 'ada.login@example.test',
+      emailCodeEnabled: false,
       provisioningSource: 'local',
       firstAuthenticatedAt: '2026-01-01T00:00:00Z',
       authIdentities: [
@@ -190,6 +192,7 @@ function managedPerson(role = customRole()) {
       id: managedAccountId,
       personId: managedPersonId,
       loginEmail: 'grace.login@example.test',
+      emailCodeEnabled: false,
       provisioningSource: 'local',
       firstAuthenticatedAt: '2026-01-01T00:00:00Z',
       authIdentities: [
@@ -346,8 +349,8 @@ function pairedDevice(name: string) {
     sessionPolicyId: kioskPolicyId,
     terminalEnabled: true,
     allowedApplicationModes: ['visitor_terminal'],
-    checkInAssurance: 'normal',
-    checkOutAssurance: 'normal',
+    checkInMethods: ['email_code', 'password'],
+    checkOutMethods: ['email_code', 'password'],
     allowTapCheckout: false,
     offerSurveysAtCheckout: false,
     kioskResetSeconds: 60,
@@ -421,6 +424,22 @@ async function installApi(page: Page, state: ApiState) {
         email: 'ada.login@example.test',
         password: 'correct horse battery staple',
       });
+      state.authenticated = true;
+      await route.fulfill({ status: 204 });
+      return;
+    }
+
+    if (path === '/api/v1/auth/email-code' && request.method() === 'POST') {
+      await route.fulfill({ status: 202 });
+      return;
+    }
+
+    if (path === '/api/v1/auth/email-code/login' && request.method() === 'POST') {
+      const body = request.postDataJSON() as { email: string; code: string };
+      if (body.code !== '123456') {
+        await json(route, { code: 'invalid_credentials', message: 'Invalid credentials.' }, 401);
+        return;
+      }
       state.authenticated = true;
       await route.fulfill({ status: 204 });
       return;

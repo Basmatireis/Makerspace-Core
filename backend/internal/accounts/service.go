@@ -31,7 +31,9 @@ type AuthIdentity struct {
 	VerifiedAt        *time.Time
 	DisabledAt        *time.Time
 	Usable            bool
-	CreatedAt         time.Time
+	// EmailCodeEnabled is set on the login email identity when it also signs in with an emailed code.
+	EmailCodeEnabled bool
+	CreatedAt        time.Time
 }
 
 type Account struct {
@@ -42,6 +44,7 @@ type Account struct {
 	FirstAuthenticatedAt *time.Time
 	PasswordStatus       PasswordStatus
 	LoginEmail           string
+	EmailCodeEnabled     bool
 	AuthIdentities       []AuthIdentity
 	// SecondFactors is loaded by account reads and the second-factor reset; nil elsewhere.
 	SecondFactors *auth.SecondFactorSummary
@@ -174,8 +177,9 @@ func (s *Service) ListForPeople(
 		result[row.PersonID] = Account{
 			ID: row.ID, PersonID: row.PersonID, Status: authorization.AccountStatus(row.Status),
 			ProvisioningSource: ProvisioningSource(row.ProvisioningSource), FirstAuthenticatedAt: timeFromPG(row.FirstAuthenticatedAt),
-			PasswordStatus: PasswordStatus(row.PasswordStatus), LoginEmail: loginEmail, AuthIdentities: []AuthIdentity{},
-			Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			PasswordStatus: PasswordStatus(row.PasswordStatus), LoginEmail: loginEmail, EmailCodeEnabled: row.EmailCodeEnabled,
+			AuthIdentities: []AuthIdentity{},
+			Version:        row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		}
 		accountIDs = append(accountIDs, row.ID)
 		personByAccount[row.ID] = row.PersonID
@@ -195,7 +199,8 @@ func (s *Service) ListForPeople(
 			ID: row.ID, Kind: IdentityKind(row.Kind), DisplayIdentifier: &displayIdentifier, ProviderSlug: row.ProviderSlug,
 			VerifiedAt: timeFromPG(
 				row.VerifiedAt,
-			), DisabledAt: timeFromPG(row.DisabledAt), Usable: row.Usable, CreatedAt: row.CreatedAt,
+			), DisabledAt: timeFromPG(row.DisabledAt), Usable: row.Usable, EmailCodeEnabled: row.EmailCodeEnabled,
+			CreatedAt: row.CreatedAt,
 		})
 		result[personID] = account
 	}
@@ -473,7 +478,8 @@ func loadAccount(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID)
 			ProviderSlug:      identity.ProviderSlug,
 			VerifiedAt: timeFromPG(
 				identity.VerifiedAt,
-			), DisabledAt: timeFromPG(identity.DisabledAt), Usable: identity.Usable, CreatedAt: identity.CreatedAt,
+			), DisabledAt: timeFromPG(identity.DisabledAt), Usable: identity.Usable,
+			EmailCodeEnabled: identity.EmailCodeEnabled, CreatedAt: identity.CreatedAt,
 		})
 	}
 	loginEmail := ""
@@ -482,8 +488,9 @@ func loadAccount(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID)
 	}
 	return Account{ID: row.ID, PersonID: row.PersonID, Status: authorization.AccountStatus(row.Status),
 		ProvisioningSource: ProvisioningSource(row.ProvisioningSource), FirstAuthenticatedAt: timeFromPG(row.FirstAuthenticatedAt),
-		PasswordStatus: PasswordStatus(row.PasswordStatus), LoginEmail: loginEmail, AuthIdentities: identities,
-		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
+		PasswordStatus: PasswordStatus(row.PasswordStatus), LoginEmail: loginEmail, EmailCodeEnabled: row.EmailCodeEnabled,
+		AuthIdentities: identities,
+		Version:        row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
 }
 
 func timeFromPG(value pgtype.Timestamptz) *time.Time {
