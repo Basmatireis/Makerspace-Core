@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { kioskCameraConstraints } from '../../kiosk/camera/cameraStream';
 import { ProfilePhotoPicker, type PhotoSources } from './ProfilePhotoPicker';
 
 function renderPicker(sources: PhotoSources) {
@@ -37,11 +38,15 @@ type Draw = number[];
 // A fake camera and canvas: getUserMedia yields a stream, drawImage records the source rectangle.
 function fakeCamera() {
   const stop = vi.fn();
+  const getUserMedia = vi.fn<(constraints: MediaStreamConstraints) => Promise<unknown>>(async () => ({
+    getTracks: () => [{ stop }],
+  }));
   Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,
-    value: { getUserMedia: async () => ({ getTracks: () => [{ stop }] }) },
+    value: { getUserMedia },
   });
   const draws: Draw[] = [];
+  const mirrorCalls: string[] = [];
   const canvases: Array<{ width: number; height: number }> = [];
   const realCreate = document.createElement.bind(document);
   vi.spyOn(document, 'createElement').mockImplementation((tag: string, options?: ElementCreationOptions) => {
@@ -50,12 +55,16 @@ function fakeCamera() {
       canvases.push(element as HTMLCanvasElement);
       (element as HTMLCanvasElement).getContext = (() => ({
         drawImage: (...args: number[]) => draws.push(args.slice(1)),
+        save: () => undefined,
+        restore: () => undefined,
+        translate: (...args: number[]) => mirrorCalls.push(`translate:${args.join(',')}`),
+        scale: (...args: number[]) => mirrorCalls.push(`scale:${args.join(',')}`),
       })) as unknown as HTMLCanvasElement['getContext'];
       (element as HTMLCanvasElement).toDataURL = () => 'data:image/jpeg;base64,AAAA';
     }
     return element;
   });
-  return { stop, draws, canvases };
+  return { stop, draws, canvases, mirrorCalls, getUserMedia };
 }
 
 async function startPreview(user: ReturnType<typeof userEvent.setup>) {
@@ -124,7 +133,11 @@ describe('camera capture', () => {
         image={undefined}
         sources={{ camera: true, upload: false }}
         required
-        camera={{ crop: { centerX: 0.7, centerY: 0.5, size: 0.5 }, indicator: { edge: 'top', offset: 62.5 } }}
+        camera={{
+          crop: { centerX: 0.7, centerY: 0.5, size: 0.5 },
+          indicator: { edge: 'top', offset: 62.5 },
+          mirror: false,
+        }}
         onChange={() => undefined}
       />,
     );
@@ -140,5 +153,37 @@ describe('camera capture', () => {
     await act(() => vi.advanceTimersByTimeAsync(3000));
     await waitFor(() => expect(draws).toHaveLength(1));
     expect(draws[0]).toEqual([716, 180, 360, 360, 0, 0, 360, 360]);
+  });
+
+  it("asks for the camera's full native mode, the same way the calibration does", async () => {
+    const { getUserMedia } = fakeCamera();
+    const user = userEvent.setup();
+    renderPicker({ camera: true, upload: false });
+    await startPreview(user);
+    expect(getUserMedia).toHaveBeenCalledWith(kioskCameraConstraints);
+  });
+
+  it('mirrors the preview and the captured photo on a mirrored kiosk', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { draws, mirrorCalls } = fakeCamera();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(
+      <ProfilePhotoPicker
+        image={undefined}
+        sources={{ camera: true, upload: false }}
+        required
+        camera={{ crop: { centerX: 0.7, centerY: 0.5, size: 0.5 }, indicator: null, mirror: true }}
+        onChange={() => undefined}
+      />,
+    );
+    const video = await startPreview(user);
+    expect(video.style.transform).toBe('scaleX(-1)');
+    expect(parseFloat(video.style.insetInlineStart)).toBeCloseTo((-204 / 360) * 100);
+    await user.click(screen.getByRole('button', { name: 'Take photo' }));
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    await waitFor(() => expect(draws).toHaveLength(1));
+    // The source square is the unmirrored one; the canvas is flipped while drawing it.
+    expect(draws[0]).toEqual([716, 180, 360, 360, 0, 0, 360, 360]);
+    expect(mirrorCalls).toEqual(['translate:360,0', 'scale:-1,1']);
   });
 });

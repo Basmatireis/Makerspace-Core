@@ -15,7 +15,8 @@ import type {
 import { apiErrorCode } from '../../../api/http-client';
 import { formatTime } from '../../../app/dateTime';
 import { CameraIndicator } from './CameraIndicator';
-import { clampCrop, cropSourceRect, defaultCrop, minCropSize, previewPlacement } from './cameraCrop';
+import { clampCrop, cropSourceRect, defaultCrop, displayedRect, minCropSize, previewPlacement } from './cameraCrop';
+import { openKioskCamera } from './cameraStream';
 import './calibration.scss';
 
 const edgeLabels: Record<KioskCameraIndicatorEdge, string> = {
@@ -48,6 +49,7 @@ export function CameraCalibrationScreen({
   const [frame, setFrame] = useState<Frame>();
   const [cameraError, setCameraError] = useState(false);
   const [crop, setCrop] = useState<KioskCameraCrop>(camera?.crop ?? defaultCrop);
+  const [mirror, setMirror] = useState(Boolean(camera?.mirror));
   const [indicatorOn, setIndicatorOn] = useState(Boolean(camera?.indicator));
   const [indicator, setIndicator] = useState<KioskCameraIndicator>(camera?.indicator ?? { edge: 'top', offset: 50 });
   // Active pointers on the frame: one drags the square, two pinch its size.
@@ -56,8 +58,7 @@ export function CameraCalibrationScreen({
 
   useEffect(() => {
     let cancelled = false;
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: 'user' }, audio: false })
+    openKioskCamera()
       .then((media) => {
         if (cancelled) {
           media.getTracks().forEach((track) => track.stop());
@@ -77,12 +78,15 @@ export function CameraCalibrationScreen({
   const settings = (): KioskCameraSettings => ({
     crop: frame ? clampCrop(crop, frame.width, frame.height) : crop,
     indicator: indicatorOn ? indicator : null,
+    mirror,
   });
   const save = useMutation({ mutationFn: () => saveTerminalCameraCalibration(settings()), onSuccess: onDone });
   const cancel = useMutation({ mutationFn: () => cancelTerminalCameraCalibration(), onSettled: onDone });
   const closed = apiErrorCode(save.error) === 'camera_calibration_closed';
 
   const rect = frame ? cropSourceRect(crop, frame.width, frame.height) : undefined;
+  // The frame is shown the way the wizard will show it, so the square is drawn where it appears on screen.
+  const shown = frame && rect ? displayedRect(rect, frame.width, mirror) : undefined;
   const pointerAt = (event: ReactPointerEvent) => ({ x: event.clientX, y: event.clientY });
   const spread = () => {
     const [a, b] = [...pointers.current.values()];
@@ -114,7 +118,8 @@ export function CameraCalibrationScreen({
       clampCrop(
         {
           ...start.crop,
-          centerX: start.crop.centerX + (first.x - start.x) / box.width,
+          // The mirrored frame moves the other way on screen than the unmirrored source coordinates.
+          centerX: start.crop.centerX + ((mirror ? -1 : 1) * (first.x - start.x)) / box.width,
           centerY: start.crop.centerY + (first.y - start.y) / box.height,
         },
         frame.width,
@@ -175,20 +180,21 @@ export function CameraCalibrationScreen({
             muted
             playsInline
             aria-label="Whole camera image"
+            style={mirror ? { transform: 'scaleX(-1)' } : undefined}
             onLoadedMetadata={(event) => {
               const { videoWidth, videoHeight } = event.currentTarget;
               if (videoWidth && videoHeight) setFrame({ width: videoWidth, height: videoHeight });
             }}
           />
-          {frame && rect && (
+          {frame && shown && (
             <span
               className="camera-calibration__crop"
               data-testid="calibration-crop"
               style={{
-                left: `${(rect.x / frame.width) * 100}%`,
-                top: `${(rect.y / frame.height) * 100}%`,
-                width: `${(rect.side / frame.width) * 100}%`,
-                height: `${(rect.side / frame.height) * 100}%`,
+                left: `${(shown.x / frame.width) * 100}%`,
+                top: `${(shown.y / frame.height) * 100}%`,
+                width: `${(shown.side / frame.width) * 100}%`,
+                height: `${(shown.side / frame.height) * 100}%`,
               }}
             />
           )}
@@ -203,7 +209,7 @@ export function CameraCalibrationScreen({
                 muted
                 playsInline
                 aria-label="Photo preview"
-                style={frame && rect ? previewPlacement(rect, frame.width, frame.height) : undefined}
+                style={frame && rect ? previewPlacement(rect, frame.width, frame.height, mirror) : undefined}
               />
             </div>
           </Stack>
@@ -215,6 +221,14 @@ export function CameraCalibrationScreen({
             step={1}
             value={Math.round(crop.size * 100)}
             onChange={({ value }) => setCrop((current) => ({ ...current, size: value / 100 }))}
+          />
+          <Toggle
+            id="calibration-mirror"
+            labelText="Mirror image"
+            labelA="Off"
+            labelB="On"
+            toggled={mirror}
+            onToggle={setMirror}
           />
           <Toggle
             id="calibration-indicator"

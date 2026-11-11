@@ -105,6 +105,7 @@ export function DeviceCameraSection({ device, canManage }: { device: ManagedDevi
             <StructuredListBody>
               <DetailRow label="Photo square" value={describeCrop(camera)} />
               <DetailRow label="Camera pointer" value={describeIndicator(camera)} />
+              <DetailRow label="Mirror image" value={camera.mirror ? 'On' : 'Off'} />
               <DetailRow
                 label="Calibration on the tablet"
                 value={
@@ -201,6 +202,7 @@ function CameraValuesModal({
   const [indicatorOn, setIndicatorOn] = useState(Boolean(camera.indicator));
   const [edge, setEdge] = useState<KioskCameraIndicatorEdge>(camera.indicator?.edge ?? 'top');
   const [offset, setOffset] = useState(camera.indicator?.offset ?? 50);
+  const [mirror, setMirror] = useState(camera.mirror);
   const cropValid = !cropOn || (inRange(centerX, 0, 100) && inRange(centerY, 0, 100) && inRange(size, 20, 100));
   const offsetValid = !indicatorOn || inRange(offset, 0, 100);
   const number = (set: (value: number) => void) => (_event: unknown, state: { value: number | string }) =>
@@ -218,6 +220,7 @@ function CameraValuesModal({
         onSubmit({
           crop: cropOn ? { centerX: centerX / 100, centerY: centerY / 100, size: size / 100 } : null,
           indicator: indicatorOn ? { edge, offset } : null,
+          mirror,
         })
       }
     >
@@ -271,6 +274,14 @@ function CameraValuesModal({
           </div>
         )}
         <Toggle
+          id="camera-mirror"
+          labelText="Mirror image"
+          labelA="Off"
+          labelB="On"
+          toggled={mirror}
+          onToggle={setMirror}
+        />
+        <Toggle
           id="camera-indicator-on"
           labelText="Camera pointer"
           labelA="Off"
@@ -311,6 +322,7 @@ function CameraValuesModal({
             onClick={() => {
               setCropOn(false);
               setIndicatorOn(false);
+              setMirror(false);
             }}
           >
             Reset to default

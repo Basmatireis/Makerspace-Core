@@ -23,7 +23,7 @@ function mockKiosk(patch: Record<string, unknown>) {
         capabilities: ['camera'],
         staffDestination: 'login',
         notices: [],
-        camera: { crop: null, indicator: { edge: 'right', offset: 30 } },
+        camera: { crop: null, indicator: { edge: 'right', offset: 30 }, mirror: false },
         cameraCalibrationExpiresAt: calibrationOpen ? new Date(Date.now() + 600_000).toISOString() : null,
         ...patch,
       }),
@@ -81,9 +81,62 @@ describe('camera calibration on the kiosk', () => {
     expect(saved[0]).toEqual({
       crop: { centerX: 0.5, centerY: 0.5, size: 0.99 },
       indicator: { edge: 'top', offset: 30 },
+      mirror: false,
     });
     // Saving closes the window: the kiosk returns to its start screen.
     expect(await screen.findByRole('button', { name: 'Check in' })).toBeInTheDocument();
+  });
+
+  it('mirrors the frame and the photo live, keeps the square in source coordinates and saves the flag', async () => {
+    fakeCamera();
+    const { saved } = mockKiosk({
+      camera: { crop: { centerX: 0.7, centerY: 0.5, size: 0.5 }, indicator: null, mirror: false },
+    });
+    const user = userEvent.setup();
+    renderRoute(<App />, '/kiosk');
+    await frameLoaded();
+    const crop = screen.getByTestId('calibration-crop');
+    // Unmirrored: the 360 px square centred at 70 % of 1280 starts at 716 px.
+    expect(parseFloat(crop.style.left)).toBeCloseTo((716 / 1280) * 100);
+    expect(screen.getByLabelText('Whole camera image').style.transform).toBe('');
+
+    await user.click(screen.getByRole('switch', { name: 'Mirror image' }));
+    expect(screen.getByLabelText('Whole camera image').style.transform).toBe('scaleX(-1)');
+    expect(screen.getByLabelText('Photo preview').style.transform).toBe('scaleX(-1)');
+    // The square is drawn where it appears on the flipped frame.
+    expect(parseFloat(screen.getByTestId('calibration-crop').style.left)).toBeCloseTo((204 / 1280) * 100);
+
+    await user.click(screen.getByRole('button', { name: 'Save calibration' }));
+    await waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]).toEqual({ crop: { centerX: 0.7, centerY: 0.5, size: 0.5 }, indicator: null, mirror: true });
+  });
+
+  it('drags the square to every edge of the full frame, also while mirrored', async () => {
+    fakeCamera();
+    const { saved } = mockKiosk({
+      camera: { crop: { centerX: 0.5, centerY: 0.5, size: 0.5 }, indicator: null, mirror: true },
+    });
+    const user = userEvent.setup();
+    renderRoute(<App />, '/kiosk');
+    await frameLoaded();
+    const box = screen.getByLabelText('Whole camera image').parentElement as HTMLElement;
+    box.getBoundingClientRect = () => ({ width: 1280, height: 720, left: 0, top: 0 }) as DOMRect;
+    box.setPointerCapture = () => undefined;
+    // Dragging left on the mirrored screen moves the square towards the right of the source frame, up to its edge.
+    fireEvent.pointerDown(box, { pointerId: 1, clientX: 600, clientY: 300 });
+    fireEvent.pointerMove(box, { pointerId: 1, clientX: -2000, clientY: 5000 });
+    fireEvent.pointerUp(box, { pointerId: 1 });
+    // On screen the square touches the left edge and the bottom edge.
+    expect(parseFloat(screen.getByTestId('calibration-crop').style.left)).toBe(0);
+    expect(parseFloat(screen.getByTestId('calibration-crop').style.top)).toBeCloseTo(50);
+
+    // The size slider reaches the full shorter side.
+    const size = screen.getByRole('slider', { name: 'Square size (% of the shorter side)' });
+    expect(size).toHaveAttribute('aria-valuemax', '100');
+    await user.click(screen.getByRole('button', { name: 'Save calibration' }));
+    await waitFor(() => expect(saved).toHaveLength(1));
+    // Source coordinates: the mirrored left edge is the source's right edge (centre 1280 - 180 px).
+    expect(saved[0]).toMatchObject({ crop: { centerX: 1100 / 1280, centerY: 540 / 720 }, mirror: true });
   });
 
   it('cancels without saving', async () => {

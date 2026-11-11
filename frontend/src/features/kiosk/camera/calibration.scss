@@ -48,6 +48,11 @@
   block-size: 100%;
 }
 
+// The frame box has the camera's aspect ratio; the whole frame is shown, never cropped.
+.camera-calibration__frame video {
+  object-fit: contain;
+}
+
 .camera-calibration__crop {
   position: absolute;
   box-sizing: border-box;

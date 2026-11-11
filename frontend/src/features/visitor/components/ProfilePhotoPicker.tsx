@@ -3,7 +3,8 @@ import { Camera, UserAvatar } from '@carbon/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import type { KioskCameraSettings } from '../../../api/generated/models';
 import { CameraIndicator } from '../../kiosk/camera/CameraIndicator';
-import { cropSourceRect, previewPlacement } from '../../kiosk/camera/cameraCrop';
+import { cropSourceRect, drawCrop, previewPlacement } from '../../kiosk/camera/cameraCrop';
+import { openKioskCamera } from '../../kiosk/camera/cameraStream';
 import { ProfilePhotoCropper } from '../../users/ProfilePhotoCropper';
 
 export type ProfileImage = { base64: string; filename: string; preview: string };
@@ -71,7 +72,7 @@ export function ProfilePhotoPicker({
   const startCamera = async () => {
     try {
       stream.current?.getTracks().forEach((track) => track.stop());
-      stream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      stream.current = await openKioskCamera();
       if (video.current) video.current.srcObject = stream.current;
       setCameraOn(true);
       setError('');
@@ -95,7 +96,7 @@ export function ProfilePhotoPicker({
     const side = Math.round(rect.side);
     canvas.width = side;
     canvas.height = side;
-    canvas.getContext('2d')!.drawImage(source, rect.x, rect.y, rect.side, rect.side, 0, 0, side, side);
+    drawCrop(canvas.getContext('2d')!, source, rect, side, Boolean(camera?.mirror));
     setSource(canvas.toDataURL('image/jpeg', 0.9));
     stopCamera();
     setError('');
@@ -170,7 +171,12 @@ export function ProfilePhotoPicker({
               hidden={!cameraOn || Boolean(image)}
               style={
                 frame
-                  ? previewPlacement(cropSourceRect(camera?.crop, frame.width, frame.height), frame.width, frame.height)
+                  ? previewPlacement(
+                      cropSourceRect(camera?.crop, frame.width, frame.height),
+                      frame.width,
+                      frame.height,
+                      camera?.mirror,
+                    )
                   : undefined
               }
               onLoadedMetadata={(event) => {

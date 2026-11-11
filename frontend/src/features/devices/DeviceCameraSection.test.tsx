@@ -38,6 +38,7 @@ function serve(permissions: PermissionId[]) {
   let camera = {
     crop: { centerX: 0.6, centerY: 0.45, size: 0.7 },
     indicator: null,
+    mirror: false,
     calibrationExpiresAt: null,
   } as Record<string, unknown>;
   server.use(
@@ -82,6 +83,7 @@ describe('kiosk camera settings', () => {
     const user = userEvent.setup();
     renderRoute(<App />, `/settings/devices-sessions/devices/${deviceId}`);
     expect(await screen.findByText(/Centre 60 % from the left, 45 % from the top · size 70 %/)).toBeInTheDocument();
+    expect(screen.getByText('Mirror image')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Calibrate on the tablet' }));
     expect(await screen.findByText(/Open until/)).toBeInTheDocument();
@@ -90,6 +92,7 @@ describe('kiosk camera settings', () => {
 
     await user.click(screen.getByRole('button', { name: 'Edit values' }));
     const dialog = await screen.findByRole('dialog', { name: 'Kiosk camera values' });
+    await user.click(within(dialog).getByRole('switch', { name: 'Mirror image' }));
     await user.click(within(dialog).getByRole('switch', { name: 'Camera pointer' }));
     await user.selectOptions(within(dialog).getByLabelText('Screen edge next to the lens'), 'right');
     const offset = within(dialog).getByLabelText('Position from the top (%)');
@@ -103,6 +106,7 @@ describe('kiosk camera settings', () => {
     expect(calls.puts[0]).toEqual({
       crop: { centerX: 0.6, centerY: 0.45, size: 0.7 },
       indicator: { edge: 'right', offset: 12.5 },
+      mirror: true,
     });
 
     await user.click(await screen.findByRole('button', { name: 'Edit values' }));
@@ -110,7 +114,7 @@ describe('kiosk camera settings', () => {
     await user.click(within(again).getByRole('button', { name: 'Reset to default' }));
     await user.click(within(again).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(calls.puts).toHaveLength(2));
-    expect(calls.puts[1]).toEqual({ crop: null, indicator: null });
+    expect(calls.puts[1]).toEqual({ crop: null, indicator: null, mirror: false });
   });
 
   it('shows the values without controls to read-only staff', async () => {

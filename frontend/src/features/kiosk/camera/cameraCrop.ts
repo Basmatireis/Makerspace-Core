@@ -39,17 +39,45 @@ export function clampCrop(crop: KioskCameraCrop, width: number, height: number):
  * Positions the whole camera frame inside a square viewport so that exactly `rect` fills it. Percentages of a square
  * box are the same along both axes, so the viewport may have any size.
  */
-export function previewPlacement(rect: SourceRect, width: number, height: number): CSSProperties {
+export function previewPlacement(rect: SourceRect, width: number, height: number, mirror = false): CSSProperties {
   const scale = 100 / rect.side;
+  // The flipped frame shows the source square at its mirror position, so the box is shifted there.
+  const x = mirror ? width - rect.x - rect.side : rect.x;
   return {
     position: 'absolute',
     inlineSize: `${width * scale}%`,
     blockSize: `${height * scale}%`,
-    insetInlineStart: `${-rect.x * scale}%`,
+    insetInlineStart: `${-x * scale}%`,
     insetBlockStart: `${-rect.y * scale}%`,
     maxInlineSize: 'none',
     objectFit: 'fill',
+    transform: mirror ? 'scaleX(-1)' : undefined,
   };
+}
+
+/** Where `rect` appears when the frame is shown mirrored: the same square, flipped across the frame's centre. */
+export function displayedRect(rect: SourceRect, width: number, mirror: boolean): SourceRect {
+  return mirror ? { ...rect, x: width - rect.x - rect.side } : rect;
+}
+
+/**
+ * Draws `rect` of the camera frame into a `side`×`side` canvas context. Mirrored, the picture is flipped so the photo
+ * is what the preview showed; the source square itself is the same either way.
+ */
+export function drawCrop(
+  context: Pick<CanvasRenderingContext2D, 'drawImage' | 'save' | 'restore' | 'translate' | 'scale'>,
+  video: CanvasImageSource,
+  rect: SourceRect,
+  side: number,
+  mirror: boolean,
+) {
+  context.save();
+  if (mirror) {
+    context.translate(side, 0);
+    context.scale(-1, 1);
+  }
+  context.drawImage(video, rect.x, rect.y, rect.side, rect.side, 0, 0, side, side);
+  context.restore();
 }
 
 /** Where the lens pointer sits: on the given screen edge, `offset` percent along it (from the left or the top). */
