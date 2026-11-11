@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import {
   getTerminalContext,
   listTerminalPresence,
@@ -24,6 +24,13 @@ import { SurveyOfferScreen } from './components/SurveyOfferScreen';
 import './kiosk.scss';
 
 const presenceKey = ['kiosk', 'presence'] as const;
+
+// Only shown while staff calibrate this tablet, so it stays out of the kiosk's own chunk.
+const CameraCalibrationScreen = lazy(() =>
+  import('./camera/CameraCalibrationScreen').then(({ CameraCalibrationScreen }) => ({
+    default: CameraCalibrationScreen,
+  })),
+);
 
 type ResultState = {
   kind: 'result';
@@ -50,8 +57,8 @@ export function VisitorKioskPage() {
     queryKey: ['kiosk', 'context'],
     queryFn: ({ signal }) => getTerminalContext({ signal }),
     retry: false,
-    // Rule notices arrive with the context, so the tablet asks again now and then.
-    refetchInterval: 60_000,
+    // Rule notices and a camera calibration started by staff arrive with the context, so the tablet asks again often.
+    refetchInterval: 20_000,
   });
   const presence = useQuery({
     queryKey: presenceKey,
@@ -63,6 +70,8 @@ export function VisitorKioskPage() {
   const branding = useBranding();
   const [screen, setScreen] = useState<Screen>({ kind: 'home' });
   const now = useClock();
+  // The calibration window this tablet finished locally, so it leaves the screen before the next context poll.
+  const [calibrated, setCalibrated] = useState<string>();
   const publicCheckout = useMutation({
     mutationFn: (visitId: string) => terminalPublicCheckOut(visitId),
     onSuccess: (visit) => {
@@ -109,6 +118,25 @@ export function VisitorKioskPage() {
     );
 
   const context = kiosk.data;
+  const calibrationUntil = context.cameraCalibrationExpiresAt;
+  if (
+    calibrationUntil &&
+    calibrationUntil !== calibrated &&
+    new Date(calibrationUntil) > now &&
+    context.capabilities.includes('camera')
+  )
+    return (
+      <Suspense fallback={<FullPageLoading label="Loading camera calibration" />}>
+        <CameraCalibrationScreen
+          camera={context.camera}
+          expiresAt={calibrationUntil}
+          onDone={() => {
+            setCalibrated(calibrationUntil);
+            void queryClient.invalidateQueries({ queryKey: ['kiosk', 'context'] });
+          }}
+        />
+      </Suspense>
+    );
   const contextNotices = context.notices ?? [];
   const publicTap = context.allowTapCheckout;
   const home = () => {
