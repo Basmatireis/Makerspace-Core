@@ -185,7 +185,17 @@ export function CameraCalibrationScreen({
               const { videoWidth, videoHeight } = event.currentTarget;
               if (videoWidth && videoHeight) setFrame({ width: videoWidth, height: videoHeight });
             }}
+            // The camera may switch to its full-size mode after the first frame arrived.
+            onResize={(event) => {
+              const { videoWidth, videoHeight } = event.currentTarget;
+              if (videoWidth && videoHeight) setFrame({ width: videoWidth, height: videoHeight });
+            }}
           />
+          {frame && (
+            <span className="camera-calibration__resolution">
+              {frame.width} × {frame.height}
+            </span>
+          )}
           {frame && shown && (
             <span
               className="camera-calibration__crop"

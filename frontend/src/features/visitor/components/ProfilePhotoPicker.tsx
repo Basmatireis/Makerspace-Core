@@ -183,6 +183,10 @@ export function ProfilePhotoPicker({
                 const { videoWidth, videoHeight } = event.currentTarget;
                 if (videoWidth && videoHeight) setFrame({ width: videoWidth, height: videoHeight });
               }}
+              onResize={(event) => {
+                const { videoWidth, videoHeight } = event.currentTarget;
+                if (videoWidth && videoHeight) setFrame({ width: videoWidth, height: videoHeight });
+              }}
             />
             {countdown !== undefined && countdown > 0 && (
               <span className="camera-countdown" aria-hidden="true">

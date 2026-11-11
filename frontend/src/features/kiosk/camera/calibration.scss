@@ -62,6 +62,18 @@
   cursor: move;
 }
 
+// The camera mode actually delivered, so a cropped stream is visible while calibrating.
+.camera-calibration__resolution {
+  @include type-style('label-01');
+  position: absolute;
+  inset-block-end: $spacing-03;
+  inset-inline-start: $spacing-03;
+  padding: $spacing-01 $spacing-03;
+  background: $background-inverse;
+  color: $text-inverse;
+  pointer-events: none;
+}
+
 .camera-calibration__side {
   display: grid;
   gap: $spacing-06;

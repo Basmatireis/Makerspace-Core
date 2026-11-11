@@ -3,24 +3,34 @@
  * calibration is made on exactly the image the wizard later shows.
  *
  * Without a resolution, browsers open a small default mode (often 640×480) that many tablet cameras serve from a
- * cropped or binned part of the sensor, which narrows the field of view. Asking for an ideal of 4096×4096 makes the
- * browser pick the largest mode the camera offers, which is its full-sensor mode, without hard-failing (`ideal` never
- * rejects) on cameras that top out lower. That is more robust than hard-coding 1920×1080, a 16:9 mode that is usually a
- * crop of a 4:3 sensor, and than reading `getCapabilities()` first, which not every browser implements and which can
- * name a maximum width and height that no single mode combines. `resizeMode: 'none'` (Chrome) forbids the browser from
- * cropping or scaling the native mode to fit the request.
+ * cropped or binned part of the sensor, which narrows the field of view. Only the width is asked for: a width and a
+ * height together also ask for their aspect ratio, and browsers that crop to fit (Safari, so every iPad) then cut the
+ * sensor image down to it — 4096×4096 gave a square. `resizeMode: 'none'` (Chrome) forbids cropping or scaling the
+ * native mode. After opening, the track is moved to its largest native size where the browser reports capabilities.
  */
 export const kioskCameraConstraints: MediaStreamConstraints = {
   video: {
     facingMode: 'user',
     width: { ideal: 4096 },
-    height: { ideal: 4096 },
     // Part of the Media Capture spec Chrome implements, but missing from TypeScript's lib typings.
     resizeMode: 'none',
   } as MediaTrackConstraints,
   audio: false,
 };
 
-export function openKioskCamera(): Promise<MediaStream> {
-  return navigator.mediaDevices.getUserMedia(kioskCameraConstraints);
+export async function openKioskCamera(): Promise<MediaStream> {
+  const stream = await navigator.mediaDevices.getUserMedia(kioskCameraConstraints);
+  const [track] = stream.getVideoTracks?.() ?? [];
+  const capabilities = track?.getCapabilities?.();
+  if (track && capabilities?.width?.max && capabilities.height?.max) {
+    // `ideal` never rejects; a camera without a mode of exactly this size picks its closest native one.
+    await track
+      .applyConstraints({
+        width: { ideal: capabilities.width.max },
+        height: { ideal: capabilities.height.max },
+        resizeMode: 'none',
+      } as MediaTrackConstraints)
+      .catch(() => undefined);
+  }
+  return stream;
 }
