@@ -159,7 +159,8 @@ export function CredentialsScreen({
       <h1 className="tablet-identify__title">{mode === 'check-in' ? 'Who is arriving?' : 'Who is leaving?'}</h1>
 
       {/* First-time visitors have no credentials yet: their way in sits right under the question. */}
-      {mode === 'check-in' && (
+      {/* Once a code is on its way the screen belongs to it, so the code and keypad fit without scrolling. */}
+      {mode === 'check-in' && !(emailCode && codeSent) && (
         <div className="tablet-register">
           <div>
             <p className="tablet-register__title">First time here?</p>
@@ -173,7 +174,7 @@ export function CredentialsScreen({
         </div>
       )}
 
-      {available.length > 1 && (
+      {available.length > 1 && !(emailCode && codeSent) && (
         <ContentSwitcher
           size="lg"
           selectedIndex={available.indexOf(activeMethod)}
