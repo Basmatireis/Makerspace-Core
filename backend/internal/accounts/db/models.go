@@ -2309,6 +2309,7 @@ type SurveyOffer struct {
 	ConsumedAt      pgtype.Timestamptz
 	CreatedAt       time.Time
 	PersonID        *uuid.UUID
+	AfterTap        bool
 }
 
 type SurveyQuestion struct {

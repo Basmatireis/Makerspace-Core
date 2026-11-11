@@ -187,8 +187,8 @@ func declarations() []privacy.Definition {
 		},
 		{
 			ID: SurveyOffers, Owner: Attendance, Name: "Tablet survey offers",
-			Description: "A survey the tablet offered after a check-out: the digest of its single-use token, the person, the tablet and the survey, valid for 15 minutes.",
-			Contains:    "The digest of the offer's token, the person and a check-out reference (both cleared when the offer is used), the tablet, the survey and the expiry time",
+			Description: "A survey the tablet offered after a check-out, also after a tap in the presence list: the digest of its single-use token, the person, the tablet and the survey, valid for 15 minutes. Answers after a tap are stored without a person.",
+			Contains:    "The digest of the offer's token, the person and a check-out reference (both cleared when the offer is used), whether it followed a tap, the tablet, the survey and the expiry time",
 			Fields:      []string{"survey_offers.token_digest", "survey_offers.visit_id"},
 			Triggers:    []privacy.Trigger{privacy.TriggerExpiredAt},
 			Actions:     []privacy.Action{privacy.ActionDelete},

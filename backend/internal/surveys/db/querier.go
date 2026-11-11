@@ -53,14 +53,17 @@ type Querier interface {
 	GetSurvey(ctx context.Context, id uuid.UUID) (GetSurveyRow, error)
 	GetSurveyForUpdate(ctx context.Context, id uuid.UUID) (Survey, error)
 	GetSurveyInvitationCounts(ctx context.Context, surveyID uuid.UUID) (GetSurveyInvitationCountsRow, error)
-	// An offer that is still usable on this tablet; every other case reads as not found. An offer that names no person
-	// (after a tap check-out) is answered anonymously whatever the survey says.
+	// An offer that is still usable on this tablet; every other case reads as not found. An offer after a tap check-out
+	// is answered anonymously whatever the survey says.
 	GetSurveyOffer(ctx context.Context, arg GetSurveyOfferParams) (GetSurveyOfferRow, error)
 	GetSurveyOfferForUpdate(ctx context.Context, arg GetSurveyOfferForUpdateParams) (GetSurveyOfferForUpdateRow, error)
 	GetSurveyResponseOverview(ctx context.Context, surveyID uuid.UUID) (GetSurveyResponseOverviewRow, error)
 	GetSurveyShareLink(ctx context.Context, arg GetSurveyShareLinkParams) (GetSurveyShareLinkRow, error)
 	GetSurveyShareLinkByDigest(ctx context.Context, tokenDigest []byte) (GetSurveyShareLinkByDigestRow, error)
 	GetSurveyTrigger(ctx context.Context, surveyID uuid.UUID) (SurveyTrigger, error)
+	// Whether the automatic e-mail of this check-out will bring the survey anyway: it exists only when the person agreed
+	// to Surveys & feedback and has an address.
+	HasPendingSurveyInvitationForVisit(ctx context.Context, arg HasPendingSurveyInvitationForVisitParams) (bool, error)
 	ListEligiblePostVisitTriggers(ctx context.Context, personID uuid.UUID) ([]ListEligiblePostVisitTriggersRow, error)
 	// Published surveys whose check-out trigger asks at the tablet and whose cooldown allows asking this person. The
 	// invitations of the visit being checked out do not count: they were created a moment ago.

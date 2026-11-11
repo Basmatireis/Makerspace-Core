@@ -159,6 +159,6 @@ func surveyOfferDTO(offer *surveys.Offer) *openapi.TerminalSurveyOffer {
 	return &openapi.TerminalSurveyOffer{
 		OfferToken: offer.Token, SurveyName: offer.SurveyName, QuestionCount: offer.QuestionCount,
 		Anonymous: offer.Anonymous, CanAnswerNow: offer.CanAnswerNow, CanSendByEmail: offer.CanSendByEmail,
-		CanStopAsking: offer.CanStopAsking, ExpiresAt: offer.ExpiresAt,
+		MailConsent: offer.MailConsent, CanStopAsking: offer.CanStopAsking, ExpiresAt: offer.ExpiresAt,
 	}
 }

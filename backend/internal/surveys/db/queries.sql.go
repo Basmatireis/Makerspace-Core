@@ -388,9 +388,10 @@ func (q *Queries) CreateSurveyInvitation(ctx context.Context, arg CreateSurveyIn
 }
 
 const createSurveyOffer = `-- name: CreateSurveyOffer :exec
-INSERT INTO survey_offers (id, token_digest, visit_id, person_id, device_id, survey_id, survey_version_id, expires_at)
+INSERT INTO survey_offers (id, token_digest, visit_id, person_id, device_id, survey_id, survey_version_id, expires_at,
+  after_tap)
 VALUES ($1, $2, $3, $4, $5, $6,
-  $7, $8)
+  $7, $8, $9)
 `
 
 type CreateSurveyOfferParams struct {
@@ -402,6 +403,7 @@ type CreateSurveyOfferParams struct {
 	SurveyID        uuid.UUID
 	SurveyVersionID uuid.UUID
 	ExpiresAt       time.Time
+	AfterTap        bool
 }
 
 func (q *Queries) CreateSurveyOffer(ctx context.Context, arg CreateSurveyOfferParams) error {
@@ -414,6 +416,7 @@ func (q *Queries) CreateSurveyOffer(ctx context.Context, arg CreateSurveyOfferPa
 		arg.SurveyID,
 		arg.SurveyVersionID,
 		arg.ExpiresAt,
+		arg.AfterTap,
 	)
 	return err
 }
@@ -998,7 +1001,7 @@ func (q *Queries) GetSurveyInvitationCounts(ctx context.Context, surveyID uuid.U
 
 const getSurveyOffer = `-- name: GetSurveyOffer :one
 SELECT o.id, o.visit_id, o.survey_id, o.survey_version_id, o.expires_at,
-  (s.anonymous OR o.person_id IS NULL)::boolean AS anonymous, s.status AS survey_status, sv.title, sv.introduction
+  (s.anonymous OR o.after_tap)::boolean AS anonymous, s.status AS survey_status, sv.title, sv.introduction
 FROM survey_offers o
 JOIN surveys s ON s.id = o.survey_id
 JOIN survey_versions sv ON sv.id = o.survey_version_id
@@ -1023,8 +1026,8 @@ type GetSurveyOfferRow struct {
 	Introduction    *string
 }
 
-// An offer that is still usable on this tablet; every other case reads as not found. An offer that names no person
-// (after a tap check-out) is answered anonymously whatever the survey says.
+// An offer that is still usable on this tablet; every other case reads as not found. An offer after a tap check-out
+// is answered anonymously whatever the survey says.
 func (q *Queries) GetSurveyOffer(ctx context.Context, arg GetSurveyOfferParams) (GetSurveyOfferRow, error) {
 	row := q.db.QueryRow(ctx, getSurveyOffer, arg.TokenDigest, arg.DeviceID)
 	var i GetSurveyOfferRow
@@ -1043,8 +1046,8 @@ func (q *Queries) GetSurveyOffer(ctx context.Context, arg GetSurveyOfferParams) 
 }
 
 const getSurveyOfferForUpdate = `-- name: GetSurveyOfferForUpdate :one
-SELECT o.id, o.visit_id, o.person_id, o.survey_id, o.survey_version_id, o.expires_at,
-  (s.anonymous OR o.person_id IS NULL)::boolean AS anonymous, s.status AS survey_status
+SELECT o.id, o.visit_id, o.person_id, o.survey_id, o.survey_version_id, o.expires_at, o.after_tap,
+  (s.anonymous OR o.after_tap)::boolean AS anonymous, s.status AS survey_status
 FROM survey_offers o
 JOIN surveys s ON s.id = o.survey_id
 WHERE o.token_digest = $1 AND o.device_id = $2
@@ -1064,6 +1067,7 @@ type GetSurveyOfferForUpdateRow struct {
 	SurveyID        uuid.UUID
 	SurveyVersionID uuid.UUID
 	ExpiresAt       time.Time
+	AfterTap        bool
 	Anonymous       bool
 	SurveyStatus    string
 }
@@ -1078,6 +1082,7 @@ func (q *Queries) GetSurveyOfferForUpdate(ctx context.Context, arg GetSurveyOffe
 		&i.SurveyID,
 		&i.SurveyVersionID,
 		&i.ExpiresAt,
+		&i.AfterTap,
 		&i.Anonymous,
 		&i.SurveyStatus,
 	)
@@ -1220,6 +1225,28 @@ func (q *Queries) GetSurveyTrigger(ctx context.Context, surveyID uuid.UUID) (Sur
 		&i.AskAtTablet,
 	)
 	return i, err
+}
+
+const hasPendingSurveyInvitationForVisit = `-- name: HasPendingSurveyInvitationForVisit :one
+SELECT EXISTS (
+  SELECT 1 FROM survey_invitations
+  WHERE visit_id = $1 AND survey_version_id = $2
+    AND status = 'pending' AND recipient_email IS NOT NULL
+)::boolean AS pending
+`
+
+type HasPendingSurveyInvitationForVisitParams struct {
+	VisitID         *uuid.UUID
+	SurveyVersionID uuid.UUID
+}
+
+// Whether the automatic e-mail of this check-out will bring the survey anyway: it exists only when the person agreed
+// to Surveys & feedback and has an address.
+func (q *Queries) HasPendingSurveyInvitationForVisit(ctx context.Context, arg HasPendingSurveyInvitationForVisitParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasPendingSurveyInvitationForVisit, arg.VisitID, arg.SurveyVersionID)
+	var pending bool
+	err := row.Scan(&pending)
+	return pending, err
 }
 
 const listEligiblePostVisitTriggers = `-- name: ListEligiblePostVisitTriggers :many

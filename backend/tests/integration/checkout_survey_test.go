@@ -301,6 +301,38 @@ func TestOfferedIdentifiedSurveyLinksTheResponseToThePerson(t *testing.T) {
 	}
 }
 
+// mailConsent tells the tablet whether the survey reaches the person by e-mail anyway; an answer on the tablet then
+// keeps that e-mail from following, for anonymous and identified surveys alike.
+func TestAnsweringTheOfferAtTheTabletKeepsTheSurveyOutOfTheMailbox(t *testing.T) {
+	for _, anonymous := range []bool{true, false} {
+		e := newCheckoutEnv(t, anonymous)
+		without, _ := e.person("noconsent", false, e.device.Device.ID)
+		if offer := e.selfCheckOut(without, e.device).SurveyOffer; offer == nil || offer.MailConsent || !offer.CanSendByEmail {
+			t.Fatalf("offer without consent = %+v", offer)
+		}
+		a, _ := e.person("answers", true, e.device.Device.ID)
+		offer := e.selfCheckOut(a, e.device).SurveyOffer
+		if offer == nil || !offer.MailConsent || !offer.CanStopAsking || offer.Anonymous != anonymous {
+			t.Fatalf("offer with consent = %+v", offer)
+		}
+		survey, err := e.svc.OfferedSurvey(e.ctx, e.device.Device.ID, offer.Token)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = e.svc.SubmitOffered(e.ctx, e.device.Device.ID, offer.Token,
+			[]surveys.AnswerInput{answerChoice(survey.Questions[0], "No")}); err != nil {
+			t.Fatal(err)
+		}
+		if e.count(`SELECT count(*) FROM survey_invitations WHERE status <> 'cancelled' OR person_id IS NOT NULL
+			OR recipient_email IS NOT NULL`) != 0 {
+			t.Fatal("the invitation of the answered survey is still deliverable")
+		}
+		if sent := e.deliver(); sent != 0 {
+			t.Fatalf("%d survey e-mails followed an answer on the tablet (anonymous=%v)", sent, anonymous)
+		}
+	}
+}
+
 func TestSendingTheOfferByEmailWorksWithoutConsentAndLeavesConsentAlone(t *testing.T) {
 	e := newCheckoutEnv(t, true)
 	a, _ := e.person("mail", false, e.device.Device.ID)

@@ -52,7 +52,7 @@ type PostVisitSurveyTrigger interface {
 	CreatePostVisitInvitations(context.Context, pgx.Tx, uuid.UUID, uuid.UUID) error
 	// OfferAtCheckOut may offer a survey on the tablet after a self check-out; it returns nil when nothing is offered.
 	OfferAtCheckOut(ctx context.Context, tx pgx.Tx, personID, visitID, deviceID uuid.UUID) (*surveys.Offer, error)
-	// OfferAfterTapCheckOut may offer a survey on the tablet after a tap check-out; the offer names nobody.
+	// OfferAfterTapCheckOut may offer a survey on the tablet after a tap check-out; its answers stay anonymous.
 	OfferAfterTapCheckOut(ctx context.Context, tx pgx.Tx, personID, checkOutRef, deviceID uuid.UUID) (*surveys.Offer, error)
 }
 
@@ -635,7 +635,8 @@ func (s *Service) PublicCheckOut(
 			return Visit{}, err
 		}
 	}
-	// Anyone can tap any name, so the tablet's offer after a tap names nobody and its answers stay anonymous.
+	// Anyone can tap any name, so the answers to the tablet's offer after a tap stay anonymous; the offer names the
+	// tapped person only while it is open, to e-mail the survey to them and to hold back the automatic e-mail.
 	var offer *surveys.Offer
 	if s.surveys != nil && kiosk.OfferSurveysAtCheckout {
 		if offer, err = s.surveys.OfferAfterTapCheckOut(ctx, tx, row.PersonID, checkOutRef, device.ID); err != nil {

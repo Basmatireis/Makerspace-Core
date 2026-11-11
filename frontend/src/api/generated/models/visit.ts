@@ -53,6 +53,6 @@ export interface Visit {
   consentRequired?: boolean;
   /** @maxItems 50 */
   consentCategories?: TerminalConsentCategory[];
-  /** Only the answer of a tablet check-out (with a password, PIN or emailed code, or by a tap in the presence list) carries an offer, and only when the tablet offers surveys, a published survey asks at the tablet, the checked-out person did not switch the question off and the survey's cooldown allows it. An offer after a tap names nobody, and its answers are stored without a person. */
+  /** Only the answer of a tablet check-out (with a password, PIN or emailed code, or by a tap in the presence list) carries an offer, and only when the tablet offers surveys, a published survey asks at the tablet, the checked-out person did not switch the question off and the survey's cooldown allows it. An offer after a tap names the tapped person only while it is open (to e-mail the survey to their own address and to hold back the automatic e-mail after an answer here); its answers are stored without a person. */
   surveyOffer?: TerminalSurveyOffer;
 }

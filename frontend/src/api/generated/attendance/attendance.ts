@@ -493,7 +493,7 @@ export const getTerminalSurveyOfferSubmitUrl = (token: string,) => {
 }
 
 /**
- * Anonymous surveys store the response exactly like an anonymous invitation redemption (no person, no visit). Identified surveys link the response to the person. The offer is consumed and the post-visit invitation of that visit is cancelled. The answers to an offer made after a tap check-out are always stored without a person and leave the invitations alone.
+ * Anonymous surveys store the response exactly like an anonymous invitation redemption (no person, no visit). Identified surveys link the response to the person. The offer is consumed and the post-visit invitation of that check-out is cancelled, so the survey is not e-mailed as well. The answers to an offer made after a tap check-out are always stored without a person; its invitation is cancelled the same way.
  * @summary Submit the answers to the offered survey
  */
 export const terminalSurveyOfferSubmit = async (token: string,
@@ -532,7 +532,7 @@ export const getTerminalSurveyOfferSendEmailUrl = (token: string,) => {
 }
 
 /**
- * Bypasses the trigger delay and works even when the person's Surveys & feedback consent is off (it is an explicit one-off request; the consent stays as it is). 422 `no_email` when the person has no e-mail address; 404 for an offer made after a tap check-out.
+ * Bypasses the trigger delay and works even when the person's Surveys & feedback consent is off (it is an explicit one-off request; the consent stays as it is). After a tap check-out it goes to the tapped person's own address on file. One offer sends at most one e-mail. 422 `no_email` when the person has no e-mail address.
  * @summary Send the survey invitation by e-mail right away
  */
 export const terminalSurveyOfferSendEmail = async (token: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
@@ -556,7 +556,7 @@ export const getTerminalSurveyOfferDeclineUrl = (token: string,) => {
 }
 
 /**
- * Consumes the offer and cancels the post-visit invitation of that visit. The survey's cooldown for this person started with the offer. An offer made after a tap check-out is only consumed.
+ * Consumes the offer and cancels the post-visit invitation of that visit. The survey's cooldown for this person started with the offer. An offer made after a tap check-out is only consumed and, since anyone can tap any name, leaves the tapped person's invitation alone.
  * @summary Decline the offered survey ("No thanks")
  */
 export const terminalSurveyOfferDecline = async (token: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
@@ -580,7 +580,7 @@ export const getTerminalSurveyOfferNeverUrl = (token: string,) => {
 }
 
 /**
- * Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit. 404 for an offer made after a tap check-out, which names nobody.
+ * Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit. 404 for an offer made after a tap check-out, since anyone can tap any name.
  * @summary Decline and switch off feedback questions at check-out for this person
  */
 export const terminalSurveyOfferNever = async (token: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
