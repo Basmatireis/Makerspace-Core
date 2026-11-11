@@ -58,6 +58,7 @@ import {
   ProfilePage,
   PublicEventPage,
   NotificationCenterPage,
+  NotificationSettingsPage,
   MyNotificationsPage,
   SubscriptionPage,
   PublicSurveyPage,
@@ -180,6 +181,17 @@ export function App() {
               <ColorSchemeRoot>
                 <ProtectedRoute>
                   <PrintPage />
+                </ProtectedRoute>
+              </ColorSchemeRoot>
+            }
+          />
+          {/* Linked from every mail. The only page a restricted session (a visitor with a mailed code) may open. */}
+          <Route
+            path="/notification-settings"
+            element={
+              <ColorSchemeRoot>
+                <ProtectedRoute allowRestricted>
+                  <NotificationSettingsPage />
                 </ProtectedRoute>
               </ColorSchemeRoot>
             }

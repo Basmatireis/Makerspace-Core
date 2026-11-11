@@ -755,6 +755,9 @@ export function createWorld(permissions: string[] = staffPermissions) {
   const unhandled: string[] = [];
   const world = {
     permissions,
+    /** `notification_settings` serves /auth/me as a restricted session opened from a mailed link. */
+    restriction: null as null | 'notification_settings',
+    notificationSettings: notificationSettings(),
     machines,
     materials,
     spools,
@@ -939,7 +942,42 @@ function ok(route: Route, body: unknown, status = 200) {
 }
 const notFound = (route: Route) => ok(route, { code: 'not_found', message: 'Not found' }, 404);
 
-function currentUser(permissions: string[]) {
+/** The notification settings of the signed-in person (and of the person the staff view opens). */
+function notificationSettings() {
+  const consent = (n: number, name: string, basis: string, granted: boolean | null) => ({
+    categoryId: id(n),
+    key: null,
+    name,
+    description: `${name} messages.`,
+    basis,
+    textVersion: 1,
+    granted,
+    answeredAt: granted === null ? null : '2026-10-01T10:00:00Z',
+    current: true,
+  });
+  return {
+    consents: [consent(951, 'Service & safety', 'required', null), consent(952, 'News & events', 'consent', true)],
+    consentPending: false,
+    askFeedbackAtCheckout: true,
+    rules: [
+      {
+        ruleId: id(961),
+        name: 'Monthly newsletter',
+        description: '',
+        categoryId: id(952),
+        categoryName: 'News & events',
+        mandatory: false,
+        why: ['You are a member'],
+        triggerSummary: 'Once a month',
+        defaultChannels: ['email'],
+        effectiveChannels: ['email'],
+        blockedByConsent: false,
+      },
+    ],
+  };
+}
+
+function currentUser(permissions: string[], restriction: string | null = null) {
   const personId = id(1);
   const accountId = id(2);
   const account = {
@@ -988,6 +1026,7 @@ function currentUser(permissions: string[]) {
       idleExpiresAt: '2099-01-01T01:00:00Z',
       absoluteExpiresAt: '2099-01-02T00:00:00Z',
       postSessionDestination: 'login',
+      restriction,
     },
     delegablePermissionGrants: permissions.map((permissionId) => ({
       permissionId,
@@ -1132,7 +1171,8 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
         : (request.postDataJSON() as Record<string, unknown>);
     let match: RegExpMatchArray | null;
 
-    if (path === '/api/v1/auth/activity' && method === 'POST') return ok(route, currentUser(world.permissions).session);
+    if (path === '/api/v1/auth/activity' && method === 'POST')
+      return ok(route, currentUser(world.permissions, world.restriction).session);
     // The header bell polls the unread count on every page.
     if (path === '/api/v1/notifications/unread-count') return ok(route, { unreadCount: 0, fresh: [], pinned: [] });
     if (method !== 'GET')
@@ -1144,7 +1184,8 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
       });
 
     // Session, branding
-    if (path === '/api/v1/auth/me') return ok(route, currentUser(world.permissions));
+    if (path === '/api/v1/auth/me')
+      return ok(route, currentUser(world.restriction ? [] : world.permissions, world.restriction));
     // The dashboard is where redirects land; it asks for these three once it renders.
     if (path === '/api/v1/me/dashboard') return ok(route, { person: { firstName: 'Ada', memberSince: '2025-01-01' } });
     if (path === '/api/v1/laborordnung/status/me') return ok(route, currentUser(world.permissions).laborordnungStatus);
@@ -1629,6 +1670,22 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
       const found = world.spools.find((item) => item.id === match![1]);
       return found ? ok(route, found) : notFound(route);
     }
+
+    // Notification settings: the standalone page behind every mail's link, and the staff view of a person.
+    if (path === '/api/v1/me/notifications/settings') return ok(route, world.notificationSettings);
+    if (path === '/api/v1/me/notifications/consents' && method === 'PUT') return ok(route, world.notificationSettings);
+    if (path === '/api/v1/me/notifications/feedback-at-checkout' && method === 'PUT') {
+      world.notificationSettings.askFeedbackAtCheckout = Boolean(body?.ask);
+      return route.fulfill({ status: 204 });
+    }
+    if ((match = path.match(/^\/api\/v1\/me\/notifications\/rules\/([^/]+)\/preference$/)) && method === 'PUT') {
+      const rule = world.notificationSettings.rules.find((item) => item.ruleId === match?.[1]);
+      if (!rule) return notFound(route);
+      rule.effectiveChannels = [...(body?.inApp ? ['in_app'] : []), ...(body?.email ? ['email'] : [])];
+      return route.fulfill({ status: 204 });
+    }
+    if ((match = path.match(/^\/api\/v1\/people\/([^/]+)\/notification-settings$/)) && method === 'GET')
+      return ok(route, { personId: match[1], hasAccount: true, settings: world.notificationSettings });
 
     // Print pages (opened by link outside the shell): the linked run has one, everything else is "not available".
     if ((match = path.match(/^\/api\/v1\/print-pages\/([^/]+)$/)) && method === 'GET') {
