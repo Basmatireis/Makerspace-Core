@@ -144,12 +144,13 @@ describe('controlled visitor enrollment', () => {
 
     // Step 3: the profile photo is a step of its own and required on this device.
     expect(await screen.findByRole('heading', { name: 'Profile photo' })).toHaveFocus();
-    const next = screen.getByRole('button', { name: 'Next' });
-    expect(next).toBeDisabled();
-    await choosePhoto(user);
-    expect(await screen.findByAltText('Selected profile')).toBeInTheDocument();
-    await waitFor(() => expect(next).toBeEnabled());
-    await user.click(next);
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    // While the photo is positioned, "Retake photo" and "Use photo" take Next's place; "Use photo" moves on.
+    await choosePhoto(user, () => {
+      const footer = screen.getByRole('contentinfo');
+      expect(within(footer).queryByRole('button', { name: 'Next' })).toBeNull();
+      expect(within(footer).getByRole('button', { name: 'Retake photo' })).toBeInTheDocument();
+    });
 
     // Step 4: nothing is preselected and every switch may stay off.
     expect(await screen.findByRole('heading', { name: 'Messages' })).toHaveFocus();
@@ -438,7 +439,7 @@ async function openRulesAndAccept(user: ReturnType<typeof userEvent.setup>) {
 }
 
 // Choosing a file opens the round-mask cropper; the photo only counts once it is confirmed.
-async function choosePhoto(user: ReturnType<typeof userEvent.setup>) {
+async function choosePhoto(user: ReturnType<typeof userEvent.setup>, whilePositioning?: () => void) {
   await user.upload(
     screen.getByLabelText('or upload a profile photo'),
     new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], 'visitor.jpg', { type: 'image/jpeg' }),
@@ -447,6 +448,7 @@ async function choosePhoto(user: ReturnType<typeof userEvent.setup>) {
   Object.defineProperty(image, 'naturalWidth', { value: 800 });
   Object.defineProperty(image, 'naturalHeight', { value: 600 });
   fireEvent.load(image);
+  whilePositioning?.();
   await user.click(screen.getByRole('button', { name: 'Use photo' }));
 }
 

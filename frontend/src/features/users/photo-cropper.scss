@@ -49,6 +49,13 @@
   pointer-events: none;
 }
 
+// Hint, zoom and buttons: under the photo, or beside it on the kiosk tablet.
+.photo-cropper__controls {
+  display: grid;
+  gap: $spacing-05;
+  inline-size: 100%;
+}
+
 .photo-cropper__help {
   @include type-style('helper-text-01');
   color: $text-secondary;
@@ -64,4 +71,54 @@
   flex-wrap: wrap;
   gap: $spacing-03;
   justify-self: start;
+}
+
+// The kiosk tablet: the photo as large as the screen height allows, with hint, slider and buttons beside it, all sized
+// for fingers, so the step needs no scrolling.
+.photo-cropper--touch {
+  grid-template-columns: min(56dvh, 60vw) minmax(16rem, 24rem);
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-07;
+  inline-size: 100%;
+
+  @media (max-width: 48rem) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .photo-cropper__help {
+    @include type-style('body-02');
+  }
+
+  .cds--slider {
+    min-block-size: $spacing-09;
+  }
+
+  .cds--slider__thumb {
+    inline-size: $spacing-07;
+    block-size: $spacing-07;
+  }
+
+  .cds--slider__track,
+  .cds--slider__filled-track {
+    block-size: $spacing-02;
+  }
+
+  .photo-cropper__controls {
+    gap: $spacing-07;
+    text-align: start;
+  }
+
+  .photo-cropper__actions {
+    display: grid;
+    justify-self: stretch;
+    gap: $spacing-05;
+  }
+
+  .photo-cropper__actions .cds--btn {
+    @include type-style('heading-03');
+    max-inline-size: none;
+    align-items: center;
+    padding-block: 0;
+  }
 }

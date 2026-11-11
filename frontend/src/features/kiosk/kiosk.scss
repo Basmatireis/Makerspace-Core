@@ -319,11 +319,6 @@ body:has(.tablet) {
   inline-size: 100%;
 }
 
-.tablet-code-input input {
-  @include type-style('heading-05');
-  letter-spacing: 0.4em;
-}
-
 .tablet-code-actions {
   display: grid;
   gap: $spacing-03;

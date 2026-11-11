@@ -140,14 +140,15 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   await page
     .getByLabel('or upload a profile photo', { exact: true })
     .setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: photoPng() });
-  await page.getByRole('button', { name: 'Use photo' }).click();
-  await expect(page.getByAltText('Selected profile')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
+  // Positioning the photo fits the screen; "Retake photo" and "Use photo" stand in the footer in place of Next.
+  await expect(page.getByRole('button', { name: 'Retake photo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Next' })).toHaveCount(0);
   await page.mouse.move(0, 0);
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('visitor-photo.png') });
-  await page.getByRole('button', { name: 'Next' }).click();
+  // "Use photo" keeps the photo and moves on.
+  await page.getByRole('button', { name: 'Use photo' }).click();
   await expect(page.getByRole('heading', { name: 'Messages' })).toBeFocused();
   // Carbon draws the switch over its button; a visitor taps the drawn switch.
   await page

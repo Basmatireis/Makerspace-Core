@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom';
 import type { Visit } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
 import { useSecretMutation } from '../../../api/use-secret-mutation';
+import { CodeDigits } from './CodeDigits';
 import { PinKeypad } from './PinKeypad';
 import {
   checkIn,
@@ -200,20 +201,12 @@ export function CredentialsScreen({
             onChange={(event) => setIdentifier(event.target.value)}
           />
           {codeSent && (
-            <TextInput
+            <CodeDigits
               id="tablet-email-code"
-              ref={codeInput}
-              size="lg"
-              className="tablet-code-input"
-              labelText="Code"
-              // The keypad below enters the digits, so the tablet's own keyboard stays closed.
-              inputMode="none"
-              pattern="[0-9]*"
-              maxLength={emailCodeLength}
-              autoComplete="one-time-code"
-              spellCheck={false}
+              inputRef={codeInput}
+              length={emailCodeLength}
               value={secret}
-              onChange={(event) => setSecret(event.target.value.replace(/\D/g, '').slice(0, emailCodeLength))}
+              onChange={setSecret}
             />
           )}
           {codeSent && (

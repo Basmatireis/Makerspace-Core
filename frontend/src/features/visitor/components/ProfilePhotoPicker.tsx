@@ -26,6 +26,9 @@ export function ProfilePhotoPicker({
   sources,
   required,
   camera,
+  actionsTarget,
+  onPositioning,
+  onConfirmed,
   onChange,
 }: {
   image: ProfileImage | undefined;
@@ -34,6 +37,12 @@ export function ProfilePhotoPicker({
   required: boolean;
   /** The kiosk's camera calibration; missing means the centred largest square and no lens pointer. */
   camera?: KioskCameraSettings;
+  /** Where the positioning step puts its "Retake photo" and "Use photo" buttons, e.g. the wizard footer. */
+  actionsTarget?: Element | null;
+  /** Reports whether a photo is being positioned, so the wizard can swap its own buttons for those. */
+  onPositioning?: (positioning: boolean) => void;
+  /** Called after "Use photo" made the photo the profile image. */
+  onConfirmed?: () => void;
   onChange: (image: ProfileImage | undefined) => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
@@ -52,6 +61,16 @@ export function ProfilePhotoPicker({
     setCountdown(undefined);
   };
   useEffect(() => () => stream.current?.getTracks().forEach((track) => track.stop()), []);
+  useEffect(() => {
+    onPositioning?.(Boolean(source));
+  }, [source, onPositioning]);
+  // The video element is not mounted while a photo is being positioned; when the camera is restarted from there, the
+  // stream is attached once it is back.
+  useEffect(() => {
+    if (cameraOn && video.current && stream.current && video.current.srcObject !== stream.current) {
+      video.current.srcObject = stream.current;
+    }
+  });
 
   const loadImage = async (file: File) => {
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
@@ -108,6 +127,7 @@ export function ProfilePhotoPicker({
       onChange({ base64: preview.slice(preview.indexOf(',') + 1), filename: 'profile-photo.jpg', preview });
       setSource(undefined);
       setError('');
+      onConfirmed?.();
     } catch {
       setError('The photo could not be read. Choose another image.');
     }
@@ -188,15 +208,20 @@ export function ProfilePhotoPicker({
   );
 
   return (
-    <div className="visitor-photo">
+    <div className={!image && !cameraOn && !source ? 'visitor-photo visitor-photo--idle' : 'visitor-photo'}>
       {sources.camera && <CameraIndicator indicator={camera?.indicator} live={cameraOn && !image && !source} />}
       {source ? (
         <ProfilePhotoCropper
           src={source}
+          touch
+          actionsTarget={actionsTarget}
+          cancelLabel={sources.camera ? 'Retake photo' : 'Choose another'}
           onConfirm={(photo) => void confirmCrop(photo)}
           onCancel={() => {
             setSource(undefined);
             setError('');
+            // "Retake photo" goes straight back to the live camera.
+            if (sources.camera) void startCamera();
           }}
         />
       ) : (

@@ -27,6 +27,7 @@ import { LegalDocumentLink, LegalLinks } from '../branding/LegalLinks';
 import { EnrollmentDone, type EnrollmentOutcome } from './components/EnrollmentDone';
 import { LabRulesModal } from './components/LabRulesModal';
 import { ProfilePhotoPicker, type ProfileImage } from './components/ProfilePhotoPicker';
+import { CodeDigits } from '../kiosk/components/CodeDigits';
 import { PinKeypad } from '../kiosk/components/PinKeypad';
 import { useKeyboardAvoidance } from '../kiosk/useKeyboardAvoidance';
 import { useInactivityPrompt } from './useInactivityPrompt';
@@ -128,6 +129,9 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const [rulesViewed, setRulesViewed] = useState(false);
   const codeInput = useRef<HTMLInputElement>(null);
   const [image, setImage] = useState<ProfileImage>();
+  // While a photo is positioned, its "Retake photo" and "Use photo" buttons take the footer's place of Next.
+  const [footerSlot, setFooterSlot] = useState<HTMLDivElement | null>(null);
+  const [positioning, setPositioning] = useState(false);
   const [granted, setGranted] = useState<Record<string, boolean>>({});
   const [ready, setReady] = useState(false);
   const [rulesChanged, setRulesChanged] = useState(false);
@@ -391,6 +395,11 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                 sources={sources}
                 required={photoRequired}
                 camera={state.camera}
+                actionsTarget={footerSlot}
+                onPositioning={setPositioning}
+                onConfirmed={() => {
+                  if (step < lastStep) setStep(step + 1);
+                }}
                 onChange={setImage}
               />
             </div>
@@ -401,18 +410,10 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
               <p className="visitor-flow__lead">
                 We sent a six-digit code to <strong>{codeSentTo}</strong>. It is valid for ten minutes.
               </p>
-              <TextInput
+              <CodeDigits
                 id="visitor-code"
-                ref={codeInput}
-                size="lg"
-                className="visitor-flow__code-input"
-                labelText="Code"
-                // The keypad below enters the digits, so the tablet's own keyboard stays closed.
-                inputMode="none"
-                pattern="[0-9]*"
-                maxLength={codeLength}
-                autoComplete="one-time-code"
-                spellCheck={false}
+                inputRef={codeInput}
+                length={codeLength}
                 invalid={confirmMutation.isError}
                 invalidText={
                   apiErrorCode(confirmMutation.error) === 'challenge_invalid'
@@ -420,8 +421,8 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                     : "We couldn't check the code. Please try again."
                 }
                 value={code}
-                onChange={(event) => {
-                  setCode(event.target.value.replace(/\D/g, '').slice(0, codeLength));
+                onChange={(next) => {
+                  setCode(next);
                   confirmMutation.reset();
                 }}
               />
@@ -545,14 +546,17 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
           ) : (
             <span />
           )}
-          <Button
-            type="submit"
-            size="xl"
-            renderIcon={step < lastStep ? ArrowRight : undefined}
-            disabled={!valid[current] || pending}
-          >
-            {primaryLabel}
-          </Button>
+          <div ref={setFooterSlot} className="visitor-flow__footer-slot" />
+          {!(current === 'photo' && positioning) && (
+            <Button
+              type="submit"
+              size="xl"
+              renderIcon={step < lastStep ? ArrowRight : undefined}
+              disabled={!valid[current] || pending}
+            >
+              {primaryLabel}
+            </Button>
+          )}
         </footer>
       </Form>
 

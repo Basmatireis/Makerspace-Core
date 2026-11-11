@@ -24,7 +24,7 @@ export function CameraIndicator({
       aria-hidden="true"
     >
       <span className="camera-indicator__pill">
-        <Camera size={24} />
+        <Camera size={32} />
       </span>
     </div>
   );

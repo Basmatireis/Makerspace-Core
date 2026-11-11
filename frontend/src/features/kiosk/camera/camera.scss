@@ -35,14 +35,14 @@
 
 .camera-indicator--top .camera-indicator__pill,
 .camera-indicator--bottom .camera-indicator__pill {
-  inline-size: $spacing-10;
-  block-size: $spacing-08;
+  inline-size: $spacing-12;
+  block-size: $spacing-09;
 }
 
 .camera-indicator--left .camera-indicator__pill,
 .camera-indicator--right .camera-indicator__pill {
-  inline-size: $spacing-08;
-  block-size: $spacing-10;
+  inline-size: $spacing-09;
+  block-size: $spacing-12;
 }
 
 // A notch that hangs from the edge: rounded only on the side facing the screen.
@@ -73,10 +73,10 @@
 
 @keyframes camera-indicator-pulse {
   from {
-    box-shadow: 0 0 0 0 color-mix(in srgb, $support-error 60%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, $support-error 80%, transparent);
   }
   to {
-    box-shadow: 0 0 0 $spacing-05 color-mix(in srgb, $support-error 0%, transparent);
+    box-shadow: 0 0 0 $spacing-08 color-mix(in srgb, $support-error 0%, transparent);
   }
 }
 

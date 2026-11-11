@@ -115,6 +115,12 @@ body:has(.visitor-flow) {
   border-block-start: 1px solid $border-subtle-01;
 }
 
+.visitor-flow__footer-slot {
+  display: flex;
+  gap: $spacing-05;
+  margin-inline-start: auto;
+}
+
 .visitor-flow__footer .cds--btn {
   min-inline-size: 12rem;
 }
@@ -142,12 +148,6 @@ body:has(.visitor-flow) {
   inline-size: 100%;
   max-inline-size: 36rem;
   margin-inline: auto;
-}
-
-.visitor-flow__code-input input {
-  @include type-style('heading-05');
-  text-align: center;
-  letter-spacing: 0.4em;
 }
 
 .visitor-flow__code-actions {
@@ -286,11 +286,27 @@ body:has(.visitor-flow) {
   background: none;
 }
 
-// The photo buttons are the one action of the step on a tablet: larger type, content centred in the taller button.
-.visitor-photo__button.cds--btn {
+// The photo buttons are the one action of the step on a tablet: larger type, text and icon centred in the taller
+// button (Carbon's xl size otherwise aligns its content to the top).
+.visitor-photo .visitor-photo__button.cds--btn {
   @include type-style('heading-03');
   min-inline-size: 16rem;
   align-items: center;
+  padding-block: 0;
+}
+
+.visitor-photo .visitor-photo__button.cds--btn .cds--btn__icon {
+  margin-block: 0;
+  align-self: center;
+}
+
+// Before the camera starts, the start button and its hint sit in the middle of the step instead of under the title.
+.visitor-flow__body:has(.visitor-photo--idle) {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.visitor-flow__photo:has(.visitor-photo--idle) {
+  align-self: center;
 }
 
 // Before the camera starts, its button takes the middle of the empty frame.
