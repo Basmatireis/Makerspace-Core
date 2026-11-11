@@ -82,7 +82,7 @@ export function VisitorKioskPage() {
         at: visit.checkedOutAt ?? new Date().toISOString(),
         notices: [],
       };
-      // After a tap the offer names nobody: its answers are stored anonymously.
+      // After a tap the answers are stored anonymously; Send by e-mail goes to the tapped person.
       setScreen(visit.surveyOffer ? { kind: 'survey-offer', offer: visit.surveyOffer, result } : result);
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: presenceKey }),
