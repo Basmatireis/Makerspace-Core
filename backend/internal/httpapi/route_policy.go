@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/configtransfer"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
@@ -100,12 +101,21 @@ type routePolicy struct {
 	// mfaSetupAllowed lists the operations a session confined to second-factor setup may still use
 	// (`x-mfa-setup-allowed: true` in the contract).
 	mfaSetupAllowed map[string]bool
+	// restrictedAllowed names, per operation, the session restriction that may still use it
+	// (`x-restricted-session: <restriction>` in the contract). Operations without it refuse every restricted session.
+	restrictedAllowed map[string]string
 }
 
-const mfaSetupAllowedExtension = "x-mfa-setup-allowed"
+const (
+	mfaSetupAllowedExtension   = "x-mfa-setup-allowed"
+	restrictedSessionExtension = "x-restricted-session"
+)
 
 func newRoutePolicy(spec *openapi3.T) routePolicy {
-	policy := routePolicy{sessionless: map[string]bool{}, rawBinary: map[string]bool{}, mfaSetupAllowed: map[string]bool{}}
+	policy := routePolicy{
+		sessionless: map[string]bool{}, rawBinary: map[string]bool{}, mfaSetupAllowed: map[string]bool{},
+		restrictedAllowed: map[string]string{},
+	}
 	for path, item := range spec.Paths.Map() {
 		for method, operation := range item.Operations() {
 			key := routeKey(method, path)
@@ -117,6 +127,9 @@ func newRoutePolicy(spec *openapi3.T) routePolicy {
 			policy.rawBinary[key] = hasOnlyBinaryBody(operation)
 			allowed, _ := operation.Extensions[mfaSetupAllowedExtension].(bool)
 			policy.mfaSetupAllowed[key] = allowed
+			if restriction, ok := operation.Extensions[restrictedSessionExtension].(string); ok && restriction != "" {
+				policy.restrictedAllowed[key] = restriction
+			}
 		}
 	}
 	return policy
@@ -173,6 +186,13 @@ func (p routePolicy) isSessionless(ctx context.Context) bool {
 
 func (p routePolicy) allowsDuringMFASetup(ctx context.Context) bool {
 	return p.mfaSetupAllowed[requestRoute(ctx)]
+}
+
+// allowsRestriction reports whether a session with the given restriction may call the request's operation. Requests
+// that match no operation are refused.
+func (p routePolicy) allowsRestriction(ctx context.Context, restriction auth.SessionRestriction) bool {
+	allowed, ok := p.restrictedAllowed[requestRoute(ctx)]
+	return ok && allowed == string(restriction)
 }
 
 func (p routePolicy) isRawBinaryUpload(ctx context.Context) bool {

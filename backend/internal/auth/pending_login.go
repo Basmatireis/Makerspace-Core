@@ -37,6 +37,7 @@ func (s *Service) createPendingLogin(
 	accountID, identityID uuid.UUID,
 	method LoginMethod,
 	state authdb.GetAccountSecondFactorStateRow,
+	restriction SessionRestriction,
 ) (PendingLogin, error) {
 	token, digest, err := security.NewOpaqueToken()
 	if err != nil {
@@ -46,6 +47,7 @@ func (s *Service) createPendingLogin(
 	if err := queries.CreatePendingLogin(ctx, authdb.CreatePendingLoginParams{
 		ID: ids.New(), TokenDigest: digest, AccountID: accountID, AuthIdentityID: identityID,
 		ManagedDeviceID: managedDeviceFromContext(ctx), ExpiresAt: expiresAt, AuthMethod: string(method),
+		Restriction: restriction.column(),
 	}); err != nil {
 		return PendingLogin{}, err
 	}
@@ -162,7 +164,8 @@ func lockPendingLogin(
 }
 
 // finishPendingLogin consumes the pending login and creates a strong_mfa password session in the caller's
-// transaction, which it commits.
+// transaction, which it commits. A pending login that carries a restriction yields a restricted session while the
+// account still lacks web.sign_in, and a normal one once it has it.
 func (s *Service) finishPendingLogin(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -170,7 +173,12 @@ func (s *Service) finishPendingLogin(
 	requestID *uuid.UUID,
 ) (Session, error) {
 	queries := authdb.New(tx)
-	if err := requireWebSignIn(ctx, tx, pending.AccountID); err != nil {
+	purpose := restrictionFromColumn(pending.Restriction)
+	if !purpose.Valid() {
+		return Session{}, pendingLoginInvalid()
+	}
+	restriction, err := sessionRestrictionFor(ctx, tx, pending.AccountID, purpose)
+	if err != nil {
 		return Session{}, err
 	}
 	if err := queries.DeletePendingLogin(ctx, pending.ID); err != nil {
@@ -178,7 +186,7 @@ func (s *Service) finishPendingLogin(
 	}
 	session, err := s.createSession(
 		ctx, queries, pending.AccountID, pending.AuthIdentityID, LoginMethod(pending.AuthMethod),
-		authorization.AssuranceStrongMFA, false,
+		authorization.AssuranceStrongMFA, false, restriction,
 	)
 	if err != nil {
 		return Session{}, err
@@ -195,6 +203,7 @@ func (s *Service) finishPendingLogin(
 	if err := audit.Write(ctx, tx, audit.Event{
 		ActorAccountID: &actor, Action: "auth.login_succeeded", ResourceType: "account",
 		ResourceID: &actor, RequestID: requestID, ChangedFields: []string{"secondFactor"},
+		Metadata: restrictionMetadata(restriction),
 	}); err != nil {
 		return Session{}, err
 	}

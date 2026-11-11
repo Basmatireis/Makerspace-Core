@@ -26,15 +26,16 @@ SELECT EXISTS (
 
 -- name: CreateSession :one
 -- A session of the login email identity (password or emailed code): normal assurance, or strong_mfa when the login
--- also verified a second factor.
+-- also verified a second factor. restriction confines it to one purpose (an account without web.sign_in).
 INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
   base_assurance, current_assurance, authenticated_assurance, mfa_setup_required, authenticated_at,
   idle_expires_at, absolute_expires_at, managed_device_id, session_policy_id, session_policy_version,
-  idle_timeout_seconds, post_session_destination)
+  idle_timeout_seconds, post_session_destination, restriction)
 VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id)::uuid, sqlc.arg(token_digest), sqlc.arg(csrf_digest), sqlc.arg(auth_method),
   sqlc.arg(assurance), sqlc.arg(assurance), sqlc.arg(assurance), sqlc.arg(mfa_setup_required), now(),
   sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at), sqlc.narg(managed_device_id), sqlc.narg(session_policy_id),
-  sqlc.arg(session_policy_version), sqlc.arg(idle_timeout_seconds), sqlc.arg(post_session_destination))
+  sqlc.arg(session_policy_version), sqlc.arg(idle_timeout_seconds), sqlc.arg(post_session_destination),
+  sqlc.narg(restriction))
 RETURNING id;
 
 -- name: CreatePasskeySession :one
@@ -100,7 +101,7 @@ SELECT s.id AS session_id, s.account_id, s.csrf_digest,
 	       ) AND NOT EXISTS (
 	           SELECT 1 FROM webauthn_credentials w WHERE w.account_id = s.account_id
 	       ))::boolean AS mfa_setup_required,
-	       a.person_id, p.first_name, p.last_name
+	       s.restriction, a.person_id, p.first_name, p.last_name
 FROM sessions s JOIN accounts a ON a.id = s.account_id JOIN people p ON p.id = a.person_id
 LEFT JOIN auth_identities i ON i.id = s.auth_identity_id
 WHERE s.token_digest = sqlc.arg(token_digest) AND s.revoked_at IS NULL
@@ -445,8 +446,10 @@ SELECT ((SELECT count(*) FROM mfa_totp_credentials t WHERE t.account_id = sqlc.a
       + (SELECT count(*) FROM webauthn_credentials w WHERE w.account_id = sqlc.arg(account_id)::uuid))::bigint AS total;
 
 -- name: CreatePendingLogin :exec
-INSERT INTO pending_logins (id, token_digest, account_id, auth_identity_id, managed_device_id, expires_at, auth_method)
-VALUES (sqlc.arg(id), sqlc.arg(token_digest), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.narg(managed_device_id), sqlc.arg(expires_at), sqlc.arg(auth_method));
+INSERT INTO pending_logins (id, token_digest, account_id, auth_identity_id, managed_device_id, expires_at, auth_method,
+  restriction)
+VALUES (sqlc.arg(id), sqlc.arg(token_digest), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.narg(managed_device_id),
+  sqlc.arg(expires_at), sqlc.arg(auth_method), sqlc.narg(restriction));
 
 -- name: GetPendingLoginForUpdate :one
 SELECT * FROM pending_logins WHERE token_digest = sqlc.arg(token_digest) AND expires_at > now() FOR UPDATE;

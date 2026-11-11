@@ -124,8 +124,11 @@ func TestChangeMembershipAuthorizationAndEffects(t *testing.T) {
 	ctx := testContext(t)
 	supervisorRole := e.role("", level(roles.MembershipSupervisor), authorization.OpenDaysRead, authorization.OpenDaysSignup)
 	e.role("", level(roles.MembershipTrainee), authorization.OpenDaysRead)
+	// The Supervisor membership role also holds the notification settings permissions by migration, so whoever
+	// assigns it needs them too (privilege subset).
 	assigner := e.person("membership-assigner", e.role("Assigner", nil, authorization.PeopleRolesAssign,
-		authorization.OpenDaysRead, authorization.OpenDaysSignup).ID)
+		authorization.OpenDaysRead, authorization.OpenDaysSignup, authorization.NotificationSettingsReadAll,
+		authorization.NotificationSettingsManageAll).ID)
 	limited := e.person("membership-limited", e.role("Limited", nil, authorization.PeopleRolesAssign).ID)
 	denied := e.person("membership-denied")
 	subject := e.person("membership-subject")

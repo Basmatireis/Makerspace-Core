@@ -117,6 +117,24 @@ var activityTriggers = []Trigger{
 		},
 	},
 	{
+		Key: "notification_settings_changed", Area: "People", Label: "Someone's notification settings change",
+		Help: "Fires once per save that changes a person's channel choices, their feedback-at-check-out switch or their " +
+			"consents, whether they saved it themselves or staff did. Consents given while enrolling at the kiosk stay " +
+			"quiet. {changes} lists one line per change, labels only.",
+		Subject: SubjectLab, Permission: authorization.NotificationSettingsReadAll,
+		Fields: []Field{
+			{Key: "bySelf", Label: "Changed by the person themselves", Type: FieldBool},
+			{Key: "consentChanged", Label: "A consent was given or withdrawn", Type: FieldBool},
+		},
+		Recipients: triggerSubjects("self", "The person whose settings changed"),
+		Placeholders: []Placeholder{
+			{"person", "Name of the person", "Lena Wagner"},
+			{"by", "Who changed it", "Jana Huber"},
+			{"changes", "One line per change", "Printer errors: e-mail off, in-app on"},
+		},
+		ThrottleSubjects: triggerSubjects("person", "person"),
+	},
+	{
 		Key: "role_changed", Area: "Security", Label: "Someone's roles change",
 		Help: "Fires when a role is added to or removed from a person. Switching the system role raises it for the " +
 			"new role. A role is privileged when it is the master role or grants a permission that manages something.",

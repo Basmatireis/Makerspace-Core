@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/google/uuid"
 )
 
@@ -151,5 +152,27 @@ func TestFillActionNeverCutsAPrintPageAddress(t *testing.T) {
 		if strings.Contains(mail.plainBody, "/prints/") || strings.Contains(mail.plainBody, "makerspace.example") {
 			t.Fatalf("cut %d: the plain mail keeps address pieces: %q", cutAt, mail.plainBody[len(mail.plainBody)-60:])
 		}
+	}
+}
+
+func TestSettingsChangesKeepOneLinePerChangeInTheBodyOnly(t *testing.T) {
+	ev := Event{
+		Trigger: "notification_settings_changed",
+		Placeholders: map[string]string{
+			"person": "Lena Wagner", "by": "Jana Huber",
+			"changes": "Printer errors: e-mail off, in-app on\nFeedback at check-out: off",
+		},
+	}
+	action, _ := fillAction(Action{Title: "{person}: {changes}", Body: "{by} changed:\n{changes}"}, ev, "Rule")
+	if action.Body != "Jana Huber changed:\nPrinter errors: e-mail off, in-app on\nFeedback at check-out: off" {
+		t.Fatalf("body = %q", action.Body)
+	}
+	if strings.Contains(action.Title, "\n") {
+		t.Fatalf("title kept a line break: %q", action.Title)
+	}
+	trigger, ok := LookupTrigger("notification_settings_changed")
+	if !ok || trigger.Permission != authorization.NotificationSettingsReadAll || len(trigger.Recipients) != 1 ||
+		trigger.Recipients[0].Key != "self" {
+		t.Fatalf("trigger = %+v", trigger)
 	}
 }

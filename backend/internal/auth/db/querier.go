@@ -30,7 +30,7 @@ type Querier interface {
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
 	CreatePendingLogin(ctx context.Context, arg CreatePendingLoginParams) error
 	// A session of the login email identity (password or emailed code): normal assurance, or strong_mfa when the login
-	// also verified a second factor.
+	// also verified a second factor. restriction confines it to one purpose (an account without web.sign_in).
 	CreateSession(ctx context.Context, arg CreateSessionParams) (uuid.UUID, error)
 	DeleteEmailLoginChallengesForAccount(ctx context.Context, accountID uuid.UUID) error
 	DeleteExpiredAuthSecurityState(ctx context.Context, beforeTime time.Time) (int64, error)

@@ -134,6 +134,12 @@ VALUES (sqlc.arg(account_id), sqlc.arg(rule_id), sqlc.arg(in_app), sqlc.arg(emai
 ON CONFLICT (account_id, rule_id) DO UPDATE SET in_app = EXCLUDED.in_app, email = EXCLUDED.email,
     updated_at = EXCLUDED.updated_at;
 
+-- name: GetNotificationSettingsTarget :one
+-- A person whose notification settings staff read or change, with their account when they have one.
+SELECT p.id AS person_id, a.id AS account_id
+FROM people p LEFT JOIN accounts a ON a.person_id = p.id
+WHERE p.id = sqlc.arg(person_id);
+
 -- name: ListHeldRoles :many
 SELECT r.id, r.name, r.system_key FROM person_roles pr JOIN roles r ON r.id = pr.role_id
 WHERE pr.person_id = sqlc.arg(person_id);

@@ -179,7 +179,7 @@ VALUES (
     $9, $10, $11, $12,
     $13, $14, $15
 )
-RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at, managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination, authenticated_assurance, mfa_setup_required, webauthn_credential_id
+RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at, managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination, authenticated_assurance, mfa_setup_required, webauthn_credential_id, restriction
 `
 
 type CreateOIDCSessionParams struct {
@@ -244,6 +244,7 @@ func (q *Queries) CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionPa
 		&i.AuthenticatedAssurance,
 		&i.MfaSetupRequired,
 		&i.WebauthnCredentialID,
+		&i.Restriction,
 	)
 	return i, err
 }
@@ -300,7 +301,7 @@ VALUES (
     $8, $9, $10,
     $11, $12
 )
-RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at, managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination, authenticated_assurance, mfa_setup_required, webauthn_credential_id
+RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at, managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination, authenticated_assurance, mfa_setup_required, webauthn_credential_id, restriction
 `
 
 type CreatePINSessionParams struct {
@@ -359,6 +360,7 @@ func (q *Queries) CreatePINSession(ctx context.Context, arg CreatePINSessionPara
 		&i.AuthenticatedAssurance,
 		&i.MfaSetupRequired,
 		&i.WebauthnCredentialID,
+		&i.Restriction,
 	)
 	return i, err
 }
@@ -447,8 +449,10 @@ func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswo
 }
 
 const createPendingLogin = `-- name: CreatePendingLogin :exec
-INSERT INTO pending_logins (id, token_digest, account_id, auth_identity_id, managed_device_id, expires_at, auth_method)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO pending_logins (id, token_digest, account_id, auth_identity_id, managed_device_id, expires_at, auth_method,
+  restriction)
+VALUES ($1, $2, $3, $4, $5,
+  $6, $7, $8)
 `
 
 type CreatePendingLoginParams struct {
@@ -459,6 +463,7 @@ type CreatePendingLoginParams struct {
 	ManagedDeviceID *uuid.UUID
 	ExpiresAt       time.Time
 	AuthMethod      string
+	Restriction     *string
 }
 
 func (q *Queries) CreatePendingLogin(ctx context.Context, arg CreatePendingLoginParams) error {
@@ -470,6 +475,7 @@ func (q *Queries) CreatePendingLogin(ctx context.Context, arg CreatePendingLogin
 		arg.ManagedDeviceID,
 		arg.ExpiresAt,
 		arg.AuthMethod,
+		arg.Restriction,
 	)
 	return err
 }
@@ -478,11 +484,12 @@ const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
   base_assurance, current_assurance, authenticated_assurance, mfa_setup_required, authenticated_at,
   idle_expires_at, absolute_expires_at, managed_device_id, session_policy_id, session_policy_version,
-  idle_timeout_seconds, post_session_destination)
+  idle_timeout_seconds, post_session_destination, restriction)
 VALUES ($1, $2, $3::uuid, $4, $5, $6,
   $7, $7, $7, $8, now(),
   $9, $10, $11, $12,
-  $13, $14, $15)
+  $13, $14, $15,
+  $16)
 RETURNING id
 `
 
@@ -502,10 +509,11 @@ type CreateSessionParams struct {
 	SessionPolicyVersion   int64
 	IdleTimeoutSeconds     int32
 	PostSessionDestination string
+	Restriction            *string
 }
 
 // A session of the login email identity (password or emailed code): normal assurance, or strong_mfa when the login
-// also verified a second factor.
+// also verified a second factor. restriction confines it to one purpose (an account without web.sign_in).
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, createSession,
 		arg.ID,
@@ -523,6 +531,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (u
 		arg.SessionPolicyVersion,
 		arg.IdleTimeoutSeconds,
 		arg.PostSessionDestination,
+		arg.Restriction,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -1201,7 +1210,7 @@ func (q *Queries) GetPasswordResetByDigest(ctx context.Context, tokenDigest []by
 }
 
 const getPendingLogin = `-- name: GetPendingLogin :one
-SELECT id, token_digest, account_id, auth_identity_id, managed_device_id, failed_attempts, expires_at, created_at, auth_method FROM pending_logins WHERE token_digest = $1 AND expires_at > now()
+SELECT id, token_digest, account_id, auth_identity_id, managed_device_id, failed_attempts, expires_at, created_at, auth_method, restriction FROM pending_logins WHERE token_digest = $1 AND expires_at > now()
 `
 
 func (q *Queries) GetPendingLogin(ctx context.Context, tokenDigest []byte) (PendingLogin, error) {
@@ -1217,12 +1226,13 @@ func (q *Queries) GetPendingLogin(ctx context.Context, tokenDigest []byte) (Pend
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.AuthMethod,
+		&i.Restriction,
 	)
 	return i, err
 }
 
 const getPendingLoginForUpdate = `-- name: GetPendingLoginForUpdate :one
-SELECT id, token_digest, account_id, auth_identity_id, managed_device_id, failed_attempts, expires_at, created_at, auth_method FROM pending_logins WHERE token_digest = $1 AND expires_at > now() FOR UPDATE
+SELECT id, token_digest, account_id, auth_identity_id, managed_device_id, failed_attempts, expires_at, created_at, auth_method, restriction FROM pending_logins WHERE token_digest = $1 AND expires_at > now() FOR UPDATE
 `
 
 func (q *Queries) GetPendingLoginForUpdate(ctx context.Context, tokenDigest []byte) (PendingLogin, error) {
@@ -1238,6 +1248,7 @@ func (q *Queries) GetPendingLoginForUpdate(ctx context.Context, tokenDigest []by
 		&i.ExpiresAt,
 		&i.CreatedAt,
 		&i.AuthMethod,
+		&i.Restriction,
 	)
 	return i, err
 }
@@ -1310,7 +1321,7 @@ SELECT s.id AS session_id, s.account_id, s.csrf_digest,
 	       ) AND NOT EXISTS (
 	           SELECT 1 FROM webauthn_credentials w WHERE w.account_id = s.account_id
 	       ))::boolean AS mfa_setup_required,
-	       a.person_id, p.first_name, p.last_name
+	       s.restriction, a.person_id, p.first_name, p.last_name
 FROM sessions s JOIN accounts a ON a.id = s.account_id JOIN people p ON p.id = a.person_id
 LEFT JOIN auth_identities i ON i.id = s.auth_identity_id
 WHERE s.token_digest = $1 AND s.revoked_at IS NULL
@@ -1337,6 +1348,7 @@ type GetSessionPrincipalRow struct {
 	AssuranceExpiresAt     pgtype.Timestamptz
 	AuthenticatedAssurance string
 	MfaSetupRequired       bool
+	Restriction            *string
 	PersonID               uuid.UUID
 	FirstName              string
 	LastName               string
@@ -1365,6 +1377,7 @@ func (q *Queries) GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (
 		&i.AssuranceExpiresAt,
 		&i.AuthenticatedAssurance,
 		&i.MfaSetupRequired,
+		&i.Restriction,
 		&i.PersonID,
 		&i.FirstName,
 		&i.LastName,

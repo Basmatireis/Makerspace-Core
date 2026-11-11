@@ -627,17 +627,17 @@ func TestRulePreferencesAndTheRulesThatReachAPerson(t *testing.T) {
 	}
 
 	// A mandatory rule keeps one channel; a normal one may be muted.
-	if err := e.rules.SetRulePreference(ctx, member, mandatory.ID, notifyrules.Preference{}); !apperror.IsCode(err, "mandatory_notification") {
+	if err := e.rules.SetRulePreference(ctx, member, mandatory.ID, notifyrules.Preference{}, nil); !apperror.IsCode(err, "mandatory_notification") {
 		t.Fatalf("muting a mandatory rule: %v", err)
 	}
-	if err := e.rules.SetRulePreference(ctx, member, mandatory.ID, notifyrules.Preference{Email: true}); err != nil {
+	if err := e.rules.SetRulePreference(ctx, member, mandatory.ID, notifyrules.Preference{Email: true}, nil); err != nil {
 		t.Fatal(err)
 	}
 	settings, _ = e.settings(ctx, member)
 	if got := settings.Rules[0].EffectiveChannels; len(got) != 1 || got[0] != notifyrules.ChannelEmail {
 		t.Fatalf("effective channels = %v", got)
 	}
-	if err := e.rules.SetRulePreference(ctx, member, optionalRule.ID, notifyrules.Preference{}); err != nil {
+	if err := e.rules.SetRulePreference(ctx, member, optionalRule.ID, notifyrules.Preference{}, nil); err != nil {
 		t.Fatalf("muting a normal rule: %v", err)
 	}
 	// Personal rules and unknown rules take no choice; choices belong to the account.
@@ -645,17 +645,17 @@ func TestRulePreferencesAndTheRulesThatReachAPerson(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.rules.SetRulePreference(ctx, member, own.ID, notifyrules.Preference{InApp: true}); !apperror.IsCode(err, "not_found") {
+	if err := e.rules.SetRulePreference(ctx, member, own.ID, notifyrules.Preference{InApp: true}, nil); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("choice for a personal rule: %v", err)
 	}
-	if err := e.rules.SetRulePreference(ctx, member, uuid.New(), notifyrules.Preference{InApp: true}); !apperror.IsCode(err, "not_found") {
+	if err := e.rules.SetRulePreference(ctx, member, uuid.New(), notifyrules.Preference{InApp: true}, nil); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("choice for an unknown rule: %v", err)
 	}
 	if outsiderSettings, _ := e.settings(ctx, outsider); len(outsiderSettings.Rules) != 0 {
 		t.Fatal("another account's choice leaked")
 	}
 
-	if err := e.rules.SetAskFeedbackAtCheckout(ctx, member, false); err != nil {
+	if err := e.rules.SetAskFeedbackAtCheckout(ctx, member, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	if settings, _ = e.settings(ctx, member); settings.AskFeedbackAtCheckout {
@@ -694,7 +694,7 @@ func TestNotificationDataGoesWithPeopleAccountsAndRules(t *testing.T) {
 	if _, err := e.rules.AnswerConsents(ctx, alice, []notifyrules.ConsentAnswer{{CategoryID: e.news, Granted: true}}, notifyrules.PlaceApp, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.rules.SetAskFeedbackAtCheckout(ctx, alice, false); err != nil {
+	if err := e.rules.SetAskFeedbackAtCheckout(ctx, alice, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	rule := e.central(e.manager(), "lab_rules_published", "need_confirm")

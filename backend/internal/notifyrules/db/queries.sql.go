@@ -923,6 +923,25 @@ func (q *Queries) GetMachineEventFacts(ctx context.Context, id uuid.UUID) (GetMa
 	return i, err
 }
 
+const getNotificationSettingsTarget = `-- name: GetNotificationSettingsTarget :one
+SELECT p.id AS person_id, a.id AS account_id
+FROM people p LEFT JOIN accounts a ON a.person_id = p.id
+WHERE p.id = $1
+`
+
+type GetNotificationSettingsTargetRow struct {
+	PersonID  uuid.UUID
+	AccountID *uuid.UUID
+}
+
+// A person whose notification settings staff read or change, with their account when they have one.
+func (q *Queries) GetNotificationSettingsTarget(ctx context.Context, personID uuid.UUID) (GetNotificationSettingsTargetRow, error) {
+	row := q.db.QueryRow(ctx, getNotificationSettingsTarget, personID)
+	var i GetNotificationSettingsTargetRow
+	err := row.Scan(&i.PersonID, &i.AccountID)
+	return i, err
+}
+
 const getOpenDayPeriodChangeFacts = `-- name: GetOpenDayPeriodChangeFacts :one
 SELECT p.id, p.name,
        (SELECT count(*) FROM open_days d WHERE d.period_id = p.id AND d.status = 'scheduled')::integer AS day_count
