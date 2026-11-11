@@ -119,14 +119,10 @@ body:has(.visitor-flow) {
   min-inline-size: 12rem;
 }
 
-// The photo has a step of its own, so its preview may take more of the screen.
+// The photo step centres the picker; the preview keeps its size so camera, upload and hint fit one screen.
 .visitor-flow__photo .visitor-photo {
   justify-items: center;
   text-align: center;
-}
-
-.visitor-flow__photo .visitor-photo__frame {
-  inline-size: min(100%, 34rem, 44dvh);
 }
 
 .visitor-flow__fields,
