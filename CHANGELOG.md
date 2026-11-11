@@ -23,6 +23,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Names in the kiosk presence list.** People with the same first name and last-name initial are shown with as many letters of the last name as it takes to tell them apart.
 - Dependency updates (Go modules, frontend and desktop-kiosk packages, GitHub Actions), combined from the open Dependabot pull requests.
 - Go 1.27.4 in all images and the toolchain, for the `net/http` vulnerability GO-2026-6859.
+- **Quieter retention history.** Scheduled retention runs (every five minutes) that changed nothing and did not fail are no longer stored or audited; manual runs, dry runs, `admin cleanup` and failed runs still are.
 
 ### Security
 
@@ -35,6 +36,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Migrations 00130 (signage web embeds) and 00131 (signage scene blocks).** 00131 converts every stored scene into blocks; see `docs/signage.md`.
 - **Migration 00133 (kiosk methods).** Existing assurance levels become method sets: `low` allows all three methods, `normal` password and emailed code, anything stronger the password alone. Check the kiosk settings after the upgrade.
 - **Migration 00136 (tap survey offers).** Open survey offers left from a tap check-out are deleted; they live 15 minutes at most.
+- **Migration 00137 (empty retention runs).** Deletes the scheduled retention runs recorded so far that changed nothing. Audit events already written stay and expire with the audit retention.
 
 ## [0.18.2] - 2026-11-10
 
