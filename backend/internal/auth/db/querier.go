@@ -65,6 +65,8 @@ type Querier interface {
 	GetAccountWebAuthnUser(ctx context.Context, accountID uuid.UUID) (GetAccountWebAuthnUserRow, error)
 	GetActiveAuthChallengeForUpdate(ctx context.Context, arg GetActiveAuthChallengeForUpdateParams) (AuthChallenge, error)
 	GetEffectiveSessionPolicy(ctx context.Context, managedDeviceID *uuid.UUID) (SessionPolicy, error)
+	// The login email identity of an account, for an administrator who sends it a sign-in code.
+	GetEmailCodeTargetForAccount(ctx context.Context, accountID uuid.UUID) (GetEmailCodeTargetForAccountRow, error)
 	GetLoginByEmail(ctx context.Context, identifierNormalized string) (GetLoginByEmailRow, error)
 	GetPINIdentityForAccount(ctx context.Context, accountID uuid.UUID) (AuthIdentity, error)
 	GetPasswordCredentialForAccount(ctx context.Context, accountID uuid.UUID) (PasswordCredential, error)
@@ -87,6 +89,7 @@ type Querier interface {
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
 	InsertWebAuthnChallenge(ctx context.Context, arg InsertWebAuthnChallengeParams) error
 	InsertWebAuthnCredential(ctx context.Context, arg InsertWebAuthnCredentialParams) (WebauthnCredential, error)
+	IsAccountMaster(ctx context.Context, accountID uuid.UUID) (bool, error)
 	ListWebAuthnCredentials(ctx context.Context, accountID uuid.UUID) ([]WebauthnCredential, error)
 	MarkAuthenticationSucceeded(ctx context.Context, arg MarkAuthenticationSucceededParams) error
 	OIDCIdentityUsable(ctx context.Context, arg OIDCIdentityUsableParams) (bool, error)

@@ -1018,6 +1018,41 @@ func (q *Queries) GetEffectiveSessionPolicy(ctx context.Context, managedDeviceID
 	return i, err
 }
 
+const getEmailCodeTargetForAccount = `-- name: GetEmailCodeTargetForAccount :one
+SELECT a.id AS account_id, a.status, i.id AS auth_identity_id, i.identifier_normalized, i.identifier_display AS delivery_address,
+       i.email_code_enabled, COALESCE(pc.reset_required, false)::boolean AS reset_required
+FROM auth_identities i
+JOIN accounts a ON a.id = i.account_id
+LEFT JOIN password_credentials pc ON pc.auth_identity_id = i.id
+WHERE i.account_id = $1 AND i.kind = 'password' AND i.disabled_at IS NULL
+`
+
+type GetEmailCodeTargetForAccountRow struct {
+	AccountID            uuid.UUID
+	Status               string
+	AuthIdentityID       uuid.UUID
+	IdentifierNormalized *string
+	DeliveryAddress      *string
+	EmailCodeEnabled     bool
+	ResetRequired        bool
+}
+
+// The login email identity of an account, for an administrator who sends it a sign-in code.
+func (q *Queries) GetEmailCodeTargetForAccount(ctx context.Context, accountID uuid.UUID) (GetEmailCodeTargetForAccountRow, error) {
+	row := q.db.QueryRow(ctx, getEmailCodeTargetForAccount, accountID)
+	var i GetEmailCodeTargetForAccountRow
+	err := row.Scan(
+		&i.AccountID,
+		&i.Status,
+		&i.AuthIdentityID,
+		&i.IdentifierNormalized,
+		&i.DeliveryAddress,
+		&i.EmailCodeEnabled,
+		&i.ResetRequired,
+	)
+	return i, err
+}
+
 const getLoginByEmail = `-- name: GetLoginByEmail :one
 SELECT a.id AS account_id, a.person_id, a.status, a.version AS account_version,
        i.id AS auth_identity_id, i.identifier_display AS login_email,
@@ -1510,6 +1545,22 @@ func (q *Queries) InsertWebAuthnCredential(ctx context.Context, arg InsertWebAut
 		&i.LastUsedAt,
 	)
 	return i, err
+}
+
+const isAccountMaster = `-- name: IsAccountMaster :one
+SELECT EXISTS (
+    SELECT 1 FROM accounts a
+    JOIN person_roles pr ON pr.person_id = a.person_id
+    JOIN roles r ON r.id = pr.role_id
+    WHERE a.id = $1 AND r.system_key = 'master'
+)
+`
+
+func (q *Queries) IsAccountMaster(ctx context.Context, accountID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, isAccountMaster, accountID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const listWebAuthnCredentials = `-- name: ListWebAuthnCredentials :many

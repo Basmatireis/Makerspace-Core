@@ -526,6 +526,23 @@ JOIN accounts a ON a.id = i.account_id
 LEFT JOIN password_credentials pc ON pc.auth_identity_id = i.id
 WHERE i.kind = 'password' AND i.disabled_at IS NULL AND i.identifier_normalized = sqlc.arg(identifier_normalized)::text;
 
+-- name: GetEmailCodeTargetForAccount :one
+-- The login email identity of an account, for an administrator who sends it a sign-in code.
+SELECT a.id AS account_id, a.status, i.id AS auth_identity_id, i.identifier_normalized, i.identifier_display AS delivery_address,
+       i.email_code_enabled, COALESCE(pc.reset_required, false)::boolean AS reset_required
+FROM auth_identities i
+JOIN accounts a ON a.id = i.account_id
+LEFT JOIN password_credentials pc ON pc.auth_identity_id = i.id
+WHERE i.account_id = sqlc.arg(account_id) AND i.kind = 'password' AND i.disabled_at IS NULL;
+
+-- name: IsAccountMaster :one
+SELECT EXISTS (
+    SELECT 1 FROM accounts a
+    JOIN person_roles pr ON pr.person_id = a.person_id
+    JOIN roles r ON r.id = pr.role_id
+    WHERE a.id = sqlc.arg(account_id) AND r.system_key = 'master'
+);
+
 -- name: ConsumeEmailCodeChallenge :execrows
 -- Uses an emailed sign-in code once; zero rows means it was used, replaced, exhausted or expired meanwhile.
 UPDATE auth_challenges SET used_at = now()

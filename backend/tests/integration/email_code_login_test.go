@@ -218,7 +218,7 @@ func TestTerminalEmailCodeCheckInSurvivesLabRulesRetry(t *testing.T) {
 	authService, notifier := newEmailCodeAuth(t, f.pool)
 	service := attendance.NewService(f.pool, authService, f.labRules, nil)
 	email := "kiosk-visitor@example.test"
-	if err := service.RequestEmailCode(ctx, f.device, email, "kiosk-email", nil); err != nil {
+	if err := service.RequestEmailCode(ctx, f.device, email, nil); err != nil {
 		t.Fatal(err)
 	}
 	code := notifier.loginCode(t, email)
@@ -255,7 +255,7 @@ func TestTerminalEmailCodeCheckInSurvivesLabRulesRetry(t *testing.T) {
 		t.Fatalf("check-out with a used code error=%v", err)
 	}
 	notifier.forgetLoginCode(email)
-	if err := service.RequestEmailCode(ctx, f.device, email, "kiosk-email", nil); err != nil {
+	if err := service.RequestEmailCode(ctx, f.device, email, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := service.EmailCodeCheckOut(ctx, f.device, email, notifier.loginCode(t, email), "kiosk-email", nil); err != nil {

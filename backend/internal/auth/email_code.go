@@ -32,18 +32,40 @@ const (
 	// triggers within the challenge rate window.
 	emailCodeRequestsPerAddress = 5
 	emailCodeRequestsPerSource  = 20
+	// emailCodeRequestsPerKiosk bounds the code requests of one kiosk. Every visitor at a kiosk requests from the same
+	// tablet, so the per-client budget of twenty would silently block everyone on a busy open day; the kiosk is
+	// keyed by its managed device instead and gets a bound that only runaway automation reaches. The per-address
+	// limit still applies to every request.
+	emailCodeRequestsPerKiosk = 200
 	// emailCodeIssueTimeout bounds issuing and delivering a code, which runs after the request was answered.
 	emailCodeIssueTimeout = time.Minute
 )
 
 // RequestEmailCode mails a code for the web login (POST /auth/email-code).
 func (s *Service) RequestEmailCode(ctx context.Context, email, sourceKey string, requestID *uuid.UUID) error {
-	return s.requestEmailCode(ctx, ChallengeEmailLogin, email, sourceKey, requestID)
+	return s.requestEmailCode(
+		ctx, ChallengeEmailLogin, email,
+		emailCodeSourceLimit{action: "email_code_request_source", key: sourceKey, maximum: emailCodeRequestsPerSource},
+		requestID,
+	)
 }
 
-// RequestCheckInEmailCode mails a code for checking in or out at a kiosk; it does not work for the web login.
-func (s *Service) RequestCheckInEmailCode(ctx context.Context, email, sourceKey string, requestID *uuid.UUID) error {
-	return s.requestEmailCode(ctx, ChallengeEmailCheckIn, email, sourceKey, requestID)
+// RequestCheckInEmailCode mails a code for checking in or out at a kiosk; it does not work for the web login. The
+// source limit is shared by all visitors of the kiosk (its managed device) and higher than the web limit.
+func (s *Service) RequestCheckInEmailCode(ctx context.Context, email string, deviceID uuid.UUID, requestID *uuid.UUID) error {
+	return s.requestEmailCode(
+		ctx, ChallengeEmailCheckIn, email,
+		emailCodeSourceLimit{action: "email_code_request_kiosk", key: deviceID.String(), maximum: emailCodeRequestsPerKiosk},
+		requestID,
+	)
+}
+
+// emailCodeSourceLimit is the budget of whoever triggers the requests: a client address for the web login, a kiosk
+// device for check-in.
+type emailCodeSourceLimit struct {
+	action  string
+	key     string
+	maximum int32
 }
 
 // requestEmailCode answers nil for every well-formed request: whether the address belongs to an enabled account that
@@ -52,14 +74,15 @@ func (s *Service) RequestCheckInEmailCode(ctx context.Context, email, sourceKey 
 func (s *Service) requestEmailCode(
 	ctx context.Context,
 	kind ChallengeKind,
-	email, sourceKey string,
+	email string,
+	source emailCodeSourceLimit,
 	requestID *uuid.UUID,
 ) error {
 	_, normalized, normalizeErr := security.NormalizeEmail(email)
 	if normalizeErr != nil {
 		return nil //nolint:nilerr // a malformed address gets the same accepted answer as any other
 	}
-	sourceAllowed, err := s.consumeChallengeLimit(ctx, "email_code_request_source", sourceKey, emailCodeRequestsPerSource)
+	sourceAllowed, err := s.consumeChallengeLimit(ctx, source.action, source.key, source.maximum)
 	if err != nil {
 		return err
 	}
@@ -150,6 +173,117 @@ func (s *Service) issueEmailCode(ctx context.Context, kind ChallengeKind, normal
 	deliveryErr := s.notifier.SendEmailLoginCode(ctx, *current.DeliveryAddress, code, expiresAt)
 	s.recordChallengeDelivery(ctx, challenge.ID, requestID, deliveryErr)
 	return nil
+}
+
+// AdminEmailCodeResult is the outcome of an administrator mailing a sign-in code.
+type AdminEmailCodeResult struct {
+	Delivery DeliveryStatus
+	Address  string
+}
+
+// SendEmailCodeAsAdmin mails a web sign-in code to an account on an administrator's behalf. Unlike a visitor's request
+// it answers explicitly: the administrator may know the account exists. Only a master may act on a master account. The
+// request counts against the per-address budget of the public request, and the code and its audit event commit in one
+// transaction before the mail is sent.
+func (s *Service) SendEmailCodeAsAdmin(
+	ctx context.Context,
+	principal authorization.Principal,
+	accountID uuid.UUID,
+	requestID *uuid.UUID,
+) (AdminEmailCodeResult, error) {
+	if !principal.Has(authorization.AccountsEmailCodeManageAll) {
+		return AdminEmailCodeResult{}, apperror.PermissionDenied
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return AdminEmailCodeResult{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := authdb.New(tx)
+	if _, err := queries.GetAccountForAuthentication(ctx, accountID); errors.Is(err, pgx.ErrNoRows) {
+		return AdminEmailCodeResult{}, apperror.NotFound
+	} else if err != nil {
+		return AdminEmailCodeResult{}, err
+	}
+	if !principal.Master {
+		isMaster, err := queries.IsAccountMaster(ctx, accountID)
+		if err != nil {
+			return AdminEmailCodeResult{}, err
+		}
+		if isMaster {
+			return AdminEmailCodeResult{}, apperror.PermissionDenied
+		}
+	}
+	target, err := queries.GetEmailCodeTargetForAccount(ctx, accountID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AdminEmailCodeResult{}, LoginEmailRequired()
+	}
+	if err != nil {
+		return AdminEmailCodeResult{}, err
+	}
+	if !target.EmailCodeEnabled {
+		return AdminEmailCodeResult{}, apperror.Conflicting(
+			"email_code_not_enabled", "The account does not sign in with an emailed code",
+		)
+	}
+	unavailable := apperror.Conflicting(
+		"email_code_unavailable",
+		"The account cannot receive sign-in codes now: it is disabled, must reset its password or has used up its codes",
+	)
+	if target.ResetRequired || target.DeliveryAddress == nil || target.IdentifierNormalized == nil ||
+		authorization.AccountStatus(target.Status) != authorization.AccountEnabled {
+		return AdminEmailCodeResult{}, unavailable
+	}
+	if exhausted, err := emailCodeBudgetExhausted(ctx, queries, accountID); err != nil {
+		return AdminEmailCodeResult{}, err
+	} else if exhausted {
+		return AdminEmailCodeResult{}, unavailable
+	}
+	allowed, err := s.consumeChallengeLimit(
+		ctx, "email_code_request_identifier", *target.IdentifierNormalized, emailCodeRequestsPerAddress,
+	)
+	if err != nil {
+		return AdminEmailCodeResult{}, err
+	}
+	if !allowed {
+		return AdminEmailCodeResult{}, apperror.RateLimited(
+			"email_code_rate_limited", "Too many sign-in codes were requested for this address; try again later",
+			challengeRateWindow,
+		)
+	}
+	code, err := security.NewNumericCode()
+	if err != nil {
+		return AdminEmailCodeResult{}, err
+	}
+	expiresAt := time.Now().UTC().Add(EmailCodeTTL)
+	challenge, err := queries.UpsertAuthChallenge(ctx, authdb.UpsertAuthChallengeParams{
+		ID: ids.New(), Kind: string(ChallengeEmailLogin), AccountID: accountID,
+		AuthIdentityID: &target.AuthIdentityID, CodeDigest: s.challengeDigest(ChallengeEmailLogin, accountID, code),
+		DeliveryAddress: target.DeliveryAddress, ExpiresAt: expiresAt,
+	})
+	if err != nil {
+		return AdminEmailCodeResult{}, err
+	}
+	actor := principal.AccountID
+	if err := audit.Write(ctx, tx, audit.Event{
+		ActorAccountID: &actor, Action: "auth.email_code_sent_by_admin", ResourceType: "account", ResourceID: &accountID,
+		RequestID: requestID, ChangedFields: []string{string(ChallengeEmailLogin)},
+	}); err != nil {
+		return AdminEmailCodeResult{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return AdminEmailCodeResult{}, err
+	}
+	result := AdminEmailCodeResult{Delivery: DeliverySent, Address: *target.DeliveryAddress}
+	deliveryErr := errors.New("mail delivery is not configured")
+	if s.notifier != nil {
+		deliveryErr = s.notifier.SendEmailLoginCode(ctx, *target.DeliveryAddress, code, expiresAt)
+	}
+	s.recordChallengeDelivery(ctx, challenge.ID, requestID, deliveryErr)
+	if deliveryErr != nil {
+		result.Delivery = DeliveryFailed
+	}
+	return result, nil
 }
 
 // emailCodeUsable is whether the identity may receive and use emailed codes right now.

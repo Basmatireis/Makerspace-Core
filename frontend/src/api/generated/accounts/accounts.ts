@@ -22,6 +22,7 @@ import type {
   Account,
   CreateAccountRequest,
   PasswordResetIssue,
+  SendAccountEmailCodeResult,
   SetAccountPasswordRequest,
   SetAccountPinRequest,
   UUIDv7,
@@ -463,6 +464,38 @@ return apiFetch<Account>(getDisableAccountEmailCodeUrl(accountId),
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getSendAccountEmailCodeUrl = (accountId: string,) => {
+
+
+
+
+  return `/api/v1/accounts/${accountId}/email-code/send`
+}
+
+/**
+ * Requires `accounts.email_code.manage.all`; only a master may act on a master account. Issues a web sign-in code
+ * (the kind `POST /auth/email-code/login` accepts, valid ten minutes, replacing the previous one) and mails it to
+ * the account's login email synchronously, then answers with the delivery result: `sent`, or `failed` when the
+ * mail provider refused it or mail is not configured. The request counts against the same five-per-address and
+ * fifteen-minute budget as `POST /auth/email-code`; unlike there, the caller already knows the account exists, so
+ * errors are explicit: `422 login_email_required` without a login email, `409 email_code_not_enabled` when the
+ * account does not sign in with an emailed code, `409 email_code_unavailable` for a disabled account, a pending
+ * password reset or a used-up failure budget, and `429` when the address budget is spent. Audited as
+ * `auth.email_code_sent_by_admin` in the same transaction as the code; neither code nor address is audited.
+ * @summary Mail a one-time web sign-in code to an account
+ */
+export const sendAccountEmailCode = async (accountId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SendAccountEmailCodeResult> => {
+
+  return apiFetch<SendAccountEmailCodeResult>(getSendAccountEmailCodeUrl(accountId),
+  {
+    ...options,
+    method: 'POST'
+
+
   }
 );}
 

@@ -1807,6 +1807,42 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /accounts/{accountId}/email-code/send:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    post:
+      tags: [Accounts]
+      operationId: sendAccountEmailCode
+      summary: Mail a one-time web sign-in code to an account
+      description: |
+        Requires `accounts.email_code.manage.all`; only a master may act on a master account. Issues a web sign-in code
+        (the kind `POST /auth/email-code/login` accepts, valid ten minutes, replacing the previous one) and mails it to
+        the account's login email synchronously, then answers with the delivery result: `sent`, or `failed` when the
+        mail provider refused it or mail is not configured. The request counts against the same five-per-address and
+        fifteen-minute budget as `POST /auth/email-code`; unlike there, the caller already knows the account exists, so
+        errors are explicit: `422 login_email_required` without a login email, `409 email_code_not_enabled` when the
+        account does not sign in with an emailed code, `409 email_code_unavailable` for a disabled account, a pending
+        password reset or a used-up failure budget, and `429` when the address budget is spent. Audited as
+        `auth.email_code_sent_by_admin` in the same transaction as the code; neither code nor address is audited.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      responses:
+        "200":
+          description: Code issued; the body tells whether the mail was delivered.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SendAccountEmailCodeResult"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /accounts/{accountId}/second-factors/reset:
     parameters:
       - $ref: "#/components/parameters/AccountId"
@@ -16276,6 +16312,14 @@ components:
         fromName: {type: string, maxLength: 255}
         baseUrl: {type: string, maxLength: 2048}
         expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    SendAccountEmailCodeResult:
+      type: object
+      additionalProperties: false
+      required: [delivery]
+      properties:
+        delivery: {type: string, enum: [sent, failed]}
+        address: {type: string, description: "The login email the code was mailed to."}
 
     VersionRequest:
       type: object

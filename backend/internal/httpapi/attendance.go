@@ -181,7 +181,7 @@ func (s *Server) RequestTerminalEmailCode(
 		return nil, invalidRequest("email is required")
 	}
 	if err := s.attendance.RequestEmailCode(
-		ctx, device, string(request.Body.Email), sourceAddress(ctx), requestIDPointer(ctx),
+		ctx, device, string(request.Body.Email), requestIDPointer(ctx),
 	); err != nil {
 		return nil, err
 	}

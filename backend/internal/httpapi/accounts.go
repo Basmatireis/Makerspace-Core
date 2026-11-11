@@ -397,3 +397,23 @@ func (s *Server) DisableAccountEmailCode(
 	}
 	return openapi.DisableAccountEmailCode200JSONResponse(accountDTO(account)), nil
 }
+
+func (s *Server) SendAccountEmailCode(
+	ctx context.Context,
+	request openapi.SendAccountEmailCodeRequestObject,
+) (openapi.SendAccountEmailCodeResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.auth.SendEmailCodeAsAdmin(ctx, principal, request.AccountId, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.SendAccountEmailCode200JSONResponse{
+		Body: openapi.SendAccountEmailCodeResult{
+			Delivery: openapi.SendAccountEmailCodeResultDelivery(result.Delivery), Address: &result.Address,
+		},
+		Headers: openapi.SendAccountEmailCode200ResponseHeaders{CacheControl: "no-store"},
+	}, nil
+}

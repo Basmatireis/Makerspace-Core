@@ -954,6 +954,8 @@ export * from './secondFactorRequired';
 export * from './secondFactorRequiredStatus';
 export * from './secondFactorSummary';
 export * from './semester';
+export * from './sendAccountEmailCodeResult';
+export * from './sendAccountEmailCodeResultDelivery';
 export * from './sendNotificationMessageRequest';
 export * from './sentNotificationMessage';
 export * from './sentNotificationMessagePage';

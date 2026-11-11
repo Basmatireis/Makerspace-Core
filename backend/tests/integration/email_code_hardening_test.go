@@ -116,7 +116,7 @@ func TestEmailCodesWorkOnlyForTheirPurposeAndAccount(t *testing.T) {
 	}
 	// A kiosk code does not sign in on the web, and wrong kiosk codes count toward the budget.
 	notifier.forgetLoginCode(email)
-	if err := kiosk.RequestEmailCode(ctx, f.device, email, "kiosk-purpose", nil); err != nil {
+	if err := kiosk.RequestEmailCode(ctx, f.device, email, nil); err != nil {
 		t.Fatal(err)
 	}
 	kioskCode := notifier.loginCode(t, email)
@@ -277,7 +277,7 @@ func TestConcurrentKioskUseOfOneCodeSucceedsOnce(t *testing.T) {
 	authService, notifier := newEmailCodeAuth(t, f.pool)
 	kiosk := attendance.NewService(f.pool, authService, f.labRules, nil)
 	email := "kiosk-visitor@example.test"
-	if err := kiosk.RequestEmailCode(ctx, f.device, email, "kiosk-race", nil); err != nil {
+	if err := kiosk.RequestEmailCode(ctx, f.device, email, nil); err != nil {
 		t.Fatal(err)
 	}
 	code := notifier.loginCode(t, email)

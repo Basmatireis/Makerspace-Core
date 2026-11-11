@@ -45,7 +45,7 @@ func (v methodVerifier) VerifyEmailCodeForAttendance(context.Context, string, st
 	return v.verified("email_code")
 }
 
-func (v methodVerifier) RequestCheckInEmailCode(context.Context, string, string, *uuid.UUID) error {
+func (v methodVerifier) RequestCheckInEmailCode(context.Context, string, uuid.UUID, *uuid.UUID) error {
 	*v.checked = append(*v.checked, "request_email_code")
 	return nil
 }
@@ -137,14 +137,14 @@ func TestKioskAcceptsOnlyItsConfiguredMethods(t *testing.T) {
 	// The emailed code is only sent by a kiosk that takes it for check-in or check-out.
 	setKioskMethods(t, f, []string{"password"}, []string{"pin"}, false)
 	checked = nil
-	if err := service.RequestEmailCode(ctx, f.device, "kiosk-visitor@example.test", "t", nil); !apperror.IsCode(
+	if err := service.RequestEmailCode(ctx, f.device, "kiosk-visitor@example.test", nil); !apperror.IsCode(
 		err, "attendance_method_not_allowed",
 	) || len(checked) != 0 {
 		t.Fatalf("email code request without the method: err=%v, checked=%v", err, checked)
 	}
 	for _, sets := range [][2][]string{{{"email_code"}, {"pin"}}, {{"password"}, {"email_code"}}} {
 		setKioskMethods(t, f, sets[0], sets[1], false)
-		if err := service.RequestEmailCode(ctx, f.device, "kiosk-visitor@example.test", "t", nil); err != nil {
+		if err := service.RequestEmailCode(ctx, f.device, "kiosk-visitor@example.test", nil); err != nil {
 			t.Fatalf("email code request on %v: %v", sets, err)
 		}
 	}
@@ -171,7 +171,7 @@ func TestKioskEmailCodeFollowsTheConfiguredMethods(t *testing.T) {
 
 	// Email code refused: neither the code nor the check-in.
 	setKioskMethods(t, f, []string{"password"}, []string{"password"}, false)
-	if err := service.RequestEmailCode(ctx, f.device, email, "kiosk-email", nil); !apperror.IsCode(
+	if err := service.RequestEmailCode(ctx, f.device, email, nil); !apperror.IsCode(
 		err, "attendance_method_not_allowed",
 	) {
 		t.Fatalf("request: %v", err)
@@ -180,7 +180,7 @@ func TestKioskEmailCodeFollowsTheConfiguredMethods(t *testing.T) {
 
 	// Email code allowed for check-in only: the real code checks in, but cannot check out.
 	setKioskMethods(t, f, []string{"email_code"}, []string{"password"}, false)
-	if err := service.RequestEmailCode(ctx, f.device, email, "kiosk-email", nil); err != nil {
+	if err := service.RequestEmailCode(ctx, f.device, email, nil); err != nil {
 		t.Fatal(err)
 	}
 	code := notifier.loginCode(t, email)
@@ -189,7 +189,7 @@ func TestKioskEmailCodeFollowsTheConfiguredMethods(t *testing.T) {
 		t.Fatalf("check-in = %+v, %v", visit, err)
 	}
 	notifier.forgetLoginCode(email)
-	if err = service.RequestEmailCode(ctx, f.device, email, "kiosk-email", nil); err != nil {
+	if err = service.RequestEmailCode(ctx, f.device, email, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = service.EmailCodeCheckOut(ctx, f.device, email, notifier.loginCode(t, email), "kiosk-email", nil); !apperror.IsCode(

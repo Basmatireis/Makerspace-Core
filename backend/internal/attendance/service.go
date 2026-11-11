@@ -31,7 +31,7 @@ type CredentialVerifier interface {
 	VerifyPasswordForAttendance(context.Context, string, string, string) (auth.VerifiedIdentity, error)
 	VerifyPINForAttendance(context.Context, string, string, string) (auth.VerifiedIdentity, error)
 	VerifyEmailCodeForAttendance(context.Context, string, string, string) (auth.VerifiedIdentity, error)
-	RequestCheckInEmailCode(ctx context.Context, email, sourceKey string, requestID *uuid.UUID) error
+	RequestCheckInEmailCode(ctx context.Context, email string, deviceID uuid.UUID, requestID *uuid.UUID) error
 	// ConsumeVerifiedTx uses up a one-time proof (an emailed code) inside the attendance transaction, so it is spent
 	// exactly when the check-in or check-out commits.
 	ConsumeVerifiedTx(ctx context.Context, tx pgx.Tx, verified auth.VerifiedIdentity) error
@@ -343,7 +343,7 @@ func (s *Service) PINCheckIn(
 func (s *Service) RequestEmailCode(
 	ctx context.Context,
 	device manageddevices.DeviceContext,
-	email, source string,
+	email string,
 	requestID *uuid.UUID,
 ) error {
 	row, err := s.kiosk(ctx, device)
@@ -354,7 +354,7 @@ func (s *Service) RequestEmailCode(
 		requireKioskMethod(row, actionCheckOut, string(manageddevices.KioskMethodEmailCode)) != nil {
 		return errMethodNotAllowed
 	}
-	return s.auth.RequestCheckInEmailCode(ctx, email, source, requestID)
+	return s.auth.RequestCheckInEmailCode(ctx, email, device.ID, requestID)
 }
 
 // EmailCodeCheckIn checks in with an emailed code. The code stays valid until a check-in succeeds, so the kiosk can
