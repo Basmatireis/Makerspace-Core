@@ -39,7 +39,7 @@ type StepKey = 'about' | 'code' | 'photo' | 'messages' | 'rules';
 const stepTitles: Record<StepKey, string> = {
   about: 'About you',
   code: 'Code',
-  photo: 'Photo',
+  photo: 'Profile photo',
   messages: 'Messages',
   rules: 'Lab Rules',
 };

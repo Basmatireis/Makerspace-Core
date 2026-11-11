@@ -149,23 +149,23 @@ export function ProfilePhotoPicker({
         <Button
           type="button"
           kind="tertiary"
-          size="xl"
+          size="2xl"
           renderIcon={sources.camera ? Camera : undefined}
           onClick={replace}
         >
           {sources.camera ? 'Retake photo' : 'Choose another photo'}
         </Button>
       ) : cameraOn && countdown !== undefined ? (
-        <Button type="button" kind="secondary" size="xl" onClick={() => setCountdown(undefined)}>
+        <Button type="button" kind="secondary" size="2xl" onClick={() => setCountdown(undefined)}>
           Cancel
         </Button>
       ) : cameraOn ? (
-        <Button type="button" size="xl" renderIcon={Camera} onClick={startCountdown}>
+        <Button type="button" size="2xl" renderIcon={Camera} onClick={startCountdown}>
           Take photo
         </Button>
       ) : (
         sources.camera && (
-          <Button type="button" kind="secondary" size="xl" renderIcon={Camera} onClick={() => void startCamera()}>
+          <Button type="button" kind="secondary" size="2xl" renderIcon={Camera} onClick={() => void startCamera()}>
             Start camera
           </Button>
         )
@@ -176,7 +176,6 @@ export function ProfilePhotoPicker({
   return (
     <div className="visitor-photo">
       {sources.camera && <CameraIndicator indicator={camera?.indicator} live={cameraOn && !image && !source} />}
-      <p className="cds--label">Profile photo</p>
       {source ? (
         <ProfilePhotoCropper
           src={source}
@@ -188,7 +187,6 @@ export function ProfilePhotoPicker({
         />
       ) : (
         <>
-          {live && <p className="visitor-photo__look">Look into the camera, not at the screen</p>}
           <div
             className={
               image
@@ -229,6 +227,7 @@ export function ProfilePhotoPicker({
               }}
             />
             {/* While live the button sits on the picture, so it is reachable without scrolling. */}
+            {live && view && <p className="visitor-photo__look">Look into the camera, not at the screen</p>}
             {live && view && <div className="visitor-photo__overlay-actions">{photoAction}</div>}
             {!image && !cameraOn && sources.camera && <div className="visitor-photo__start">{photoAction}</div>}
             {countdown !== undefined && countdown > 0 && (

@@ -266,7 +266,16 @@ body:has(.visitor-flow) {
 // Points people at the lens: they tend to look at their own picture on the screen instead.
 .visitor-photo__look {
   @include type-style('heading-03');
-  margin-block-end: $spacing-03;
+  position: absolute;
+  z-index: 3;
+  inset-block-start: $spacing-05;
+  inset-inline: $spacing-05;
+  margin-inline: auto;
+  inline-size: fit-content;
+  padding: $spacing-03 $spacing-05;
+  background: rgba(0, 0, 0, 0.6);
+  color: $text-on-color;
+  text-align: center;
 }
 
 // Before the camera starts, its button takes the middle of the empty frame.

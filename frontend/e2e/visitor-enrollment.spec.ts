@@ -136,7 +136,7 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('visitor-code.png') });
   await page.getByRole('button', { name: 'Verify code' }).click();
-  await expect(page.getByRole('heading', { name: 'Photo' })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Profile photo' })).toBeFocused();
   await page
     .getByLabel('or upload a profile photo', { exact: true })
     .setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: photoPng() });

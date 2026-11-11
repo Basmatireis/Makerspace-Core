@@ -143,7 +143,7 @@ describe('controlled visitor enrollment', () => {
     expect(confirmed).toEqual(['123499', '123456']);
 
     // Step 3: the profile photo is a step of its own and required on this device.
-    expect(await screen.findByRole('heading', { name: 'Photo' })).toHaveFocus();
+    expect(await screen.findByRole('heading', { name: 'Profile photo' })).toHaveFocus();
     const next = screen.getByRole('button', { name: 'Next' });
     expect(next).toBeDisabled();
     await choosePhoto(user);
@@ -161,12 +161,12 @@ describe('controlled visitor enrollment', () => {
 
     // Back skips the used-up code step and keeps every entry.
     await user.click(screen.getByRole('button', { name: 'Back' }));
-    expect(await screen.findByRole('heading', { name: 'Photo' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Profile photo' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(await screen.findByRole('heading', { name: 'About you' })).toBeInTheDocument();
     expect(screen.getByLabelText('Email')).toHaveValue('new.visitor@example.test');
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    expect(await screen.findByRole('heading', { name: 'Photo' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Profile photo' })).toBeInTheDocument();
     expect(screen.getByAltText('Selected profile')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByRole('heading', { name: 'Messages' })).toBeInTheDocument();
