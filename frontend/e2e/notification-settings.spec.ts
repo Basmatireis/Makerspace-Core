@@ -30,7 +30,8 @@ test('a change is saved with the allowed endpoint', async ({ page, world }) => {
   world.restriction = 'notification_settings';
   await page.goto('/notification-settings');
   await expect(page.getByRole('switch', { name: 'Allow News & events' })).toBeChecked();
-  await page.getByRole('switch', { name: 'Allow News & events' }).click();
+  // Carbon draws the switch over its button; the card's drawn switch is what takes the tap.
+  await page.locator('.mn-card', { hasText: 'News & events' }).locator('.cds--toggle__appearance').click();
   await expect
     .poll(() =>
       world.requests.some(

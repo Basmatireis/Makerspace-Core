@@ -1,6 +1,7 @@
 -- +goose Up
 -- The per-person "feedback at check-out" opt-out is gone: the tablet always offers a minute of feedback at check-out
 -- (subject to the survey cooldown). Its only real column lived in this table, so the whole table goes.
+-- squawk-ignore ban-drop-table
 DROP TABLE person_notification_settings;
 
 -- +goose Down
