@@ -8,6 +8,7 @@ const accountId = '0192f6f8-743e-7c77-a349-cd07c3e8d010';
 const passwordIdentityId = '0192f6f8-743e-7c77-a349-cd07c3e8d011';
 const embedId = '0192f6f8-743e-7c77-a349-cd07c3e8d101';
 const machineId = '0192f6f8-743e-7c77-a349-cd07c3e8d102';
+const sceneId = '0192f6f8-743e-7c77-a349-cd07c3e8d104';
 const timestamp = '2026-11-09T12:00:00Z';
 
 function currentUser(permissions: string[]) {
@@ -177,8 +178,28 @@ async function mockApi(page: Page, permissions: string[]) {
       return json(route, { code: 'not_found', message: 'Not found', requestId: 'r' }, 404);
     if (path === '/api/v1/signage/machines')
       return json(route, { items: [{ id: machineId, name: 'Prusa CORE One', kind: 'printer', hasCamera: true }] });
-    if (path === '/api/v1/signage/scenes' || path === '/api/v1/signage/groups' || path === '/api/v1/signage/displays')
-      return json(route, { items: [] });
+    if (path === '/api/v1/signage/scenes')
+      return json(route, {
+        items: [
+          {
+            id: sceneId,
+            name: 'Printer status',
+            aspectRatio: { width: 16, height: 9 },
+            backgroundColor: '#161616',
+            backgroundAssetId: null,
+            backgroundFit: 'cover',
+            backgroundDim: 0,
+            fontFamily: 'sans',
+            fontAssetId: null,
+            theme: 'dark',
+            blocks: [],
+            version: 1,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+      });
+    if (path === '/api/v1/signage/groups' || path === '/api/v1/signage/displays') return json(route, { items: [] });
     if (path === '/api/v1/signage/announcement-templates' || path === '/api/v1/signage/custom-layouts')
       return json(route, { items: [] });
     if (path === '/api/v1/signage/assets') return json(route, { items: [] });
@@ -207,12 +228,14 @@ test('lists web embeds, creates one and shows its embed code', async ({ page }) 
   await dialog.getByRole('button', { name: 'Create' }).click();
   await expect(dialog.getByText("Enter the website's https address without a path.")).toBeVisible();
   await dialog.getByLabel('Website').fill('https://blog.example');
+  await dialog.getByLabel('Scene 1').selectOption('Printer status');
   await dialog.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByRole('heading', { name: 'Printer wall', level: 1 })).toBeVisible();
   expect(writes[0].body).toMatchObject({
     name: 'Printer wall',
     aspectRatio: { width: 16, height: 9 },
     allowedOrigins: ['https://blog.example'],
+    defaultScenes: [{ sceneId, seconds: 20, transition: 'fade' }],
   });
 
   await page.getByRole('tab', { name: 'Embed code' }).click();

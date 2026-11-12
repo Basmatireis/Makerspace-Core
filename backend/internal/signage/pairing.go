@@ -255,7 +255,7 @@ func (s *Service) PairDisplay(
 		if err := lockJoinedGroup(ctx, q, *checked.GroupID, checked.AspectRatio, false); err != nil {
 			return Display{}, err
 		}
-	} else if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, "defaultScenes"); err != nil {
+	} else if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, defaultScenesName); err != nil {
 		return Display{}, err
 	}
 	requestRowID, err := q.GetOpenSignagePairingRequestByCode(

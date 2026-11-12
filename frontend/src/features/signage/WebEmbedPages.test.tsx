@@ -43,8 +43,8 @@ describe('Web embeds list', () => {
     expect(screen.queryByRole('button', { name: 'New web embed' })).not.toBeInTheDocument();
   });
 
-  it('creates an embed with its first website and opens it', async () => {
-    mockSignage(manage, { embeds: [] });
+  it('creates an embed with its first website and default scenes and opens it', async () => {
+    mockSignage(manage, { embeds: [], scenes: [sceneFixture({ aspectRatio: { width: 16, height: 9 } })] });
     let body: unknown;
     server.use(
       http.post('*/api/v1/signage/web-embeds', async ({ request }) => {
@@ -64,15 +64,55 @@ describe('Web embeds list', () => {
     expect(body).toBeUndefined();
     await user.clear(within(dialog).getByLabelText('Website'));
     await user.type(within(dialog).getByLabelText('Website'), 'https://Example.org');
+    // Without a group the embed needs a default scene, as the backend requires (it refused the create before).
+    await user.click(within(dialog).getByRole('button', { name: 'Create' }));
+    expect(await within(dialog).findByText('Choose a scene for every item')).toBeInTheDocument();
+    expect(body).toBeUndefined();
+    await user.selectOptions(within(dialog).getByLabelText('Scene 1'), 'Open days poster');
     await user.click(within(dialog).getByRole('button', { name: 'Create' }));
     await waitFor(() =>
       expect(body).toEqual({
         name: 'Faculty site',
         aspectRatio: { width: 16, height: 9 },
         allowedOrigins: ['https://example.org'],
+        defaultScenes: [{ sceneId: ids.scene, seconds: 20, transition: 'fade' }],
       }),
     );
     expect(await screen.findByRole('heading', { name: 'Faculty site' })).toBeInTheDocument();
+  });
+
+  it('creates an embed that follows a group of its ratio without default scenes', async () => {
+    mockSignage(manage, { embeds: [], groups: [groupFixture()] });
+    let body: unknown;
+    server.use(
+      http.post('*/api/v1/signage/web-embeds', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(embedFixture({ name: 'Hallway copy' }), { status: 201 });
+      }),
+      http.get('*/api/v1/signage/web-embeds/:id', () => HttpResponse.json(embedFixture({ name: 'Hallway copy' }))),
+    );
+    renderRoute(<App />, '/signage/embeds');
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByRole('button', { name: 'New web embed' }))[0]);
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Name'), 'Hallway copy');
+    await user.type(within(dialog).getByLabelText('Website'), 'https://example.org');
+    // The 9:16 group is offered only once the embed has its ratio.
+    expect(
+      within(within(dialog).getByLabelText('Group')).queryByRole('option', { name: 'Hallway screens' }),
+    ).toBeNull();
+    await user.selectOptions(within(dialog).getByLabelText('Aspect ratio'), '9:16 (portrait)');
+    await user.selectOptions(within(dialog).getByLabelText('Group'), 'Hallway screens');
+    expect(within(dialog).queryByLabelText('Scene 1')).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Create' }));
+    await waitFor(() =>
+      expect(body).toEqual({
+        name: 'Hallway copy',
+        aspectRatio: { width: 9, height: 16 },
+        allowedOrigins: ['https://example.org'],
+        groupId: ids.group,
+      }),
+    );
   });
 });
 

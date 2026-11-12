@@ -1406,14 +1406,14 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	// The default list must have the (new) ratio of the display.
 	settings["defaultScenes"] = defaults
 	mismatchedDefault := e.expect(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity)
-	if !strings.Contains(mismatchedDefault["message"].(string), "every scene of defaultScenes must have the display's aspect ratio") {
+	if !strings.Contains(mismatchedDefault["message"].(string), "every scene of the default scenes must have the aspect ratio") {
 		t.Fatalf("default list of another ratio = %v", mismatchedDefault)
 	}
 	// 32:18 is 16:9 once reduced, so it is no ratio change; only the unknown default scene fails.
 	settings["defaultScenes"] = sceneList(uuid.Must(uuid.NewV7()))
 	settings["aspectRatio"] = map[string]any{"width": 32, "height": 18}
 	unknownDefault := e.expect(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity)
-	if unknownDefault["message"] != "a scene of defaultScenes does not exist" {
+	if unknownDefault["message"] != "a scene of the default scenes does not exist any more" {
 		t.Fatalf("unknown default scene = %v", unknownDefault)
 	}
 	// Without a group the default list needs at least one scene (the schema allows an empty list for members).

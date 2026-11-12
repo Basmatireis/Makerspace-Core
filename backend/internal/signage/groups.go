@@ -226,7 +226,7 @@ func validateGroupInput(input GroupInput) (GroupInput, error) {
 	if err != nil {
 		return input, err
 	}
-	defaults, err := checkSceneList(input.DefaultScenes, "defaultScenes")
+	defaults, err := checkSceneList(input.DefaultScenes, defaultScenesName)
 	if err != nil {
 		return input, err
 	}
@@ -254,7 +254,7 @@ func (s *Service) CreateGroup(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
-	if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, "defaultScenes"); err != nil {
+	if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, defaultScenesName); err != nil {
 		return Group{}, err
 	}
 	id := ids.New()
@@ -314,7 +314,7 @@ func (s *Service) UpdateGroup(
 	if current.Version != expected {
 		return Group{}, apperror.StaleWrite
 	}
-	if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, "defaultScenes"); err != nil {
+	if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, defaultScenesName); err != nil {
 		return Group{}, err
 	}
 	ratioChanged := aspectRatioOf(current.AspectWidth, current.AspectHeight) != checked.AspectRatio
