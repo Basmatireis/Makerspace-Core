@@ -1061,17 +1061,6 @@ func (q *Queries) GetPaymentEventFacts(ctx context.Context, id uuid.UUID) (GetPa
 	return i, err
 }
 
-const getPersonSettings = `-- name: GetPersonSettings :one
-SELECT person_id, ask_feedback_at_checkout, updated_at FROM person_notification_settings WHERE person_id = $1
-`
-
-func (q *Queries) GetPersonSettings(ctx context.Context, personID uuid.UUID) (PersonNotificationSetting, error) {
-	row := q.db.QueryRow(ctx, getPersonSettings, personID)
-	var i PersonNotificationSetting
-	err := row.Scan(&i.PersonID, &i.AskFeedbackAtCheckout, &i.UpdatedAt)
-	return i, err
-}
-
 const getPrinterErrorMeaning = `-- name: GetPrinterErrorMeaning :one
 SELECT title FROM printer_error_codes WHERE source_family = $1 AND code = $2
 `
@@ -4395,24 +4384,6 @@ func (q *Queries) UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const upsertAskFeedbackAtCheckout = `-- name: UpsertAskFeedbackAtCheckout :exec
-INSERT INTO person_notification_settings (person_id, ask_feedback_at_checkout, updated_at)
-VALUES ($1, $2, $3)
-ON CONFLICT (person_id) DO UPDATE SET ask_feedback_at_checkout = EXCLUDED.ask_feedback_at_checkout,
-    updated_at = EXCLUDED.updated_at
-`
-
-type UpsertAskFeedbackAtCheckoutParams struct {
-	PersonID uuid.UUID
-	Ask      bool
-	Now      time.Time
-}
-
-func (q *Queries) UpsertAskFeedbackAtCheckout(ctx context.Context, arg UpsertAskFeedbackAtCheckoutParams) error {
-	_, err := q.db.Exec(ctx, upsertAskFeedbackAtCheckout, arg.PersonID, arg.Ask, arg.Now)
-	return err
 }
 
 const upsertConsent = `-- name: UpsertConsent :exec

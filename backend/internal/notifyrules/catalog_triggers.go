@@ -118,7 +118,7 @@ var activityTriggers = []Trigger{
 	},
 	{
 		Key: "notification_settings_changed", Area: "People", Label: "Someone's notification settings change",
-		Help: "Fires once per save that changes a person's channel choices, their feedback-at-check-out switch or their " +
+		Help: "Fires once per save that changes a person's channel choices or their " +
 			"consents, whether they saved it themselves or staff did. Consents given while enrolling at the kiosk stay " +
 			"quiet. {changes} lists one line per change, labels only. Only in-app and e-mail actions are possible. " +
 			"Besides the person themselves, only people allowed to see everyone's notification settings are told.",

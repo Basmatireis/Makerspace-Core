@@ -43,7 +43,6 @@ function fixture(hasAccount = true): PersonNotificationSettings {
         },
       ],
       consentPending: false,
-      askFeedbackAtCheckout: true,
       rules: hasAccount
         ? [
             {
@@ -105,10 +104,9 @@ describe('Notifications on the person detail page', () => {
     expect(screen.getByText(/Answered/)).toBeInTheDocument();
     expect(screen.queryByRole('switch', { name: 'Allow News & events' })).not.toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Monthly newsletter: in the app' })).toBeDisabled();
-    expect(screen.getByRole('switch', { name: 'Ask at check-out' })).toBeDisabled();
   });
 
-  it('saves channel choices and the check-out question with the manage permission', async () => {
+  it('saves channel choices with the manage permission', async () => {
     setup(['notification_settings.manage.all']);
     const bodies: unknown[] = [];
     server.use(
@@ -119,17 +117,11 @@ describe('Notifications on the person detail page', () => {
           return new HttpResponse(null, { status: 204 });
         },
       ),
-      http.put(`*/api/v1/people/${otherPersonId}/notification-settings/feedback-at-checkout`, async ({ request }) => {
-        bodies.push(await request.json());
-        return new HttpResponse(null, { status: 204 });
-      }),
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/people/${otherPersonId}?tab=notifications`);
     await user.click(await screen.findByRole('switch', { name: 'Monthly newsletter: in the app' }));
     await waitFor(() => expect(bodies).toContainEqual({ ruleId: optionalRuleId, inApp: true, email: true }));
-    await user.click(screen.getByRole('switch', { name: 'Ask at check-out' }));
-    await waitFor(() => expect(bodies).toContainEqual({ ask: false }));
     // Consent answers stay the person's own.
     expect(screen.queryByRole('switch', { name: 'Allow News & events' })).not.toBeInTheDocument();
     // A required rule keeps its last channel.

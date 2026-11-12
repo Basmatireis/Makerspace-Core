@@ -442,10 +442,10 @@ func declarations() []privacy.Definition {
 		},
 		{
 			ID: NotificationConsents, Owner: Platform, Name: "Notification consents",
-			Description:    "A person's answers to the notification categories that need consent, and whether the tablet may ask for feedback at check-out.",
-			Contains:       "The answer (yes or no) to each consent category, the version of its text, the time and place of the answer, and the feedback-at-check-out switch, per person",
+			Description:    "A person's answers to the notification categories that need consent.",
+			Contains:       "The answer (yes or no) to each consent category, the version of its text, and the time and place of the answer, per person",
 			ErasureOutcome: privacy.ErasureErased,
-			Fields:         []string{"notification_consents.*", "person_notification_settings.*"},
+			Fields:         []string{"notification_consents.*"},
 			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt, privacy.TriggerEndedAt},
 			Actions:        []privacy.Action{privacy.ActionDelete},
 			Subject:        privacy.SubjectPerson,

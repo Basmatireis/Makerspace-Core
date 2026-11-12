@@ -139,10 +139,9 @@ type ReachingRule struct {
 
 // Settings is everything the "My notifications" screen shows.
 type Settings struct {
-	Consents              []ConsentEntry
-	ConsentPending        bool
-	AskFeedbackAtCheckout bool
-	Rules                 []ReachingRule
+	Consents       []ConsentEntry
+	ConsentPending bool
+	Rules          []ReachingRule
 }
 
 // Preference is a person's channel choice for one rule.

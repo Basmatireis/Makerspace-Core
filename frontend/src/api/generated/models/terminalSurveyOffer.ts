@@ -35,7 +35,5 @@ export interface TerminalSurveyOffer {
   canSendByEmail: boolean;
   /** The person agreed to survey e-mails (Surveys & feedback) and has an address, so this survey's automatic invitation reaches them after the offer anyway unless they answer here. The tablet then offers only answer now and send by e-mail (which sends it right away); without it, it also offers no thanks. */
   mailConsent: boolean;
-  /** The person may switch the question off (`/never`). False after a tap check-out: anyone can tap any name, so nobody's choice is changed there, and the answers are stored without a person whatever the survey says. */
-  canStopAsking: boolean;
   expiresAt: string;
 }

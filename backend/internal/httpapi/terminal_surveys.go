@@ -80,24 +80,10 @@ func (s *Server) TerminalSurveyOfferDecline(
 	if err != nil {
 		return nil, err
 	}
-	if err = s.surveys.DeclineOffered(ctx, device.ID, request.Token, false, requestIDPointer(ctx)); err != nil {
+	if err = s.surveys.DeclineOffered(ctx, device.ID, request.Token); err != nil {
 		return nil, err
 	}
 	return openapi.TerminalSurveyOfferDecline204Response{}, nil
-}
-
-func (s *Server) TerminalSurveyOfferNever(
-	ctx context.Context,
-	request openapi.TerminalSurveyOfferNeverRequestObject,
-) (openapi.TerminalSurveyOfferNeverResponseObject, error) {
-	device, err := s.offerDevice(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if err = s.surveys.DeclineOffered(ctx, device.ID, request.Token, true, requestIDPointer(ctx)); err != nil {
-		return nil, err
-	}
-	return openapi.TerminalSurveyOfferNever204Response{}, nil
 }
 
 // TerminalAnswerConsents stores the consent answers of the person who just checked in at this tablet.
@@ -159,6 +145,6 @@ func surveyOfferDTO(offer *surveys.Offer) *openapi.TerminalSurveyOffer {
 	return &openapi.TerminalSurveyOffer{
 		OfferToken: offer.Token, SurveyName: offer.SurveyName, QuestionCount: offer.QuestionCount,
 		Anonymous: offer.Anonymous, CanAnswerNow: offer.CanAnswerNow, CanSendByEmail: offer.CanSendByEmail,
-		MailConsent: offer.MailConsent, CanStopAsking: offer.CanStopAsking, ExpiresAt: offer.ExpiresAt,
+		MailConsent: offer.MailConsent, ExpiresAt: offer.ExpiresAt,
 	}
 }

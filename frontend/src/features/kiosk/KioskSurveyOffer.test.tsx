@@ -38,7 +38,6 @@ const offer = {
   canAnswerNow: true,
   canSendByEmail: true,
   mailConsent: false,
-  canStopAsking: true,
   expiresAt: '2026-10-09T12:15:00Z',
 };
 const survey = {
@@ -286,7 +285,6 @@ describe('kiosk check-out survey offer', () => {
     const choices = offerChoices();
     expect(choices).toEqual(['Answer now', 'Send by e-mail']);
     expect(screen.getByText(/Otherwise it comes to you by e-mail later/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: "Don't ask me at check-out again" })).toBeInTheDocument();
   });
 
   it('hides the e-mail choice without an address and explains a refused send', async () => {
@@ -336,25 +334,6 @@ describe('kiosk check-out survey offer', () => {
     expect(called).toBe(true);
   });
 
-  it('remembers "Don\'t ask me at check-out again"', async () => {
-    let called = false;
-    mockKiosk();
-    mockCheckOut();
-    server.use(
-      http.post('*/api/v1/terminal/survey-offers/:token/never', () => {
-        called = true;
-        return new HttpResponse(null, { status: 204 });
-      }),
-    );
-    const user = userEvent.setup();
-    renderRoute(<App />, '/kiosk');
-    await signIn(user, 'Check out');
-    await user.click(await screen.findByRole('link', { name: "Don't ask me at check-out again" }));
-
-    expect(await screen.findByRole('heading', { name: 'See you, Grace!' })).toBeInTheDocument();
-    expect(called).toBe(true);
-  });
-
   it('shows no offer when the check-out answer carries none', async () => {
     mockKiosk();
     mockCheckOut(null);
@@ -390,7 +369,7 @@ describe('kiosk survey after a tap check-out', () => {
 
   it('offers the anonymous survey without "never" and posts the answers', async () => {
     let submitted: unknown;
-    mockTapKiosk([], { ...offer, anonymous: true, canSendByEmail: false, canStopAsking: false });
+    mockTapKiosk([], { ...offer, anonymous: true, canSendByEmail: false });
     server.use(
       http.post('*/api/v1/terminal/survey-offers/:token/answer-now', () => HttpResponse.json(survey)),
       http.post('*/api/v1/terminal/survey-offers/:token/responses', async ({ request, params }) => {
@@ -424,7 +403,7 @@ describe('kiosk survey after a tap check-out', () => {
   it('sends the survey to the tapped person by e-mail, with or without the survey e-mail consent', async () => {
     for (const mailConsent of [false, true]) {
       let sent = 0;
-      mockTapKiosk([], { ...offer, anonymous: true, canStopAsking: false, mailConsent });
+      mockTapKiosk([], { ...offer, anonymous: true, mailConsent });
       server.use(
         http.post('*/api/v1/terminal/survey-offers/:token/send-email', () => {
           sent += 1;

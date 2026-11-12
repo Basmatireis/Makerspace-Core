@@ -1408,12 +1408,6 @@ type Person struct {
 	LastVisitOn         pgtype.Date
 }
 
-type PersonNotificationSetting struct {
-	PersonID              uuid.UUID
-	AskFeedbackAtCheckout bool
-	UpdatedAt             time.Time
-}
-
 type PersonRole struct {
 	PersonID            uuid.UUID
 	RoleID              uuid.UUID

@@ -39,7 +39,6 @@ function settingsFixture(): NotificationSettings {
       consent(surveysId, 'Surveys & feedback', 'consent', true),
     ],
     consentPending: false,
-    askFeedbackAtCheckout: true,
     rules: [
       {
         ruleId: errorRuleId,
@@ -194,21 +193,6 @@ describe('My notifications page', () => {
     await waitFor(() => expect(body).toBeDefined());
     expect(body).toEqual({ answers: [{ categoryId: surveysId, granted: false }], place: 'profile' });
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Allow Surveys & feedback' })).not.toBeChecked());
-  });
-
-  it('saves the check-out feedback switch on its own', async () => {
-    signedIn();
-    let body: unknown;
-    server.use(
-      http.put('*/api/v1/me/notifications/feedback-at-checkout', async ({ request }) => {
-        body = await request.json();
-        return new HttpResponse(null, { status: 204 });
-      }),
-    );
-    const user = userEvent.setup();
-    renderRoute(<App />, '/profile/notifications');
-    await user.click(await screen.findByRole('switch', { name: 'Ask me at check-out' }));
-    await waitFor(() => expect(body).toEqual({ ask: false }));
   });
 
   it('is reached from the profile menu', async () => {

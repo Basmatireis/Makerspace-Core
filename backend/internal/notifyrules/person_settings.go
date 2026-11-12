@@ -17,7 +17,7 @@ import (
 )
 
 // settingsTarget is the person whose notification settings are read or changed, with their account when they have
-// one. Consents and the feedback-at-check-out switch belong to the person, channel choices to the account.
+// one. Consents belong to the person, channel choices to the account.
 type settingsTarget struct {
 	personID  uuid.UUID
 	accountID *uuid.UUID
@@ -89,7 +89,7 @@ type PersonSettings struct {
 }
 
 // PersonSettings returns a person's notification settings for staff with notification_settings.read.all or
-// notification_settings.manage.all. A person without an account has consents and the feedback switch but no rules.
+// notification_settings.manage.all. A person without an account has consents but no rules.
 func (s *Service) PersonSettings(
 	ctx context.Context,
 	p authorization.Principal,
@@ -129,21 +129,6 @@ func (s *Service) SetPersonRulePreference(
 		return apperror.PermissionDenied
 	}
 	return s.setRulePreference(ctx, p, changeableTargetLoader(p, personID), ruleID, preference, requestID)
-}
-
-// SetPersonAskFeedbackAtCheckout stores a person's feedback-at-check-out switch on their behalf; it needs
-// notification_settings.manage.all.
-func (s *Service) SetPersonAskFeedbackAtCheckout(
-	ctx context.Context,
-	p authorization.Principal,
-	personID uuid.UUID,
-	ask bool,
-	requestID *uuid.UUID,
-) error {
-	if !p.Has(authorization.NotificationSettingsManageAll) {
-		return apperror.PermissionDenied
-	}
-	return s.setAskFeedbackAtCheckout(ctx, p, changeableTargetLoader(p, personID), ask, requestID)
 }
 
 // setRulePreference stores a channel choice for a central rule that reaches the person; any other rule answers 404, so
@@ -228,46 +213,6 @@ func (s *Service) currentChannels(
 		}
 	}
 	return Preference{}, false, nil
-}
-
-// setAskFeedbackAtCheckout stores the feedback-at-check-out switch; the same value again changes nothing.
-func (s *Service) setAskFeedbackAtCheckout(
-	ctx context.Context,
-	actor authorization.Principal,
-	load targetLoader,
-	ask bool,
-	requestID *uuid.UUID,
-) error {
-	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		queries := notifyrulesdb.New(tx)
-		target, err := load(ctx, queries)
-		if err != nil {
-			return err
-		}
-		current := true
-		stored, err := queries.GetPersonSettings(ctx, target.personID)
-		switch {
-		case err == nil:
-			current = stored.AskFeedbackAtCheckout
-		case !errors.Is(err, pgx.ErrNoRows):
-			return err
-		}
-		if current == ask {
-			return nil
-		}
-		if err := queries.UpsertAskFeedbackAtCheckout(ctx, notifyrulesdb.UpsertAskFeedbackAtCheckoutParams{
-			PersonID: target.personID, Ask: ask, Now: s.now(),
-		}); err != nil {
-			return err
-		}
-		event := auditEvent(actor, "notification_feedback_at_checkout.changed", "person", target.personID, requestID,
-			[]string{"askFeedbackAtCheckout"})
-		event.Metadata = map[string]any{"personId": target.personID.String()}
-		if err := audit.Write(ctx, tx, event); err != nil {
-			return err
-		}
-		return s.settingsChanged(ctx, tx, actor, target.personID, []string{"Feedback at check-out: " + onOff(ask)}, false)
-	})
 }
 
 // settingsChanged raises notification_settings_changed for one save that changed something.

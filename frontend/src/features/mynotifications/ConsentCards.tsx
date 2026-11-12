@@ -2,7 +2,7 @@ import { Tag, Tile, Toggle } from '@carbon/react';
 import { Locked } from '@carbon/icons-react';
 import type { NotificationSettings } from '../../api/generated/models';
 import { LegalLinks } from '../branding/LegalLinks';
-import { useChangeConsent, useChangeFeedbackAtCheckout } from './mutations';
+import { useChangeConsent } from './mutations';
 
 const answerDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -13,15 +13,13 @@ type ConsentCardsViewProps = {
   subject?: 'you' | 'person';
   /** Without a handler the consent answers are shown, not changed. */
   onConsent?: (change: { categoryId: string; granted: boolean; name: string }) => void;
-  /** Without a handler the check-out feedback choice is shown, not changed. */
-  onFeedback?: (ask: boolean) => void;
 };
 
 const consentState = (granted: boolean | null) =>
   granted === true ? 'Allowed' : granted === false ? 'Not allowed' : 'Not answered yet';
 
-/** "What we may send you": one card per category, then the separate check-out feedback switch. */
-export function ConsentCardsView({ settings, subject = 'you', onConsent, onFeedback }: ConsentCardsViewProps) {
+/** "What we may send you": one card per consent category. */
+export function ConsentCardsView({ settings, subject = 'you', onConsent }: ConsentCardsViewProps) {
   const own = subject === 'you';
   const answered = settings.consents
     .map((entry) => entry.answeredAt)
@@ -80,30 +78,6 @@ export function ConsentCardsView({ settings, subject = 'you', onConsent, onFeedb
             <p className="mn-card__text">{entry.description}</p>
           </Tile>
         ))}
-        <Tile className="mn-card">
-          <div className="mn-card__top">
-            <h3>Feedback at check-out</h3>
-            <Toggle
-              id="mn-feedback-at-checkout"
-              size="sm"
-              aria-label={own ? 'Ask me at check-out' : 'Ask at check-out'}
-              hideLabel
-              labelA="Don't ask"
-              labelB={own ? 'Ask me' : 'Ask'}
-              toggled={settings.askFeedbackAtCheckout}
-              disabled={!onFeedback}
-              onToggle={(ask) => onFeedback?.(ask)}
-            />
-          </div>
-          <p className="mn-card__state" aria-hidden="true">
-            {settings.askFeedbackAtCheckout ? (own ? 'Ask me' : 'Ask') : "Don't ask"}
-          </p>
-          <p className="mn-card__text">
-            The tablet may ask {own ? 'you' : 'the person'} for a minute of feedback when{' '}
-            {own ? 'you check' : 'they check'} out, at most once every few weeks. Separate from Surveys &amp; feedback
-            above, because nothing is sent.
-          </p>
-        </Tile>
       </div>
     </section>
   );
@@ -112,12 +86,5 @@ export function ConsentCardsView({ settings, subject = 'you', onConsent, onFeedb
 /** The signed-in person's own consents: every change is saved at once. */
 export function ConsentCards({ settings }: { settings: NotificationSettings }) {
   const change = useChangeConsent();
-  const feedback = useChangeFeedbackAtCheckout();
-  return (
-    <ConsentCardsView
-      settings={settings}
-      onConsent={(answer) => change.mutate(answer)}
-      onFeedback={(ask) => feedback.mutate(ask)}
-    />
-  );
+  return <ConsentCardsView settings={settings} onConsent={(answer) => change.mutate(answer)} />;
 }
