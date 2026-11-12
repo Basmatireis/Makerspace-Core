@@ -4,6 +4,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-11-12
+
 ### Fixed
 
 - **Creating a signage web embed.** The New web embed dialog sent no content, so every create was refused with "defaultScenes must list 1 to 100 scenes for a display without a group". The dialog now asks for a display group or default scenes, as Pair display does. Scene list validation messages name the list in words ("default scenes", "rule's scenes") instead of API fields.
@@ -959,6 +961,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.19.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.18.2...v0.19.0
 [0.18.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.18.1...v0.18.2
 [0.18.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.18.0...v0.18.1
