@@ -40,7 +40,6 @@ const settings: NotificationSettings = {
     },
   ],
   consentPending: false,
-  askFeedbackAtCheckout: true,
   rules: [
     {
       ruleId,
@@ -73,7 +72,6 @@ describe('notification settings page', () => {
     expect(await screen.findByRole('heading', { name: 'Your notification settings', level: 1 })).toBeInTheDocument();
     expect(await screen.findByRole('switch', { name: 'Allow News & events' })).toBeChecked();
     expect(screen.getByText('Monthly newsletter')).toBeInTheDocument();
-    expect(screen.getByRole('switch', { name: 'Ask me at check-out' })).toBeChecked();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open in the app' })).not.toBeInTheDocument();
     // No subscriptions, no navigation of the application.

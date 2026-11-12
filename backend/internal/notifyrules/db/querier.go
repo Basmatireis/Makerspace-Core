@@ -86,7 +86,6 @@ type Querier interface {
 	GetOpenDayTimeslotEventFacts(ctx context.Context, id uuid.UUID) (GetOpenDayTimeslotEventFactsRow, error)
 	GetOrderEventFacts(ctx context.Context, id uuid.UUID) (GetOrderEventFactsRow, error)
 	GetPaymentEventFacts(ctx context.Context, id uuid.UUID) (GetPaymentEventFactsRow, error)
-	GetPersonSettings(ctx context.Context, personID uuid.UUID) (PersonNotificationSetting, error)
 	GetPrinterErrorMeaning(ctx context.Context, arg GetPrinterErrorMeaningParams) (string, error)
 	GetPrivacyRequestEventFacts(ctx context.Context, id uuid.UUID) (GetPrivacyRequestEventFactsRow, error)
 	// privileged: the master role, or a role that grants any *.manage permission.
@@ -221,7 +220,6 @@ type Querier interface {
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (int64, error)
 	// A changed definition clears next_run_at so the scheduler computes it afresh.
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)
-	UpsertAskFeedbackAtCheckout(ctx context.Context, arg UpsertAskFeedbackAtCheckoutParams) error
 	UpsertConsent(ctx context.Context, arg UpsertConsentParams) error
 	UpsertPreference(ctx context.Context, arg UpsertPreferenceParams) error
 }

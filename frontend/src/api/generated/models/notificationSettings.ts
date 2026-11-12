@@ -24,6 +24,5 @@ import type { NotificationReachingRule } from './notificationReachingRule';
 export interface NotificationSettings {
   consents: NotificationConsentEntry[];
   consentPending: boolean;
-  askFeedbackAtCheckout: boolean;
   rules: NotificationReachingRule[];
 }

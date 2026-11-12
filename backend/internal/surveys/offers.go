@@ -30,9 +30,7 @@ type Offer struct {
 	// MailConsent is true when the automatic invitation of this check-out will e-mail the survey anyway (the person
 	// agreed to Surveys & feedback and has an address), so the tablet offers no "No thanks".
 	MailConsent bool
-	// CanStopAsking is false for an offer after a tap check-out: anyone can tap any name, so nobody's choice changes.
-	CanStopAsking bool
-	ExpiresAt     time.Time
+	ExpiresAt   time.Time
 }
 
 var errSurveyUnavailable = apperror.New(http.StatusGone, "survey_unavailable", "The survey is no longer published")
@@ -98,13 +96,13 @@ func (s *Service) offer(ctx context.Context, tx pgx.Tx, personID, checkOutRef, d
 	return &Offer{
 		Token: token, SurveyName: candidate.SurveyName, QuestionCount: int(candidate.QuestionCount),
 		Anonymous: candidate.Anonymous || afterTap, CanAnswerNow: true,
-		CanSendByEmail: person.Email != nil && *person.Email != "", MailConsent: mailed, CanStopAsking: !afterTap,
+		CanSendByEmail: person.Email != nil && *person.Email != "", MailConsent: mailed,
 		ExpiresAt: expires,
 	}, nil
 }
 
 // offerableSurvey prunes expired offers and old cooldowns and returns the first survey the tablet may ask this person
-// about, or nil when the person switched the question off or nothing qualifies.
+// about, or nil when nothing qualifies.
 func offerableSurvey(
 	ctx context.Context,
 	q *surveysdb.Queries,
@@ -115,13 +113,6 @@ func offerableSurvey(
 	}
 	if err := q.DeleteStaleSurveyAsks(ctx); err != nil {
 		return nil, err
-	}
-	ask, err := q.GetPersonAskFeedback(ctx, personID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, err
-	}
-	if err == nil && !ask {
-		return nil, nil
 	}
 	candidates, err := q.ListOfferableSurveys(
 		ctx,
@@ -302,11 +293,10 @@ func (s *Service) SendOfferedByEmail(ctx context.Context, deviceID uuid.UUID, to
 	return nil
 }
 
-// DeclineOffered consumes the offer ("No thanks") and cancels the visit's automatic invitation. With never it also
-// switches the person's "feedback at check-out" choice off. The cooldown started when the offer was made. An offer
-// after a tap check-out is only consumed, and never answers not found: anyone can tap any name, so a stranger's "No
-// thanks" must neither change the tapped person's choice nor hold back the e-mail they agreed to.
-func (s *Service) DeclineOffered(ctx context.Context, deviceID uuid.UUID, token string, never bool, requestID *uuid.UUID) error {
+// DeclineOffered consumes the offer ("No thanks") and cancels the visit's automatic invitation. The cooldown started
+// when the offer was made. An offer after a tap check-out is only consumed: anyone can tap any name, so a stranger's
+// "No thanks" must not hold back the e-mail the tapped person agreed to.
+func (s *Service) DeclineOffered(ctx context.Context, deviceID uuid.UUID, token string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -318,23 +308,9 @@ func (s *Service) DeclineOffered(ctx context.Context, deviceID uuid.UUID, token 
 		return err
 	}
 	if offer.AfterTap || offer.VisitID == nil || offer.PersonID == nil {
-		if never {
-			return apperror.NotFound
-		}
 		return consumeAndCommit(ctx, tx, q, offer.ID)
 	}
 	visitID := *offer.VisitID
-	if never {
-		if err = q.DisableAskFeedbackAtCheckout(ctx, *offer.PersonID); err != nil {
-			return err
-		}
-		if err = audit.Write(ctx, tx, audit.Event{
-			Action: "survey_offer.never", ResourceType: "person_notification_settings", ResourceID: offer.PersonID,
-			RequestID: requestID, ChangedFields: []string{"askFeedbackAtCheckout"},
-		}); err != nil {
-			return err
-		}
-	}
 	if _, err = q.CancelSurveyInvitationForVisitVersion(ctx, surveysdb.CancelSurveyInvitationForVisitVersionParams{
 		VisitID: &visitID, SurveyVersionID: offer.SurveyVersionID,
 	}); err != nil {

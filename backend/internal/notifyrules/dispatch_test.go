@@ -160,11 +160,11 @@ func TestSettingsChangesKeepOneLinePerChangeInTheBodyOnly(t *testing.T) {
 		Trigger: "notification_settings_changed",
 		Placeholders: map[string]string{
 			"person": "Lena Wagner", "by": "Jana Huber",
-			"changes": "Printer errors: e-mail off, in-app on\nFeedback at check-out: off",
+			"changes": "Printer errors: e-mail off, in-app on\nConsent \"Surveys & feedback\": withdrawn",
 		},
 	}
 	action, _ := fillAction(Action{Title: "{person}: {changes}", Body: "{by} changed:\n{changes}"}, ev, "Rule")
-	if action.Body != "Jana Huber changed:\nPrinter errors: e-mail off, in-app on\nFeedback at check-out: off" {
+	if action.Body != "Jana Huber changed:\nPrinter errors: e-mail off, in-app on\nConsent \"Surveys & feedback\": withdrawn" {
 		t.Fatalf("body = %q", action.Body)
 	}
 	if strings.Contains(action.Title, "\n") {

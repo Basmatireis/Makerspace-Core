@@ -34,7 +34,6 @@ import type {
   NotificationRuleRunResult,
   NotificationSettings,
   PersonNotificationSettings,
-  SetFeedbackAtCheckoutRequest,
   SetNotificationRulePreferenceRequest,
   UUIDv7,
   UpdateNotificationCategoryRequest,
@@ -498,7 +497,7 @@ export const getGetOwnNotificationSettingsUrl = () => {
 }
 
 /**
- * Any staff session, including one restricted to notification settings. Lists the categories with the person's consent answers, whether any consent is still pending, the feedback-at-check-out switch and the central rules that reach the person: those whose actions name them directly, a role they hold, or a recipient such as "operator of the print" that can point to them.
+ * Any staff session, including one restricted to notification settings. Lists the categories with the person's consent answers, whether any consent is still pending, and the central rules that reach the person: those whose actions name them directly, a role they hold, or a recipient such as "operator of the print" that can point to them.
  * @summary Get the signed-in person's notification settings
  */
 export const getOwnNotificationSettings = async ( options?: Parameters<typeof apiFetch>[1]): Promise<NotificationSettings> => {
@@ -590,44 +589,6 @@ return apiFetch<void>(getSetOwnNotificationRulePreferenceUrl(ruleId),
 );}
 
 
-export const getSetOwnFeedbackAtCheckoutUrl = () => {
-
-
-
-
-  return `/api/v1/me/notifications/feedback-at-checkout`
-}
-
-/**
- * Any staff session, including one restricted to notification settings. A change is audited as `notification_feedback_at_checkout.changed` and raises the `notification_settings_changed` trigger; the same value again changes nothing.
- * @summary Choose whether the tablet may ask for feedback at check-out
- */
-export const setOwnFeedbackAtCheckout = async (setFeedbackAtCheckoutRequest: SetFeedbackAtCheckoutRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getSetOwnFeedbackAtCheckoutUrl(),
-  {
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(setFeedbackAtCheckoutRequest)
-  }
-);}
-
-
 export const getGetPersonNotificationSettingsUrl = (personId: string,) => {
 
 
@@ -637,7 +598,7 @@ export const getGetPersonNotificationSettingsUrl = (personId: string,) => {
 }
 
 /**
- * Requires `notification_settings.read.all` or `notification_settings.manage.all`. The same view the person has of their own settings: consent answers (read-only for staff), the feedback-at-check-out switch and the central rules that reach the person with their channels. Without `notification_rules.read` (or `.manage`) the rules' `description` and `triggerSummary` are empty. Channel choices belong to an account, so a person without an account has `hasAccount` false and no rules. Unknown people answer 404.
+ * Requires `notification_settings.read.all` or `notification_settings.manage.all`. The same view the person has of their own settings: consent answers (read-only for staff) and the central rules that reach the person with their channels. Without `notification_rules.read` (or `.manage`) the rules' `description` and `triggerSummary` are empty. Channel choices belong to an account, so a person without an account has `hasAccount` false and no rules. Unknown people answer 404.
  * @summary Get another person's notification settings
  */
 export const getPersonNotificationSettings = async (personId: string, options?: Parameters<typeof apiFetch>[1]): Promise<PersonNotificationSettings> => {
@@ -689,45 +650,6 @@ return apiFetch<void>(getSetPersonNotificationRulePreferenceUrl(personId,ruleId)
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(setNotificationRulePreferenceRequest)
-  }
-);}
-
-
-export const getSetPersonFeedbackAtCheckoutUrl = (personId: string,) => {
-
-
-
-
-  return `/api/v1/people/${personId}/notification-settings/feedback-at-checkout`
-}
-
-/**
- * Requires `notification_settings.manage.all`; only a master may change a master's settings (403 otherwise). Works for people without an account too. Unknown people answer 404. A change is audited as `notification_feedback_at_checkout.changed` with the person and raises the `notification_settings_changed` trigger; the same value again changes nothing.
- * @summary Choose for another person whether the tablet may ask for feedback at check-out
- */
-export const setPersonFeedbackAtCheckout = async (personId: string,
-    setFeedbackAtCheckoutRequest: SetFeedbackAtCheckoutRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getSetPersonFeedbackAtCheckoutUrl(personId),
-  {
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(setFeedbackAtCheckoutRequest)
   }
 );}
 

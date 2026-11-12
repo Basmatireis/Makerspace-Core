@@ -4867,7 +4867,7 @@ paths:
       x-restricted-session: notification_settings
       description: >-
         Any staff session, including one restricted to notification settings. Lists the categories with the person's consent answers, whether any consent is still pending,
-        the feedback-at-check-out switch and the central rules that reach the person: those whose actions name them
+        and the central rules that reach the person: those whose actions name them
         directly, a role they hold, or a recipient such as "operator of the print" that can point to them.
       security: [{sessionCookie: []}]
       responses:
@@ -4917,24 +4917,6 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /me/notifications/feedback-at-checkout:
-    put:
-      tags: [NotificationRules]
-      operationId: setOwnFeedbackAtCheckout
-      summary: Choose whether the tablet may ask for feedback at check-out
-      x-restricted-session: notification_settings
-      description: >-
-        Any staff session, including one restricted to notification settings. A change is audited as
-        `notification_feedback_at_checkout.changed` and raises the `notification_settings_changed` trigger; the same
-        value again changes nothing.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetFeedbackAtCheckoutRequest"}}}}
-      responses:
-        "204": {description: Choice stored.}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
   /people/{personId}/notification-settings:
     parameters:
       - $ref: "#/components/parameters/PersonId"
@@ -4944,7 +4926,7 @@ paths:
       summary: Get another person's notification settings
       description: >-
         Requires `notification_settings.read.all` or `notification_settings.manage.all`. The same view the person has
-        of their own settings: consent answers (read-only for staff), the feedback-at-check-out switch and the central
+        of their own settings: consent answers (read-only for staff) and the central
         rules that reach the person with their channels. Without `notification_rules.read` (or `.manage`) the rules'
         `description` and `triggerSummary` are empty. Channel choices belong to an account, so a person without an
         account has `hasAccount` false and no rules. Unknown people answer 404.
@@ -4979,27 +4961,6 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /people/{personId}/notification-settings/feedback-at-checkout:
-    parameters:
-      - $ref: "#/components/parameters/PersonId"
-    put:
-      tags: [NotificationRules]
-      operationId: setPersonFeedbackAtCheckout
-      summary: Choose for another person whether the tablet may ask for feedback at check-out
-      description: >-
-        Requires `notification_settings.manage.all`; only a master may change a master's settings (403 otherwise). Works
-        for people without an account too. Unknown people answer 404. A change is audited as `notification_feedback_at_checkout.changed` with the person and raises the
-        `notification_settings_changed` trigger; the same value again changes nothing.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetFeedbackAtCheckoutRequest"}}}}
-      responses:
-        "204": {description: Choice stored.}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -12228,18 +12189,6 @@ paths:
         "204": {description: Offer declined.}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
-  /terminal/survey-offers/{token}/never:
-    parameters: [{name: token, in: path, required: true, schema: {type: string, minLength: 43, maxLength: 43}}]
-    post:
-      tags: [Attendance]
-      operationId: terminalSurveyOfferNever
-      summary: Decline and switch off feedback questions at check-out for this person
-      description: Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit. 404 for an offer made after a tap check-out, since anyone can tap any name.
-      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
-      responses:
-        "204": {description: Offer declined and the question switched off.}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
   /terminal/camera-calibration:
     put:
       tags: [Attendance]
@@ -13933,11 +13882,10 @@ components:
     NotificationSettings:
       type: object
       additionalProperties: false
-      required: [consents, consentPending, askFeedbackAtCheckout, rules]
+      required: [consents, consentPending, rules]
       properties:
         consents: {type: array, items: {$ref: "#/components/schemas/NotificationConsentEntry"}}
         consentPending: {type: boolean}
-        askFeedbackAtCheckout: {type: boolean}
         rules: {type: array, items: {$ref: "#/components/schemas/NotificationReachingRule"}}
 
     ConsentAnswer:
@@ -13967,13 +13915,6 @@ components:
       properties:
         inApp: {type: boolean}
         email: {type: boolean}
-
-    SetFeedbackAtCheckoutRequest:
-      type: object
-      additionalProperties: false
-      required: [ask]
-      properties:
-        ask: {type: boolean}
 
     PersonNotificationSettings:
       type: object
@@ -23627,7 +23568,7 @@ components:
     TerminalSurveyOffer:
       type: object
       additionalProperties: false
-      required: [offerToken, surveyName, questionCount, anonymous, canAnswerNow, canSendByEmail, mailConsent, canStopAsking, expiresAt]
+      required: [offerToken, surveyName, questionCount, anonymous, canAnswerNow, canSendByEmail, mailConsent, expiresAt]
       properties:
         offerToken: {type: string, minLength: 43, maxLength: 43, description: "Opaque, single use, valid for 15 minutes, only usable on the tablet that received it."}
         surveyName: {type: string}
@@ -23636,7 +23577,6 @@ components:
         canAnswerNow: {type: boolean}
         canSendByEmail: {type: boolean, description: "The checked-out person has an e-mail address on file; after a tap check-out it is the tapped person's own address. Sending works without their Surveys & feedback consent: it is a one-off request, and one offer sends at most one e-mail."}
         mailConsent: {type: boolean, description: "The person agreed to survey e-mails (Surveys & feedback) and has an address, so this survey's automatic invitation reaches them after the offer anyway unless they answer here. The tablet then offers only answer now and send by e-mail (which sends it right away); without it, it also offers no thanks."}
-        canStopAsking: {type: boolean, description: "The person may switch the question off (`/never`). False after a tap check-out: anyone can tap any name, so nobody's choice is changed there, and the answers are stored without a person whatever the survey says."}
         expiresAt: {type: string, format: date-time}
     VisitList:
       type: object

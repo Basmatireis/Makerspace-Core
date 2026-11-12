@@ -42,12 +42,10 @@ type Querier interface {
 	DeleteSurveyShareLink(ctx context.Context, arg DeleteSurveyShareLinkParams) (int64, error)
 	// Removes invitation rows whose delivery identity was already cleared and whose expiry lies before the cutoff.
 	DeleteUnlinkedExpiredInvitations(ctx context.Context, beforeTime time.Time) (int64, error)
-	DisableAskFeedbackAtCheckout(ctx context.Context, personID uuid.UUID) error
 	DisableSurveyTriggers(ctx context.Context, surveyID uuid.UUID) error
 	GetLatestSurveyVersionForUpdate(ctx context.Context, surveyID uuid.UUID) (SurveyVersion, error)
 	// The person who checked out. The visit is gone by the time the tablet answers, so the offer carries the person.
 	GetOfferPerson(ctx context.Context, personID uuid.UUID) (GetOfferPersonRow, error)
-	GetPersonAskFeedback(ctx context.Context, personID uuid.UUID) (bool, error)
 	GetPublicSurveyInvitation(ctx context.Context, tokenDigest []byte) (GetPublicSurveyInvitationRow, error)
 	GetPublicSurveyInvitationForUpdate(ctx context.Context, tokenDigest []byte) (GetPublicSurveyInvitationForUpdateRow, error)
 	GetSurvey(ctx context.Context, id uuid.UUID) (GetSurveyRow, error)

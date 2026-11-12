@@ -49,7 +49,7 @@ func TestTapCheckOutOfferNamesThePersonOnlyWhileOpenAndKeepsAnswersAnonymous(t *
 	if offer == nil {
 		t.Fatal("no survey offered after a tap check-out on a tablet that offers surveys")
 	}
-	if !offer.Anonymous || !offer.CanAnswerNow || !offer.CanSendByEmail || !offer.MailConsent || offer.CanStopAsking ||
+	if !offer.Anonymous || !offer.CanAnswerNow || !offer.CanSendByEmail || !offer.MailConsent ||
 		len(offer.Token) != 43 {
 		t.Fatalf("offer = %+v", offer)
 	}
@@ -69,16 +69,10 @@ func TestTapCheckOutOfferNamesThePersonOnlyWhileOpenAndKeepsAnswersAnonymous(t *
 		t.Fatal("the tap offer did not start the cooldown or hold back the invitation")
 	}
 
-	// Only the tablet that tapped can use it, and nobody's choice can be switched off there.
+	// Only the tablet that tapped can use the offer.
 	other := e.newDevice("Other tablet", true, true)
 	if _, err := e.svc.OfferedSurvey(e.ctx, other.Device.ID, offer.Token); !errors.Is(err, apperror.NotFound) {
 		t.Fatalf("read on another tablet: %v", err)
-	}
-	if err := e.svc.DeclineOffered(e.ctx, tap.Device.ID, offer.Token, true, nil); !errors.Is(err, apperror.NotFound) {
-		t.Fatalf("never: %v", err)
-	}
-	if e.count(`SELECT count(*) FROM person_notification_settings WHERE person_id = $1`, a.personID) != 0 {
-		t.Fatal("a tap offer changed the tapped person's choice")
 	}
 
 	survey, err := e.svc.OfferedSurvey(e.ctx, tap.Device.ID, offer.Token)
@@ -174,7 +168,7 @@ func TestTapCheckOutOfferSendsTheSurveyToTheTappedPersonOnce(t *testing.T) {
 	// "No thanks" after a tap only uses the offer up: it holds back nothing the tapped person agreed to.
 	d, dVisit := e.person("tap-decline", true, tap.Device.ID)
 	declined := e.tapCheckOut(tap, dVisit)
-	if err := e.svc.DeclineOffered(e.ctx, tap.Device.ID, declined.Token, false, nil); err != nil {
+	if err := e.svc.DeclineOffered(e.ctx, tap.Device.ID, declined.Token); err != nil {
 		t.Fatal(err)
 	}
 	if e.count(`SELECT count(*) FROM survey_invitations WHERE person_id = $1 AND status = 'pending'`, d.personID) != 1 {
@@ -205,16 +199,7 @@ func TestTapCheckOutSurveyFollowsTheTabletAndTheTappedPersonAndExpires(t *testin
 		t.Fatalf("offered on a tablet with offerSurveysAtCheckout off: %+v", offer)
 	}
 
-	// The tapped person switched the question off.
 	tap := e.newDevice("Tap tablet", true, true)
-	off, offVisit := e.person("tap-off", true, tap.Device.ID)
-	if _, err := e.pool.Exec(e.ctx, `INSERT INTO person_notification_settings (person_id, ask_feedback_at_checkout)
-		VALUES ($1, false)`, off.personID); err != nil {
-		t.Fatal(err)
-	}
-	if offer := e.tapCheckOut(tap, offVisit); offer != nil {
-		t.Fatal("offered after tapping a person who switched the question off")
-	}
 
 	// "No thanks" uses the offer up.
 	_, declinedVisit := e.person("tap-no", true, tap.Device.ID)
@@ -222,7 +207,7 @@ func TestTapCheckOutSurveyFollowsTheTabletAndTheTappedPersonAndExpires(t *testin
 	if declined == nil {
 		t.Fatal("no offer")
 	}
-	if err := e.svc.DeclineOffered(e.ctx, tap.Device.ID, declined.Token, false, nil); err != nil {
+	if err := e.svc.DeclineOffered(e.ctx, tap.Device.ID, declined.Token); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.svc.SubmitOffered(e.ctx, tap.Device.ID, declined.Token, nil); !errors.Is(err, apperror.NotFound) {

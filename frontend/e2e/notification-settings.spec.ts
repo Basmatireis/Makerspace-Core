@@ -29,13 +29,13 @@ test('a restricted session is sent from the application to the settings page', a
 test('a change is saved with the allowed endpoint', async ({ page, world }) => {
   world.restriction = 'notification_settings';
   await page.goto('/notification-settings');
-  await expect(page.getByRole('switch', { name: 'Ask me at check-out' })).toBeChecked();
-  // Carbon's toggle is operated through its label.
-  await page.locator('#mn-feedback-at-checkout_label').click();
+  await expect(page.getByRole('switch', { name: 'Allow News & events' })).toBeChecked();
+  // Carbon draws the switch over its button; the card's drawn switch is what takes the tap.
+  await page.locator('.mn-card', { hasText: 'News & events' }).locator('.cds--toggle__appearance').click();
   await expect
     .poll(() =>
       world.requests.some(
-        (request) => request.path === '/api/v1/me/notifications/feedback-at-checkout' && request.method === 'PUT',
+        (request) => request.path === '/api/v1/me/notifications/consents' && request.method === 'PUT',
       ),
     )
     .toBe(true);

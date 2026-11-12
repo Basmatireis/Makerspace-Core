@@ -45,7 +45,7 @@ func (s *Service) settings(ctx context.Context, queries *notifyrulesdb.Queries, 
 	for _, consent := range consents {
 		answers[consent.CategoryID] = consent
 	}
-	result := Settings{AskFeedbackAtCheckout: true}
+	result := Settings{}
 	for _, category := range categories {
 		entry := ConsentEntry{Category: category}
 		if answer, ok := answers[category.ID]; ok {
@@ -61,12 +61,6 @@ func (s *Service) settings(ctx context.Context, queries *notifyrulesdb.Queries, 
 			result.ConsentPending = true
 		}
 		result.Consents = append(result.Consents, entry)
-	}
-	settings, err := queries.GetPersonSettings(ctx, p.personID)
-	if err == nil {
-		result.AskFeedbackAtCheckout = settings.AskFeedbackAtCheckout
-	} else if noRows(err) != apperror.NotFound { //nolint:errorlint // sentinel returned by noRows
-		return Settings{}, fmt.Errorf("load notification settings: %w", err)
 	}
 	if p.accountID == nil {
 		return result, nil
@@ -218,16 +212,6 @@ func (s *Service) SetRulePreference(
 	requestID *uuid.UUID,
 ) error {
 	return s.setRulePreference(ctx, p, ownTargetLoader(p), ruleID, preference, requestID)
-}
-
-// SetAskFeedbackAtCheckout stores whether the tablet may offer the visit survey at check-out.
-func (s *Service) SetAskFeedbackAtCheckout(
-	ctx context.Context,
-	p authorization.Principal,
-	ask bool,
-	requestID *uuid.UUID,
-) error {
-	return s.setAskFeedbackAtCheckout(ctx, p, ownTargetLoader(p), ask, requestID)
 }
 
 // membershipKeys lists the dynamic recipient keys that only make sense for people with a staffing membership.

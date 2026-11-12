@@ -49,7 +49,6 @@ var selfServiceOperations = map[string]string{
 	"RequestOwnEmailVerification":       "sends a verification mail to the caller's own address",
 	"ResetMyGuideProgress":              "clears the caller's own guide progress",
 	"RevokeMyCalendarFeed":              "revokes the caller's own calendar feed link",
-	"SetOwnFeedbackAtCheckout":          "sets the caller's own checkout feedback preference",
 	"StartPasskeyReauthentication":      "starts re-authentication of the caller's own session",
 	"StartPasskeyRegistration":          "starts registering a passkey for the caller's own account",
 	"StartTotpEnrollment":               "starts TOTP enrolment for the caller's own account",

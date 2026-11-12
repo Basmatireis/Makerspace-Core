@@ -58,15 +58,6 @@ WHERE c.basis = 'consent'
       SELECT 1 FROM notification_consents n
       WHERE n.person_id = sqlc.arg(person_id) AND n.category_id = c.id AND n.text_version = c.text_version);
 
--- name: GetPersonSettings :one
-SELECT * FROM person_notification_settings WHERE person_id = sqlc.arg(person_id);
-
--- name: UpsertAskFeedbackAtCheckout :exec
-INSERT INTO person_notification_settings (person_id, ask_feedback_at_checkout, updated_at)
-VALUES (sqlc.arg(person_id), sqlc.arg(ask), sqlc.arg(now))
-ON CONFLICT (person_id) DO UPDATE SET ask_feedback_at_checkout = EXCLUDED.ask_feedback_at_checkout,
-    updated_at = EXCLUDED.updated_at;
-
 -- name: ListCentralRules :many
 SELECT r.*,
        (SELECT count(*) FROM notification_firings f
