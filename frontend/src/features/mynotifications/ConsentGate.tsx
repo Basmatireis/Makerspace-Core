@@ -55,35 +55,42 @@ export default function ConsentGate() {
           only if you say yes. You can change this any time under <strong>My notifications</strong> in the profile menu,
           top right.
         </p>
-        <LegalLinks />
         {settings.isError ? (
           <ErrorState message="The questions could not be loaded." onRetry={() => void settings.refetch()} />
         ) : !settings.data ? (
           <InlineLoading description="Loading" status="active" />
         ) : (
           <>
-            {required.map((entry) => (
-              <div key={entry.categoryId} className="mn-gate__required">
-                <Locked size={20} />
-                <div>
-                  <strong>{entry.name}</strong> <span className="mn-sub">· always on</span>
-                  <p>{entry.description}</p>
-                </div>
-              </div>
-            ))}
+            {/* One row per category: what it is on the left, the answer on the right. */}
             <div className="mn-gate__options">
+              {required.map((entry) => (
+                <div key={entry.categoryId} className="mn-gate__option">
+                  <div className="mn-gate__option-text">
+                    <strong>{entry.name}</strong>
+                    <p>{entry.description}</p>
+                  </div>
+                  <span className="mn-gate__always">
+                    <Locked size={16} aria-hidden="true" />
+                    Always on
+                  </span>
+                </div>
+              ))}
               {asked.map((entry) => (
                 <div key={entry.categoryId} className="mn-gate__option">
+                  <div className="mn-gate__option-text">
+                    <strong id={`mn-gate-${entry.categoryId}-name`}>{entry.name}</strong>
+                    <p id={`mn-gate-${entry.categoryId}-text`}>{entry.description}</p>
+                  </div>
                   <Toggle
                     id={`mn-gate-${entry.categoryId}`}
-                    labelText={entry.name}
+                    className="mn-gate__toggle"
                     labelA="No"
                     labelB="Yes"
+                    aria-labelledby={`mn-gate-${entry.categoryId}-name`}
                     aria-describedby={`mn-gate-${entry.categoryId}-text`}
                     toggled={granted[entry.categoryId] === true}
                     onToggle={(next) => setGranted((previous) => ({ ...previous, [entry.categoryId]: next }))}
                   />
-                  <p id={`mn-gate-${entry.categoryId}-text`}>{entry.description}</p>
                 </div>
               ))}
             </div>
@@ -96,16 +103,12 @@ export default function ConsentGate() {
                 subtitle="Check the connection and try again."
               />
             )}
-            <div className="mn-gate__footer">
-              <span className="mn-sub">
-                Nothing is preselected, and you can use everything in the app whatever you choose.
-              </span>
-              <Button kind="primary" disabled={save.isPending} onClick={() => save.mutate()}>
-                {save.isPending ? 'Saving…' : 'Save and continue'}
-              </Button>
-            </div>
+            <Button kind="primary" className="mn-gate__save" disabled={save.isPending} onClick={() => save.mutate()}>
+              {save.isPending ? 'Saving…' : 'Save and continue'}
+            </Button>
           </>
         )}
+        <LegalLinks className="mn-gate__legal" />
       </Tile>
     </div>
   );

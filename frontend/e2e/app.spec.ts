@@ -1356,6 +1356,23 @@ test('collapses and opens the SideNav at the responsive breakpoint', async ({ pa
   await expect(page.locator('#main-content')).toBeFocused();
 });
 
+test('keeps only one of the narrow navigation and the header panels open', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installApi(page, { authenticated: true, user: currentUser() });
+
+  await page.goto('/dashboard');
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Open profile menu for Ada Lovelace' }).click();
+  await expect(page.getByRole('button', { name: 'Close profile menu for Ada Lovelace' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await expect(page.getByRole('button', { name: 'Close navigation' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open profile menu for Ada Lovelace' })).toBeVisible();
+});
+
 test('shows an accessible destructive confirmation before deleting a custom role', async ({ page }) => {
   const role = customRole();
   await installApi(page, {

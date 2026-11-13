@@ -453,3 +453,20 @@ test.describe('printer connectors under Settings, Local services', () => {
     expect(world.requests).toEqual([]);
   });
 });
+
+test('stacks an unassigned run on a phone: name, machine and progress, then its actions', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(`${base}/jobs`);
+  const row = page.locator('.jobs-strip__row').first();
+  await expect(row.getByRole('button', { name: 'Claim' })).toBeVisible();
+  const top = async (selector: string) => (await row.locator(selector).first().boundingBox())!;
+  const name = await top('.jobs-strip__name');
+  const actions = await top('.jobs-strip__actions');
+  const cells = await Promise.all(
+    [0, 1].map(async (index) => (await row.locator('.jobs-strip__cell').nth(index).boundingBox())!),
+  );
+  // The name leads; everything else sits below it, and the actions come last.
+  for (const cell of cells) expect(cell.y).toBeGreaterThanOrEqual(name.y);
+  for (const cell of cells) expect(actions.y).toBeGreaterThanOrEqual(cell.y + cell.height);
+  await expectNoHorizontalScroll(page);
+});
