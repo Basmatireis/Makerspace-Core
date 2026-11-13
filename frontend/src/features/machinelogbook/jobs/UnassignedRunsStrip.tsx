@@ -74,73 +74,75 @@ export function UnassignedRunsStrip({
   if (runs.length === 0) return null;
   const select = (item: WorkItem) => onOpen({ kind: 'run', id: item.id });
   return (
-    <section className="jobs-strip" aria-labelledby="jobs-strip-title" data-guide="workshop-unassigned-strip">
-      <div className="jobs-strip__head">
-        <h2 id="jobs-strip-title" className="jobs-strip__title">
-          Reported by machines, not assigned
-        </h2>
-        <p className="jobs-strip__description">Recorded runs without a job. Claim one or delete it.</p>
-      </div>
-      <ul className="jobs-strip__rows">
-        {runs.map((item) => {
-          const isSelected = selected?.kind === 'run' && selected.id === item.id;
-          return (
-            <li key={item.id}>
-              <div
-                className={isSelected ? 'jobs-strip__row jobs-strip__row--selected' : 'jobs-strip__row'}
-                role="presentation"
-                onClick={(event: MouseEvent<HTMLElement>) => {
-                  // The row is a mouse convenience; the run's name is the keyboard control.
-                  if (!(event.target as HTMLElement).closest('button, a')) select(item);
-                }}
-              >
-                <span className="jobs-strip__cell">{item.machineName}</span>
-                <span className="jobs-strip__cell jobs-strip__name">
-                  <button
-                    type="button"
-                    className="jobs-strip__open"
-                    aria-pressed={isSelected}
-                    aria-describedby={`jobs-strip-${item.id}`}
-                    onClick={() => select(item)}
-                  >
-                    {workItemName(item)}
-                  </button>
-                  <span id={`jobs-strip-${item.id}`} className="mj-secondary">
-                    {item.displayId}
+    <>
+      <section className="jobs-strip" aria-labelledby="jobs-strip-title" data-guide="workshop-unassigned-strip">
+        <div className="jobs-strip__head">
+          <h2 id="jobs-strip-title" className="jobs-strip__title">
+            Reported by machines, not assigned
+          </h2>
+          <p className="jobs-strip__description">Recorded runs without a job. Claim one or delete it.</p>
+        </div>
+        <ul className="jobs-strip__rows">
+          {runs.map((item) => {
+            const isSelected = selected?.kind === 'run' && selected.id === item.id;
+            return (
+              <li key={item.id}>
+                <div
+                  className={isSelected ? 'jobs-strip__row jobs-strip__row--selected' : 'jobs-strip__row'}
+                  role="presentation"
+                  onClick={(event: MouseEvent<HTMLElement>) => {
+                    // The row is a mouse convenience; the run's name is the keyboard control.
+                    if (!(event.target as HTMLElement).closest('button, a')) select(item);
+                  }}
+                >
+                  <span className="jobs-strip__cell">{item.machineName}</span>
+                  <span className="jobs-strip__cell jobs-strip__name">
+                    <button
+                      type="button"
+                      className="jobs-strip__open"
+                      aria-pressed={isSelected}
+                      aria-describedby={`jobs-strip-${item.id}`}
+                      onClick={() => select(item)}
+                    >
+                      {workItemName(item)}
+                    </button>
+                    <span id={`jobs-strip-${item.id}`} className="mj-secondary">
+                      {item.displayId}
+                    </span>
                   </span>
-                </span>
-                <span className="jobs-strip__cell">
-                  <Progress item={item} />
-                </span>
-                <span className="jobs-strip__actions">
-                  {canClaim && (
-                    <Button
-                      kind="ghost"
-                      size="lg"
-                      renderIcon={Add}
-                      onClick={() => setClaiming(item.id)}
-                      data-guide="workshop-claim-run"
-                    >
-                      Claim
-                    </Button>
-                  )}
-                  {canDelete && (
-                    <IconButton
-                      kind="ghost"
-                      size="lg"
-                      label={`Delete ${item.displayId}`}
-                      align="left"
-                      onClick={() => setDeleting(item.id)}
-                    >
-                      <TrashCan />
-                    </IconButton>
-                  )}
-                </span>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+                  <span className="jobs-strip__cell">
+                    <Progress item={item} />
+                  </span>
+                  <span className="jobs-strip__actions">
+                    {canClaim && (
+                      <Button
+                        kind="ghost"
+                        size="lg"
+                        renderIcon={Add}
+                        onClick={() => setClaiming(item.id)}
+                        data-guide="workshop-claim-run"
+                      >
+                        Claim
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <IconButton
+                        kind="ghost"
+                        size="lg"
+                        label={`Delete ${item.displayId}`}
+                        align="left"
+                        onClick={() => setDeleting(item.id)}
+                      >
+                        <TrashCan />
+                      </IconButton>
+                    )}
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
       <ClaimRunModal
         runId={claiming}
         onClose={() => setClaiming(null)}
@@ -148,6 +150,6 @@ export function UnassignedRunsStrip({
         canAttach={can('machine_jobs.edit') && can('machine_jobs.read')}
       />
       {deleting && <DeleteRunModal open onClose={() => setDeleting(null)} runId={deleting} />}
-    </section>
+    </>
   );
 }
