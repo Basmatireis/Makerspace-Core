@@ -116,6 +116,7 @@ export function refreshJob(store: DemoStore, job: MachineJob): MachineJob {
   job.pricingStatus = running ? 'pending' : snapshot.complete ? 'complete' : 'incomplete';
   job.calculatedPrice = running ? null : money(cents);
   job.effectivePrice = job.calculatedPrice;
+  job.nothingToBill = isNothingToBill(job);
   job.attention = attentionOf(store, job);
   return job;
 }
@@ -131,8 +132,17 @@ export function billingOf(store: DemoStore, job: MachineJob): NonNullable<WorkIt
   if (order) return { state: 'on_order', orderId: order.id, orderReference: order.reference };
   if (job.pricingStatus === 'pending') return { state: 'pending' };
   if (job.pricingStatus === 'incomplete') return { state: 'price_incomplete' };
+  if (isNothingToBill(job)) return { state: 'nothing_to_bill' };
   return { state: 'not_on_order' };
 }
+
+/** Ended, fully priced and free: there is nothing to charge on an order. */
+export const isNothingToBill = (job: MachineJob) =>
+  job.status !== 'running' &&
+  job.status !== 'planned' &&
+  job.pricingStatus === 'complete' &&
+  job.effectivePrice !== null &&
+  Number(job.effectivePrice) === 0;
 
 function attentionOf(store: DemoStore, job: MachineJob): MachineJobAttention[] {
   const flags: MachineJobAttention[] = [];

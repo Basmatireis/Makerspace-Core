@@ -8,6 +8,7 @@ import type {
   PaymentInput,
   PriceQuote,
 } from '../../../../api/generated/models';
+import { isNothingToBill } from '../jobModel';
 import { actorOf, buildOrderItem, newOrder, recalculateOrder, recordPayment } from '../orderModel';
 import { created, fail, notFound, ok, paged, type DemoReply, type DemoRouter } from '../router';
 import { decimal, money, nextId, nextReference, toCents, type DemoStore } from '../store';
@@ -141,10 +142,12 @@ export function registerSales(router: DemoRouter<DemoStore>): void {
     .get('/orders', ({ store, query }) => {
       const search = lower(query.get('search'));
       const status = query.get('status');
+      const customerId = query.get('customerId');
       const items = store.orders
         .filter(
           (order) =>
             (!status || order.status === status) &&
+            (!customerId || order.customer?.id === customerId) &&
             (!search || lower(`${order.reference} ${order.customerName ?? ''}`).includes(search)),
         )
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -292,6 +295,15 @@ export function registerSales(router: DemoRouter<DemoStore>): void {
           )
         ) {
           return fail(409, 'job_already_on_order', 'This job is already on an order.');
+        }
+        if (input.kind === 'machine_job') {
+          const job = store.jobs.find((candidate) => candidate.id === input.machineJobId);
+          if (job && isNothingToBill(job))
+            return fail(
+              409,
+              'nothing_to_bill',
+              'The job has nothing to bill because its final price is 0; it cannot be charged on an order.',
+            );
         }
         const item = buildOrderItem(store, order, input);
         if (!item) return fail(422, 'invalid_item', 'The item refers to something that does not exist.');

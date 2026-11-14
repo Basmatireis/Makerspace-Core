@@ -14,6 +14,7 @@ import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { currentUserFixture } from '../../test/fixtures';
 import {
+  customer as jobCustomer,
   ids,
   iso,
   jobFixture,
@@ -130,6 +131,21 @@ describe('Jobs page', () => {
     expect(within(strip).getByText('bracket_v2.gcode')).toBeInTheDocument();
     expect(within(strip).queryByRole('button', { name: 'Claim' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New job' })).not.toBeInTheDocument();
+  });
+
+  it('shows Nothing to bill in the billing column and offers it as a billing filter', async () => {
+    const requests: URL[] = [];
+    server.use(
+      as(PermissionId.machine_jobsread),
+      workItems([workItem({ effectivePrice: '0.00', billing: { state: 'nothing_to_bill' } })], [], requests),
+    );
+    renderRoute(<App />, '/workshop/jobs?billing=nothing_to_bill');
+    const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
+    expect(requests[0].searchParams.getAll('billing')).toEqual(['nothing_to_bill']);
+    const cell = await within(table).findByText('Nothing to bill');
+    expect(cell).not.toHaveClass('jobs-error-text');
+    expect(within(table).queryByText('Not billed')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Billing' })).toHaveValue('Nothing to bill');
   });
 
   it('deletes an unassigned run from the strip only with machine_jobs.delete', async () => {
@@ -985,6 +1001,77 @@ describe('Job detail page', () => {
       expect((await screen.findAllByText('O-2026-0004', {}, { timeout: 5000 })).length).toBeGreaterThan(0);
       expect(screen.queryByText('Changed after charge')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Refresh order charge' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('adding a finished job to an order', () => {
+    const writer = [...editor, PermissionId.ordersread, PermissionId.orderswrite] as const;
+    const draft = {
+      id: '0192f6f8-743e-7c77-a349-cd07c3e8a777',
+      reference: 'O-2026-000099',
+      status: 'draft',
+      customer: { kind: 'organization', id: jobCustomer.id, displayName: jobCustomer.displayName },
+      items: [],
+      totalAmount: '0.00',
+      version: 1,
+    };
+    const orders = (items: object[], requests: URL[] = []) =>
+      http.get('*/api/v1/orders', ({ request }) => {
+        requests.push(new URL(request.url));
+        return HttpResponse.json({ items, page: 1, pageSize: 100, total: items.length });
+      });
+
+    it('hides Add to order for a job with nothing to bill and says so in the billing tile', async () => {
+      server.use(
+        as(...writer),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () =>
+          HttpResponse.json(jobFixture({ nothingToBill: true, effectivePrice: '0.00', calculatedPrice: '0.00' })),
+        ),
+        orderAssociation(),
+        noUnassignedRuns,
+      );
+      renderRoute(<App />, `/workshop/jobs/${jobId}`);
+      expect(await screen.findByText('Nothing to bill', {}, { timeout: 5000 })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Add to order' })).not.toBeInTheDocument();
+    });
+
+    it('asks for the drafts of the recipient by customerId and offers the existing draft', async () => {
+      const requests: URL[] = [];
+      server.use(
+        as(...writer),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
+        orderAssociation(),
+        noUnassignedRuns,
+        orders([draft], requests),
+      );
+      const user = userEvent.setup();
+      renderRoute(<App />, `/workshop/jobs/${jobId}`);
+      await user.click(await screen.findByRole('button', { name: 'Add to order' }, { timeout: 5000 }));
+      const dialog = await screen.findByRole('dialog');
+      expect(await within(dialog).findByText(/1 draft order of/)).toBeInTheDocument();
+      const request = requests.at(-1)!;
+      expect(request.searchParams.get('customerId')).toBe(jobCustomer.id);
+      expect(request.searchParams.get('status')).toBe('draft');
+      expect(request.searchParams.has('search')).toBe(false);
+      expect(within(dialog).getByRole('radio', { name: /Draft order of/ })).toBeEnabled();
+    });
+
+    it('explains that a new draft order is created when the recipient has none', async () => {
+      server.use(
+        as(...writer),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
+        orderAssociation(),
+        noUnassignedRuns,
+        orders([]),
+      );
+      const user = userEvent.setup();
+      renderRoute(<App />, `/workshop/jobs/${jobId}`);
+      await user.click(await screen.findByRole('button', { name: 'Add to order' }, { timeout: 5000 }));
+      const dialog = await screen.findByRole('dialog');
+      expect(
+        await within(dialog).findByText(/has no draft order\. A new draft order will be created\./),
+      ).toBeInTheDocument();
+      expect(within(dialog).getByRole('radio', { name: /Draft order of/ })).toBeDisabled();
     });
   });
 });

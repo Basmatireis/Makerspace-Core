@@ -643,7 +643,13 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
     if (path === '/api/v1/auth/oidc/providers') return ok(route, { items: [] });
 
     // Orders
-    if (path === '/api/v1/orders' && method === 'GET') return ok(route, pageOf(world.orders));
+    if (path === '/api/v1/orders' && method === 'GET') {
+      const customerId = url.searchParams.get('customerId');
+      return ok(
+        route,
+        pageOf(customerId ? world.orders.filter((entry) => entry.customer?.id === customerId) : world.orders),
+      );
+    }
     if ((match = path.match(/^\/api\/v1\/orders\/([^/]+)$/))) {
       const found = world.orders.find((entry) => entry.id === match![1]);
       return found ? ok(route, found) : ok(route, { code: 'not_found', message: 'Not found' }, 404);

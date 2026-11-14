@@ -4,6 +4,15 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Added
+
+- **"Nothing to bill" for jobs.** A job that has ended, is priced completely and has a final price of 0 (also when waived with a fixed price 0 or a 100 % discount) now has nothing to bill: `MachineJob.nothingToBill`, billing state `nothing_to_bill` in the work items, the billing filter and the dashboard's own jobs, shown neutrally as "Nothing to bill" in the jobs table. Such jobs no longer count as unbilled and are not offered on orders. Jobs whose price is not known yet keep Pending / Price incomplete.
+
+### Fixed
+
+- **Jobs worth nothing on orders** (#129). Adding a job with nothing to bill to an order, or refreshing an order line whose job dropped to 0, is refused with `409 nothing_to_bill`; remove such a job from the order instead.
+- **Add to order on a job never offered an existing draft** (#130). The dialog searched drafts by customer name, but drafts have no captured name yet. `GET /orders` gains a `customerId` filter, which the dialog now uses, and `search` matches the current customer name of orders without a captured name. Without a draft of the recipient the dialog says so.
+
 ## [0.19.1] - 2026-11-12
 
 ### Fixed
