@@ -40,6 +40,16 @@ export interface SignageAnnouncement {
   /** @nullable */
   endsAt?: string | null;
   status: SignageAnnouncementStatus;
+  /** False means the announcement uses its template's colour and image. */
+  ownLook: boolean;
+  /**
+     * The announcement's own colour; null when `ownLook` is false or the tone colour is used.
+     * @nullable
+     * @pattern ^#[0-9a-f]{6}$
+     */
+  color: string | null;
+  /** The announcement's own image; null when `ownLook` is false or no image is wanted. */
+  imageAssetId: UUIDv7 | null;
   /** Server-rendered preview; `{display}` and `{location}` stay as typed because they depend on the showing display. */
   rendered: SignageRenderedMessage;
   version: Version;

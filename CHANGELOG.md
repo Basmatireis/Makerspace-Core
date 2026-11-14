@@ -4,6 +4,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Added
+
+- **Signage announcement colour and image (backend).** Announcement templates set a default colour and background image; an announcement may use its own look. The text colour is derived and unreadable colours are refused (`signage_color_contrast`). Live announcements carry the effective colour, text colour and image, players and web embeds may fetch the images of announcements in force, and image assets in use are protected from deletion. Migration 00141.
+
 ## [0.19.1] - 2026-11-12
 
 ### Fixed

@@ -120,7 +120,7 @@ export const getGetSignageEmbedAssetUrl = (embedKey: string,
 }
 
 /**
- * Public. Like `getSignagePlayerAsset` for the embed's latest publication; 404 for an unknown or switched-off embed. Rate-limited per client address.
+ * Public. Like `getSignagePlayerAsset` for the embed's latest publication and the images of announcements in force for the embed; 404 for an unknown or switched-off embed. Rate-limited per client address.
  * @summary Asset bytes of the web embed's latest publication
  */
 export const getSignageEmbedAsset = async (embedKey: string,

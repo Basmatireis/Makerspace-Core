@@ -2031,6 +2031,9 @@ type SignageAnnouncement struct {
 	Version            int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	OwnLook            bool
+	Color              *string
+	ImageAssetID       *uuid.UUID
 }
 
 type SignageAnnouncementDisplay struct {
@@ -2044,16 +2047,18 @@ type SignageAnnouncementGroup struct {
 }
 
 type SignageAnnouncementTemplate struct {
-	ID         uuid.UUID
-	Name       string
-	Tone       string
-	Title      string
-	Body       string
-	Version    int64
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	BodyFormat string
-	BodyCss    string
+	ID           uuid.UUID
+	Name         string
+	Tone         string
+	Title        string
+	Body         string
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	BodyFormat   string
+	BodyCss      string
+	Color        *string
+	ImageAssetID *uuid.UUID
 }
 
 type SignageAnnouncementTemplateField struct {
