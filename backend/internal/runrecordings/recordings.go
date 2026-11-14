@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts/parser"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/runrecordings/db"
 	"github.com/google/uuid"
@@ -80,7 +81,11 @@ func (s *Service) recordings(ctx context.Context, runs []machinelogbook.MachineR
 		return nil, err
 	}
 	previewsByRun := map[uuid.UUID][]Preview{}
+	reportedPlates := map[uuid.UUID]int{}
 	for _, row := range previews {
+		if row.RunPlateNumber != nil {
+			reportedPlates[row.RunID] = int(*row.RunPlateNumber)
+		}
 		var plate *int
 		if row.PlateNumber != nil {
 			value := int(*row.PlateNumber)
@@ -94,7 +99,11 @@ func (s *Service) recordings(ctx context.Context, runs []machinelogbook.MachineR
 			Height:      int(row.Height),
 			MIMEType:    row.MimeType,
 			Primary:     row.IsPrimary,
+			archivePath: row.ArchivePath,
 		})
+	}
+	for runID, plate := range reportedPlates {
+		markReportedPlate(previewsByRun[runID], plate)
 	}
 	timelapses, err := q.ListRunTimelapses(ctx, ids)
 	if err != nil {
@@ -312,4 +321,27 @@ func (s *Service) openTimelapse(ctx context.Context, q *db.Queries, runID uuid.U
 		ContentType: TimelapseContentType,
 		SizeBytes:   row.SizeBytes,
 	}, reader, nil
+}
+
+// markReportedPlate makes the render of the plate the printer reported for the run the primary preview. A 3MF with
+// G-code for several plates has one primary preview for all its runs; without a render of that plate it stays.
+func markReportedPlate(previews []Preview, plate int) {
+	candidates := make([]parser.Preview, len(previews))
+	for i, preview := range previews {
+		role := parser.PreviewRolePreview
+		if preview.Role == "plate" {
+			role = parser.PreviewRolePlate
+		}
+		candidates[i] = parser.Preview{
+			ArchivePath: preview.archivePath, Role: role, PlateNumber: preview.PlateNumber,
+			Width: preview.Width, Height: preview.Height,
+		}
+	}
+	index := parser.PlatePreview(candidates, plate)
+	if index < 0 {
+		return
+	}
+	for i := range previews {
+		previews[i].Primary = i == index
+	}
 }
