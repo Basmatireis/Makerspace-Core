@@ -552,6 +552,18 @@ func (q *Queries) DeleteCashMovement(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const deleteDraftOrder = `-- name: DeleteDraftOrder :execrows
+DELETE FROM orders WHERE id=$1 AND status='draft'
+`
+
+func (q *Queries) DeleteDraftOrder(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDraftOrder, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getActor = `-- name: GetActor :one
 SELECT pe.id,btrim(pe.first_name||' '||pe.last_name)::text AS display_name FROM accounts a JOIN people pe ON pe.id=a.person_id WHERE a.id=$1
 `
@@ -2458,6 +2470,22 @@ func (q *Queries) NextRequestReference(ctx context.Context) (int64, error) {
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const openReplacement = `-- name: OpenReplacement :one
+SELECT id,reference FROM orders WHERE replaces_order_id=$1 AND status='draft'
+`
+
+type OpenReplacementRow struct {
+	ID        uuid.UUID
+	Reference string
+}
+
+func (q *Queries) OpenReplacement(ctx context.Context, replacesOrderID *uuid.UUID) (OpenReplacementRow, error) {
+	row := q.db.QueryRow(ctx, openReplacement, replacesOrderID)
+	var i OpenReplacementRow
+	err := row.Scan(&i.ID, &i.Reference)
+	return i, err
 }
 
 const operationAllocations = `-- name: OperationAllocations :many

@@ -181,6 +181,8 @@ function order(orderId: string, reference: string, overrides: Partial<Order>): O
     replacesOrderReference: null,
     replacedByOrderId: null,
     replacedByOrderReference: null,
+    pendingReplacementOrderId: null,
+    pendingReplacementOrderReference: null,
     activeExternalRequestId: null,
     activeExternalRequestReference: null,
     activeExternalRequestState: null,
@@ -624,6 +626,8 @@ const sumAmounts = (items: OrderItem[]) =>
     .reduce((total, entry) => total + Math.round(Number(entry.amount) * 100), 0) / 100;
 
 export async function installSalesApi(page: Page, world: SalesWorld = createSalesWorld()): Promise<SalesWorld> {
+  // Replacement drafts get fresh numbers, also after one was discarded.
+  let replacements = 0;
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -647,6 +651,39 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
     if ((match = path.match(/^\/api\/v1\/orders\/([^/]+)$/))) {
       const found = world.orders.find((entry) => entry.id === match![1]);
       return found ? ok(route, found) : ok(route, { code: 'not_found', message: 'Not found' }, 404);
+    }
+    // Replace: a draft linked to the original and prefilled with its items; discard deletes it again.
+    if ((match = path.match(/^\/api\/v1\/orders\/([^/]+)\/replacements$/)) && method === 'POST') {
+      const original = world.orders.find((entry) => entry.id === match![1])!;
+      if (original.pendingReplacementOrderId)
+        return ok(route, { code: 'replacement_in_progress', message: 'Replacement already in progress' }, 409);
+      const next = order(id(800 + ++replacements), `O-2026-${String(800 + replacements).padStart(6, '0')}`, {
+        status: 'draft',
+        totalAmount: original.totalAmount,
+        netCharge: original.totalAmount,
+        outstandingAmount: original.totalAmount,
+        items: original.items.map((entry) => ({ ...entry })),
+        replacesOrderId: original.id,
+        replacesOrderReference: original.reference,
+      });
+      world.orders.unshift(next);
+      Object.assign(original, {
+        pendingReplacementOrderId: next.id,
+        pendingReplacementOrderReference: next.reference,
+        version: original.version + 1,
+      });
+      return ok(route, next, 201);
+    }
+    if ((match = path.match(/^\/api\/v1\/orders\/([^/]+)\/discard$/)) && method === 'POST') {
+      const draft = world.orders.find((entry) => entry.id === match![1])!;
+      const original = world.orders.find((entry) => entry.id === draft.replacesOrderId)!;
+      world.orders = world.orders.filter((entry) => entry.id !== draft.id);
+      Object.assign(original, {
+        pendingReplacementOrderId: null,
+        pendingReplacementOrderReference: null,
+        version: original.version + 1,
+      });
+      return ok(route, original);
     }
     if ((match = path.match(/^\/api\/v1\/orders\/([^/]+)\/items$/)) && method === 'POST') {
       const found = world.orders.find((entry) => entry.id === match![1])!;

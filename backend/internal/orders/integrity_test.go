@@ -531,17 +531,14 @@ func TestConcurrentReplacementAndAuditPaymentRollback(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	candidates := []Order{}
-	for range 2 {
-		next, e := f.s.Command(ctx, f.p, o.ID, cmd(o), "replacements", nil)
-		if e != nil {
-			t.Fatal(e)
-		}
-		candidates = append(candidates, next)
+	// An original has one open replacement draft; two people commit it at the same time.
+	next, e := f.s.Command(ctx, f.p, o.ID, cmd(o), "replacements", nil)
+	if e != nil {
+		t.Fatal(e)
 	}
 	results := make(chan error, 2)
 	var wg sync.WaitGroup
-	for _, next := range candidates {
+	for _, next := range []Order{next, next} {
 		wg.Add(1)
 		go func(next Order) {
 			defer wg.Done()
