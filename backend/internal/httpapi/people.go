@@ -103,6 +103,25 @@ func (s *Server) ChangePersonMembership(
 	return openapi.ChangePersonMembership200JSONResponse(response), nil
 }
 
+func (s *Server) ListPeopleRoleOptions(
+	ctx context.Context,
+	_ openapi.ListPeopleRoleOptionsRequestObject,
+) (openapi.ListPeopleRoleOptionsResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.people.RoleOptions(ctx, principal)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]openapi.RoleSummary, 0, len(items))
+	for _, role := range items {
+		out = append(out, roleSummaryDTO(role))
+	}
+	return openapi.ListPeopleRoleOptions200JSONResponse{Items: out}, nil
+}
+
 func (s *Server) ListPeople(
 	ctx context.Context,
 	request openapi.ListPeopleRequestObject,

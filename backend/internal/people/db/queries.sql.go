@@ -1451,6 +1451,37 @@ func (q *Queries) ListProfileImageRequirements(ctx context.Context, personIds []
 	return items, nil
 }
 
+const listRoleOptions = `-- name: ListRoleOptions :many
+SELECT id, name, system_key FROM roles ORDER BY system_key DESC NULLS LAST, lower(name), id
+`
+
+type ListRoleOptionsRow struct {
+	ID        uuid.UUID
+	Name      string
+	SystemKey *string
+}
+
+// Only what the People list already shows of a role; permissions and settings stay with the roles feature.
+func (q *Queries) ListRoleOptions(ctx context.Context) ([]ListRoleOptionsRow, error) {
+	rows, err := q.db.Query(ctx, listRoleOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRoleOptionsRow{}
+	for rows.Next() {
+		var i ListRoleOptionsRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.SystemKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockAccountsForMerge = `-- name: LockAccountsForMerge :many
 SELECT id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at FROM accounts WHERE person_id = ANY(($1::text[])::uuid[]) ORDER BY id FOR UPDATE
 `

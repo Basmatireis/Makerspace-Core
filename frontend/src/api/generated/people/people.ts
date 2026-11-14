@@ -26,6 +26,7 @@ import type {
   PeopleMergeRequest,
   PeopleMergeResult,
   PeopleMergeSelection,
+  PeopleRoleOptionList,
   Person,
   PersonMakerspaceStatus,
   PersonPage,
@@ -110,6 +111,32 @@ return apiFetch<Person>(getCreatePersonUrl(),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(createPersonRequest)
+  }
+);}
+
+
+export const getListPeopleRoleOptionsUrl = () => {
+
+
+
+
+  return `/api/v1/people/role-options`
+}
+
+/**
+ * Requires `people.read.all`. Returns only the identifier, name and system key of each role — the
+ * same role data the People list already shows — so viewers without `roles.read` can filter by role.
+ * Role permissions and settings stay behind `roles.read`.
+ * @summary List roles usable as People list filter options
+ */
+export const listPeopleRoleOptions = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PeopleRoleOptionList> => {
+
+  return apiFetch<PeopleRoleOptionList>(getListPeopleRoleOptionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 

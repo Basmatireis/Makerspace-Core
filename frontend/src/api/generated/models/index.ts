@@ -662,6 +662,7 @@ export * from './peopleMergePreview';
 export * from './peopleMergeRequest';
 export * from './peopleMergeResult';
 export * from './peopleMergeSelection';
+export * from './peopleRoleOptionList';
 export * from './permission';
 export * from './permissionGrant';
 export * from './permissionGrantScope';

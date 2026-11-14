@@ -184,6 +184,10 @@ JOIN person_roles pr ON pr.role_id = r.id
 WHERE pr.person_id = sqlc.arg(person_id)
 ORDER BY r.system_key DESC NULLS LAST, lower(r.name), r.id;
 
+-- name: ListRoleOptions :many
+-- Only what the People list already shows of a role; permissions and settings stay with the roles feature.
+SELECT id, name, system_key FROM roles ORDER BY system_key DESC NULLS LAST, lower(name), id;
+
 -- name: ListPersonRolesByPeople :many
 SELECT pr.person_id, r.* FROM roles r
 JOIN person_roles pr ON pr.role_id = r.id
