@@ -374,7 +374,7 @@ WITH entries AS (
     WHERE m.occurred_at >= sqlc.arg(from_time)::timestamptz AND m.occurred_at < sqlc.arg(to_time)::timestamptz
 )
 SELECT e.id, e.source, e.kind, e.method::text AS method, e.occurred_at, e.effect, e.reference,
-    COALESCE(al.order_reference, '')::text AS order_reference,
+    COALESCE(al.order_reference, '')::text AS order_reference, al.order_id,
     COALESCE(cs.display_name, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), ''), og.name, '')::text AS customer_name,
     e.payment_reason::text AS payment_reason, e.movement_reason::text AS movement_reason,
     (CASE WHEN e.count_id IS NULL THEN e.note ELSE COALESCE(c.note, '') END)::text AS note,
@@ -394,3 +394,17 @@ LEFT JOIN accounts pa ON pa.id = e.actor_account_id
 LEFT JOIN people rb ON rb.id = COALESCE(pa.person_id, e.person_id)
 ORDER BY e.occurred_at, e.sort_rank, e.id
 LIMIT sqlc.arg(row_limit);
+
+-- name: ListCashbookOrderContents :many
+-- What the orders of cashbook lines charged, in item order: the process of a machine job and whether it used the
+-- makerspace's material, the material type of an article sold from stock, the description of a manual item.
+SELECT i.order_id, i.kind,
+    (CASE WHEN i.kind = 'manual' THEN i.description ELSE '' END)::text AS description,
+    COALESCE(i.machine_job_snapshot->>'processName', '')::text AS process_name,
+    COALESCE(jsonb_path_exists(i.machine_job_snapshot, '$.usages[*] ? (@.ownership == "makerspace")'), false)::bool AS used_materials,
+    COALESCE(t.name, '')::text AS article_category
+FROM order_items i
+LEFT JOIN materials m ON m.id = i.source_material_id AND i.kind = 'inventory_item'
+LEFT JOIN material_types t ON t.id = m.material_type_id
+WHERE i.order_id = ANY(sqlc.arg(order_ids)::uuid[]) AND i.removed_at IS NULL
+ORDER BY i.order_id, i.position, i.id;
