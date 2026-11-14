@@ -423,6 +423,7 @@ func mlJobDTO(item machinelogbook.MachineJob) openapi.MachineJob {
 		OutcomeOverridden: item.OutcomeOverridden,
 		Notes:             nullableString(item.Notes),
 		PricingStatus:     openapi.PricingStatus(item.PricingStatus),
+		NothingToBill:     item.NothingToBill(),
 		PricingSnapshot:   snapshot,
 		CalculatedPrice:   nullableMoney(item.CalculatedPrice),
 		EffectivePrice:    nullableMoney(item.EffectivePrice),

@@ -373,16 +373,23 @@ func (q *Queries) CountCashMovements(ctx context.Context, arg CountCashMovements
 
 const countOrders = `-- name: CountOrders :one
 SELECT count(*) FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
-WHERE ($1::text='' OR o.reference ILIKE '%'||$1||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||$1||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||$1||'%') AND ($2::text='' OR o.status=$2)
+LEFT JOIN people cp ON cp.id=o.customer_person_id LEFT JOIN organizations cg ON cg.id=o.customer_organization_id
+WHERE ($1::text='' OR o.reference ILIKE '%'||$1||'%'
+       OR COALESCE(cs.display_name,cp.first_name||' '||cp.last_name,cg.name,'') ILIKE '%'||$1||'%'
+       OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||$1||'%')
+  AND ($2::text='' OR o.status=$2)
+  AND ($3::uuid IS NULL OR o.customer_person_id=$3 OR o.customer_organization_id=$3)
 `
 
 type CountOrdersParams struct {
-	Search string
-	Status string
+	Search     string
+	Status     string
+	CustomerID *uuid.UUID
 }
 
+// Drafts have no captured name yet, so the current name of their customer is searched instead.
 func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countOrders, arg.Search, arg.Status)
+	row := q.db.QueryRow(ctx, countOrders, arg.Search, arg.Status, arg.CustomerID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -2000,20 +2007,29 @@ func (q *Queries) ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItems
 
 const listOrders = `-- name: ListOrders :many
 SELECT o.id, o.reference, o.status, o.currency, o.customer_kind, o.customer_person_id, o.customer_organization_id, o.total_amount, o.replaces_order_id, o.replaces_order_reference, o.version, o.created_at, o.updated_at, o.created_by_account_id, o.finalized_at, o.cancelled_at, o.reversed_at FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
-WHERE ($1::text='' OR o.reference ILIKE '%'||$1||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||$1||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||$1||'%') AND ($2::text='' OR o.status=$2) ORDER BY o.created_at DESC,o.id DESC LIMIT $4 OFFSET $3
+LEFT JOIN people cp ON cp.id=o.customer_person_id LEFT JOIN organizations cg ON cg.id=o.customer_organization_id
+WHERE ($1::text='' OR o.reference ILIKE '%'||$1||'%'
+       OR COALESCE(cs.display_name,cp.first_name||' '||cp.last_name,cg.name,'') ILIKE '%'||$1||'%'
+       OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||$1||'%')
+  AND ($2::text='' OR o.status=$2)
+  AND ($3::uuid IS NULL OR o.customer_person_id=$3 OR o.customer_organization_id=$3)
+ORDER BY o.created_at DESC,o.id DESC LIMIT $5 OFFSET $4
 `
 
 type ListOrdersParams struct {
 	Search     string
 	Status     string
+	CustomerID *uuid.UUID
 	PageOffset int32
 	PageLimit  int32
 }
 
+// Drafts have no captured name yet, so the current name of their customer is searched instead.
 func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error) {
 	rows, err := q.db.Query(ctx, listOrders,
 		arg.Search,
 		arg.Status,
+		arg.CustomerID,
 		arg.PageOffset,
 		arg.PageLimit,
 	)

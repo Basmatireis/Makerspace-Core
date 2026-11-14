@@ -31,6 +31,7 @@ type Querier interface {
 	CommittedReplacement(ctx context.Context, replacesOrderID *uuid.UUID) (CommittedReplacementRow, error)
 	CountCashCounts(ctx context.Context, arg CountCashCountsParams) (int64, error)
 	CountCashMovements(ctx context.Context, arg CountCashMovementsParams) (int64, error)
+	// Drafts have no captured name yet, so the current name of their customer is searched instead.
 	CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error)
 	CountPayments(ctx context.Context, arg CountPaymentsParams) (int64, error)
 	CountRequests(ctx context.Context, arg CountRequestsParams) (int64, error)
@@ -87,6 +88,7 @@ type Querier interface {
 	// money and are left out; their corrections are not. A reversal belongs to the order of the receipt it reverses.
 	ListCashbookEntries(ctx context.Context, arg ListCashbookEntriesParams) ([]ListCashbookEntriesRow, error)
 	ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItemsRow, error)
+	// Drafts have no captured name yet, so the current name of their customer is searched instead.
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error)
 	// The person's finalized orders with an outstanding amount that no active external invoice request covers.
 	ListOwnPayableOrderIDs(ctx context.Context, personID *uuid.UUID) ([]uuid.UUID, error)

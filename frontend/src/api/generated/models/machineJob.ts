@@ -82,6 +82,8 @@ export interface MachineJob {
   priceAdjustment?: MachineJobPriceAdjustment | null;
   /** Calculated price with the price adjustment applied, rounded to cents and never below zero. */
   effectivePrice?: Money | null;
+  /** The job has ended, its price is complete and its effective price is 0 (also when waived by an adjustment). Such a job cannot be put on an order (409 nothing_to_bill) and is not unbilled work. */
+  nothingToBill: boolean;
   /** The job and all its runs are kept off signage (machine status, camera and timelapses). */
   hiddenFromSignage: boolean;
   /** What needs someone's attention on this job; empty when nothing does. */

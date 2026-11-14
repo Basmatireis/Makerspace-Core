@@ -34,6 +34,7 @@ func (s *Server) ListOrders(
 		p,
 		defaultString(r.Params.Search),
 		defaultString(r.Params.Status),
+		r.Params.CustomerId,
 		defaultInt(r.Params.Page, 1),
 		defaultInt(r.Params.PageSize, 25),
 	)

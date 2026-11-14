@@ -86,7 +86,7 @@ var (
 	}
 	workItemSources = []RunSource{RunSourceManual, RunSourceRecorded}
 	billingStates   = []BillingState{
-		BillingOnOrder, BillingOrderOutdated, BillingNotOnOrder, BillingPriceIncomplete, BillingPending,
+		BillingOnOrder, BillingOrderOutdated, BillingNotOnOrder, BillingNothingToBill, BillingPriceIncomplete, BillingPending,
 	}
 	workItemSorts = []string{"startedAt", "name", "machine", "customer", "price"}
 )
