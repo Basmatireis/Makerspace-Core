@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
@@ -476,5 +477,94 @@ func TestSignagePlayerAndEmbedAssetAccessFollowsAnnouncementsInForce(t *testing.
 	}
 	if got := l.playerGet(l.newPlayer(), "/signage/player/assets/"+sha(l.templateImg)); got != http.StatusUnauthorized {
 		t.Fatalf("unpaired client = %d", got)
+	}
+}
+
+func TestSignageRevokedDisplayCannotFetchAnAnnouncementImage(t *testing.T) {
+	l := newLookEnv(t)
+	displayID := l.display["id"].(string)
+	l.start(signage.AnnouncementInput{DisplayIDs: []uuid.UUID{uuid.MustParse(displayID)}})
+	path := "/signage/player/assets/" + l.templateImg.ID.String() + "/" + l.templateImg.SHA256
+	if got := l.playerGet(l.player, path); got != http.StatusOK {
+		t.Fatalf("image before the revocation = %d", got)
+	}
+	l.expect(l.as(l.staff, http.MethodPost, "/signage/displays/"+displayID+"/revoke",
+		map[string]any{"expectedVersion": l.displayVersion(l.staff, displayID)}), http.StatusOK)
+	if got := l.playerGet(l.player, path); got != http.StatusUnauthorized {
+		t.Fatalf("image for a revoked display = %d", got)
+	}
+}
+
+func TestSignageAnnouncementLookPermissions(t *testing.T) {
+	l := newLookEnv(t)
+	override := l.staff2("override", authorization.SignageRead, authorization.SignageOverride)
+	overrideOnly := l.staff2("override-only", authorization.SignageOverride)
+	contentOnly := l.staff2("content-only", authorization.SignageContentManage, authorization.SignageRead)
+	start := func(s staffSession) *http.Response {
+		return l.as(s, http.MethodPost, "/signage/announcements", map[string]any{
+			"templateId": l.template.ID.String(), "values": map[string]any{}, "allDisplays": true, "displayIds": []any{},
+			"groupIds": []any{}, "ownLook": true, "color": "#F1C21B", "imageAssetId": l.ownImg.ID.String(),
+		})
+	}
+
+	// signage.override alone is enough to start and update an announcement with an own colour and image.
+	for _, s := range []staffSession{override, overrideOnly} {
+		started := l.expect(start(s), http.StatusCreated)
+		if started["color"] != "#f1c21b" || started["imageAssetId"] != l.ownImg.ID.String() {
+			t.Fatalf("started = %v", started)
+		}
+		l.expect(l.as(s, http.MethodPut, "/signage/announcements/"+started["id"].(string), map[string]any{
+			"expectedVersion": started["version"], "values": map[string]any{}, "allDisplays": true, "displayIds": []any{},
+			"groupIds": []any{}, "startsAt": started["startsAt"], "ownLook": true, "color": "#FFFF00",
+			"imageAssetId": l.ownImg.ID.String(),
+		}), http.StatusOK)
+	}
+	// signage.content.manage alone cannot start one.
+	l.expectCode(start(contentOnly), http.StatusForbidden, "permission_denied")
+
+	// signage.override alone cannot give a template a colour or an image.
+	for name, extra := range map[string]map[string]any{
+		"colour": {"color": "#0f62fe"},
+		"image":  {"imageAssetId": l.ownImg.ID.String()},
+	} {
+		body := map[string]any{"name": "No " + name, "tone": "info", "title": "T", "body": "", "fields": []any{}}
+		for k, v := range extra {
+			body[k] = v
+		}
+		l.expectCode(l.as(override, http.MethodPost, "/signage/announcement-templates", body), http.StatusForbidden, "permission_denied")
+		l.expectCode(l.as(overrideOnly, http.MethodPut, "/signage/announcement-templates/"+l.template.ID.String(),
+			mergeMaps(body, map[string]any{"expectedVersion": l.template.Version})), http.StatusForbidden, "permission_denied")
+	}
+}
+
+func mergeMaps(a, b map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range a {
+		out[k] = v
+	}
+	for k, v := range b {
+		out[k] = v
+	}
+	return out
+}
+
+func (l lookEnv) staff2(suffix string, permissions ...authorization.Permission) staffSession {
+	return l.signageEnv.staff(suffix+"-"+uuid.NewString()[:8], permissions...)
+}
+
+func TestSignageOwnLookWithoutImageHidesTheTemplateImage(t *testing.T) {
+	l := newLookEnv(t)
+	displayID := uuid.MustParse(l.display["id"].(string))
+	l.start(signage.AnnouncementInput{DisplayIDs: []uuid.UUID{displayID}, OwnLook: true})
+	live := l.liveAnnouncements(l.player, "/signage/player/live")
+	if len(live) != 1 || live[0].(map[string]any)["image"] != nil {
+		t.Fatalf("live = %v", live)
+	}
+	list := l.expect(l.as(l.staff, http.MethodGet, "/signage/announcements", nil), http.StatusOK)["items"].([]any)
+	if len(list) != 1 || list[0].(map[string]any)["rendered"].(map[string]any)["image"] != nil {
+		t.Fatalf("rendered = %v", list)
+	}
+	if got := l.playerGet(l.player, "/signage/player/assets/"+l.templateImg.ID.String()+"/"+l.templateImg.SHA256); got != http.StatusNotFound {
+		t.Fatalf("template image of an announcement with its own look = %d", got)
 	}
 }
