@@ -396,6 +396,16 @@ func TestIngestRecordsPrintFacts(t *testing.T) {
 		t.Fatalf("late or invalid observations changed the run: %+v", late)
 	}
 
+	// The printed plate of a multi-plate 3MF is kept; a later observation without a valid plate keeps it.
+	var plate *int32
+	h.accepted(runID, "progress", t0.Add(3*time.Minute), `{"percent":45,"plateNumber":2}`)
+	h.accepted(runID, "progress", t0.Add(4*time.Minute), `{"percent":50,"plateNumber":0}`)
+	h.accepted(runID, "operational_state", t0.Add(5*time.Minute), `{"state":"printing","plateNumber":2.5}`)
+	if err := h.pool.QueryRow(t.Context(), `SELECT plate_number FROM machine_runs WHERE id = $1`, runID).Scan(&plate); err != nil ||
+		plate == nil || *plate != 2 {
+		t.Fatalf("plate number = %v err=%v", plate, err)
+	}
+
 	// Duplicates change nothing and never allocate a number.
 	duplicate := EventInput{
 		EventID:              ids.New(),

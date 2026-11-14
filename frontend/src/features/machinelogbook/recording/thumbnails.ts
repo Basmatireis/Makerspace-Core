@@ -19,7 +19,8 @@ export type Thumbnail = {
 /**
  * One image per plate of a print file. Slicers embed several renders of each plate (full size, a small copy and
  * helper images such as the object pick map); plate renders win over other images, then the largest, then the
- * first in archive order. Other images are kept only for a file without any plate render.
+ * first in archive order. Other images are kept only for a file without any plate render. The plate of the primary
+ * preview (the printed plate) comes first.
  */
 export function plateImages(previews: MachineRunPreview[]): MachineRunPreview[] {
   const hasPlates = previews.some((preview) => preview.role === 'plate');
@@ -33,7 +34,10 @@ export function plateImages(previews: MachineRunPreview[]): MachineRunPreview[] 
     const current = best.get(key);
     if (!current || preview.width * preview.height > current.width * current.height) best.set(key, preview);
   }
-  return previews.filter((preview) => best.get(String(preview.plateNumber ?? 'none')) === preview);
+  const primaryPlate = String(previews.find((preview) => preview.primary)?.plateNumber ?? 'none');
+  const images = previews.filter((preview) => best.get(String(preview.plateNumber ?? 'none')) === preview);
+  const printed = best.get(primaryPlate);
+  return printed ? [printed, ...images.filter((preview) => preview !== printed)] : images;
 }
 
 /** The previews of recorded runs, in run order, one per plate. Runs without a 3MF contribute none. */

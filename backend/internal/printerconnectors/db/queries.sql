@@ -191,7 +191,8 @@ UPDATE machine_runs SET
     ended_at=sqlc.narg(ended_at)::timestamptz,
     file_name=COALESCE(sqlc.narg(file_name)::text, file_name),
     progress_percent=COALESCE(sqlc.narg(progress_percent)::smallint, progress_percent),
-    estimated_end_at=COALESCE(sqlc.narg(estimated_end_at)::timestamptz, estimated_end_at)
+    estimated_end_at=COALESCE(sqlc.narg(estimated_end_at)::timestamptz, estimated_end_at),
+    plate_number=COALESCE(sqlc.narg(plate_number)::integer, plate_number)
 WHERE id=sqlc.arg(id);
 
 -- name: SetObservedRunReport :execrows

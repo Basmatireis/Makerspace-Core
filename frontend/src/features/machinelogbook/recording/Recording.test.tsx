@@ -695,6 +695,16 @@ describe('plate images', () => {
     expect(plateImages(previews).map((p) => p.id)).toEqual(['plate-1', 'plate-2']);
   });
 
+  it('shows the printed plate first', () => {
+    const previews = [
+      preview('plate-1', 'plate', 1, 512),
+      { ...preview('plate-2-small', 'plate', 2, 128), primary: true },
+      preview('plate-2', 'plate', 2, 512),
+      preview('plate-3', 'plate', 3, 512),
+    ];
+    expect(plateImages(previews).map((p) => p.id)).toEqual(['plate-2', 'plate-1', 'plate-3']);
+  });
+
   it('keeps other images when a file has no plate render', () => {
     expect(plateImages([preview('model', 'model', null, 256)]).map((p) => p.id)).toEqual(['model']);
   });

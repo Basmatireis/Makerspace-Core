@@ -688,6 +688,7 @@ type MachineRun struct {
 	HiddenFromSignage     bool
 	ArtifactManual        bool
 	FormerJobID           *uuid.UUID
+	PlateNumber           *int32
 }
 
 type MachineRunCommand struct {

@@ -99,6 +99,8 @@ type Preview struct {
 	Width, Height int
 	MIMEType      string
 	Primary       bool
+	// archivePath breaks ties between renders of the reported plate.
+	archivePath string
 }
 
 // Timelapse is a stored timelapse video.
