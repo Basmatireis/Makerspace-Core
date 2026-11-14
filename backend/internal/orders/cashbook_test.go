@@ -6,8 +6,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
+	db "github.com/Basmatireis/Makerspace-Core/backend/internal/orders/db"
+	"github.com/google/uuid"
 	"github.com/ledongthuc/pdf"
 	"github.com/shopspring/decimal"
 )
@@ -76,6 +80,7 @@ func sampleCashbook(n int, contents CashbookContents) cashbook {
 			method:         PaymentCash,
 			effect:         decimal.RequireFromString("234.5"),
 			orderReference: "O-2026-000123",
+			contents:       orderContents{processes: []string{"FDM 3D printing"}, materials: true},
 			customer:       "Jürgen Weiß",
 			recordedBy:     "Anna Kassierer",
 		}
@@ -107,7 +112,7 @@ func TestCashbookCSVFormat(t *testing.T) {
 	want := []string{
 		"Date;Reference;Description;In;Out;Balance",
 		"01.10.2026;;Opening balance;;;1000,00",
-		"01.10.2026;P-2026-00000;Receipt O-2026-000123 · Jürgen Weiß;234,50;;1234,50",
+		"01.10.2026;P-2026-00000;Receipt O-2026-000123 · FDM 3D printing and materials · Jürgen Weiß;234,50;;1234,50",
 		`02.10.2026;P-2026-00001;"Withdrawal · Other · =cmd; ""quoted""";;50,00;1184,50`,
 		"03.10.2026;P-2026-00002;Correction · Count difference K-2026-0001 · Counting error;;1,20;1183,30",
 	}
@@ -178,7 +183,8 @@ func TestCashbookPDFFollowsTheKassabuchSheets(t *testing.T) {
 			"2026 · Zeitraum 01.10.2026 – 31.10.2026", "Bestand/Übertrag von", "vorheriger Seite", "Kassierer*in",
 			"Einnahme", "Ausgabe", "1.000,00", "Summe/Bestand")
 		if c.entries > 0 {
-			requireTexts(t, pages[0], "Einnahme O-2026-000123 · Jürgen Weiß", "Anna Kassierer", "01.10.2026", "234,50")
+			requireTexts(t, pages[0], "Einnahme O-2026-000123 · FDM 3D printing", "und Material · Jürgen Weiß",
+				"Anna Kassierer", "01.10.2026", "234,50")
 		}
 		// The first sheet closes with the balance after its last entry, which the next sheet carries over.
 		firstClose := b.opening
@@ -239,12 +245,13 @@ func TestCashbookExportFromTheRegister(t *testing.T) {
 	// Opening 50; withdrawal 5, correction 1, receipt 20, refund 20; the count itself moves nothing.
 	if len(rows) != 6 || !strings.HasSuffix(rows[1], ";50,00") || !strings.HasSuffix(rows[2], ";;5,00;45,00") ||
 		!strings.Contains(rows[3], "Count difference K-") || !strings.HasSuffix(rows[5], ";;20,00;44,00") ||
-		!strings.Contains(rows[4], "Example institute") {
+		!strings.Contains(rows[4], " · Service · Example institute") || !strings.Contains(rows[5], " · Service · returned") {
 		t.Fatalf("%q", rows)
 	}
 	cashier := f.principal(t, authorization.PaymentsRead, authorization.CashMovementsRead)
 	file, err = f.s.ExportCashbook(ctx, cashier, query)
-	if err != nil || strings.Contains(string(file.Data), "Example institute") {
+	// Without orders.read the lines keep their references but neither customer nor what the order charged.
+	if err != nil || strings.Contains(string(file.Data), "Example institute") || strings.Contains(string(file.Data), "Service") {
 		t.Fatalf("customer without orders.read: %v %s", err, file.Data)
 	}
 	_, err = f.s.ExportCashbook(ctx, f.principal(t, authorization.PaymentsRead), query)
@@ -265,4 +272,135 @@ func TestCashbookExportFromTheRegister(t *testing.T) {
 	query.From = time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
 	_, err = f.s.ExportCashbook(ctx, f.p, query)
 	wantCode(t, err, "validation_failed")
+}
+
+func TestCashbookSummarySaysWhatAnOrderCharged(t *testing.T) {
+	cases := []struct {
+		name     string
+		contents orderContents
+		english  string
+		german   string
+	}{
+		{"nothing", orderContents{}, "", ""},
+		{"single kind", orderContents{processes: []string{"FDM 3D printing"}, materials: true},
+			"FDM 3D printing and materials", "FDM 3D printing und Material"},
+		{"several kinds", orderContents{processes: []string{"Laser cutting", "FDM 3D printing"}, materials: true},
+			"Laser cutting, FDM 3D printing and materials", "Laser cutting, FDM 3D printing und Material"},
+		{"machine time only", orderContents{processes: []string{"Laser cutting"}}, "Laser cutting", "Laser cutting"},
+		{"stock sale", orderContents{goods: []string{"Filament", "Parts"}}, "Filament, Parts", "Filament, Parts"},
+		{"jobs and stock", orderContents{processes: []string{"FDM 3D printing"}, materials: true, goods: []string{"Parts"}},
+			"FDM 3D printing and materials, Parts", "FDM 3D printing und Material, Parts"},
+		{"no process name", orderContents{materials: true}, "Machine use and materials", "Maschinennutzung und Material"},
+		{"truncated", orderContents{processes: []string{"Laser cutting", "FDM 3D printing", "Embroidery"},
+			materials: true, goods: []string{"Filament"}},
+			"Laser cutting, FDM 3D printing, Embroidery and…", "Laser cutting, FDM 3D printing, Embroidery und…"},
+		{"no dangling comma", orderContents{goods: []string{"Laser cutting service", "Filament spools in bulk", "Parts"}},
+			"Laser cutting service, Filament spools in bulk…", "Laser cutting service, Filament spools in bulk…"},
+	}
+	for _, c := range cases {
+		english, german := englishWords.summary(c.contents), germanWords.summary(c.contents)
+		if english != c.english || german != c.german {
+			t.Fatalf("%s: %q / %q", c.name, english, german)
+		}
+		if utf8.RuneCountInString(english) > MaxCashbookSummaryLength {
+			t.Fatalf("%s: %d characters", c.name, utf8.RuneCountInString(english))
+		}
+	}
+	got := collectOrderContents([]db.ListCashbookOrderContentsRow{
+		{OrderID: uuid.Max, Kind: "machine_job", ProcessName: "Laser cutting"},
+		{OrderID: uuid.Max, Kind: "inventory_item", ArticleCategory: "Filament"},
+		{OrderID: uuid.Max, Kind: "machine_job", ProcessName: "FDM 3D printing", UsedMaterials: true},
+		{OrderID: uuid.Max, Kind: "machine_job", ProcessName: "laser cutting"},
+		{OrderID: uuid.Max, Kind: "inventory_item", ArticleCategory: "filament"},
+		{OrderID: uuid.Max, Kind: "manual", Description: " Consulting "},
+		{OrderID: uuid.Nil, Kind: "inventory_item", ArticleCategory: "Parts"},
+	})
+	if s := englishWords.summary(got[uuid.Max]); s != "Laser cutting, FDM 3D printing and materials, F…" {
+		t.Fatalf("collected %q", s)
+	}
+	if s := englishWords.summary(got[uuid.Nil]); s != "Parts" {
+		t.Fatalf("second order %q", s)
+	}
+}
+
+func TestCashbookLinesNameTheOrderContents(t *testing.T) {
+	printing := orderContents{processes: []string{"FDM 3D printing"}, materials: true}
+	cases := []struct {
+		line          cashbookLine
+		english, more string
+	}{
+		{cashbookLine{kind: JournalReceipt, orderReference: "O-1", contents: printing, customer: "Ada"},
+			"Receipt O-1 · FDM 3D printing and materials · Ada", "Einnahme O-1 · FDM 3D printing und Material · Ada"},
+		{cashbookLine{kind: JournalRefund, orderReference: "O-1", contents: printing, paymentReason: "returned"},
+			"Refund O-1 · FDM 3D printing and materials · returned",
+			"Rückzahlung O-1 · FDM 3D printing und Material · returned"},
+		{cashbookLine{kind: JournalCorrection, orderReference: "O-1", contents: printing, paymentReason: "typo"},
+			"Correction O-1 · FDM 3D printing and materials · typo",
+			"Korrektur O-1 · FDM 3D printing und Material · typo"},
+		{cashbookLine{kind: JournalReceipt, orderReference: "O-2", customer: "Ada"}, "Receipt O-2 · Ada", "Einnahme O-2 · Ada"},
+	}
+	for _, c := range cases {
+		if got := englishWords.describe(c.line, false); got != c.english {
+			t.Fatalf("english %q, want %q", got, c.english)
+		}
+		if got := germanWords.describe(c.line, false); got != c.more {
+			t.Fatalf("german %q, want %q", got, c.more)
+		}
+	}
+}
+
+func TestCashbookOrderContentsFromTheItems(t *testing.T) {
+	f := newFixture(t)
+	ctx := t.Context()
+	material := f.stockedMaterial(t, "PLA cashbook")
+	start := time.Now().UTC().Add(-3 * time.Hour).Truncate(time.Second)
+	job, e := f.jobs.CreateManualJob(ctx, f.p, machinelogbook.JobInput{
+		MachineID:        f.machine,
+		StartsAt:         start,
+		EndsAt:           start.Add(time.Hour),
+		Customer:         machinelogbook.PartyReference{Kind: "organization", ID: f.organization},
+		OperatorPersonID: f.person,
+		Outcome:          "successful",
+		Usages:           []machinelogbook.UsageInput{{MaterialID: material, Quantity: "20"}},
+	}, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	o := f.draft(t, true, "1")
+	o, e = f.s.ChangeItem(ctx, f.p, o.ID, uuid.Nil, OrderItemInput{
+		Kind:               ItemMachineJob,
+		MachineJobID:       job.ID,
+		ExpectedJobVersion: job.Version,
+		ExpectedVersion:    o.Version,
+	}, ItemActionAdd, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	process := ""
+	for _, item := range o.Items {
+		if item.Snapshot != nil {
+			process = item.Snapshot.ProcessName
+		}
+	}
+	price := "2"
+	o = f.addArticle(t, o, f.article(t, &price, "10", "5"), "1", "")
+	removed := f.addArticle(t, f.emptyDraft(t), f.article(t, &price, "10", "5"), "1", "")
+	removed, e = f.s.ChangeItem(ctx, f.p, removed.ID, removed.Items[0].ID, OrderItemInput{ExpectedVersion: removed.Version},
+		ItemActionRemove, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	rows, e := db.New(f.pool).ListCashbookOrderContents(ctx, []uuid.UUID{o.ID, removed.ID})
+	if e != nil {
+		t.Fatal(e)
+	}
+	contents := collectOrderContents(rows)
+	got := contents[o.ID]
+	if len(got.processes) != 1 || process == "" || got.processes[0] != process || !got.materials || len(got.goods) != 2 ||
+		got.goods[0] != "Service" || !strings.HasPrefix(got.goods[1], "Parts ") {
+		t.Fatalf("contents %+v", got)
+	}
+	if _, ok := contents[removed.ID]; ok {
+		t.Fatalf("removed item counted: %+v", contents[removed.ID])
+	}
 }

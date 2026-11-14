@@ -1837,7 +1837,7 @@ WITH entries AS (
     WHERE m.occurred_at >= $3::timestamptz AND m.occurred_at < $4::timestamptz
 )
 SELECT e.id, e.source, e.kind, e.method::text AS method, e.occurred_at, e.effect, e.reference,
-    COALESCE(al.order_reference, '')::text AS order_reference,
+    COALESCE(al.order_reference, '')::text AS order_reference, al.order_id,
     COALESCE(cs.display_name, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), ''), og.name, '')::text AS customer_name,
     e.payment_reason::text AS payment_reason, e.movement_reason::text AS movement_reason,
     (CASE WHEN e.count_id IS NULL THEN e.note ELSE COALESCE(c.note, '') END)::text AS note,
@@ -1875,6 +1875,7 @@ type ListCashbookEntriesRow struct {
 	Effect         pgtype.Numeric
 	Reference      string
 	OrderReference string
+	OrderID        *uuid.UUID
 	CustomerName   string
 	PaymentReason  string
 	MovementReason string
@@ -1910,6 +1911,7 @@ func (q *Queries) ListCashbookEntries(ctx context.Context, arg ListCashbookEntri
 			&i.Effect,
 			&i.Reference,
 			&i.OrderReference,
+			&i.OrderID,
 			&i.CustomerName,
 			&i.PaymentReason,
 			&i.MovementReason,
@@ -1917,6 +1919,57 @@ func (q *Queries) ListCashbookEntries(ctx context.Context, arg ListCashbookEntri
 			&i.CountReference,
 			&i.CountReason,
 			&i.RecordedByName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCashbookOrderContents = `-- name: ListCashbookOrderContents :many
+SELECT i.order_id, i.kind,
+    (CASE WHEN i.kind = 'manual' THEN i.description ELSE '' END)::text AS description,
+    COALESCE(i.machine_job_snapshot->>'processName', '')::text AS process_name,
+    COALESCE(jsonb_path_exists(i.machine_job_snapshot, '$.usages[*] ? (@.ownership == "makerspace")'), false)::bool AS used_materials,
+    COALESCE(t.name, '')::text AS article_category
+FROM order_items i
+LEFT JOIN materials m ON m.id = i.source_material_id AND i.kind = 'inventory_item'
+LEFT JOIN material_types t ON t.id = m.material_type_id
+WHERE i.order_id = ANY($1::uuid[]) AND i.removed_at IS NULL
+ORDER BY i.order_id, i.position, i.id
+`
+
+type ListCashbookOrderContentsRow struct {
+	OrderID         uuid.UUID
+	Kind            string
+	Description     string
+	ProcessName     string
+	UsedMaterials   bool
+	ArticleCategory string
+}
+
+// What the orders of cashbook lines charged, in item order: the process of a machine job and whether it used the
+// makerspace's material, the material type of an article sold from stock, the description of a manual item.
+func (q *Queries) ListCashbookOrderContents(ctx context.Context, orderIds []uuid.UUID) ([]ListCashbookOrderContentsRow, error) {
+	rows, err := q.db.Query(ctx, listCashbookOrderContents, orderIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCashbookOrderContentsRow{}
+	for rows.Next() {
+		var i ListCashbookOrderContentsRow
+		if err := rows.Scan(
+			&i.OrderID,
+			&i.Kind,
+			&i.Description,
+			&i.ProcessName,
+			&i.UsedMaterials,
+			&i.ArticleCategory,
 		); err != nil {
 			return nil, err
 		}

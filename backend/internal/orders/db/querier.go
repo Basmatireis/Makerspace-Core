@@ -86,6 +86,9 @@ type Querier interface {
 	// only cash payments count (the cash register); otherwise card and external payments are included. Counts move no
 	// money and are left out; their corrections are not. A reversal belongs to the order of the receipt it reverses.
 	ListCashbookEntries(ctx context.Context, arg ListCashbookEntriesParams) ([]ListCashbookEntriesRow, error)
+	// What the orders of cashbook lines charged, in item order: the process of a machine job and whether it used the
+	// makerspace's material, the material type of an article sold from stock, the description of a manual item.
+	ListCashbookOrderContents(ctx context.Context, orderIds []uuid.UUID) ([]ListCashbookOrderContentsRow, error)
 	ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItemsRow, error)
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error)
 	// The person's finalized orders with an outstanding amount that no active external invoice request covers.

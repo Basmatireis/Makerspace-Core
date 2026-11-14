@@ -4,6 +4,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Changed
+
+- **Cashbook says what a receipt was for.** Payment lines of the cashbook PDF and CSV name what their order charged after the order reference: the processes of its machine jobs ("FDM 3D printing und Material"), the material types of articles sold from stock and manual items, joined and cut to 48 characters with an ellipsis. Refunds and corrections describe the order of the receipt they reverse. Shown only with `orders.read`, like the customer. See [docs/orders.md](docs/orders.md).
+
 ## [0.19.1] - 2026-11-12
 
 ### Fixed
