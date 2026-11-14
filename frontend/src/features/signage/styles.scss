@@ -521,3 +521,10 @@
   gap: $spacing-03;
   min-inline-size: 0;
 }
+
+.sg-notice-rule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}

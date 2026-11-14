@@ -3,9 +3,11 @@ import {
   getSignageAsset,
   getSignageCalendar,
   getSignageDisplay,
+  getSignageDisplayNotices,
   getSignageDisplayGroup,
   getSignageDisplayGroupPreview,
   getSignageDisplayPreview,
+  getSignageGroupNotices,
   getSignageScene,
   getSignageWebEmbed,
   listSignageAnnouncementTemplates,
@@ -15,6 +17,7 @@ import {
   listSignageDisplays,
   listSignageGroupRules,
   listSignageMachines,
+  listSignageNotificationRules,
   listSignageRules,
   listSignageScenes,
   listSignageWebEmbeds,
@@ -38,6 +41,9 @@ export const signageKeys = {
   group: (id: string) => [...signageKeys.all, 'group', id] as const,
   groupRules: (id: string) => [...signageKeys.all, 'group-rules', id] as const,
   groupPreview: (id: string) => [...signageKeys.all, 'group-preview', id] as const,
+  noticeRules: () => [...signageKeys.all, 'notice-rules'] as const,
+  notices: (owner: { kind: 'display' | 'group'; id: string }) =>
+    [...signageKeys.all, `${owner.kind}-notices`, owner.id] as const,
   embeds: () => [...signageKeys.all, 'embeds'] as const,
   embed: (id: string) => [...signageKeys.all, 'embed', id] as const,
 };
@@ -150,4 +156,21 @@ export const embedQuery = (id: string) =>
     queryKey: signageKeys.embed(id),
     queryFn: ({ signal }) => getSignageWebEmbed(id, { signal }),
     refetchInterval: 30_000,
+  });
+
+/** Notification rules a display or group can choose to show (any signage permission lists them). */
+export const noticeRulesQuery = () =>
+  queryOptions({
+    queryKey: signageKeys.noticeRules(),
+    queryFn: ({ signal }) => listSignageNotificationRules({ signal }),
+  });
+/** Which notification rules a display or group shows: all of them, or the chosen ones. */
+export const noticesQuery = (owner: { kind: 'display' | 'group'; id: string }, enabled = true) =>
+  queryOptions({
+    queryKey: signageKeys.notices(owner),
+    queryFn: ({ signal }) =>
+      owner.kind === 'group'
+        ? getSignageGroupNotices(owner.id, { signal })
+        : getSignageDisplayNotices(owner.id, { signal }),
+    enabled,
   });

@@ -58,6 +58,7 @@ import {
   sameRatio,
 } from './helpers';
 import { signagePaths } from './paths';
+import { NoticesTab } from './NoticesTab';
 import { PlaybackTab } from './PlaybackTab';
 
 export function GroupDetailPage() {
@@ -230,6 +231,7 @@ function Detail({ group, crumbs }: { group: SignageDisplayGroup; crumbs: { label
               <TabList aria-label="Group sections" contained>
                 <Tab>Playback</Tab>
                 <Tab>Members</Tab>
+                <Tab>Notices</Tab>
                 <Tab>Settings</Tab>
               </TabList>
               <TabPanels>
@@ -245,6 +247,9 @@ function Detail({ group, crumbs }: { group: SignageDisplayGroup; crumbs: { label
                     canManage={canManage}
                     now={now}
                   />
+                </TabPanel>
+                <TabPanel>
+                  <NoticesTab owner={{ kind: 'group', id: group.id }} canManage={canManage} />
                 </TabPanel>
                 <TabPanel>
                   <GroupSettingsTab

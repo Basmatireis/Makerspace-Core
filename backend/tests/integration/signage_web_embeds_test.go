@@ -1,17 +1,12 @@
 package integration_test
 
 import (
-	"errors"
-	"fmt"
 	"net/http"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/google/uuid"
 )
@@ -382,32 +377,6 @@ func TestSignageWebEmbedAnnouncementsGroupsAndPublication(t *testing.T) {
 	// A group cannot be deleted while the embed is a member.
 	e.expectCode(e.as(staff, http.MethodDelete, "/signage/groups/"+groupID,
 		map[string]any{"expectedVersion": e.groupVersion(staff, groupID)}), http.StatusConflict, "signage_in_use")
-}
-
-// Notification rules put notices on the makerspace's own screens only; a web embed is not a display they may target.
-func TestNotificationRulesRefuseWebEmbedsAsSignageTargets(t *testing.T) {
-	e := newRulesEnv(t)
-	ctx := testContext(t)
-	embedID := ids.New()
-	if _, err := e.pool.Exec(ctx, `INSERT INTO signage_displays (id, kind, name, aspect_width, aspect_height, visible_from_outside)
-		VALUES ($1, 'web_embed', 'Website', 16, 9, true)`, embedID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.pool.Exec(ctx, `INSERT INTO signage_web_embeds (display_id, embed_key, allowed_origins)
-		VALUES ($1, $2, '{https://www.example.org}')`, embedID, strings.Repeat("k", 32)); err != nil {
-		t.Fatal(err)
-	}
-	input := eventRule("lab_rules_published", "need_confirm")
-	input.CategoryID = &e.service
-	input.Definition.Actions = []notifyrules.Action{{
-		Channel: notifyrules.ChannelSignage, Title: "Printer error",
-		Signage: &notifyrules.SignageTarget{DisplayIDs: []uuid.UUID{embedID}, DurationMinutes: 5, Tone: notifyrules.ToneInfo},
-	}}
-	_, err := e.rules.CreateRule(ctx, e.manager(), input, nil)
-	var refusal *apperror.Error
-	if !errors.As(err, &refusal) || !strings.Contains(fmt.Sprint(refusal.Code, refusal.Details), "displayIds") {
-		t.Fatalf("rule targeting a web embed = %v %#v, want a displayIds validation error", err, refusal.Details)
-	}
 }
 
 // A web embed's display row always stays visible from outside without allowCameraOutside: the device endpoints do not

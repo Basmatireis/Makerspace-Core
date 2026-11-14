@@ -605,6 +605,7 @@ var Tables = []Table{
 		"errors":         System,
 	}},
 	{Name: "signage_displays", Columns: map[string]Treatment{"name": Catalog, "location": Catalog, "kind": System}},
+	{Name: "signage_notice_opt_ins"},
 	{Name: "signage_pairing_requests", Emptied: EmptiedSignInState},
 	{Name: "signage_publications", Columns: map[string]Treatment{"manifest": Catalog, "manifest_sha256": System}},
 	{Name: "signage_rule_notices", Emptied: EmptiedHistory},

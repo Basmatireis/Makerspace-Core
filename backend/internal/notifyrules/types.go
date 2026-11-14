@@ -97,10 +97,27 @@ type Rule struct {
 	Definition     Definition
 	LastFiredAt    *time.Time
 	Stats          *RuleStats
+	// SignageShownOn lists where the rule's signage notices appear; only GetRule fills it, for a rule with a signage
+	// action.
+	SignageShownOn *SignageShownOn
 	Warnings       []string
 	Version        int64
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+// SignageShownOn are the displays and display groups that chose to show a rule's signage notices. A group's member
+// displays show them too.
+type SignageShownOn struct {
+	Displays []SignageNoticeTarget
+	Groups   []SignageNoticeTarget
+}
+
+// SignageNoticeTarget is a display or group that shows a rule's notices; AllRules says it shows every rule's.
+type SignageNoticeTarget struct {
+	ID       uuid.UUID
+	Name     string
+	AllRules bool
 }
 
 // ConsentEntry is a category with a person's latest answer. Current says whether the answer was given to the

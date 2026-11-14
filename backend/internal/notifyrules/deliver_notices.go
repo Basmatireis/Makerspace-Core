@@ -18,29 +18,29 @@ const (
 	nextCheckInLifetime   = 30 * 24 * time.Hour
 )
 
-// deliverSignage puts the notice on each chosen display for the action's duration. It carries text only: signage never
-// shows job media or people here.
+// deliverSignage puts the notice on signage for the action's duration. The rule does not name displays: the notice is
+// stored once and every display shows it that opted in to the rule or to all notices, itself or through its group,
+// while the notice lasts. It carries text only: signage never shows job media or people here.
 func (d *Dispatcher) deliverSignage(ctx context.Context, q *store, runtime *ruleRuntime, in deliveryInput, now time.Time) error {
 	target := in.Action.Signage
 	if target == nil {
 		return nil
 	}
-	ends := now.Add(time.Duration(target.DurationMinutes) * time.Minute)
-	shown := 0
-	for _, display := range target.DisplayIDs {
-		rows, err := q.InsertSignageRuleNotice(ctx, notifyrulesdb.InsertSignageRuleNoticeParams{
-			ID: ids.New(), FiringID: &in.FiringID, DisplayID: display, Title: Clip(in.Action.Title, MaxTitleLength),
-			Body: Clip(in.Action.Body, MaxBodyLength), Tone: string(target.Tone), StartsAt: now, EndsAt: ends,
-		})
-		if err != nil {
-			return fmt.Errorf("insert signage notice: %w", err)
-		}
-		shown += int(rows)
+	if err := q.InsertSignageRuleNotice(ctx, notifyrulesdb.InsertSignageRuleNoticeParams{
+		ID: ids.New(), FiringID: &in.FiringID, RuleID: runtime.ID, Title: Clip(in.Action.Title, MaxTitleLength),
+		Body: Clip(in.Action.Body, MaxBodyLength), Tone: string(target.Tone), StartsAt: now,
+		EndsAt: now.Add(time.Duration(target.DurationMinutes) * time.Minute),
+	}); err != nil {
+		return fmt.Errorf("insert signage notice: %w", err)
+	}
+	shown, err := q.CountSignageDisplaysShowingRule(ctx, runtime.ID)
+	if err != nil {
+		return fmt.Errorf("count signage displays: %w", err)
 	}
 	if shown == 0 {
 		return nil
 	}
-	d.countSent(runtime, ChannelSignage, shown)
+	d.countSent(runtime, ChannelSignage, int(shown))
 	return d.logChannel(ctx, q, in, nil, ChannelSignage, statusSent, now)
 }
 

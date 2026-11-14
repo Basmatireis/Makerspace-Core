@@ -86,9 +86,19 @@ export type EditorProps = {
   canManage: boolean;
   /** Edits a subscription of the signed-in person instead of a central rule. */
   personal?: boolean;
+  /** Whether the signage action's "Shown on" names link to the signage pages. */
+  signageLinks?: boolean;
 };
 
-export function RuleEditor({ catalog, categories, rule, initial, canManage, personal = false }: EditorProps) {
+export function RuleEditor({
+  catalog,
+  categories,
+  rule,
+  initial,
+  canManage,
+  personal = false,
+  signageLinks = false,
+}: EditorProps) {
   const back = personal ? personalListPath : listPath;
   const newPath = personal ? `${personalSubscriptionPath}/new` : `${listPath}/rules/new`;
   const noun = personal ? 'Subscription' : 'Rule';
@@ -189,6 +199,8 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
     lookup,
     edit,
     personal,
+    signageShownOn: rule?.signageShownOn,
+    signageLinks,
     machineScope: {
       choosingFor: machinesFor,
       setChoosingFor: setMachinesFor,
@@ -514,6 +526,7 @@ export function RuleEditorPage() {
       rule={rule.data}
       initial={initial}
       canManage={canManage}
+      signageLinks={hasPermission(currentUser, PermissionId.signageread)}
     />
   );
 }

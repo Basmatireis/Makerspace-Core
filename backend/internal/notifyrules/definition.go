@@ -266,11 +266,27 @@ type Button struct {
 	Link  string     `json:"link,omitempty"`
 }
 
-// SignageTarget addresses signage displays.
+// HasSignageAction reports whether any action of the rule, escalation steps included, shows a signage notice.
+func (d Definition) HasSignageAction() bool {
+	for _, action := range d.Actions {
+		if action.Channel == ChannelSignage {
+			return true
+		}
+	}
+	if d.Escalation != nil {
+		for _, step := range d.Escalation.Steps {
+			if step.Action.Channel == ChannelSignage {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// SignageTarget shapes a signage notice. Which displays show it is chosen on the displays and display groups.
 type SignageTarget struct {
-	DisplayIDs      []uuid.UUID `json:"displayIds"`
-	DurationMinutes int         `json:"durationMinutes"`
-	Tone            Tone        `json:"tone"`
+	DurationMinutes int  `json:"durationMinutes"`
+	Tone            Tone `json:"tone"`
 }
 
 // TabletTarget addresses lab tablets.

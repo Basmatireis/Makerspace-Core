@@ -4,6 +4,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Changed
+
+- **Signage notices are chosen on the display.** A notification rule's signage action no longer picks displays; it only sets duration and tone. Each display and display group chooses on its new Notices tab which rules' notices it shows, or all of them; a display shows its own choice and its group's, and a display that joins a group picks up the group's notices at once. The rule editor lists where a rule's notices appear. Existing rules keep their displays: migration 00144 turns their `displayIds` into display choices. API: `NotificationRuleSignageTarget.displayIds` is removed; new `GET /signage/notification-rules`, `GET/PUT /signage/displays/{displayId}/notices`, `GET/PUT /signage/groups/{groupId}/notices`, and `signageShownOn` on `GET /notification-rules/{ruleId}`. See [docs/signage.md](docs/signage.md#notices-of-notification-rules).
+
 ## [0.19.1] - 2026-11-12
 
 ### Fixed

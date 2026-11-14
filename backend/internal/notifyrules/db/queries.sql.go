@@ -436,6 +436,23 @@ func (q *Queries) CountScheduledOpenDaysBetween(ctx context.Context, arg CountSc
 	return column_1, err
 }
 
+const countSignageDisplaysShowingRule = `-- name: CountSignageDisplaysShowingRule :one
+SELECT count(*) FROM signage_displays d
+LEFT JOIN signage_display_groups g ON g.id = d.group_id
+WHERE d.kind = 'device' AND d.revoked_at IS NULL
+  AND (d.all_rule_notices OR COALESCE(g.all_rule_notices, false)
+       OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o
+                  WHERE o.rule_id = $1 AND (o.display_id = d.id OR o.group_id = d.group_id)))
+`
+
+// Screens that show the rule's notices now: the display or its group opted in to the rule or to all notices.
+func (q *Queries) CountSignageDisplaysShowingRule(ctx context.Context, ruleID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countSignageDisplaysShowingRule, ruleID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countSupervisorsOnline = `-- name: CountSupervisorsOnline :one
 SELECT count(DISTINCT a.person_id)::bigint FROM account_presence ap
 JOIN accounts a ON a.id = ap.account_id
@@ -1754,41 +1771,38 @@ func (q *Queries) InsertRuleNotificationRecipients(ctx context.Context, arg Inse
 	return err
 }
 
-const insertSignageRuleNotice = `-- name: InsertSignageRuleNotice :execrows
+const insertSignageRuleNotice = `-- name: InsertSignageRuleNotice :exec
 
-INSERT INTO signage_rule_notices (id, firing_id, display_id, title, body, tone, starts_at, ends_at)
-SELECT $1, $2, d.id, $3, $4, $5, $6,
-       $7
-FROM signage_displays d WHERE d.id = $8 AND d.kind = 'device'
+INSERT INTO signage_rule_notices (id, firing_id, rule_id, title, body, tone, starts_at, ends_at)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8)
 `
 
 type InsertSignageRuleNoticeParams struct {
-	ID        uuid.UUID
-	FiringID  *uuid.UUID
-	Title     string
-	Body      string
-	Tone      string
-	StartsAt  time.Time
-	EndsAt    time.Time
-	DisplayID uuid.UUID
+	ID       uuid.UUID
+	FiringID *uuid.UUID
+	RuleID   uuid.UUID
+	Title    string
+	Body     string
+	Tone     string
+	StartsAt time.Time
+	EndsAt   time.Time
 }
 
 // Notices on signage displays and entrance tablets ---------------------------------------------------------------------
-func (q *Queries) InsertSignageRuleNotice(ctx context.Context, arg InsertSignageRuleNoticeParams) (int64, error) {
-	result, err := q.db.Exec(ctx, insertSignageRuleNotice,
+// One row per delivery; the displays that show it are matched when they ask (ListLiveSignageRuleNotices).
+func (q *Queries) InsertSignageRuleNotice(ctx context.Context, arg InsertSignageRuleNoticeParams) error {
+	_, err := q.db.Exec(ctx, insertSignageRuleNotice,
 		arg.ID,
 		arg.FiringID,
+		arg.RuleID,
 		arg.Title,
 		arg.Body,
 		arg.Tone,
 		arg.StartsAt,
 		arg.EndsAt,
-		arg.DisplayID,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+	return err
 }
 
 const isPersonMaster = `-- name: IsPersonMaster :one
@@ -3463,6 +3477,72 @@ func (q *Queries) ListRoleOptions(ctx context.Context) ([]ListRoleOptionsRow, er
 	for rows.Next() {
 		var i ListRoleOptionsRow
 		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSignageDisplaysShowingRule = `-- name: ListSignageDisplaysShowingRule :many
+SELECT d.id, d.name, d.all_rule_notices FROM signage_displays d
+WHERE d.kind = 'device' AND d.revoked_at IS NULL
+  AND (d.all_rule_notices OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o WHERE o.rule_id = $1 AND o.display_id = d.id))
+ORDER BY lower(d.name), d.id
+`
+
+type ListSignageDisplaysShowingRuleRow struct {
+	ID             uuid.UUID
+	Name           string
+	AllRuleNotices bool
+}
+
+// The displays that chose the rule or all notices themselves; members of a group appear through ListSignageGroupsShowingRule.
+func (q *Queries) ListSignageDisplaysShowingRule(ctx context.Context, ruleID uuid.UUID) ([]ListSignageDisplaysShowingRuleRow, error) {
+	rows, err := q.db.Query(ctx, listSignageDisplaysShowingRule, ruleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSignageDisplaysShowingRuleRow{}
+	for rows.Next() {
+		var i ListSignageDisplaysShowingRuleRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.AllRuleNotices); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSignageGroupsShowingRule = `-- name: ListSignageGroupsShowingRule :many
+SELECT g.id, g.name, g.all_rule_notices FROM signage_display_groups g
+WHERE g.all_rule_notices OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o WHERE o.rule_id = $1 AND o.group_id = g.id)
+ORDER BY lower(g.name), g.id
+`
+
+type ListSignageGroupsShowingRuleRow struct {
+	ID             uuid.UUID
+	Name           string
+	AllRuleNotices bool
+}
+
+func (q *Queries) ListSignageGroupsShowingRule(ctx context.Context, ruleID uuid.UUID) ([]ListSignageGroupsShowingRuleRow, error) {
+	rows, err := q.db.Query(ctx, listSignageGroupsShowingRule, ruleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSignageGroupsShowingRuleRow{}
+	for rows.Next() {
+		var i ListSignageGroupsShowingRuleRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.AllRuleNotices); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
