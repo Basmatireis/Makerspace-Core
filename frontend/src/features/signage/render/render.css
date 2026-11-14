@@ -240,7 +240,7 @@
 .sg-ann--neutral {
   --sg-ann-bg: #393939;
 }
-/* A background image fills the box; the colour lies over it at 70 % so the text stays readable. */
+/* A background image fills the box; the colour lies over it at 85 % and the text gets a soft shadow of the opposite shade. */
 .sg-ann.sg-ann--image {
   position: relative;
   isolation: isolate;
@@ -254,7 +254,14 @@
   inset: 0;
   z-index: -1;
   background: var(--sg-ann-bg);
-  opacity: 0.7;
+  opacity: 0.85;
+}
+.sg-ann--image {
+  --sg-ann-shadow: rgba(0, 0, 0, 0.55);
+  text-shadow: 0 0 calc(var(--u) * 0.8) var(--sg-ann-shadow);
+}
+.sg-ann--warning.sg-ann--image {
+  --sg-ann-shadow: rgba(255, 255, 255, 0.55);
 }
 .sg-ann__title {
   font-weight: 600;

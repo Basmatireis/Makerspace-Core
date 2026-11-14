@@ -36,13 +36,10 @@ export function AnnouncementLookFields({
         clearLabel="Reset"
         emptyText="Tone colour"
         fallback={TONE_COLORS[tone]}
+        error={error}
         onChange={onColorChange}
       />
-      {error ? (
-        <p className="sg-error-text" role="alert">
-          {error}
-        </p>
-      ) : (
+      {!error && (
         <p className="sg-secondary">
           {color
             ? 'The text turns white or black, whichever is easier to read.'
@@ -55,7 +52,7 @@ export function AnnouncementLookFields({
         kind="image"
         value={imageAssetId}
         allowNone
-        helperText="Fills the background; the colour lies over it at 70 % so the text stays readable."
+        helperText="The image is tinted with the colour; check the preview."
         onChange={onImageChange}
       />
     </div>

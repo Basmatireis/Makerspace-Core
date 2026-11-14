@@ -240,6 +240,7 @@ export function AnnouncementStartModal({
     clearServer();
     if (valid && template && startsAt) mutation.mutate();
   };
+  // Switching template keeps an own look on purpose: it was chosen for this announcement, not by the template.
   const chooseTemplate = (id: string) => {
     form.setValue('templateId', id);
     form.setValue('values', defaultsOf(templates.find((item) => item.id === id)?.fields ?? []));
@@ -336,7 +337,10 @@ export function AnnouncementStartModal({
                 form.setValue('color', next);
                 clearServer();
               }}
-              onImageChange={(next) => form.setValue('imageAssetId', next)}
+              onImageChange={(next) => {
+                form.setValue('imageAssetId', next);
+                clearServer();
+              }}
             />
           )}
         </div>

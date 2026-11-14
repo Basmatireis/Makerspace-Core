@@ -279,7 +279,11 @@ export function announcementLookStyle(item: {
 }) {
   const style: Record<string, string> = {};
   if (item.color) style['--sg-ann-bg'] = item.color;
-  if (item.color && item.textColor) style.color = item.textColor;
+  if (item.color && item.textColor) {
+    style.color = item.textColor;
+    // The shadow is the opposite shade of the text (only drawn over an image).
+    style['--sg-ann-shadow'] = item.textColor === '#ffffff' ? 'rgba(0, 0, 0, 0.55)' : 'rgba(255, 255, 255, 0.55)';
+  }
   if (item.imageUrl) style['--sg-ann-image'] = cssUrl(item.imageUrl);
   return style as CSSProperties;
 }

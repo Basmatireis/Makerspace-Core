@@ -95,7 +95,9 @@ export class PlayerRuntime {
   private timelapses: TimelapseCache | null | 'pending' = 'pending';
   private timelapsesOpening: Promise<TimelapseCache | null> | null = null;
   private imageSync: Promise<void> = Promise.resolve();
+  private imageRetain: Promise<void> = Promise.resolve();
   private imagesKey: string | null = null;
+  private failedImages = new Set<string>();
   private readonly now: () => number;
   private readonly playerVersion: string;
   private readonly listeners = new Set<() => void>();
@@ -391,8 +393,9 @@ export class PlayerRuntime {
 
   /**
    * Keeps the images of the listed announcements in the asset cache (the service worker answers their player URL from
-   * there, so they show offline) and drops the ones no announcement lists any more. While a revision loads, only the
-   * downloads run: the revision switch evicts with the images included (`retain`).
+   * there, so they show offline) and drops the ones no announcement lists any more. An image that failed is not tried
+   * again until the listed set changes. The eviction waits while a revision loads (its own `retain` follows the
+   * switch); a revision that starts meanwhile waits for a running eviction first (`imageRetain`).
    */
   private syncAnnouncementImages() {
     const store = this.store;
@@ -403,21 +406,27 @@ export class PlayerRuntime {
       .join();
     if (key === this.imagesKey) return;
     this.imagesKey = key;
+    this.failedImages.clear();
     this.imageSync = this.imageSync.then(async () => {
-      let failed = false;
       for (const image of this.announcementImages()) {
+        if (this.failedImages.has(image.sha256)) continue;
         try {
           await store.ensureAsset(image);
         } catch {
-          failed = true;
+          this.failedImages.add(image.sha256);
           this.note(`Announcement image ${image.id} could not be cached`);
         }
       }
-      // A failed download is tried again on the next poll.
-      if (failed) this.imagesKey = null;
-      if (!failed && this.active && !this.manifestInFlight)
-        await store.retain([...this.active.manifest.assets, ...this.announcementImages()]).catch(() => undefined);
+      if (!this.active || this.manifestInFlight) return;
+      const keep = [...this.active.manifest.assets, ...this.cachedAnnouncementImages()];
+      this.imageRetain = store.retain(keep).catch(() => undefined);
+      await this.imageRetain;
     });
+  }
+
+  /** The listed announcement images that are not known to have failed (a failed one has nothing to keep). */
+  private cachedAnnouncementImages() {
+    return this.announcementImages().filter((image) => !this.failedImages.has(image.sha256));
   }
 
   /** Keeps the listed timelapse clips on disk, after the assets of a revision that is being loaded. */
@@ -498,7 +507,7 @@ export class PlayerRuntime {
       this.manifestFailures = 0;
       this.manifestRetryAt = 0;
       // The new revision is on screen and persisted: assets only the old one used can go.
-      await this.store?.retain([...manifest.assets, ...this.announcementImages()]).catch(() => undefined);
+      await this.store?.retain([...manifest.assets, ...this.cachedAnnouncementImages()]).catch(() => undefined);
     } catch (error) {
       if (isRevoked(error)) {
         this.markRevoked();
@@ -527,6 +536,8 @@ export class PlayerRuntime {
   /** Makes every asset of the manifest available (cached on disk, or preloaded in memory without Cache Storage); throws when it cannot. */
   private async cacheRevision(manifest: SignagePlayerManifest) {
     const store = this.store;
+    // An eviction of announcement images that started before this load must finish before new assets arrive.
+    await this.imageRetain;
     if (!store) {
       const results = await settleLimited(manifest.assets, PRELOAD_CONCURRENCY, (asset) => this.loadAsset(asset));
       const failed = results.flatMap((result, index) =>
@@ -560,7 +571,7 @@ export class PlayerRuntime {
         this.note(`Revision ${manifest.revision} not activated: ${error.message}`.slice(0, 200));
         // Drop what the refused revision already downloaded; the active one keeps playing.
         await store
-          .retain([...(this.active?.manifest.assets ?? []), ...this.announcementImages()])
+          .retain([...(this.active?.manifest.assets ?? []), ...this.cachedAnnouncementImages()])
           .catch(() => undefined);
         throw new Error('preload failed', { cause: error });
       }
