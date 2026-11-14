@@ -205,7 +205,14 @@ export function SignageToggle({
 }
 
 /** A slideshow over 3MF previews and timelapses, with arrows and dots and a fixed two-row caption. */
-export function MediaSlides({ recordings }: { recordings: MachineRunRecording[] }) {
+export function MediaSlides({
+  recordings,
+  empty = { title: 'No print file yet', detail: 'Recorded runs bring their 3MF and timelapse here.' },
+}: {
+  recordings: MachineRunRecording[];
+  /** What the stage says while there is nothing to show. */
+  empty?: { title: string; detail?: string };
+}) {
   const slides = slidesOf(recordings);
   const [index, setIndex] = useState(0);
   const current = slides[Math.min(index, slides.length - 1)];
@@ -224,7 +231,7 @@ export function MediaSlides({ recordings }: { recordings: MachineRunRecording[] 
       {!current ? (
         <figure className="jobs-media__figure">
           <div className="jobs-media__stage">
-            <Empty title="No print file yet" detail="Recorded runs bring their 3MF and timelapse here." />
+            <Empty title={empty.title} detail={empty.detail} />
           </div>
         </figure>
       ) : (

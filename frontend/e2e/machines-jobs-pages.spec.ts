@@ -31,10 +31,7 @@ const targets: Target[] = [
     name: 'Job detail (recorded run)',
     path: `${base}/jobs/${ids.jobLinked}`,
     ready: (page) =>
-      page
-        .getByRole('region', { name: 'Run properties' })
-        .getByText(/reported by the machine/)
-        .first(),
+      page.getByRole('region', { name: 'Run properties' }).getByText('from machine', { exact: true }).first(),
   },
   {
     name: 'Run detail (unassigned)',

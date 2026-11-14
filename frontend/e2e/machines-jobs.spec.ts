@@ -273,10 +273,10 @@ test.describe('runs', () => {
     await expect(runs.getByRole('link', { name: 'RN-2026-000007' })).toBeVisible();
     await expect(runs.getByText('From machine', { exact: true })).toHaveCount(0);
     const properties = page.getByRole('region', { name: 'Run properties' });
-    await expect(properties.getByText(/reported by the machine/)).toHaveCount(2);
+    await expect(properties.getByText('from machine', { exact: true })).toHaveCount(2);
     await runs.getByRole('link', { name: 'RN-2026-000007' }).click();
     await expect(page).toHaveURL(`${base}/jobs/runs/${ids.runLinked}`);
-    await expect(page.getByRole('heading', { name: 'Gearbox housing v3' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Gearbox housing v3', level: 1 })).toBeVisible();
   });
 
   test('redirects the former print URL to the run', async ({ page }) => {

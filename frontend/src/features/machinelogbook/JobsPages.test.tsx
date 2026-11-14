@@ -254,12 +254,15 @@ describe('Job detail page', () => {
     expect(recordedRow).toHaveAttribute('aria-current', 'true');
     expect(manualRow).not.toHaveAttribute('aria-current');
     expect(within(properties).getByText('Recorded via Bambu LAN')).toBeInTheDocument();
-    expect(within(properties).getByText('Successful · reported by the machine')).toBeInTheDocument();
-    expect(within(properties).getByText('42 g PETG Grey · reported by the machine')).toBeInTheDocument();
+    expect(within(properties).getByText('Successful', { selector: 'dd' })).toBeInTheDocument();
+    expect(within(properties).getByText('42 g PETG Grey')).toBeInTheDocument();
+    expect(within(properties).getAllByText('from machine')).toHaveLength(2);
     // A click on the row, or Enter on the focused row, selects it.
     await user.click(manualRow);
     expect(within(properties).getByText('Manual')).toBeInTheDocument();
     expect(within(properties).getByText('183 g PLA Black')).toBeInTheDocument();
+    // A manual run keeps the preview stage, saying why it stays empty.
+    expect(within(properties).getByText('A manual run has no print file or timelapse.')).toBeInTheDocument();
     recordedRow.focus();
     await user.keyboard('{Enter}');
     expect(within(properties).getByText('Recorded via Bambu LAN')).toBeInTheDocument();

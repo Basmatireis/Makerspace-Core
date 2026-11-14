@@ -31,15 +31,15 @@ const headers = [
 const hideNarrow = new Set(['start', 'runtime']);
 
 /**
- * One status per run: running or replaced while that is what matters, then the outcome (one the machine reported
- * says so in a tooltip on hover and keyboard focus), and "Needs outcome" for a run that ended without one.
+ * One status per run: running or replaced while that is what matters, then the outcome, and "Needs outcome" for a
+ * run that ended without one. With `tooltip`, an outcome the machine reported says so on hover and keyboard focus.
  */
-function StatusCell({ run, now }: { run: MachineRun; now: number }) {
+export function RunStatus({ run, now, tooltip = false }: { run: MachineRun; now: number; tooltip?: boolean }) {
   if (run.state === 'replaced') return <RunStateTag state="replaced" size="sm" />;
   const state = runStateNow(run, now);
   if (state === 'running') return <RunStateTag state="running" size="sm" />;
   if (!run.outcome) return <JobRowStatusTag status="needs_outcome" size="sm" />;
-  if (!run.outcomeFromMachine) return <OutcomeTag outcome={run.outcome} size="sm" />;
+  if (!tooltip || !run.outcomeFromMachine) return <OutcomeTag outcome={run.outcome} size="sm" />;
   return (
     <Tooltip align="bottom" description="Reported by the machine">
       <button type="button" className="mj-tag-trigger">
@@ -148,7 +148,7 @@ export function JobRunsTable({ job, now, canEdit, selectedId, onSelect, onAdd }:
                         <RefLink kind="run" reference={run.displayId} id={run.id} />
                       </TableCell>
                       <TableCell>
-                        <StatusCell run={run} now={now} />
+                        <RunStatus run={run} now={now} tooltip />
                       </TableCell>
                       <TableCell className="mj-hide-narrow">{formatDateTime(run.startedAt)}</TableCell>
                       <TableCell className="mj-hide-narrow">
