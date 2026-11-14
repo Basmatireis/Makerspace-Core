@@ -1,4 +1,5 @@
 import type { SignageTemplateField } from '../../api/generated/models';
+import { apiErrorCode } from '../../api/http-client';
 import { errorMessage } from './helpers';
 
 const pad = (value: number) => String(value).padStart(2, '0');
@@ -27,6 +28,7 @@ export type ServerErrors = {
   displays?: string;
   start?: string;
   end?: string;
+  color?: string;
   general?: string;
 };
 
@@ -35,7 +37,8 @@ export function mapAnnouncementError(error: unknown, fields: readonly SignageTem
   const message = errorMessage(error);
   const result: ServerErrors = { fields: {} };
   const byLabel = fields.find((field) => message.startsWith(`${field.label} `));
-  if (/^endsAt\b/.test(message)) result.end = message;
+  if (apiErrorCode(error) === 'signage_color_contrast') result.color = message;
+  else if (/^endsAt\b/.test(message)) result.end = message;
   else if (/^startsAt\b/.test(message)) result.start = message;
   else if (/display/i.test(message)) result.displays = message;
   else if (byLabel) result.fields[byLabel.key] = message;

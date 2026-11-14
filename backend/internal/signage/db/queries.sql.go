@@ -174,9 +174,10 @@ func (q *Queries) CountSceneRulesWithOtherAspectRatio(ctx context.Context, arg C
 
 const createSignageAnnouncement = `-- name: CreateSignageAnnouncement :one
 
-INSERT INTO signage_announcements (id, template_id, all_displays, starts_at, ends_at, created_by_account_id)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, template_id, all_displays, starts_at, ends_at, created_by_account_id, version, created_at, updated_at
+INSERT INTO signage_announcements (id, template_id, all_displays, starts_at, ends_at, created_by_account_id, own_look, color, image_asset_id)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8, $9)
+RETURNING id, template_id, all_displays, starts_at, ends_at, created_by_account_id, version, created_at, updated_at, own_look, color, image_asset_id
 `
 
 type CreateSignageAnnouncementParams struct {
@@ -186,6 +187,9 @@ type CreateSignageAnnouncementParams struct {
 	StartsAt           time.Time
 	EndsAt             pgtype.Timestamptz
 	CreatedByAccountID *uuid.UUID
+	OwnLook            bool
+	Color              *string
+	ImageAssetID       *uuid.UUID
 }
 
 // Announcements -----------------------------------------------------------------------------------------------
@@ -197,6 +201,9 @@ func (q *Queries) CreateSignageAnnouncement(ctx context.Context, arg CreateSigna
 		arg.StartsAt,
 		arg.EndsAt,
 		arg.CreatedByAccountID,
+		arg.OwnLook,
+		arg.Color,
+		arg.ImageAssetID,
 	)
 	var i SignageAnnouncement
 	err := row.Scan(
@@ -209,6 +216,9 @@ func (q *Queries) CreateSignageAnnouncement(ctx context.Context, arg CreateSigna
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnLook,
+		&i.Color,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
@@ -399,18 +409,21 @@ func (q *Queries) CreateSignageScene(ctx context.Context, arg CreateSignageScene
 
 const createSignageTemplate = `-- name: CreateSignageTemplate :one
 
-INSERT INTO signage_announcement_templates (id, name, tone, title, body, body_format, body_css)
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, tone, title, body, version, created_at, updated_at, body_format, body_css
+INSERT INTO signage_announcement_templates (id, name, tone, title, body, body_format, body_css, color, image_asset_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        $8, $9) RETURNING id, name, tone, title, body, version, created_at, updated_at, body_format, body_css, color, image_asset_id
 `
 
 type CreateSignageTemplateParams struct {
-	ID         uuid.UUID
-	Name       string
-	Tone       string
-	Title      string
-	Body       string
-	BodyFormat string
-	BodyCss    string
+	ID           uuid.UUID
+	Name         string
+	Tone         string
+	Title        string
+	Body         string
+	BodyFormat   string
+	BodyCss      string
+	Color        *string
+	ImageAssetID *uuid.UUID
 }
 
 // Announcement templates --------------------------------------------------------------------------------------
@@ -423,6 +436,8 @@ func (q *Queries) CreateSignageTemplate(ctx context.Context, arg CreateSignageTe
 		arg.Body,
 		arg.BodyFormat,
 		arg.BodyCss,
+		arg.Color,
+		arg.ImageAssetID,
 	)
 	var i SignageAnnouncementTemplate
 	err := row.Scan(
@@ -436,6 +451,8 @@ func (q *Queries) CreateSignageTemplate(ctx context.Context, arg CreateSignageTe
 		&i.UpdatedAt,
 		&i.BodyFormat,
 		&i.BodyCss,
+		&i.Color,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
@@ -777,7 +794,7 @@ func (q *Queries) GetOpenSignagePairingRequestByCode(ctx context.Context, arg Ge
 }
 
 const getSignageAnnouncement = `-- name: GetSignageAnnouncement :one
-SELECT id, template_id, all_displays, starts_at, ends_at, created_by_account_id, version, created_at, updated_at FROM signage_announcements WHERE id = $1
+SELECT id, template_id, all_displays, starts_at, ends_at, created_by_account_id, version, created_at, updated_at, own_look, color, image_asset_id FROM signage_announcements WHERE id = $1
 `
 
 func (q *Queries) GetSignageAnnouncement(ctx context.Context, id uuid.UUID) (SignageAnnouncement, error) {
@@ -793,12 +810,15 @@ func (q *Queries) GetSignageAnnouncement(ctx context.Context, id uuid.UUID) (Sig
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnLook,
+		&i.Color,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
 
 const getSignageAnnouncementForUpdate = `-- name: GetSignageAnnouncementForUpdate :one
-SELECT id, template_id, all_displays, starts_at, ends_at, created_by_account_id, version, created_at, updated_at FROM signage_announcements WHERE id = $1 FOR UPDATE
+SELECT id, template_id, all_displays, starts_at, ends_at, created_by_account_id, version, created_at, updated_at, own_look, color, image_asset_id FROM signage_announcements WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetSignageAnnouncementForUpdate(ctx context.Context, id uuid.UUID) (SignageAnnouncement, error) {
@@ -814,6 +834,9 @@ func (q *Queries) GetSignageAnnouncementForUpdate(ctx context.Context, id uuid.U
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnLook,
+		&i.Color,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
@@ -1207,7 +1230,7 @@ func (q *Queries) GetSignageStreamingCamera(ctx context.Context, machineID uuid.
 }
 
 const getSignageTemplate = `-- name: GetSignageTemplate :one
-SELECT id, name, tone, title, body, version, created_at, updated_at, body_format, body_css FROM signage_announcement_templates WHERE id = $1
+SELECT id, name, tone, title, body, version, created_at, updated_at, body_format, body_css, color, image_asset_id FROM signage_announcement_templates WHERE id = $1
 `
 
 func (q *Queries) GetSignageTemplate(ctx context.Context, id uuid.UUID) (SignageAnnouncementTemplate, error) {
@@ -1224,12 +1247,14 @@ func (q *Queries) GetSignageTemplate(ctx context.Context, id uuid.UUID) (Signage
 		&i.UpdatedAt,
 		&i.BodyFormat,
 		&i.BodyCss,
+		&i.Color,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
 
 const getSignageTemplateForUpdate = `-- name: GetSignageTemplateForUpdate :one
-SELECT id, name, tone, title, body, version, created_at, updated_at, body_format, body_css FROM signage_announcement_templates WHERE id = $1 FOR UPDATE
+SELECT id, name, tone, title, body, version, created_at, updated_at, body_format, body_css, color, image_asset_id FROM signage_announcement_templates WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetSignageTemplateForUpdate(ctx context.Context, id uuid.UUID) (SignageAnnouncementTemplate, error) {
@@ -1246,6 +1271,8 @@ func (q *Queries) GetSignageTemplateForUpdate(ctx context.Context, id uuid.UUID)
 		&i.UpdatedAt,
 		&i.BodyFormat,
 		&i.BodyCss,
+		&i.Color,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
@@ -1654,8 +1681,85 @@ func (q *Queries) ListLatestSignagePublications(ctx context.Context, displayIds 
 	return items, nil
 }
 
+const listLiveAnnouncementImageIDsForDisplay = `-- name: ListLiveAnnouncementImageIDsForDisplay :many
+SELECT DISTINCT CASE WHEN a.own_look THEN a.image_asset_id ELSE t.image_asset_id END::uuid AS asset_id
+FROM signage_announcements a JOIN signage_announcement_templates t ON t.id = a.template_id
+WHERE a.starts_at <= $1::timestamptz AND (a.ends_at IS NULL OR a.ends_at > $1::timestamptz)
+  AND CASE WHEN a.own_look THEN a.image_asset_id ELSE t.image_asset_id END IS NOT NULL
+  AND (($2::boolean AND a.all_displays)
+       OR EXISTS (SELECT 1 FROM signage_announcement_displays ad WHERE ad.announcement_id = a.id AND ad.display_id = $3)
+       OR ($2::boolean
+           AND EXISTS (SELECT 1 FROM signage_announcement_groups ag JOIN signage_displays d ON d.group_id = ag.group_id
+                       WHERE ag.announcement_id = a.id AND d.id = $3)))
+`
+
+type ListLiveAnnouncementImageIDsForDisplayParams struct {
+	Now        time.Time
+	Broadcasts bool
+	DisplayID  uuid.UUID
+}
+
+// Images shown by announcements in force for one display (the same set as ListLiveSignageAnnouncementsForDisplay): an
+// announcement's own image, or its template's image while it has no own look.
+func (q *Queries) ListLiveAnnouncementImageIDsForDisplay(ctx context.Context, arg ListLiveAnnouncementImageIDsForDisplayParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listLiveAnnouncementImageIDsForDisplay, arg.Now, arg.Broadcasts, arg.DisplayID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var asset_id uuid.UUID
+		if err := rows.Scan(&asset_id); err != nil {
+			return nil, err
+		}
+		items = append(items, asset_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLiveAnnouncementsUsingImage = `-- name: ListLiveAnnouncementsUsingImage :many
+SELECT a.id, t.name FROM signage_announcements a JOIN signage_announcement_templates t ON t.id = a.template_id
+WHERE a.own_look AND a.image_asset_id = $1 AND (a.ends_at IS NULL OR a.ends_at > $2::timestamptz)
+ORDER BY a.starts_at, a.id
+`
+
+type ListLiveAnnouncementsUsingImageParams struct {
+	ID  *uuid.UUID
+	Now time.Time
+}
+
+type ListLiveAnnouncementsUsingImageRow struct {
+	ID   uuid.UUID
+	Name string
+}
+
+// Active or scheduled announcements with their own look that show the image.
+func (q *Queries) ListLiveAnnouncementsUsingImage(ctx context.Context, arg ListLiveAnnouncementsUsingImageParams) ([]ListLiveAnnouncementsUsingImageRow, error) {
+	rows, err := q.db.Query(ctx, listLiveAnnouncementsUsingImage, arg.ID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLiveAnnouncementsUsingImageRow{}
+	for rows.Next() {
+		var i ListLiveAnnouncementsUsingImageRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLiveSignageAnnouncements = `-- name: ListLiveSignageAnnouncements :many
-SELECT id, template_id, all_displays, starts_at, ends_at, created_by_account_id, version, created_at, updated_at FROM signage_announcements WHERE ends_at IS NULL OR ends_at > $1::timestamptz ORDER BY starts_at, id
+SELECT id, template_id, all_displays, starts_at, ends_at, created_by_account_id, version, created_at, updated_at, own_look, color, image_asset_id FROM signage_announcements WHERE ends_at IS NULL OR ends_at > $1::timestamptz ORDER BY starts_at, id
 `
 
 func (q *Queries) ListLiveSignageAnnouncements(ctx context.Context, now time.Time) ([]SignageAnnouncement, error) {
@@ -1677,6 +1781,9 @@ func (q *Queries) ListLiveSignageAnnouncements(ctx context.Context, now time.Tim
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OwnLook,
+			&i.Color,
+			&i.ImageAssetID,
 		); err != nil {
 			return nil, err
 		}
@@ -1689,7 +1796,7 @@ func (q *Queries) ListLiveSignageAnnouncements(ctx context.Context, now time.Tim
 }
 
 const listLiveSignageAnnouncementsForDisplay = `-- name: ListLiveSignageAnnouncementsForDisplay :many
-SELECT a.id, a.template_id, a.all_displays, a.starts_at, a.ends_at, a.created_by_account_id, a.version, a.created_at, a.updated_at FROM signage_announcements a
+SELECT a.id, a.template_id, a.all_displays, a.starts_at, a.ends_at, a.created_by_account_id, a.version, a.created_at, a.updated_at, a.own_look, a.color, a.image_asset_id FROM signage_announcements a
 WHERE a.starts_at <= $1::timestamptz AND (a.ends_at IS NULL OR a.ends_at > $1::timestamptz)
   AND (($2::boolean AND a.all_displays)
        OR EXISTS (SELECT 1 FROM signage_announcement_displays ad WHERE ad.announcement_id = a.id AND ad.display_id = $3)
@@ -1726,6 +1833,9 @@ func (q *Queries) ListLiveSignageAnnouncementsForDisplay(ctx context.Context, ar
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OwnLook,
+			&i.Color,
+			&i.ImageAssetID,
 		); err != nil {
 			return nil, err
 		}
@@ -1991,6 +2101,36 @@ func (q *Queries) ListSignageAnnouncementValues(ctx context.Context, announcemen
 	for rows.Next() {
 		var i SignageAnnouncementValue
 		if err := rows.Scan(&i.AnnouncementID, &i.Key, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSignageAssetDigests = `-- name: ListSignageAssetDigests :many
+SELECT a.id, a.kind, f.sha256 FROM signage_assets a JOIN files f ON f.id = a.file_id WHERE a.id = ANY($1::text[]::uuid[])
+`
+
+type ListSignageAssetDigestsRow struct {
+	ID     uuid.UUID
+	Kind   string
+	Sha256 []byte
+}
+
+func (q *Queries) ListSignageAssetDigests(ctx context.Context, ids []string) ([]ListSignageAssetDigestsRow, error) {
+	rows, err := q.db.Query(ctx, listSignageAssetDigests, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSignageAssetDigestsRow{}
+	for rows.Next() {
+		var i ListSignageAssetDigestsRow
+		if err := rows.Scan(&i.ID, &i.Kind, &i.Sha256); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2890,7 +3030,7 @@ func (q *Queries) ListSignageTemplateNames(ctx context.Context) ([]string, error
 }
 
 const listSignageTemplates = `-- name: ListSignageTemplates :many
-SELECT id, name, tone, title, body, version, created_at, updated_at, body_format, body_css FROM signage_announcement_templates ORDER BY lower(name), id
+SELECT id, name, tone, title, body, version, created_at, updated_at, body_format, body_css, color, image_asset_id FROM signage_announcement_templates ORDER BY lower(name), id
 `
 
 func (q *Queries) ListSignageTemplates(ctx context.Context) ([]SignageAnnouncementTemplate, error) {
@@ -2913,6 +3053,8 @@ func (q *Queries) ListSignageTemplates(ctx context.Context) ([]SignageAnnounceme
 			&i.UpdatedAt,
 			&i.BodyFormat,
 			&i.BodyCss,
+			&i.Color,
+			&i.ImageAssetID,
 		); err != nil {
 			return nil, err
 		}
@@ -3043,6 +3185,35 @@ func (q *Queries) ListSignageWebEmbeds(ctx context.Context, ids []string) ([]Lis
 			&i.LoadsDay,
 			&i.LoadsCount,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTemplatesUsingImage = `-- name: ListTemplatesUsingImage :many
+SELECT id, name FROM signage_announcement_templates WHERE image_asset_id = $1 ORDER BY lower(name), id
+`
+
+type ListTemplatesUsingImageRow struct {
+	ID   uuid.UUID
+	Name string
+}
+
+func (q *Queries) ListTemplatesUsingImage(ctx context.Context, id *uuid.UUID) ([]ListTemplatesUsingImageRow, error) {
+	rows, err := q.db.Query(ctx, listTemplatesUsingImage, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTemplatesUsingImageRow{}
+	for rows.Next() {
+		var i ListTemplatesUsingImageRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3206,14 +3377,18 @@ func (q *Queries) SetSignageWebEmbedKey(ctx context.Context, arg SetSignageWebEm
 
 const updateSignageAnnouncement = `-- name: UpdateSignageAnnouncement :one
 UPDATE signage_announcements
-SET all_displays = $1, starts_at = $2, ends_at = $3, version = version + 1, updated_at = now()
-WHERE id = $4 AND version = $5 RETURNING id, template_id, all_displays, starts_at, ends_at, created_by_account_id, version, created_at, updated_at
+SET all_displays = $1, starts_at = $2, ends_at = $3,
+    own_look = $4, color = $5, image_asset_id = $6, version = version + 1, updated_at = now()
+WHERE id = $7 AND version = $8 RETURNING id, template_id, all_displays, starts_at, ends_at, created_by_account_id, version, created_at, updated_at, own_look, color, image_asset_id
 `
 
 type UpdateSignageAnnouncementParams struct {
 	AllDisplays     bool
 	StartsAt        time.Time
 	EndsAt          pgtype.Timestamptz
+	OwnLook         bool
+	Color           *string
+	ImageAssetID    *uuid.UUID
 	ID              uuid.UUID
 	ExpectedVersion int64
 }
@@ -3223,6 +3398,9 @@ func (q *Queries) UpdateSignageAnnouncement(ctx context.Context, arg UpdateSigna
 		arg.AllDisplays,
 		arg.StartsAt,
 		arg.EndsAt,
+		arg.OwnLook,
+		arg.Color,
+		arg.ImageAssetID,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -3237,6 +3415,9 @@ func (q *Queries) UpdateSignageAnnouncement(ctx context.Context, arg UpdateSigna
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnLook,
+		&i.Color,
+		&i.ImageAssetID,
 	)
 	return i, err
 }
@@ -3421,8 +3602,9 @@ func (q *Queries) UpdateSignageScene(ctx context.Context, arg UpdateSignageScene
 const updateSignageTemplate = `-- name: UpdateSignageTemplate :one
 UPDATE signage_announcement_templates
 SET name = $1, tone = $2, title = $3, body = $4, body_format = $5,
-    body_css = $6, version = version + 1, updated_at = now()
-WHERE id = $7 AND version = $8 RETURNING id, name, tone, title, body, version, created_at, updated_at, body_format, body_css
+    body_css = $6, color = $7, image_asset_id = $8,
+    version = version + 1, updated_at = now()
+WHERE id = $9 AND version = $10 RETURNING id, name, tone, title, body, version, created_at, updated_at, body_format, body_css, color, image_asset_id
 `
 
 type UpdateSignageTemplateParams struct {
@@ -3432,6 +3614,8 @@ type UpdateSignageTemplateParams struct {
 	Body            string
 	BodyFormat      string
 	BodyCss         string
+	Color           *string
+	ImageAssetID    *uuid.UUID
 	ID              uuid.UUID
 	ExpectedVersion int64
 }
@@ -3444,6 +3628,8 @@ func (q *Queries) UpdateSignageTemplate(ctx context.Context, arg UpdateSignageTe
 		arg.Body,
 		arg.BodyFormat,
 		arg.BodyCss,
+		arg.Color,
+		arg.ImageAssetID,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -3459,6 +3645,8 @@ func (q *Queries) UpdateSignageTemplate(ctx context.Context, arg UpdateSignageTe
 		&i.UpdatedAt,
 		&i.BodyFormat,
 		&i.BodyCss,
+		&i.Color,
+		&i.ImageAssetID,
 	)
 	return i, err
 }

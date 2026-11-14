@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SignageAnnouncementImage } from './signageAnnouncementImage';
 import type { SignageRichTextFormat } from './signageRichTextFormat';
 import type { SignageTone } from './signageTone';
 
@@ -28,4 +29,18 @@ export interface SignageRenderedMessage {
   bodyFormat: SignageRichTextFormat;
   bodyCss: string;
   tone: SignageTone;
+  /**
+     * Effective background colour (the announcement's own, else the template's); null means the tone colour.
+     * @nullable
+     * @pattern ^#[0-9a-f]{6}$
+     */
+  color: string | null;
+  /**
+     * Text colour derived from `color`; null exactly when `color` is null.
+     * @nullable
+     * @pattern ^#[0-9a-f]{6}$
+     */
+  textColor: string | null;
+  /** Effective background image (the announcement's own, else the template's); null means none. In admin responses `url` is `/api/v1/signage/assets/{assetId}/content?v={sha256}`. */
+  image: SignageAnnouncementImage | null;
 }

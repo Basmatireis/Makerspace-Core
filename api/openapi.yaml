@@ -5771,7 +5771,7 @@ paths:
       tags: [Signage]
       operationId: deleteSignageAsset
       summary: Delete an asset that no draft scene references
-      description: Answers 409 `signage_in_use` with `details.references` while a scene uses the asset as background or in a widget.
+      description: Answers 409 `signage_in_use` with `details.references` while a scene uses the asset as background or in a widget (reference kind `scene`), an announcement template uses it as its image (kind `template`) or an active or scheduled announcement with its own look shows it (kind `announcement`). Ended announcements just lose the image.
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
         "204": {description: Asset and stored bytes deleted.}
@@ -6636,7 +6636,7 @@ paths:
       tags: [Signage Embed]
       operationId: getSignageEmbedAsset
       summary: Asset bytes of the web embed's latest publication
-      description: Public. Like `getSignagePlayerAsset` for the embed's latest publication; 404 for an unknown or switched-off embed. Rate-limited per client address.
+      description: Public. Like `getSignagePlayerAsset` for the embed's latest publication and the images of announcements in force for the embed; 404 for an unknown or switched-off embed. Rate-limited per client address.
       security: []
       responses:
         "200":
@@ -6760,7 +6760,7 @@ paths:
       operationId: getSignagePlayerAsset
       summary: Asset bytes of the display's latest publication
       description: |
-        Device credential of a signage player only. Serves an asset only when the display's latest publication lists it with this checksum. Content-addressed, so responses are immutable (`Cache-Control: private, max-age=31536000, immutable`). HTTP Range requests are supported when the storage backend can seek (local storage); other backends answer the full body with `Accept-Ranges: none`.
+        Device credential of a signage player only. Serves an asset only when the display's latest publication lists it with this checksum, or when it is the effective image of an announcement in force for the display right now (the `image` of its live data). Content-addressed, so responses are immutable (`Cache-Control: private, max-age=31536000, immutable`). HTTP Range requests are supported when the storage backend can seek (local storage); other backends answer the full body with `Accept-Ranges: none`.
       security: [{managedDeviceCookie: []}, {managedDeviceToken: []}]
       responses:
         "200":
@@ -24461,7 +24461,7 @@ components:
     SignageAnnouncementTemplate:
       type: object
       additionalProperties: false
-      required: [id, name, tone, title, body, bodyFormat, bodyCss, fields, version, createdAt, updatedAt]
+      required: [id, name, tone, title, body, bodyFormat, bodyCss, color, imageAssetId, fields, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 100}
@@ -24470,6 +24470,8 @@ components:
         body: {type: string, maxLength: 5000}
         bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
         bodyCss: {type: string, maxLength: 20000}
+        color: {type: string, nullable: true, pattern: "^#[0-9a-f]{6}$", description: "Default background colour of the template's announcements as lower-case `#rrggbb`; null means the tone colour."}
+        imageAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Default background image (an image asset); null means no image."}
         fields: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignageTemplateField"}}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
@@ -24490,6 +24492,8 @@ components:
         body: {type: string, maxLength: 5000}
         bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
         bodyCss: {type: string, maxLength: 20000}
+        color: {type: string, nullable: true, description: "`#rrggbb` (case-insensitive; stored lower-case). Omitted or null means the tone colour. Answers 422 `signage_color_contrast` when neither white nor #161616 text reaches a 4.5:1 contrast on it."}
+        imageAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "An image asset; omitted or null means no image. Answers 422 `validation_failed` when the asset does not exist or is not an image."}
         fields: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignageTemplateField"}}
     UpdateSignageAnnouncementTemplateRequest:
       type: object
@@ -24503,18 +24507,35 @@ components:
         body: {type: string, maxLength: 5000}
         bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
         bodyCss: {type: string, maxLength: 20000}
+        color: {type: string, nullable: true, description: "`#rrggbb` (case-insensitive; stored lower-case). Omitted or null means the tone colour. Answers 422 `signage_color_contrast` when neither white nor #161616 text reaches a 4.5:1 contrast on it."}
+        imageAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "An image asset; omitted or null means no image. Answers 422 `validation_failed` when the asset does not exist or is not an image."}
         fields: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignageTemplateField"}}
 
+    SignageAnnouncementImage:
+      type: object
+      description: The background image of an announcement. `url` is content-addressed and served for the caller (staff session, player device or web embed).
+      additionalProperties: false
+      required: [assetId, sha256, url]
+      properties:
+        assetId: {$ref: "#/components/schemas/UUIDv7"}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
+        url: {type: string}
     SignageRenderedMessage:
       type: object
       additionalProperties: false
-      required: [title, body, bodyFormat, bodyCss, tone]
+      required: [title, body, bodyFormat, bodyCss, tone, color, textColor, image]
       properties:
         title: {type: string}
         body: {type: string, description: "Placeholder values are escaped for `bodyFormat`."}
         bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
         bodyCss: {type: string}
         tone: {$ref: "#/components/schemas/SignageTone"}
+        color: {type: string, nullable: true, pattern: "^#[0-9a-f]{6}$", description: "Effective background colour (the announcement's own, else the template's); null means the tone colour."}
+        textColor: {type: string, nullable: true, pattern: "^#[0-9a-f]{6}$", description: "Text colour derived from `color`; null exactly when `color` is null."}
+        image:
+          allOf: [{$ref: "#/components/schemas/SignageAnnouncementImage"}]
+          nullable: true
+          description: Effective background image (the announcement's own, else the template's); null means none. In admin responses `url` is `/api/v1/signage/assets/{assetId}/content?v={sha256}`.
     SignageAnnouncementStatus:
       type: string
       enum: [scheduled, active]
@@ -24527,7 +24548,7 @@ components:
     SignageAnnouncement:
       type: object
       additionalProperties: false
-      required: [id, templateId, values, allDisplays, displayIds, groupIds, startsAt, status, rendered, version, createdAt, updatedAt]
+      required: [id, templateId, values, allDisplays, displayIds, groupIds, startsAt, status, ownLook, color, imageAssetId, rendered, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         templateId: {$ref: "#/components/schemas/UUIDv7"}
@@ -24538,6 +24559,9 @@ components:
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time, nullable: true}
         status: {$ref: "#/components/schemas/SignageAnnouncementStatus"}
+        ownLook: {type: boolean, description: "False means the announcement uses its template's colour and image."}
+        color: {type: string, nullable: true, pattern: "^#[0-9a-f]{6}$", description: "The announcement's own colour; null when `ownLook` is false or the tone colour is used."}
+        imageAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The announcement's own image; null when `ownLook` is false or no image is wanted."}
         rendered:
           allOf: [{$ref: "#/components/schemas/SignageRenderedMessage"}]
           description: Server-rendered preview; `{display}` and `{location}` stay as typed because they depend on the showing display.
@@ -24561,6 +24585,9 @@ components:
         groupIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Display groups; the announcement is in force on their current members."}
         startsAt: {type: string, format: date-time, description: Defaults to now.}
         endsAt: {type: string, format: date-time, nullable: true, description: Omitted or null means until stopped.}
+        ownLook: {type: boolean, description: "Default false: use the template's colour and image. With true, `color` and `imageAssetId` replace them (null colour = tone colour, null image = no image). With false both must be omitted or null (422)."}
+        color: {type: string, nullable: true, description: "`#rrggbb` (case-insensitive; stored lower-case). Answers 422 `signage_color_contrast` when neither white nor #161616 text reaches a 4.5:1 contrast on it."}
+        imageAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "An image asset; answers 422 `validation_failed` when it does not exist or is not an image."}
     UpdateSignageAnnouncementRequest:
       type: object
       additionalProperties: false
@@ -24573,6 +24600,9 @@ components:
         groupIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time, nullable: true}
+        ownLook: {type: boolean, description: "Default false: use the template's colour and image. With true, `color` and `imageAssetId` replace them (null colour = tone colour, null image = no image). With false both must be omitted or null (422)."}
+        color: {type: string, nullable: true, description: "`#rrggbb` (case-insensitive; stored lower-case). Answers 422 `signage_color_contrast` when neither white nor #161616 text reaches a 4.5:1 contrast on it."}
+        imageAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "An image asset; answers 422 `validation_failed` when it does not exist or is not an image."}
 
     SignageDisplayStatus:
       type: string
@@ -25030,7 +25060,7 @@ components:
     SignagePlayerLiveAnnouncement:
       type: object
       additionalProperties: false
-      required: [id, templateId, tone, title, body, bodyFormat, bodyCss, startsAt, endsAt]
+      required: [id, templateId, tone, title, body, bodyFormat, bodyCss, color, textColor, image, startsAt, endsAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         templateId: {$ref: "#/components/schemas/UUIDv7"}
@@ -25039,6 +25069,12 @@ components:
         body: {type: string, description: "Placeholder values are escaped for `bodyFormat`."}
         bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
         bodyCss: {type: string}
+        color: {type: string, nullable: true, pattern: "^#[0-9a-f]{6}$", description: "Effective background colour; null means the tone colour."}
+        textColor: {type: string, nullable: true, pattern: "^#[0-9a-f]{6}$", description: "Text colour derived from `color`; null exactly when `color` is null."}
+        image:
+          allOf: [{$ref: "#/components/schemas/SignageAnnouncementImage"}]
+          nullable: true
+          description: "Effective background image; `url` is the asset path of the calling player or web embed. It is only served while the announcement is in force for that display or embed."
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time, nullable: true}
     SignagePlayerRuleNotice:

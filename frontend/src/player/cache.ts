@@ -31,14 +31,17 @@ export type PersistedLive = {
 
 export type StorageUse = { usedBytes: number; quotaBytes: number };
 
+/** What caching an asset needs: announcement images are cached like manifest assets, under the same content-addressed key. */
+export type CacheableAsset = Pick<SignagePlayerAsset, 'id' | 'sha256' | 'url'>;
+
 export type PlayerStore = {
   /** Downloads the asset into the cache unless it is there already. Rejects with `CacheQuotaError` when it does not fit. */
-  ensureAsset(asset: SignagePlayerAsset): Promise<void>;
+  ensureAsset(asset: CacheableAsset): Promise<void>;
   hasAll(assets: readonly SignagePlayerAsset[]): Promise<boolean>;
   /** Throws `CacheQuotaError` when the assets that are not cached yet cannot fit into the remaining space. */
   assertFits(assets: readonly SignagePlayerAsset[]): Promise<void>;
   /** Deletes every cached asset that is not in `keep`. */
-  retain(keep: readonly SignagePlayerAsset[]): Promise<void>;
+  retain(keep: readonly Pick<SignagePlayerAsset, 'sha256'>[]): Promise<void>;
   saveManifest(manifest: SignagePlayerManifest): Promise<void>;
   loadManifest(): Promise<SignagePlayerManifest | null>;
   saveLive(live: PersistedLive): Promise<void>;

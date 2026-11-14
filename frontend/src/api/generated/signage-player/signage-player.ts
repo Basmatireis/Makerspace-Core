@@ -69,7 +69,7 @@ export const getGetSignagePlayerAssetUrl = (assetId: string,
 }
 
 /**
- * Device credential of a signage player only. Serves an asset only when the display's latest publication lists it with this checksum. Content-addressed, so responses are immutable (`Cache-Control: private, max-age=31536000, immutable`). HTTP Range requests are supported when the storage backend can seek (local storage); other backends answer the full body with `Accept-Ranges: none`.
+ * Device credential of a signage player only. Serves an asset only when the display's latest publication lists it with this checksum, or when it is the effective image of an announcement in force for the display right now (the `image` of its live data). Content-addressed, so responses are immutable (`Cache-Control: private, max-age=31536000, immutable`). HTTP Range requests are supported when the storage backend can seek (local storage); other backends answer the full body with `Accept-Ranges: none`.
  * @summary Asset bytes of the display's latest publication
  */
 export const getSignagePlayerAsset = async (assetId: string,

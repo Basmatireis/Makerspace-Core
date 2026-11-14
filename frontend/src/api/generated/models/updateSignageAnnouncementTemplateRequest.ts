@@ -21,6 +21,7 @@
 import type { SignageRichTextFormat } from './signageRichTextFormat';
 import type { SignageTemplateField } from './signageTemplateField';
 import type { SignageTone } from './signageTone';
+import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
 export interface UpdateSignageAnnouncementTemplateRequest {
@@ -41,6 +42,13 @@ export interface UpdateSignageAnnouncementTemplateRequest {
   bodyFormat?: SignageRichTextFormat;
   /** @maxLength 20000 */
   bodyCss?: string;
+  /**
+     * `#rrggbb` (case-insensitive; stored lower-case). Omitted or null means the tone colour. Answers 422 `signage_color_contrast` when neither white nor #161616 text reaches a 4.5:1 contrast on it.
+     * @nullable
+     */
+  color?: string | null;
+  /** An image asset; omitted or null means no image. Answers 422 `validation_failed` when the asset does not exist or is not an image. */
+  imageAssetId?: UUIDv7 | null;
   /** @maxItems 20 */
   fields: SignageTemplateField[];
 }

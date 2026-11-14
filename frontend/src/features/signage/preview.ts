@@ -4,6 +4,7 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { getDownloadSignageAssetUrl, getDownloadSignageTimelapseUrl } from '../../api/generated/signage/signage';
 import type { SignageAnnouncementTemplate, SignagePlayerCalendar } from '../../api/generated/models';
+import { lookOf } from './announcementLook';
 import { renderAnnouncement } from './engine/announcements';
 import type { RenderAnnouncement, RenderData, RenderMachine } from './render/types';
 import { publicConfigurationOptions } from '../branding/branding';
@@ -173,6 +174,10 @@ export function buildPreviewData({
       id: template.id,
       templateId: template.id,
       ...renderSample(template, names, date, timeZone),
+      ...lookOf(
+        template.color,
+        template.imageAssetId ? assetContentUrl(template.imageAssetId, digests.get(template.imageAssetId)) : null,
+      ),
       startsAt: now - index,
     }));
     if (announcements.length === 0)
