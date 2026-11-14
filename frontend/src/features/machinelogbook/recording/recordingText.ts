@@ -71,13 +71,22 @@ export function consumptionReasonMessage(reason: string | null | undefined, deta
   return (consumptionReasonText as Record<string, string>)[reason] ?? 'The reason is not known.';
 }
 
+/** True when nothing is missing although no material is booked: the print was cancelled before its first layer. */
+export const usedNoMaterial = (status: MachineRunConsumptionStatus | null | undefined) =>
+  status?.state === 'missing' && status.reason === 'cancelled_before_first_layer';
+
+/** True when a person still has to do something about a run's material (the backend's consumption_unconfirmed). */
+export const consumptionNeedsSomeone = (status: MachineRunConsumptionStatus | null | undefined) =>
+  !!status && (status.state === 'missing' || status.state === 'partial') && !usedNoMaterial(status);
+
 /** Notice for a run whose consumption is not (fully) recorded; null when there is nothing to explain. */
 export function consumptionNotice(status: MachineRunConsumptionStatus | null | undefined) {
   if (!status || status.state === 'recorded') return null;
   const internal = isOnInternalStorage(status);
+  const none = usedNoMaterial(status);
   return {
-    kind: status.state === 'pending' && !internal ? ('info' as const) : ('warning' as const),
-    title: internal ? internalStorageTitle : consumptionTitle[status.state],
+    kind: (status.state === 'pending' && !internal) || none ? ('info' as const) : ('warning' as const),
+    title: none ? 'No material used' : internal ? internalStorageTitle : consumptionTitle[status.state],
     message: consumptionReasonMessage(status.reason, status.detail),
     detail: detailMessage(status.reason, status.detail) ? null : status.detail,
   };

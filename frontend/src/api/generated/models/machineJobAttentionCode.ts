@@ -20,7 +20,7 @@
  */
 
 /**
- * run_failed: a run (not replaced) ended failed or cancelled. consumption_unconfirmed: a recorded run's material is missing, partly booked or still pending. no_recipient: the job has no recipient. not_on_order: the job ended with a price above zero and no order item refers to it. needs_outcome: the runs ended without an outcome. price_incomplete: a price rule is missing. order_outdated: the job changed after it was put on an order.
+ * run_failed: an unassigned run ended failed or cancelled (jobs show it through their outcome). consumption_unconfirmed: a recorded run's material is missing, partly booked or still pending; a print cancelled before its first layer used none and does not count. no_recipient: the job has no recipient. not_on_order: the job ended with a price above zero and no order item refers to it. needs_outcome: the runs ended without an outcome. price_incomplete: a price rule is missing. order_outdated: the job changed after it was put on an order.
  */
 export type MachineJobAttentionCode = typeof MachineJobAttentionCode[keyof typeof MachineJobAttentionCode];
 

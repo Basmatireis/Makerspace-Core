@@ -138,6 +138,20 @@ body {
   color: theme.$text-primary;
 }
 
+// Phones and tablets: taps act at once instead of waiting for a double-tap zoom, and text fields use 16px, below
+// which iOS zooms into a field on focus (Carbon's are 14px). Pinch zoom stays available.
+html {
+  touch-action: manipulation;
+}
+
+@media (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio'], [type='range'], [type='color']),
+  select,
+  textarea {
+    font-size: 1rem !important;
+  }
+}
+
 h1,
 h2,
 p {
@@ -2386,7 +2400,7 @@ body.panel-sheet-open .app-main > * {
 
   .page-shell .page-header__actions {
     max-inline-size: none;
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 
   .page-shell > .page-header .page-header__body {

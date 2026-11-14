@@ -174,36 +174,74 @@
   color: theme.$text-secondary;
 }
 
-.mn-gate__required {
+// A list of rows: the category on the left, its answer (switch or "Always on") on the right.
+.mn-gate__options {
+  border-block-end: 1px solid theme.$border-subtle;
+}
+
+.mn-gate__option {
   display: flex;
-  gap: $spacing-04;
-  padding: $spacing-05;
-  background: theme.$layer-02;
+  align-items: flex-start;
+  gap: $spacing-05;
+  padding-block: $spacing-05;
+  border-block-start: 1px solid theme.$border-subtle;
+}
+
+.mn-gate__option-text {
+  flex: 1;
+  min-inline-size: 0;
 
   p {
     @include type-style('body-compact-01');
 
+    margin-block-start: $spacing-02;
     color: theme.$text-secondary;
   }
 }
 
-.mn-gate__options {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-05;
-}
-
-.mn-gate__option p {
+.mn-gate__always {
   @include type-style('body-compact-01');
 
-  margin-block-start: $spacing-02;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: $spacing-02;
   color: theme.$text-secondary;
 }
 
-.mn-gate__footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: $spacing-05;
+.mn-gate__toggle {
+  flex: none;
+
+  // "No" and "Yes" take the same room, so the switch does not move when it is flipped.
+  .cds--toggle__text {
+    min-inline-size: 1.75rem;
+  }
+}
+
+.mn-gate__save {
+  align-self: flex-start;
+}
+
+.mn-gate__legal {
+  padding-block-start: $spacing-05;
+  border-block-start: 1px solid theme.$border-subtle;
+}
+
+@media (max-width: 41.98rem) {
+  .mn-gate {
+    padding: $spacing-05 $spacing-03;
+  }
+
+  .mn-gate__card {
+    padding: $spacing-06 $spacing-05;
+
+    h1 {
+      @include type-style('productive-heading-04');
+    }
+  }
+
+  .mn-gate__card .mn-gate__save {
+    inline-size: 100%;
+    max-inline-size: none;
+  }
 }

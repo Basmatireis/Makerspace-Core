@@ -1,4 +1,9 @@
-import type { MachineJobUsage, MachineRun, MachineRunReportedUsageItem } from '../../../api/generated/models';
+import type {
+  MachineJobUsage,
+  MachineRun,
+  MachineRunReportedUsageItem,
+  MachineRunReportedUsageSegment,
+} from '../../../api/generated/models';
 import { unresolvedReportedUsageItems } from '../shared/status';
 
 /** Grams a report line names: the connector's estimate, else the slicer's plan. */
@@ -15,6 +20,19 @@ export function reportedLineName(item: MachineRunReportedUsageItem) {
   if (item.slicerFilamentId) return `Filament ${item.slicerFilamentId}`;
   return `Line ${item.lineNumber + 1}`;
 }
+
+/** One part of a line fed by several spools, as a line of its own for mapping it to a material. */
+export const segmentAsLine = (
+  item: MachineRunReportedUsageItem,
+  segment: MachineRunReportedUsageSegment,
+): MachineRunReportedUsageItem => ({
+  ...item,
+  inputUnitExternalId: segment.inputUnitExternalId ?? item.inputUnitExternalId,
+  slotExternalId: segment.slotExternalId ?? item.slotExternalId,
+  plannedQuantityGrams: null,
+  estimatedQuantityGrams: segment.estimatedQuantityGrams ?? null,
+  segments: [],
+});
 
 /** Recipient's own material recorded by staff with exactly the quantity of a report line resolves that line. */
 function ownMaterialMatches(items: MachineRunReportedUsageItem[], usages: MachineJobUsage[]) {

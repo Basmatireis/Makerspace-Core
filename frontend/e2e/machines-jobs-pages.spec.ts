@@ -30,7 +30,8 @@ const targets: Target[] = [
   {
     name: 'Job detail (recorded run)',
     path: `${base}/jobs/${ids.jobLinked}`,
-    ready: (page) => page.getByRole('table', { name: 'Runs' }).getByText('From machine').first(),
+    ready: (page) =>
+      page.getByRole('region', { name: 'Run properties' }).getByText('from machine', { exact: true }).first(),
   },
   {
     name: 'Run detail (unassigned)',
@@ -190,7 +191,7 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
 
   test('cancel run confirmation', async ({ page }) => {
     await page.goto(`${base}/jobs/${ids.jobRunning}`);
-    await page.getByRole('table', { name: 'Runs' }).locator('.cds--overflow-menu').click();
+    await page.getByRole('region', { name: 'Run properties' }).locator('.cds--overflow-menu').click();
     await page.getByRole('menuitem', { name: 'Cancel run' }).click();
     await checkDialog(page, page.getByRole('alertdialog'));
   });
@@ -237,7 +238,7 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
 
   test('detach run confirmation', async ({ page }) => {
     await page.goto(`${base}/jobs/${ids.jobLinked}`);
-    await page.getByRole('table', { name: 'Runs' }).locator('.cds--overflow-menu').click();
+    await page.getByRole('region', { name: 'Run properties' }).locator('.cds--overflow-menu').click();
     await page.getByRole('menuitem', { name: 'Detach from job' }).click();
     await checkDialog(page, page.getByRole('alertdialog'));
   });
@@ -345,7 +346,7 @@ test.describe('read-only role', () => {
     await page.goto(`${base}/jobs/${ids.jobRunning}`);
     await expect(page.getByRole('heading', { name: 'Engraving run', level: 1 })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('table', { name: 'Runs' }).locator('.cds--overflow-menu')).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Run properties' }).locator('.cds--overflow-menu')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Edit job' })).toHaveCount(0);
     await expect(page.locator('.page-header__actions .cds--overflow-menu')).toHaveCount(0);
 
@@ -452,4 +453,21 @@ test.describe('printer connectors under Settings, Local services', () => {
     await expectNoAccessibilityViolations(page);
     expect(world.requests).toEqual([]);
   });
+});
+
+test('stacks an unassigned run on a phone: name, machine and progress, then its actions', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(`${base}/jobs`);
+  const row = page.locator('.jobs-strip__row').first();
+  await expect(row.getByRole('button', { name: 'Claim' })).toBeVisible();
+  const top = async (selector: string) => (await row.locator(selector).first().boundingBox())!;
+  const name = await top('.jobs-strip__name');
+  const actions = await top('.jobs-strip__actions');
+  const cells = await Promise.all(
+    [0, 1].map(async (index) => (await row.locator('.jobs-strip__cell').nth(index).boundingBox())!),
+  );
+  // The name leads; everything else sits below it, and the actions come last.
+  for (const cell of cells) expect(cell.y).toBeGreaterThanOrEqual(name.y);
+  for (const cell of cells) expect(actions.y).toBeGreaterThanOrEqual(cell.y + cell.height);
+  await expectNoHorizontalScroll(page);
 });
