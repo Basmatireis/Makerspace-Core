@@ -623,6 +623,24 @@ func (q *Queries) DeleteSignageDisplayGroup(ctx context.Context, arg DeleteSigna
 	return id, err
 }
 
+const deleteSignageDisplayGroupNoticeOptIns = `-- name: DeleteSignageDisplayGroupNoticeOptIns :exec
+DELETE FROM signage_notice_opt_ins WHERE group_id = $1
+`
+
+func (q *Queries) DeleteSignageDisplayGroupNoticeOptIns(ctx context.Context, groupID *uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteSignageDisplayGroupNoticeOptIns, groupID)
+	return err
+}
+
+const deleteSignageDisplayNoticeOptIns = `-- name: DeleteSignageDisplayNoticeOptIns :exec
+DELETE FROM signage_notice_opt_ins WHERE display_id = $1
+`
+
+func (q *Queries) DeleteSignageDisplayNoticeOptIns(ctx context.Context, displayID *uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteSignageDisplayNoticeOptIns, displayID)
+	return err
+}
+
 const deleteSignagePairingRequest = `-- name: DeleteSignagePairingRequest :exec
 DELETE FROM signage_pairing_requests WHERE id = $1
 `
@@ -1026,6 +1044,47 @@ func (q *Queries) GetSignageDisplayGroupForUpdate(ctx context.Context, id uuid.U
 	return i, err
 }
 
+const getSignageDisplayGroupNoticeChoice = `-- name: GetSignageDisplayGroupNoticeChoice :one
+SELECT g.all_rule_notices,
+       COALESCE((SELECT array_agg(o.rule_id ORDER BY o.rule_id) FROM signage_notice_opt_ins o WHERE o.group_id = g.id),
+                '{}')::uuid[] AS rule_ids
+FROM signage_display_groups g WHERE g.id = $1
+`
+
+type GetSignageDisplayGroupNoticeChoiceRow struct {
+	AllRuleNotices bool
+	RuleIds        []uuid.UUID
+}
+
+func (q *Queries) GetSignageDisplayGroupNoticeChoice(ctx context.Context, id uuid.UUID) (GetSignageDisplayGroupNoticeChoiceRow, error) {
+	row := q.db.QueryRow(ctx, getSignageDisplayGroupNoticeChoice, id)
+	var i GetSignageDisplayGroupNoticeChoiceRow
+	err := row.Scan(&i.AllRuleNotices, &i.RuleIds)
+	return i, err
+}
+
+const getSignageDisplayNoticeChoice = `-- name: GetSignageDisplayNoticeChoice :one
+
+SELECT d.kind, d.all_rule_notices,
+       COALESCE((SELECT array_agg(o.rule_id ORDER BY o.rule_id) FROM signage_notice_opt_ins o WHERE o.display_id = d.id),
+                '{}')::uuid[] AS rule_ids
+FROM signage_displays d WHERE d.id = $1
+`
+
+type GetSignageDisplayNoticeChoiceRow struct {
+	Kind           string
+	AllRuleNotices bool
+	RuleIds        []uuid.UUID
+}
+
+// Notice opt-ins -------------------------------------------------------------------------------------------------
+func (q *Queries) GetSignageDisplayNoticeChoice(ctx context.Context, id uuid.UUID) (GetSignageDisplayNoticeChoiceRow, error) {
+	row := q.db.QueryRow(ctx, getSignageDisplayNoticeChoice, id)
+	var i GetSignageDisplayNoticeChoiceRow
+	err := row.Scan(&i.Kind, &i.AllRuleNotices, &i.RuleIds)
+	return i, err
+}
+
 const getSignageDisplayView = `-- name: GetSignageDisplayView :one
 SELECT d.id, d.kind, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.group_id,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
@@ -1399,6 +1458,28 @@ func (q *Queries) InsertSignageDefaultScenes(ctx context.Context, arg InsertSign
 	return err
 }
 
+const insertSignageNoticeOptIn = `-- name: InsertSignageNoticeOptIn :exec
+INSERT INTO signage_notice_opt_ins (id, rule_id, display_id, group_id)
+VALUES ($1, $2, $3, $4)
+`
+
+type InsertSignageNoticeOptInParams struct {
+	ID        uuid.UUID
+	RuleID    uuid.UUID
+	DisplayID *uuid.UUID
+	GroupID   *uuid.UUID
+}
+
+func (q *Queries) InsertSignageNoticeOptIn(ctx context.Context, arg InsertSignageNoticeOptInParams) error {
+	_, err := q.db.Exec(ctx, insertSignageNoticeOptIn,
+		arg.ID,
+		arg.RuleID,
+		arg.DisplayID,
+		arg.GroupID,
+	)
+	return err
+}
+
 const insertSignagePublication = `-- name: InsertSignagePublication :exec
 INSERT INTO signage_publications (id, display_id, revision, manifest, manifest_sha256, published_by_account_id, published_at)
 VALUES ($1, $2, $3, $4::text::jsonb, $5, $6, $7)
@@ -1543,6 +1624,44 @@ type ListAnnouncementsUsingTemplateParams struct {
 
 func (q *Queries) ListAnnouncementsUsingTemplate(ctx context.Context, arg ListAnnouncementsUsingTemplateParams) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listAnnouncementsUsingTemplate, arg.TemplateID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChoosableNotificationRuleIDs = `-- name: ListChoosableNotificationRuleIDs :many
+SELECT r.id FROM notification_rules r
+WHERE r.id = ANY($1::text[]::uuid[]) AND r.owner_account_id IS NULL
+  AND (r.definition @? '$.actions[*] ? (@.channel == "signage")'
+       OR r.definition @? '$.escalation.steps[*].action ? (@.channel == "signage")'
+       OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o
+                  WHERE o.rule_id = r.id AND (o.display_id = $2 OR o.group_id = $3)))
+FOR SHARE OF r
+`
+
+type ListChoosableNotificationRuleIDsParams struct {
+	Ids       []string
+	DisplayID *uuid.UUID
+	GroupID   *uuid.UUID
+}
+
+// The given ids a display or group may choose: central rules (personal subscriptions never reach signage) with a
+// signage action, or that the display or group already chose, so a stale choice can be kept while it is cleaned up.
+func (q *Queries) ListChoosableNotificationRuleIDs(ctx context.Context, arg ListChoosableNotificationRuleIDsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listChoosableNotificationRuleIDs, arg.Ids, arg.DisplayID, arg.GroupID)
 	if err != nil {
 		return nil, err
 	}
@@ -1738,9 +1857,16 @@ func (q *Queries) ListLiveSignageAnnouncementsForDisplay(ctx context.Context, ar
 }
 
 const listLiveSignageRuleNotices = `-- name: ListLiveSignageRuleNotices :many
-SELECT id, title, body, tone, starts_at, ends_at FROM signage_rule_notices
-WHERE display_id = $1 AND starts_at <= $2::timestamptz AND ends_at > $2::timestamptz
-ORDER BY starts_at, id
+SELECT n.id, n.title, n.body, n.tone, n.starts_at, n.ends_at
+FROM signage_rule_notices n
+JOIN notification_rules r ON r.id = n.rule_id AND r.owner_account_id IS NULL
+JOIN signage_displays d ON d.id = $1 AND d.kind = 'device'
+LEFT JOIN signage_display_groups g ON g.id = d.group_id
+WHERE n.starts_at <= $2::timestamptz AND n.ends_at > $2::timestamptz
+  AND (d.all_rule_notices OR COALESCE(g.all_rule_notices, false)
+       OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o
+                  WHERE o.rule_id = n.rule_id AND (o.display_id = d.id OR o.group_id = d.group_id)))
+ORDER BY n.starts_at, n.id
 `
 
 type ListLiveSignageRuleNoticesParams struct {
@@ -1757,7 +1883,8 @@ type ListLiveSignageRuleNoticesRow struct {
 	EndsAt   time.Time
 }
 
-// Notices a notification rule put on this display that are in force now.
+// Notices of notification rules in force now that this display shows: it or its group opted in to the rule or to all
+// signage notices.
 func (q *Queries) ListLiveSignageRuleNotices(ctx context.Context, arg ListLiveSignageRuleNoticesParams) ([]ListLiveSignageRuleNoticesRow, error) {
 	rows, err := q.db.Query(ctx, listLiveSignageRuleNotices, arg.DisplayID, arg.Now)
 	if err != nil {
@@ -2538,6 +2665,51 @@ func (q *Queries) ListSignageMachines(ctx context.Context) ([]ListSignageMachine
 	return items, nil
 }
 
+const listSignageNotificationRules = `-- name: ListSignageNotificationRules :many
+SELECT r.id, r.name, r.enabled,
+       (r.definition @? '$.actions[*] ? (@.channel == "signage")'
+        OR r.definition @? '$.escalation.steps[*].action ? (@.channel == "signage")')::boolean AS has_signage_action
+FROM notification_rules r
+WHERE r.owner_account_id IS NULL
+  AND (r.definition @? '$.actions[*] ? (@.channel == "signage")'
+       OR r.definition @? '$.escalation.steps[*].action ? (@.channel == "signage")'
+       OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o WHERE o.rule_id = r.id))
+ORDER BY lower(r.name), r.id
+`
+
+type ListSignageNotificationRulesRow struct {
+	ID               uuid.UUID
+	Name             string
+	Enabled          bool
+	HasSignageAction bool
+}
+
+// Central rules with a signage action, and every rule a display or group chose even if its signage action is gone.
+func (q *Queries) ListSignageNotificationRules(ctx context.Context) ([]ListSignageNotificationRulesRow, error) {
+	rows, err := q.db.Query(ctx, listSignageNotificationRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSignageNotificationRulesRow{}
+	for rows.Next() {
+		var i ListSignageNotificationRulesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Enabled,
+			&i.HasSignageAction,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSignageRules = `-- name: ListSignageRules :many
 
 SELECT r.id, r.display_id, r.group_id, r.position, r.enabled, r.condition_kind, r.weekdays,
@@ -3053,6 +3225,28 @@ func (q *Queries) ListSignageWebEmbeds(ctx context.Context, ids []string) ([]Lis
 	return items, nil
 }
 
+const lockSignageDisplayGroup = `-- name: LockSignageDisplayGroup :one
+SELECT id FROM signage_display_groups WHERE id = $1 FOR NO KEY UPDATE
+`
+
+func (q *Queries) LockSignageDisplayGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockSignageDisplayGroup, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const lockSignageDisplayKind = `-- name: LockSignageDisplayKind :one
+SELECT kind FROM signage_displays WHERE id = $1 FOR NO KEY UPDATE
+`
+
+func (q *Queries) LockSignageDisplayKind(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, lockSignageDisplayKind, id)
+	var kind string
+	err := row.Scan(&kind)
+	return kind, err
+}
+
 const lockSignageScenesForShare = `-- name: LockSignageScenesForShare :many
 SELECT id, aspect_width, aspect_height FROM signage_scenes WHERE id = ANY($1::text[]::uuid[]) ORDER BY id FOR SHARE
 `
@@ -3142,6 +3336,34 @@ func (q *Queries) RevokeSignageDisplay(ctx context.Context, arg RevokeSignageDis
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const setSignageDisplayAllRuleNotices = `-- name: SetSignageDisplayAllRuleNotices :exec
+UPDATE signage_displays SET all_rule_notices = $1 WHERE id = $2
+`
+
+type SetSignageDisplayAllRuleNoticesParams struct {
+	AllRuleNotices bool
+	ID             uuid.UUID
+}
+
+func (q *Queries) SetSignageDisplayAllRuleNotices(ctx context.Context, arg SetSignageDisplayAllRuleNoticesParams) error {
+	_, err := q.db.Exec(ctx, setSignageDisplayAllRuleNotices, arg.AllRuleNotices, arg.ID)
+	return err
+}
+
+const setSignageDisplayGroupAllRuleNotices = `-- name: SetSignageDisplayGroupAllRuleNotices :exec
+UPDATE signage_display_groups SET all_rule_notices = $1 WHERE id = $2
+`
+
+type SetSignageDisplayGroupAllRuleNoticesParams struct {
+	AllRuleNotices bool
+	ID             uuid.UUID
+}
+
+func (q *Queries) SetSignageDisplayGroupAllRuleNotices(ctx context.Context, arg SetSignageDisplayGroupAllRuleNoticesParams) error {
+	_, err := q.db.Exec(ctx, setSignageDisplayGroupAllRuleNotices, arg.AllRuleNotices, arg.ID)
+	return err
 }
 
 const setSignageRuleEnabled = `-- name: SetSignageRuleEnabled :execrows

@@ -658,8 +658,8 @@ func (v *validator) channelOptions(path string, a *Action) error {
 		return v.inApp(path+".inApp", a)
 	case ChannelSignage:
 		s := a.Signage
-		if s == nil || len(s.DisplayIDs) < 1 || len(s.DisplayIDs) > MaxTargets {
-			return fail(path+".signage.displayIds", fmt.Sprintf("choose between 1 and %d displays", MaxTargets))
+		if s == nil {
+			return fail(path+".signage", "a signage action needs its duration and tone")
 		}
 		if s.DurationMinutes < 1 || s.DurationMinutes > MaxDurationMinutes {
 			return fail(path+".signage.durationMinutes", "must be between 1 and 1440")
@@ -667,7 +667,7 @@ func (v *validator) channelOptions(path string, a *Action) error {
 		if s.Tone != ToneInfo && s.Tone != ToneWarning && s.Tone != ToneCritical {
 			return fail(path+".signage.tone", "must be info, warning or critical")
 		}
-		return v.existing(path+".signage.displayIds", IDDisplays, s.DisplayIDs, "display", IDDevices, nil, "")
+		return nil
 	case ChannelTablet:
 		t := a.Tablet
 		if t == nil || len(t.DeviceIDs) < 1 || len(t.DeviceIDs) > MaxTargets {

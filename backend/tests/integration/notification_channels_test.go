@@ -22,10 +22,10 @@ func noticeEvent(token string, self ...uuid.UUID) notifyrules.Event {
 	return event
 }
 
-func signageAction(tone notifyrules.Tone, minutes int, displays ...uuid.UUID) notifyrules.Action {
+func signageAction(tone notifyrules.Tone, minutes int) notifyrules.Action {
 	return notifyrules.Action{
 		Channel: notifyrules.ChannelSignage, Recipients: []string{}, Title: "{machine} reports {code}", Body: "Please have a look.",
-		Signage: &notifyrules.SignageTarget{DisplayIDs: displays, DurationMinutes: minutes, Tone: tone},
+		Signage: &notifyrules.SignageTarget{DurationMinutes: minutes, Tone: tone},
 	}
 }
 
@@ -50,23 +50,27 @@ func TestSignageRuleNoticesReachOnlyTheChosenDisplayAndEnd(t *testing.T) {
 	_, list := env.seedContent("Notice")
 	chosen, chosenPlayer := env.pair(staff, "Chosen display", list)
 	_, otherPlayer := env.pair(staff, "Other display", list)
-	chosenID := uuid.MustParse(chosen["id"].(string))
 
 	var category uuid.UUID
 	if err := env.pool.QueryRow(testContext(t), `SELECT id FROM notification_categories WHERE key='service'`).Scan(&category); err != nil {
 		t.Fatal(err)
 	}
 	rules := notifyrules.NewService(env.pool)
-	if _, err := rules.CreateRule(testContext(t), author.principal, notifyrules.RuleInput{
+	rule, err := rules.CreateRule(testContext(t), author.principal, notifyrules.RuleInput{
 		Name: "Printer error on the wall", Enabled: true, CategoryID: &category,
 		Definition: notifyrules.Definition{
 			Trigger:    notifyrules.TriggerDef{Type: notifyrules.TriggerEvent, Event: "printer_error"},
 			Conditions: notifyrules.ConditionSet{Mode: notifyrules.ModeAll},
-			Actions:    []notifyrules.Action{signageAction(notifyrules.ToneCritical, 5, chosenID)},
+			Actions:    []notifyrules.Action{signageAction(notifyrules.ToneCritical, 5)},
 		},
-	}, nil); err != nil {
+	}, nil)
+	if err != nil {
 		t.Fatalf("create rule: %v (%#v)", err, err)
 	}
+	// The chosen display opts in to the rule; the rule names no display.
+	env.expect(env.as(staff, http.MethodPut, "/signage/displays/"+chosen["id"].(string)+"/notices", map[string]any{
+		"allRules": false, "ruleIds": []string{rule.ID.String()},
+	}), http.StatusOK)
 	dispatcher := notifyrules.NewDispatcher(env.pool, time.UTC)
 	emit := func(ev notifyrules.Event) {
 		t.Helper()

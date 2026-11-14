@@ -2110,16 +2110,18 @@ type SignageDisplay struct {
 	AspectHeight       int16
 	GroupID            *uuid.UUID
 	Kind               string
+	AllRuleNotices     bool
 }
 
 type SignageDisplayGroup struct {
-	ID           uuid.UUID
-	Name         string
-	AspectWidth  int16
-	AspectHeight int16
-	Version      int64
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID             uuid.UUID
+	Name           string
+	AspectWidth    int16
+	AspectHeight   int16
+	Version        int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	AllRuleNotices bool
 }
 
 type SignageDisplayState struct {
@@ -2132,6 +2134,13 @@ type SignageDisplayState struct {
 	CacheUsedBytes      *int64
 	CacheQuotaBytes     *int64
 	Errors              []byte
+}
+
+type SignageNoticeOptIn struct {
+	ID        uuid.UUID
+	RuleID    uuid.UUID
+	DisplayID *uuid.UUID
+	GroupID   *uuid.UUID
 }
 
 type SignagePairingRequest struct {
@@ -2174,14 +2183,14 @@ type SignageRule struct {
 }
 
 type SignageRuleNotice struct {
-	ID        uuid.UUID
-	FiringID  *uuid.UUID
-	DisplayID uuid.UUID
-	Title     string
-	Body      string
-	Tone      string
-	StartsAt  time.Time
-	EndsAt    time.Time
+	ID       uuid.UUID
+	FiringID *uuid.UUID
+	Title    string
+	Body     string
+	Tone     string
+	StartsAt time.Time
+	EndsAt   time.Time
+	RuleID   uuid.UUID
 }
 
 type SignageRuleScene struct {

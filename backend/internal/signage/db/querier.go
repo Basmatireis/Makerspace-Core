@@ -53,6 +53,8 @@ type Querier interface {
 	DeleteSignageDefaultScenes(ctx context.Context, arg DeleteSignageDefaultScenesParams) error
 	DeleteSignageDisplay(ctx context.Context, arg DeleteSignageDisplayParams) (uuid.UUID, error)
 	DeleteSignageDisplayGroup(ctx context.Context, arg DeleteSignageDisplayGroupParams) (uuid.UUID, error)
+	DeleteSignageDisplayGroupNoticeOptIns(ctx context.Context, groupID *uuid.UUID) error
+	DeleteSignageDisplayNoticeOptIns(ctx context.Context, displayID *uuid.UUID) error
 	DeleteSignagePairingRequest(ctx context.Context, id uuid.UUID) error
 	DeleteSignagePairingRequestByPollDigest(ctx context.Context, pollSecretDigest []byte) error
 	DeleteSignageRule(ctx context.Context, arg DeleteSignageRuleParams) (int64, error)
@@ -73,6 +75,9 @@ type Querier interface {
 	GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) (GetSignageDisplayForUpdateRow, error)
 	GetSignageDisplayGroupForShare(ctx context.Context, id uuid.UUID) (GetSignageDisplayGroupForShareRow, error)
 	GetSignageDisplayGroupForUpdate(ctx context.Context, id uuid.UUID) (GetSignageDisplayGroupForUpdateRow, error)
+	GetSignageDisplayGroupNoticeChoice(ctx context.Context, id uuid.UUID) (GetSignageDisplayGroupNoticeChoiceRow, error)
+	// Notice opt-ins -------------------------------------------------------------------------------------------------
+	GetSignageDisplayNoticeChoice(ctx context.Context, id uuid.UUID) (GetSignageDisplayNoticeChoiceRow, error)
 	GetSignageDisplayView(ctx context.Context, id uuid.UUID) (GetSignageDisplayViewRow, error)
 	GetSignagePairingRequestForPoll(ctx context.Context, pollSecretDigest []byte) (GetSignagePairingRequestForPollRow, error)
 	GetSignageScene(ctx context.Context, id uuid.UUID) (SignageScene, error)
@@ -90,11 +95,15 @@ type Querier interface {
 	InsertSignageAnnouncementGroup(ctx context.Context, arg InsertSignageAnnouncementGroupParams) error
 	InsertSignageAnnouncementValue(ctx context.Context, arg InsertSignageAnnouncementValueParams) error
 	InsertSignageDefaultScenes(ctx context.Context, arg InsertSignageDefaultScenesParams) error
+	InsertSignageNoticeOptIn(ctx context.Context, arg InsertSignageNoticeOptInParams) error
 	InsertSignagePublication(ctx context.Context, arg InsertSignagePublicationParams) error
 	InsertSignageRule(ctx context.Context, arg InsertSignageRuleParams) error
 	InsertSignageRuleScenes(ctx context.Context, arg InsertSignageRuleScenesParams) error
 	InsertSignageTemplateField(ctx context.Context, arg InsertSignageTemplateFieldParams) error
 	ListAnnouncementsUsingTemplate(ctx context.Context, arg ListAnnouncementsUsingTemplateParams) ([]uuid.UUID, error)
+	// The given ids a display or group may choose: central rules (personal subscriptions never reach signage) with a
+	// signage action, or that the display or group already chose, so a stale choice can be kept while it is cleaned up.
+	ListChoosableNotificationRuleIDs(ctx context.Context, arg ListChoosableNotificationRuleIDsParams) ([]uuid.UUID, error)
 	ListDisplaysWithDefaultScene(ctx context.Context, sceneID uuid.UUID) ([]ListDisplaysWithDefaultSceneRow, error)
 	ListGroupsWithDefaultScene(ctx context.Context, sceneID uuid.UUID) ([]ListGroupsWithDefaultSceneRow, error)
 	ListLatestSignagePublications(ctx context.Context, displayIds []string) ([]ListLatestSignagePublicationsRow, error)
@@ -102,7 +111,8 @@ type Querier interface {
 	// Announcements in force for one display. Without broadcasts (web embeds) only announcements that name the display
 	// itself count, never those for all displays or for its group.
 	ListLiveSignageAnnouncementsForDisplay(ctx context.Context, arg ListLiveSignageAnnouncementsForDisplayParams) ([]SignageAnnouncement, error)
-	// Notices a notification rule put on this display that are in force now.
+	// Notices of notification rules in force now that this display shows: it or its group opted in to the rule or to all
+	// signage notices.
 	ListLiveSignageRuleNotices(ctx context.Context, arg ListLiveSignageRuleNoticesParams) ([]ListLiveSignageRuleNoticesRow, error)
 	ListRulesFilteringTemplate(ctx context.Context, templateID uuid.UUID) ([]ListRulesFilteringTemplateRow, error)
 	// Rules of displays and of groups whose scene list shows the scene; owner_id is the display's or the group's.
@@ -131,6 +141,8 @@ type Querier interface {
 	ListSignageLiveStatuses(ctx context.Context, ids []string) ([]ListSignageLiveStatusesRow, error)
 	ListSignageMachineNames(ctx context.Context, ids []string) ([]ListSignageMachineNamesRow, error)
 	ListSignageMachines(ctx context.Context) ([]ListSignageMachinesRow, error)
+	// Central rules with a signage action, and every rule a display or group chose even if its signage action is gone.
+	ListSignageNotificationRules(ctx context.Context) ([]ListSignageNotificationRulesRow, error)
 	// Rules -------------------------------------------------------------------------------------------------------
 	ListSignageRules(ctx context.Context, arg ListSignageRulesParams) ([]ListSignageRulesRow, error)
 	ListSignageSceneIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
@@ -151,6 +163,8 @@ type Querier interface {
 	// newest first. Without all_machines only the given machines; ended_after NULL means any age.
 	ListSignageTimelapses(ctx context.Context, arg ListSignageTimelapsesParams) ([]ListSignageTimelapsesRow, error)
 	ListSignageWebEmbeds(ctx context.Context, ids []string) ([]ListSignageWebEmbedsRow, error)
+	LockSignageDisplayGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	LockSignageDisplayKind(ctx context.Context, id uuid.UUID) (string, error)
 	// The scenes a scene list refers to, share-locked so that a concurrent deletion or change of a scene's ratio
 	// either waits for this transaction or is seen by it.
 	LockSignageScenesForShare(ctx context.Context, ids []string) ([]LockSignageScenesForShareRow, error)
@@ -158,6 +172,8 @@ type Querier interface {
 	PruneSignagePublications(ctx context.Context, arg PruneSignagePublicationsParams) error
 	RenameSignageAsset(ctx context.Context, arg RenameSignageAssetParams) (int64, error)
 	RevokeSignageDisplay(ctx context.Context, arg RevokeSignageDisplayParams) (uuid.UUID, error)
+	SetSignageDisplayAllRuleNotices(ctx context.Context, arg SetSignageDisplayAllRuleNoticesParams) error
+	SetSignageDisplayGroupAllRuleNotices(ctx context.Context, arg SetSignageDisplayGroupAllRuleNoticesParams) error
 	SetSignageRuleEnabled(ctx context.Context, arg SetSignageRuleEnabledParams) (int64, error)
 	SetSignageRulePosition(ctx context.Context, arg SetSignageRulePositionParams) error
 	// The caller holds the display's row lock.

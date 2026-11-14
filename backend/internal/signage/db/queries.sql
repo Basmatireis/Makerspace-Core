@@ -585,10 +585,77 @@ SELECT name FROM signage_announcement_templates;
 
 
 -- name: ListLiveSignageRuleNotices :many
--- Notices a notification rule put on this display that are in force now.
-SELECT id, title, body, tone, starts_at, ends_at FROM signage_rule_notices
-WHERE display_id = sqlc.arg(display_id) AND starts_at <= sqlc.arg(now)::timestamptz AND ends_at > sqlc.arg(now)::timestamptz
-ORDER BY starts_at, id;
+-- Notices of notification rules in force now that this display shows: it or its group opted in to the rule or to all
+-- signage notices.
+SELECT n.id, n.title, n.body, n.tone, n.starts_at, n.ends_at
+FROM signage_rule_notices n
+JOIN notification_rules r ON r.id = n.rule_id AND r.owner_account_id IS NULL
+JOIN signage_displays d ON d.id = sqlc.arg(display_id) AND d.kind = 'device'
+LEFT JOIN signage_display_groups g ON g.id = d.group_id
+WHERE n.starts_at <= sqlc.arg(now)::timestamptz AND n.ends_at > sqlc.arg(now)::timestamptz
+  AND (d.all_rule_notices OR COALESCE(g.all_rule_notices, false)
+       OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o
+                  WHERE o.rule_id = n.rule_id AND (o.display_id = d.id OR o.group_id = d.group_id)))
+ORDER BY n.starts_at, n.id;
+
+-- Notice opt-ins -------------------------------------------------------------------------------------------------
+
+-- name: GetSignageDisplayNoticeChoice :one
+SELECT d.kind, d.all_rule_notices,
+       COALESCE((SELECT array_agg(o.rule_id ORDER BY o.rule_id) FROM signage_notice_opt_ins o WHERE o.display_id = d.id),
+                '{}')::uuid[] AS rule_ids
+FROM signage_displays d WHERE d.id = sqlc.arg(id);
+
+-- name: GetSignageDisplayGroupNoticeChoice :one
+SELECT g.all_rule_notices,
+       COALESCE((SELECT array_agg(o.rule_id ORDER BY o.rule_id) FROM signage_notice_opt_ins o WHERE o.group_id = g.id),
+                '{}')::uuid[] AS rule_ids
+FROM signage_display_groups g WHERE g.id = sqlc.arg(id);
+
+-- name: LockSignageDisplayKind :one
+SELECT kind FROM signage_displays WHERE id = sqlc.arg(id) FOR NO KEY UPDATE;
+
+-- name: LockSignageDisplayGroup :one
+SELECT id FROM signage_display_groups WHERE id = sqlc.arg(id) FOR NO KEY UPDATE;
+
+-- name: SetSignageDisplayAllRuleNotices :exec
+UPDATE signage_displays SET all_rule_notices = sqlc.arg(all_rule_notices) WHERE id = sqlc.arg(id);
+
+-- name: SetSignageDisplayGroupAllRuleNotices :exec
+UPDATE signage_display_groups SET all_rule_notices = sqlc.arg(all_rule_notices) WHERE id = sqlc.arg(id);
+
+-- name: DeleteSignageDisplayNoticeOptIns :exec
+DELETE FROM signage_notice_opt_ins WHERE display_id = sqlc.arg(display_id);
+
+-- name: DeleteSignageDisplayGroupNoticeOptIns :exec
+DELETE FROM signage_notice_opt_ins WHERE group_id = sqlc.arg(group_id);
+
+-- name: InsertSignageNoticeOptIn :exec
+INSERT INTO signage_notice_opt_ins (id, rule_id, display_id, group_id)
+VALUES (sqlc.arg(id), sqlc.arg(rule_id), sqlc.narg(display_id), sqlc.narg(group_id));
+
+-- name: ListChoosableNotificationRuleIDs :many
+-- The given ids a display or group may choose: central rules (personal subscriptions never reach signage) with a
+-- signage action, or that the display or group already chose, so a stale choice can be kept while it is cleaned up.
+SELECT r.id FROM notification_rules r
+WHERE r.id = ANY(sqlc.arg(ids)::text[]::uuid[]) AND r.owner_account_id IS NULL
+  AND (r.definition @? '$.actions[*] ? (@.channel == "signage")'
+       OR r.definition @? '$.escalation.steps[*].action ? (@.channel == "signage")'
+       OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o
+                  WHERE o.rule_id = r.id AND (o.display_id = sqlc.narg(display_id) OR o.group_id = sqlc.narg(group_id))))
+FOR SHARE OF r;
+
+-- name: ListSignageNotificationRules :many
+-- Central rules with a signage action, and every rule a display or group chose even if its signage action is gone.
+SELECT r.id, r.name, r.enabled,
+       (r.definition @? '$.actions[*] ? (@.channel == "signage")'
+        OR r.definition @? '$.escalation.steps[*].action ? (@.channel == "signage")')::boolean AS has_signage_action
+FROM notification_rules r
+WHERE r.owner_account_id IS NULL
+  AND (r.definition @? '$.actions[*] ? (@.channel == "signage")'
+       OR r.definition @? '$.escalation.steps[*].action ? (@.channel == "signage")'
+       OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o WHERE o.rule_id = r.id))
+ORDER BY lower(r.name), r.id;
 
 -- Web embeds --------------------------------------------------------------------------------------------------
 

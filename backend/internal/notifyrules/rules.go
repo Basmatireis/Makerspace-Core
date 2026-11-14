@@ -186,7 +186,28 @@ func (s *Service) GetRule(ctx context.Context, p authorization.Principal, id uui
 	if !canReadCentral(p) {
 		return Rule{}, apperror.PermissionDenied
 	}
-	return s.loadRule(ctx, notifyrulesdb.New(s.pool), id, nil)
+	queries := notifyrulesdb.New(s.pool)
+	rule, err := s.loadRule(ctx, queries, id, nil)
+	if err != nil || !rule.Definition.HasSignageAction() {
+		return rule, err
+	}
+	shownOn := SignageShownOn{Displays: []SignageNoticeTarget{}, Groups: []SignageNoticeTarget{}}
+	displays, err := queries.ListSignageDisplaysShowingRule(ctx, id)
+	if err != nil {
+		return Rule{}, err
+	}
+	for _, display := range displays {
+		shownOn.Displays = append(shownOn.Displays, SignageNoticeTarget{ID: display.ID, Name: display.Name, AllRules: display.AllRuleNotices})
+	}
+	groups, err := queries.ListSignageGroupsShowingRule(ctx, id)
+	if err != nil {
+		return Rule{}, err
+	}
+	for _, group := range groups {
+		shownOn.Groups = append(shownOn.Groups, SignageNoticeTarget{ID: group.ID, Name: group.Name, AllRules: group.AllRuleNotices})
+	}
+	rule.SignageShownOn = &shownOn
+	return rule, nil
 }
 
 // loadRule reads a rule; owner nil selects central rules, otherwise the rule must belong to the owner.

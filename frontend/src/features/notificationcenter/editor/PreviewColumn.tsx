@@ -195,7 +195,7 @@ function Caption({ action, prefix, reach }: { action: Action; prefix: string; re
   const Icon = channelIcons[action.channel] ?? Notification;
   const target =
     action.channel === 'signage'
-      ? `${plural(action.signage?.displayIds.length ?? 0, 'display', 'displays')} · ${action.signage?.durationMinutes ?? 0} min`
+      ? `signage · ${action.signage?.durationMinutes ?? 0} min`
       : action.channel === 'tablet'
         ? plural(action.tablet?.deviceIds.length ?? 0, 'tablet', 'tablets')
         : plural(action.recipients.length, 'recipient', 'recipients');

@@ -33,6 +33,7 @@ import { usePublishedView, useRuleNames } from './displayHooks';
 import { PublishedScreen, StatusTag } from './displayParts';
 import { describePendingChange, errorMessage, isStaleWrite, orientationOf, pluralize } from './helpers';
 import { HealthTab } from './HealthTab';
+import { NoticesTab } from './NoticesTab';
 import { PlaybackTab } from './PlaybackTab';
 import { PlayerAddress } from './components';
 import { signagePaths } from './paths';
@@ -319,6 +320,7 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
               <TabList aria-label="Display sections" contained>
                 <Tab>Playback</Tab>
                 <Tab>Health</Tab>
+                <Tab>Notices</Tab>
                 <Tab>Settings</Tab>
               </TabList>
               <TabPanels>
@@ -330,6 +332,13 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
                 </TabPanel>
                 <TabPanel>
                   <HealthTab display={display} now={now} />
+                </TabPanel>
+                <TabPanel>
+                  <NoticesTab
+                    owner={{ kind: 'display', id: display.id }}
+                    groupId={display.groupId}
+                    canManage={canManage && !revoked}
+                  />
                 </TabPanel>
                 <TabPanel>
                   <DisplaySettingsTab key={display.id} display={display} canManage={canManage} />

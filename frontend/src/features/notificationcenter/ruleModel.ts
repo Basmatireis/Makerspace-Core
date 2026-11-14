@@ -435,7 +435,7 @@ export function newAction(channel: Channel, personal = false): Action {
     case 'email':
       return { ...base, channel };
     case 'signage':
-      return { ...base, channel, signage: { displayIds: [], durationMinutes: 15, tone: 'warning' } };
+      return { ...base, channel, signage: { durationMinutes: 15, tone: 'warning' } };
     default:
       return { ...base, channel, tablet: { deviceIds: [], mode: 'banner', mustTap: true } };
   }
@@ -503,8 +503,6 @@ export function validateDraft(
     if (!personal && (action.channel === 'in_app' || action.channel === 'email') && !action.recipients.length) {
       problems.push(`${where}: add a recipient.`);
     }
-    if (action.channel === 'signage' && !action.signage?.displayIds.length)
-      problems.push(`${where}: choose a display.`);
     if (action.channel === 'tablet' && !action.tablet?.deviceIds.length) problems.push(`${where}: choose a tablet.`);
     if (!action.title.trim()) problems.push(`${where}: write a ${action.channel === 'email' ? 'subject' : 'title'}.`);
   };

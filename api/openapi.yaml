@@ -6278,6 +6278,54 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /signage/displays/{displayId}/notices:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageDisplayNotices
+      summary: Which notification rules' notices the display shows
+      description: Requires `signage.read`. A display also shows what its group chose; that choice is on the group.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: The display's choice., content: {application/json: {schema: {$ref: "#/components/schemas/SignageNoticeSelection"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Signage]
+      operationId: setSignageDisplayNotices
+      summary: Choose which notification rules' notices the display shows
+      description: >-
+        Requires `signage.manage`. Replaces the choice and takes effect at once, without publishing. `ruleIds` must be
+        central notification rules (422 otherwise); a rule without a signage action is kept but shows nothing until it
+        gets one. A web embed never shows notices (422 `signage_web_embed`). Audited as
+        `signage_display.notices_changed`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SignageNoticeSelection"}}}}
+      responses:
+        "200": {description: The new choice., content: {application/json: {schema: {$ref: "#/components/schemas/SignageNoticeSelection"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/notification-rules:
+    get:
+      tags: [Signage]
+      operationId: listSignageNotificationRules
+      summary: List the notification rules a display or group can show notices of
+      description: >-
+        Requires `signage.read`. Central notification rules that have a signage action, with their names only, and
+        every rule a display or group already chose (`hasSignageAction` false once its signage action is gone).
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Rules., content: {application/json: {schema: {$ref: "#/components/schemas/SignageNotificationRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /signage/groups:
     get:
       tags: [Signage]
@@ -6470,6 +6518,39 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/groups/{groupId}/notices:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayGroupId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageGroupNotices
+      summary: Which notification rules' notices the group shows
+      description: Requires `signage.read`. Member displays show these notices besides their own choice.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: The group's choice., content: {application/json: {schema: {$ref: "#/components/schemas/SignageNoticeSelection"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Signage]
+      operationId: setSignageGroupNotices
+      summary: Choose which notification rules' notices the group shows
+      description: >-
+        Requires `signage.manage`. Replaces the choice and takes effect at once, without publishing. `ruleIds` must be
+        central notification rules (422 otherwise); a rule without a signage action is kept but shows nothing until it
+        gets one. Audited as
+        `signage_display_group.notices_changed`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SignageNoticeSelection"}}}}
+      responses:
+        "200": {description: The new choice., content: {application/json: {schema: {$ref: "#/components/schemas/SignageNoticeSelection"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -13501,9 +13582,9 @@ components:
     NotificationRuleSignageTarget:
       type: object
       additionalProperties: false
-      required: [displayIds, durationMinutes, tone]
+      description: Where the notice appears is chosen on the signage displays and display groups, not in the rule.
+      required: [durationMinutes, tone]
       properties:
-        displayIds: {type: array, minItems: 1, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
         durationMinutes: {type: integer, minimum: 1, maximum: 1440}
         tone: {type: string, maxLength: 40, description: "One of info, warning, critical."}
 
@@ -13604,9 +13685,55 @@ components:
           description: Only in the list of central rules.
         warnings: {type: array, items: {type: string}, description: Placeholders without a value that stay visible; only on create and update.}
         lastFiredAt: {type: string, format: date-time, nullable: true}
+        signageShownOn:
+          allOf: [{$ref: "#/components/schemas/NotificationRuleSignageShownOn"}]
+          description: Only on getNotificationRule, for a rule with a signage action.
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+
+    NotificationRuleSignageShownOn:
+      type: object
+      additionalProperties: false
+      description: The displays and display groups that show the rule's signage notices, chosen there.
+      required: [displays, groups]
+      properties:
+        displays: {type: array, items: {$ref: "#/components/schemas/SignageNoticeTargetRef"}}
+        groups: {type: array, items: {$ref: "#/components/schemas/SignageNoticeTargetRef"}}
+
+    SignageNoticeTargetRef:
+      type: object
+      additionalProperties: false
+      required: [id, name, allRules]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        allRules: {type: boolean, description: "True when it shows all signage notices rather than this rule by choice."}
+
+    SignageNoticeSelection:
+      type: object
+      additionalProperties: false
+      required: [allRules, ruleIds]
+      properties:
+        allRules: {type: boolean, description: "Show the notices of every rule with a signage action, now and later."}
+        ruleIds: {type: array, maxItems: 200, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Chosen rules; kept when allRules is true."}
+
+    SignageNotificationRule:
+      type: object
+      additionalProperties: false
+      required: [id, name, enabled, hasSignageAction]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        enabled: {type: boolean}
+        hasSignageAction: {type: boolean}
+
+    SignageNotificationRuleList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/SignageNotificationRule"}}
 
     NotificationRuleList:
       type: object

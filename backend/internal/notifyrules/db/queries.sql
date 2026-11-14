@@ -938,11 +938,32 @@ SELECT count(*)::bigint FROM open_day_assignments WHERE created_at >= sqlc.arg(s
 
 -- Notices on signage displays and entrance tablets ---------------------------------------------------------------------
 
--- name: InsertSignageRuleNotice :execrows
-INSERT INTO signage_rule_notices (id, firing_id, display_id, title, body, tone, starts_at, ends_at)
-SELECT sqlc.arg(id), sqlc.narg(firing_id), d.id, sqlc.arg(title), sqlc.arg(body), sqlc.arg(tone), sqlc.arg(starts_at),
-       sqlc.arg(ends_at)
-FROM signage_displays d WHERE d.id = sqlc.arg(display_id) AND d.kind = 'device';
+-- name: InsertSignageRuleNotice :exec
+-- One row per delivery; the displays that show it are matched when they ask (ListLiveSignageRuleNotices).
+INSERT INTO signage_rule_notices (id, firing_id, rule_id, title, body, tone, starts_at, ends_at)
+VALUES (sqlc.arg(id), sqlc.narg(firing_id), sqlc.arg(rule_id), sqlc.arg(title), sqlc.arg(body), sqlc.arg(tone),
+        sqlc.arg(starts_at), sqlc.arg(ends_at));
+
+-- name: CountSignageDisplaysShowingRule :one
+-- Screens that show the rule's notices now: the display or its group opted in to the rule or to all notices.
+SELECT count(*) FROM signage_displays d
+LEFT JOIN signage_display_groups g ON g.id = d.group_id
+WHERE d.kind = 'device' AND d.revoked_at IS NULL
+  AND (d.all_rule_notices OR COALESCE(g.all_rule_notices, false)
+       OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o
+                  WHERE o.rule_id = sqlc.arg(rule_id) AND (o.display_id = d.id OR o.group_id = d.group_id)));
+
+-- name: ListSignageDisplaysShowingRule :many
+-- The displays that chose the rule or all notices themselves; members of a group appear through ListSignageGroupsShowingRule.
+SELECT d.id, d.name, d.all_rule_notices FROM signage_displays d
+WHERE d.kind = 'device' AND d.revoked_at IS NULL
+  AND (d.all_rule_notices OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o WHERE o.rule_id = sqlc.arg(rule_id) AND o.display_id = d.id))
+ORDER BY lower(d.name), d.id;
+
+-- name: ListSignageGroupsShowingRule :many
+SELECT g.id, g.name, g.all_rule_notices FROM signage_display_groups g
+WHERE g.all_rule_notices OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o WHERE o.rule_id = sqlc.arg(rule_id) AND o.group_id = g.id)
+ORDER BY lower(g.name), g.id;
 
 -- name: InsertKioskRuleNotice :execrows
 INSERT INTO kiosk_rule_notices (id, group_id, firing_id, device_id, mode, person_id, title, body, level, must_tap,
