@@ -72,6 +72,8 @@ type Querier interface {
 	ListPersonRoles(ctx context.Context, personID uuid.UUID) ([]Role, error)
 	ListPersonRolesByPeople(ctx context.Context, personIds []string) ([]ListPersonRolesByPeopleRow, error)
 	ListProfileImageRequirements(ctx context.Context, personIds []string) ([]ListProfileImageRequirementsRow, error)
+	// Only what the People list already shows of a role; permissions and settings stay with the roles feature.
+	ListRoleOptions(ctx context.Context) ([]ListRoleOptionsRow, error)
 	// Locks the Accounts of the merged People in id order after the people and the master invariant lock.
 	LockAccountsForMerge(ctx context.Context, personIds []string) ([]Account, error)
 	// People merge (people.merge). Every query below is part of PreviewMerge or Merge; see docs/people-merge.md.

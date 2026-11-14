@@ -1115,6 +1115,31 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
+  /people/role-options:
+    get:
+      tags: [People]
+      operationId: listPeopleRoleOptions
+      summary: List roles usable as People list filter options
+      description: |
+        Requires `people.read.all`. Returns only the identifier, name and system key of each role — the
+        same role data the People list already shows — so viewers without `roles.read` can filter by role.
+        Role permissions and settings stay behind `roles.read`.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Roles usable as People list filter options.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeopleRoleOptionList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /people/merge/preview:
     post:
       tags: [People]
@@ -15971,6 +15996,16 @@ components:
           type: string
           format: date
           description: Requires `people.update.all`. Must not lie in the future; cannot be cleared.
+
+    PeopleRoleOptionList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleSummary"
 
     PersonPage:
       type: object

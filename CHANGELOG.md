@@ -4,6 +4,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Fixed
+
+- **Role filter on the People page for Supervisors.** Viewers who see people's roles in Directory › People (`people.read.all`) can now filter by role without `roles.read`. The filter options come from the new `GET /people/role-options`, which returns only each role's ID, name and system key; role permissions and settings still need `roles.read`.
+
 ## [0.19.1] - 2026-11-12
 
 ### Fixed
