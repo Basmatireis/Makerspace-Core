@@ -118,6 +118,10 @@ export function resolveView(input: ViewInput): { view: PlayerView; hold: Hold } 
       // Announcements restored from an older cache have no format.
       bodyFormat: item.bodyFormat ?? 'plain',
       bodyCss: item.bodyCss ?? '',
+      // Announcements restored from an older cache have no look.
+      color: item.color ?? null,
+      textColor: item.textColor ?? null,
+      imageUrl: item.image?.url ?? null,
       startsAt: Date.parse(item.startsAt),
     }));
   const engineResult = resolvePlayback(manifest.defaultScenes, manifest.rules as PlaybackRule[], {

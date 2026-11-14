@@ -204,6 +204,83 @@ describe('PlayerRuntime offline cache', () => {
       });
     }
 
+    describe('announcement images', () => {
+      const withImage = (id: string, image: ReturnType<typeof asset> | null) =>
+        ({
+          ...(announcement(id, null) as object),
+          color: '#0f62fe',
+          textColor: '#ffffff',
+          image: image && { assetId: image.id, sha256: image.sha256, url: image.url },
+        }) as never;
+
+      it('caches the image of a listed announcement, keeps it offline and evicts it when unlisted', async () => {
+        const { store, caches } = env();
+        const photo = asset('photo');
+        let announcements = [withImage('a', photo)];
+        const online = new PlayerRuntime({
+          api: fakeApi({
+            manifest: async () => ({ unchanged: false, manifest: manifest(1, { assets: [asset('img-1')] }) }),
+            live: async () => live({ announcements }),
+          }),
+          store,
+        });
+        online.start();
+        await settle(5_000);
+        expect(caches.keysOf(ASSET_CACHE)).toContain(assetKey(photo.sha256));
+        expect(caches.keysOf(ASSET_CACHE)).toContain(assetKey(asset('img-1').sha256));
+        online.stop();
+
+        // Offline restart: the persisted announcement still names the cached image, and a new revision keeps it.
+        const offline = new PlayerRuntime({ api: offlineApi(), store });
+        offline.start();
+        await settle(5_000);
+        expect(offline.getSnapshot().view?.data.announcements[0]).toMatchObject({
+          color: '#0f62fe',
+          textColor: '#ffffff',
+          imageUrl: photo.url,
+        });
+        expect(caches.keysOf(ASSET_CACHE)).toContain(assetKey(photo.sha256));
+        offline.stop();
+
+        // Unlisted images go; the manifest's assets stay.
+        announcements = [];
+        const later = new PlayerRuntime({
+          api: fakeApi({
+            manifest: async () => ({ unchanged: true }),
+            live: async () => live({ announcements }),
+          }),
+          store,
+        });
+        later.start();
+        await settle(5_000);
+        expect(caches.keysOf(ASSET_CACHE)).toEqual([assetKey(asset('img-1').sha256)]);
+        later.stop();
+      });
+
+      it('keeps listed images when a new revision evicts the old assets', async () => {
+        const { store, caches } = env();
+        const photo = asset('photo');
+        let latest = manifest(1, { assets: [asset('img-1')] });
+        const runtime = new PlayerRuntime({
+          api: fakeApi({
+            manifest: async (known) =>
+              known === latest.revision ? { unchanged: true } : { unchanged: false, manifest: latest },
+            live: async () => live({ announcements: [withImage('a', photo)] }),
+          }),
+          store,
+        });
+        runtime.start();
+        await settle(5_000);
+        latest = manifest(2, { assets: [asset('img-2')] });
+        await runtime.refreshManifest();
+        await settle(5_000);
+        expect(caches.keysOf(ASSET_CACHE).sort()).toEqual(
+          [assetKey(photo.sha256), assetKey(asset('img-2').sha256)].sort(),
+        );
+        runtime.stop();
+      });
+    });
+
     it('shows persisted announcements and open days after an offline restart, never machines', async () => {
       const { store } = env();
       await seed(store, 3_600_000);

@@ -521,3 +521,19 @@
   gap: $spacing-03;
   min-inline-size: 0;
 }
+
+// Colour and image of an announcement (template and start dialogs)
+.sg-look {
+  display: grid;
+  gap: $spacing-04;
+  margin-block-start: $spacing-03;
+  min-inline-size: 0;
+}
+.sg-look .sg-props__color {
+  display: grid;
+  grid-auto-columns: auto;
+  grid-auto-flow: column;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: end;
+  gap: $spacing-03;
+}

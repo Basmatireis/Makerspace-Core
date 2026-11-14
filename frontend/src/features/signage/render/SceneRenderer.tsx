@@ -13,6 +13,7 @@ import {
   blockBoxCss,
   blockInnerCss,
   widgetColorCss,
+  announcementLookStyle,
   cssUrl,
   fontAssetIdsOf,
   registerFontFaces,
@@ -261,7 +262,8 @@ function AnnouncementWidget({
       {shown.map((item) => (
         <div
           key={item.id}
-          className={`sg-ann sg-ann--${item.tone} sg-ann--${widget.style}${rotating ? ' sg-fade' : ''}`}
+          className={`sg-ann sg-ann--${item.tone} sg-ann--${widget.style}${item.imageUrl ? ' sg-ann--image' : ''}${rotating ? ' sg-fade' : ''}`}
+          style={announcementLookStyle(item)}
           role="status"
         >
           <strong className="sg-ann__title" style={{ fontSize: `${title}px` }}>

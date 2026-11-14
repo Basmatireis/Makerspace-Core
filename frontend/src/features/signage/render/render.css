@@ -222,21 +222,39 @@
   min-inline-size: 0;
   padding: calc(var(--u) * 1.6) calc(var(--u) * 2.4);
   color: #fff;
-  background: #0f62fe;
+  /* --sg-ann-bg is the tone's colour; an announcement with its own colour sets it inline (with its text colour). */
+  --sg-ann-bg: #0f62fe;
+  background: var(--sg-ann-bg);
   overflow-wrap: anywhere;
 }
 .sg-ann--info {
-  background: #0043ce;
+  --sg-ann-bg: #0043ce;
 }
 .sg-ann--warning {
-  background: #f1c21b;
+  --sg-ann-bg: #f1c21b;
   color: #161616;
 }
 .sg-ann--critical {
-  background: #da1e28;
+  --sg-ann-bg: #da1e28;
 }
 .sg-ann--neutral {
-  background: #393939;
+  --sg-ann-bg: #393939;
+}
+/* A background image fills the box; the colour lies over it at 70 % so the text stays readable. */
+.sg-ann.sg-ann--image {
+  position: relative;
+  isolation: isolate;
+  background-image: var(--sg-ann-image);
+  background-size: cover;
+  background-position: center;
+}
+.sg-ann--image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--sg-ann-bg);
+  opacity: 0.7;
 }
 .sg-ann__title {
   font-weight: 600;

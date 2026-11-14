@@ -8,7 +8,7 @@ import type {
 } from '../api/generated/models';
 import { isRevoked, PlayerApiError, type PlayerApi } from './api';
 import { createAssetLoader, loadAsset as defaultLoadAsset, settleLimited, type AssetLoader } from './assets';
-import { CacheQuotaError, createPlayerStore, type PersistedLive, type PlayerStore } from './cache';
+import { CacheQuotaError, createPlayerStore, type CacheableAsset, type PersistedLive, type PlayerStore } from './cache';
 import type { CameraSource } from './camera';
 import { LazyCameraSource } from './lazyCamera';
 import type { TimelapseCache, TimelapseEnv } from './timelapseCache';
@@ -94,6 +94,8 @@ export class PlayerRuntime {
   /** `pending` until the clip cache is loaded; null without one (clips stream from the network). */
   private timelapses: TimelapseCache | null | 'pending' = 'pending';
   private timelapsesOpening: Promise<TimelapseCache | null> | null = null;
+  private imageSync: Promise<void> = Promise.resolve();
+  private imagesKey: string | null = null;
   private readonly now: () => number;
   private readonly playerVersion: string;
   private readonly listeners = new Set<() => void>();
@@ -221,6 +223,7 @@ export class PlayerRuntime {
           skewMs: saved.skewMs,
         };
         this.syncTimelapses(this.live.timelapses);
+        this.syncAnnouncementImages();
       }
     } catch {
       /* An unreadable cache just means a normal start. */
@@ -373,7 +376,48 @@ export class PlayerRuntime {
     };
     this.camera.setStreams?.(live.streams);
     this.syncTimelapses(this.live.timelapses);
+    this.syncAnnouncementImages();
     this.persistLive(this.live);
+  }
+
+  /** The images of the announcements in the live data, one per file. */
+  private announcementImages(): CacheableAsset[] {
+    const images = new Map<string, CacheableAsset>();
+    for (const item of this.live?.announcements ?? [])
+      if (item.image)
+        images.set(item.image.sha256, { id: item.image.assetId, sha256: item.image.sha256, url: item.image.url });
+    return [...images.values()];
+  }
+
+  /**
+   * Keeps the images of the listed announcements in the asset cache (the service worker answers their player URL from
+   * there, so they show offline) and drops the ones no announcement lists any more. While a revision loads, only the
+   * downloads run: the revision switch evicts with the images included (`retain`).
+   */
+  private syncAnnouncementImages() {
+    const store = this.store;
+    if (!store) return;
+    const key = this.announcementImages()
+      .map((image) => image.sha256)
+      .sort()
+      .join();
+    if (key === this.imagesKey) return;
+    this.imagesKey = key;
+    this.imageSync = this.imageSync.then(async () => {
+      let failed = false;
+      for (const image of this.announcementImages()) {
+        try {
+          await store.ensureAsset(image);
+        } catch {
+          failed = true;
+          this.note(`Announcement image ${image.id} could not be cached`);
+        }
+      }
+      // A failed download is tried again on the next poll.
+      if (failed) this.imagesKey = null;
+      if (!failed && this.active && !this.manifestInFlight)
+        await store.retain([...this.active.manifest.assets, ...this.announcementImages()]).catch(() => undefined);
+    });
   }
 
   /** Keeps the listed timelapse clips on disk, after the assets of a revision that is being loaded. */
@@ -454,7 +498,7 @@ export class PlayerRuntime {
       this.manifestFailures = 0;
       this.manifestRetryAt = 0;
       // The new revision is on screen and persisted: assets only the old one used can go.
-      await this.store?.retain(manifest.assets).catch(() => undefined);
+      await this.store?.retain([...manifest.assets, ...this.announcementImages()]).catch(() => undefined);
     } catch (error) {
       if (isRevoked(error)) {
         this.markRevoked();
@@ -515,7 +559,9 @@ export class PlayerRuntime {
       if (error instanceof CacheQuotaError || (error instanceof DOMException && error.name === 'QuotaExceededError')) {
         this.note(`Revision ${manifest.revision} not activated: ${error.message}`.slice(0, 200));
         // Drop what the refused revision already downloaded; the active one keeps playing.
-        await store.retain(this.active?.manifest.assets ?? []).catch(() => undefined);
+        await store
+          .retain([...(this.active?.manifest.assets ?? []), ...this.announcementImages()])
+          .catch(() => undefined);
         throw new Error('preload failed', { cause: error });
       }
       throw error;

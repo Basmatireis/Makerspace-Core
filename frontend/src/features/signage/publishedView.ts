@@ -66,6 +66,10 @@ export function resolvePublished(preview: SignageDisplayPreview, options: Publis
         body: item.body,
         bodyFormat: item.bodyFormat,
         bodyCss: item.bodyCss,
+        color: item.color,
+        textColor: item.textColor,
+        // The preview payload carries the player's asset path; staff read assets by their own, content-addressed one.
+        imageUrl: item.image ? assetContentUrl(item.image.assetId, item.image.sha256) : null,
         startsAt: Date.parse(item.startsAt),
       })),
     ...extra,
