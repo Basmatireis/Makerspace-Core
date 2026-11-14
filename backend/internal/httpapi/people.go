@@ -137,8 +137,14 @@ func (s *Server) ListPeople(
 			laborordnungStatuses = append(laborordnungStatuses, string(status))
 		}
 	}
+	sort := ""
+	if request.Params.Sort != nil {
+		sort = string(*request.Params.Sort)
+	}
 	page, err := s.people.List(ctx, principal, pageNumber, pageSize, people.ListFilters{
 		Search: search, RoleIDs: roleIDs, AccountStatuses: accountStatuses, LaborordnungStatuses: laborordnungStatuses,
+		Sort:       sort,
+		Descending: request.Params.Order != nil && *request.Params.Order == openapi.ListPeopleParamsOrderDesc,
 	})
 	if err != nil {
 		return nil, err

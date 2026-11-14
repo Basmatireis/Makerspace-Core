@@ -42,7 +42,7 @@ func (s *Server) ListSurveys(
 	if request.Params.Sort != nil {
 		params.Sort = string(*request.Params.Sort)
 	}
-	params.Descending = request.Params.Order == nil || *request.Params.Order == openapi.ListSurveysParamsOrderDesc
+	params.Descending = request.Params.Order == nil || *request.Params.Order == openapi.Desc
 	if request.Params.Limit != nil {
 		params.Limit = int32(*request.Params.Limit)
 	}

@@ -25,7 +25,7 @@ import {
 import { Add, UserRole } from '@carbon/icons-react';
 import { keepPreviousData, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { Person } from '../../api/generated/models';
+import { ListPeopleSort, type Person } from '../../api/generated/models';
 import { getPersonMakerspaceStatus } from '../../api/generated/people/people';
 import { BatchFilter, type FilterCategory, type FilterValues } from '../../app/BatchFilter';
 import { PageShell } from '../../app/PageShell';
@@ -47,6 +47,8 @@ import {
 import { useBatchPeopleActions } from './people/useBatchPeopleActions';
 import { peopleKeys, peopleListOptions } from './queries';
 
+type Sort = { key: ListPeopleSort; direction: 'ASC' | 'DESC' };
+
 export function UsersPage() {
   const currentUser = useCurrentUser();
   const navigate = useNavigate();
@@ -62,6 +64,8 @@ export function UsersPage() {
   const selectedLabRulesStatusOptions = LAB_RULES_STATUS_OPTIONS.filter((option) =>
     searchParams.getAll('labRules').includes(option.value),
   );
+  // Sorted by the server so the order spans every page; kept in the URL as "key:ASC" like DirectoryTable.
+  const [sortParam, sortDirectionParam] = (searchParams.get('sort') ?? '').split(':');
   const [searchValue, setSearchValue] = useState(search);
   const [tableKey, setTableKey] = useState(0);
   const mayCreate = hasPermission(currentUser, PermissionId.peoplecreate);
@@ -69,6 +73,12 @@ export function UsersPage() {
   const mayReadRoles = hasPermission(currentUser, PermissionId.rolesread);
   const mayReadLabRules = hasPermission(currentUser, PermissionId.laborordnungconfirmationsread);
   const mayViewSupervisorStaffing = hasPermission(currentUser, PermissionId.supervisor_dashboardread);
+  const sortableKeys: string[] = Object.values(ListPeopleSort).filter(
+    (key) => key !== ListPeopleSort.labRules || mayReadLabRules,
+  );
+  const sort: Sort = sortableKeys.includes(sortParam)
+    ? { key: sortParam as ListPeopleSort, direction: sortDirectionParam === 'DESC' ? 'DESC' : 'ASC' }
+    : { key: ListPeopleSort.name, direction: 'ASC' };
 
   useEffect(() => setSearchValue(search), [search]);
   useEffect(() => {
@@ -88,6 +98,8 @@ export function UsersPage() {
     ...peopleListOptions({
       page,
       pageSize,
+      sort: sort.key,
+      order: sort.direction === 'DESC' ? 'desc' : 'asc',
       ...(search ? { search } : {}),
       ...(mayReadRoles && selectedRoleIds.length ? { roleIds: selectedRoleIds } : {}),
       ...(showAccounts && selectedAccountStatusOptions.length
@@ -222,6 +234,13 @@ export function UsersPage() {
     setSearchParams(next, { replace: true });
   };
 
+  const sortBy = (key: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('page', '1');
+    next.set('sort', `${key}:${sort.key === key && sort.direction === 'ASC' ? 'DESC' : 'ASC'}`);
+    setSearchParams(next, { replace: true });
+  };
+
   const clearFilters = () => {
     const next = new URLSearchParams(searchParams);
     next.set('page', '1');
@@ -273,13 +292,12 @@ export function UsersPage() {
         </Stack>
       )}
       {peopleQuery.data && (
-        <DataTable key={tableKey} rows={rows} headers={headers} isSortable>
+        <DataTable key={tableKey} rows={rows} headers={headers}>
           {({
             rows: tableRows,
             headers: tableHeaders,
             selectedRows,
             getBatchActionProps,
-            getHeaderProps,
             getRowProps,
             getSelectionProps,
             getTableProps,
@@ -342,18 +360,26 @@ export function UsersPage() {
                   <TableHead>
                     <TableRow>
                       {canBatchManage && <TableSelectAll {...getSelectionProps()} />}
-                      {tableHeaders.map((header) => (
-                        <TableHeader
-                          {...getHeaderProps({
-                            header,
-                            isSortable: header.key !== 'avatar' && header.key !== 'status',
-                          })}
-                          key={header.key}
-                          className={header.key === 'status' ? 'people-table__status-column' : undefined}
-                        >
-                          {header.header}
-                        </TableHeader>
-                      ))}
+                      {tableHeaders.map((header) =>
+                        sortableKeys.includes(header.key) ? (
+                          <TableHeader
+                            key={header.key}
+                            isSortable
+                            isSortHeader={sort.key === header.key}
+                            sortDirection={sort.key === header.key ? sort.direction : 'NONE'}
+                            onClick={() => sortBy(header.key)}
+                          >
+                            {header.header}
+                          </TableHeader>
+                        ) : (
+                          <TableHeader
+                            key={header.key}
+                            className={header.key === 'status' ? 'people-table__status-column' : undefined}
+                          >
+                            {header.header}
+                          </TableHeader>
+                        ),
+                      )}
                     </TableRow>
                   </TableHead>
                   <TableBody>
