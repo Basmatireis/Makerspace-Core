@@ -434,6 +434,45 @@ return apiFetch<Order>(getReverseOrderUrl(orderId),
 );}
 
 
+export const getDiscardReplacementOrderUrl = (orderId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/orders/${orderId}/discard`
+}
+
+/**
+ * Requires `orders.read` and `orders.write`. Deletes the replacement draft `orderId` with its items; it never had a financial effect, so no cancelled order is left behind. Only drafts created through createReplacementOrder can be discarded (409 `order_not_replacement` otherwise, 409 `order_not_draft` once committed). Answers the original order, audited there as `order.replacement_discarded`.
+ * @summary Discard an open replacement draft
+ */
+export const discardReplacementOrder = async (orderId: UUIDv7,
+    orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<Order>(getDiscardReplacementOrderUrl(orderId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(orderCommand)
+  }
+);}
+
+
 export const getCreateReplacementOrderUrl = (orderId: UUIDv7,) => {
 
 
@@ -442,6 +481,10 @@ export const getCreateReplacementOrderUrl = (orderId: UUIDv7,) => {
   return `/api/v1/orders/${orderId}/replacements`
 }
 
+/**
+ * Requires `orders.read` and `orders.write`. Creates a draft already linked to the original (`replacesOrderId`) with the original's customer and items. An original has at most one open replacement draft (409 `replacement_in_progress`; continue or discard it) and no replacement once one was committed (409 `order_already_replaced`). Commit it with replaceOrder, drop it with discardReplacementOrder.
+ * @summary Start a replacement draft for a finalized or reversed order
+ */
 export const createReplacementOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
@@ -477,6 +520,10 @@ export const getReplaceOrderUrl = (orderId: UUIDv7,) => {
   return `/api/v1/orders/${orderId}/replace`
 }
 
+/**
+ * Requires `orders.read`, `orders.reverse`, `orders.finalize`, `payments.read` and `payments.record`. In one transaction reverses the original `orderId` (when still finalized), moves its remaining payments over and finalizes `replacementOrderId`, which must be the original's open replacement draft.
+ * @summary Commit the replacement draft of an order
+ */
 export const replaceOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 

@@ -140,6 +140,12 @@ SELECT id FROM organizations WHERE id=$1 FOR UPDATE;
 -- name: CommittedReplacement :one
 SELECT id,reference FROM orders WHERE replaces_order_id=$1 AND status IN ('finalized','reversed');
 
+-- name: OpenReplacement :one
+SELECT id,reference FROM orders WHERE replaces_order_id=$1 AND status='draft';
+
+-- name: DeleteDraftOrder :execrows
+DELETE FROM orders WHERE id=$1 AND status='draft';
+
 -- name: GetActor :one
 SELECT pe.id,btrim(pe.first_name||' '||pe.last_name)::text AS display_name FROM accounts a JOIN people pe ON pe.id=a.person_id WHERE a.id=$1;
 -- name: SumCashCardAllocations :one

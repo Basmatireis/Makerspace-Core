@@ -39,6 +39,7 @@ type Querier interface {
 	CreateRequestDetails(ctx context.Context, arg CreateRequestDetailsParams) error
 	DeleteCashCount(ctx context.Context, id uuid.UUID) error
 	DeleteCashMovement(ctx context.Context, id uuid.UUID) error
+	DeleteDraftOrder(ctx context.Context, id uuid.UUID) (int64, error)
 	GetActor(ctx context.Context, id uuid.UUID) (GetActorRow, error)
 	GetCashCountByKey(ctx context.Context, operationKey uuid.UUID) (CashCount, error)
 	GetCashCountCorrection(ctx context.Context, cashCountID *uuid.UUID) (CashMovement, error)
@@ -111,6 +112,7 @@ type Querier interface {
 	NextOrderReference(ctx context.Context) (int64, error)
 	NextPaymentReference(ctx context.Context) (int64, error)
 	NextRequestReference(ctx context.Context) (int64, error)
+	OpenReplacement(ctx context.Context, replacesOrderID *uuid.UUID) (OpenReplacementRow, error)
 	// What one payment operation allocated, per order.
 	OperationAllocations(ctx context.Context, operationID uuid.UUID) ([]OperationAllocationsRow, error)
 	PaymentAllocations(ctx context.Context, paymentID *uuid.UUID) ([]PaymentAllocation, error)

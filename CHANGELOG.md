@@ -4,6 +4,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Changed
+
+- **Replacing an order.** **Replace** on a finalized or reversed order creates the replacement draft already linked to it and prefilled with its customer and items, and opens it. An order has at most one open replacement draft: its page shows "Replacement in progress" with Continue and Discard, and Correct order… commits that draft instead of asking to pick one. Discarding deletes the draft (`POST /orders/{orderId}/discard`, `orders.write`, audited on the original as `order.replacement_discarded`) instead of leaving a cancelled order; replacement drafts can no longer be cancelled. Orders carry `pendingReplacementOrderId`/`pendingReplacementOrderReference`. Migration 00143 cancels all but the newest open replacement draft of each order. See [docs/orders.md](docs/orders.md).
+
 ## [0.19.1] - 2026-11-12
 
 ### Fixed

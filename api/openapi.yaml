@@ -10835,11 +10835,64 @@ paths:
         required: true
         schema:
           $ref: "#/components/schemas/UUIDv7"
+  /orders/{orderId}/discard:
+    post:
+      tags:
+        - "Orders"
+      operationId: "discardReplacementOrder"
+      summary: "Discard an open replacement draft"
+      description: >-
+        Requires `orders.read` and `orders.write`. Deletes the replacement draft `orderId` with its items; it never had a
+        financial effect, so no cancelled order is left behind. Only drafts created through createReplacementOrder can be
+        discarded (409 `order_not_replacement` otherwise, 409 `order_not_draft` once committed). Answers the original
+        order, audited there as `order.replacement_discarded`.
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "200":
+          description: "Replacement draft deleted; the original order."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCommand"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
   /orders/{orderId}/replacements:
     post:
       tags:
         - "Orders"
       operationId: "createReplacementOrder"
+      summary: "Start a replacement draft for a finalized or reversed order"
+      description: >-
+        Requires `orders.read` and `orders.write`. Creates a draft already linked to the original (`replacesOrderId`) with
+        the original's customer and items. An original has at most one open replacement draft (409
+        `replacement_in_progress`; continue or discard it) and no replacement once one was committed (409
+        `order_already_replaced`). Commit it with replaceOrder, drop it with discardReplacementOrder.
       security:
         -
           sessionCookie: []
@@ -10881,6 +10934,11 @@ paths:
       tags:
         - "Orders"
       operationId: "replaceOrder"
+      summary: "Commit the replacement draft of an order"
+      description: >-
+        Requires `orders.read`, `orders.reverse`, `orders.finalize`, `payments.read` and `payments.record`. In one
+        transaction reverses the original `orderId` (when still finalized), moves its remaining payments over and
+        finalizes `replacementOrderId`, which must be the original's open replacement draft.
       security:
         -
           sessionCookie: []
@@ -22570,6 +22628,14 @@ components:
           type: "string"
           nullable: true
         replacedByOrderReference:
+          type: "string"
+          nullable: true
+        pendingReplacementOrderId:
+          type: "string"
+          format: "uuid"
+          nullable: true
+          description: "The open replacement draft of this finalized or reversed order (at most one); null when none is in progress."
+        pendingReplacementOrderReference:
           type: "string"
           nullable: true
         createdBy:

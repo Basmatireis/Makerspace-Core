@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { Button, Modal, Stack } from '@carbon/react';
-import { Add, ArrowRight, Currency, Document as DocumentIcon, Edit, Printer, Renew } from '@carbon/icons-react';
+import {
+  Add,
+  ArrowRight,
+  Currency,
+  Document as DocumentIcon,
+  Edit,
+  Printer,
+  Renew,
+  TrashCan,
+} from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { finalizeOrder, refreshOrderItem, removeOrderItem } from '../../api/generated/orders/orders';
@@ -17,6 +26,7 @@ import { hasPermission, PermissionId } from '../auth/permissions';
 import { useNotify } from '../machinelogbook/shared/toasts';
 import { AddItemModal, type AddItemKind } from './AddItemModal';
 import { CorrectOrderModal } from './CorrectOrderModal';
+import { DiscardReplacementDialog, useStartReplacement } from './OrderActions';
 import { InventoryItemModal } from './InventoryItemModal';
 import { InvoiceSection } from './InvoiceSection';
 import { customerKindLabel, methodLabel, requestStateLabel } from './labels';
@@ -37,7 +47,18 @@ import './sales.scss';
 import '../machinelogbook/shared/shared.scss';
 
 type Dialog =
-  'edit' | 'add' | 'jobs' | 'stock' | 'custom' | 'finalize' | 'pay' | 'checkout' | 'correct' | 'invoice' | null;
+  | 'edit'
+  | 'add'
+  | 'jobs'
+  | 'stock'
+  | 'custom'
+  | 'finalize'
+  | 'pay'
+  | 'checkout'
+  | 'correct'
+  | 'invoice'
+  | 'discard'
+  | null;
 const crumbs = [
   { label: 'Sales & payments', to: '/orders' },
   { label: 'Orders', to: '/orders' },
@@ -82,6 +103,11 @@ function OrderDetail({ order }: { order: Order }) {
     can(PermissionId.external_invoice_requestsmanage) && can(PermissionId.external_invoice_requestsread);
   const changed = items.filter((item) => item.sourceChanged);
   const original = useQuery({ ...orderQuery(order.replacesOrderId ?? ''), enabled: !!order.replacesOrderId && draft });
+  const pendingId = order.pendingReplacementOrderId;
+  const pending = useQuery({ ...orderQuery(pendingId ?? ''), enabled: !!pendingId && canWrite });
+  const startReplacement = useStartReplacement();
+  const replaceable =
+    (order.status === 'finalized' || order.status === 'reversed') && !order.replacedByOrderId && !pendingId;
   const paymentRows = useOrderPaymentRows(order, canReadPayments);
   const outstanding = toCents(order.outstandingAmount);
   const hasRequest = !!order.activeExternalRequestId;
@@ -188,9 +214,24 @@ function OrderDetail({ order }: { order: Order }) {
       breadcrumbs={crumbs}
       actions={
         <>
+          {draft && canWrite && order.replacesOrderId && (
+            <Button kind="danger--tertiary" renderIcon={TrashCan} onClick={() => setDialog('discard')}>
+              Discard replacement
+            </Button>
+          )}
           {draft && canWrite && (
             <Button kind="secondary" renderIcon={Edit} onClick={() => setDialog('edit')}>
               Edit order
+            </Button>
+          )}
+          {replaceable && canWrite && (
+            <Button
+              kind="secondary"
+              renderIcon={Renew}
+              disabled={startReplacement.busy}
+              onClick={() => startReplacement.start(order)}
+            >
+              Replace
             </Button>
           )}
           {canPrintReceipt(order) && canReadPayments && (
@@ -233,6 +274,27 @@ function OrderDetail({ order }: { order: Order }) {
             <RefLink reference={order.replacesOrderReference ?? ''} id={order.replacesOrderId} kind="order" />. Change
             the items as needed, then commit the replacement. The original is reversed at that moment and its payments
             move over.
+          </RichNotification>
+        )}
+        {pendingId && (
+          <RichNotification kind="info" title="Replacement in progress">
+            <RefLink reference={order.pendingReplacementOrderReference ?? ''} id={pendingId} kind="order" /> replaces
+            this order once it is committed. Until then this order stays as it is.
+            <span className="sales-notice-actions">
+              <Button
+                kind="ghost"
+                size="sm"
+                renderIcon={ArrowRight}
+                onClick={() => void navigate(`/orders/${pendingId}`)}
+              >
+                Continue
+              </Button>
+              {canWrite && pending.data && (
+                <Button kind="ghost" size="sm" renderIcon={TrashCan} onClick={() => setDialog('discard')}>
+                  Discard
+                </Button>
+              )}
+            </span>
           </RichNotification>
         )}
         {order.replacedByOrderId && (
@@ -434,6 +496,11 @@ function OrderDetail({ order }: { order: Order }) {
         />
       )}
       {dialog === 'invoice' && <RequestInvoiceModal order={order} onClose={close} />}
+      <DiscardReplacementDialog
+        draft={dialog === 'discard' ? (draft ? order : (pending.data ?? null)) : null}
+        leave={draft}
+        onClose={close}
+      />
       {dialog === 'correct' && !order.replacesOrderId && (
         <CorrectOrderModal
           order={order}
@@ -445,7 +512,6 @@ function OrderDetail({ order }: { order: Order }) {
       {dialog === 'correct' && order.replacesOrderId && original.data && (
         <CorrectOrderModal
           order={original.data}
-          initialReplacementId={order.id}
           canReversePayments={can(PermissionId.paymentsreverse) && canReadPayments}
           canCarry={canFinalize && recorded}
           onClose={close}

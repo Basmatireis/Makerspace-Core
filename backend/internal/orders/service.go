@@ -463,6 +463,13 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 	} else if !errors.Is(e, pgx.ErrNoRows) {
 		return v, e
 	}
+	pending, e := q.OpenReplacement(ctx, &id)
+	if e == nil {
+		v.PendingReplacementOrderID = &pending.ID
+		v.PendingReplacementOrderReference = &pending.Reference
+	} else if !errors.Is(e, pgx.ErrNoRows) {
+		return v, e
+	}
 	items, e := q.ListItems(ctx, id)
 	if e != nil {
 		return v, e

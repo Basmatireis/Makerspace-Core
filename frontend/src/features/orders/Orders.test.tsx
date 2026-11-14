@@ -437,7 +437,7 @@ describe('orders list: row actions', () => {
     const row = (await screen.findByText('O-2026-000010')).closest('tr')!;
     await user.click(row.querySelector<HTMLButtonElement>('.cds--overflow-menu')!);
     expect(await screen.findByText('Edit customer')).toBeInTheDocument();
-    expect(screen.queryByText('Create replacement draft')).not.toBeInTheDocument();
+    expect(screen.queryByText('Replace')).not.toBeInTheDocument();
     await user.click(screen.getByText('Cancel draft'));
     expect(await screen.findByText('Cancel this draft?')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancel draft' }));
@@ -445,7 +445,7 @@ describe('orders list: row actions', () => {
     expect(body?.operationKey).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it('offers the replacement draft and the correction for a finalized order', async () => {
+  it('replaces a finalized order with a linked draft and offers the correction', async () => {
     as(everything);
     orderList([awaiting]);
     let replaced = false;
@@ -461,9 +461,53 @@ describe('orders list: row actions', () => {
     await user.click(row.querySelector<HTMLButtonElement>('.cds--overflow-menu')!);
     expect(await screen.findByText('Correct order…')).toBeInTheDocument();
     expect(screen.queryByText('Cancel draft')).not.toBeInTheDocument();
-    await user.click(screen.getByText('Create replacement draft'));
+    await user.click(screen.getByText('Replace'));
     await waitFor(() => expect(replaced).toBe(true));
     await waitFor(() => expect(router.state.location.pathname).toBe('/orders/n1'));
+  });
+
+  it('continues the replacement in progress instead of starting another one', async () => {
+    as(everything);
+    const original = {
+      ...awaiting,
+      pendingReplacementOrderId: 'n1',
+      pendingReplacementOrderReference: 'O-2026-000030',
+    };
+    orderList([original]);
+    const user = userEvent.setup();
+    const { router } = renderRoute(<App />, '/orders');
+    const row = (await screen.findByText('O-2026-000011')).closest('tr')!;
+    await user.click(row.querySelector<HTMLButtonElement>('.cds--overflow-menu')!);
+    expect(screen.queryByText('Replace')).not.toBeInTheDocument();
+    await user.click(await screen.findByText('Continue replacement O-2026-000030'));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/orders/n1'));
+  });
+
+  it('discards a replacement draft instead of cancelling it', async () => {
+    as(everything);
+    const replacement = order({
+      id: 'n1',
+      reference: 'O-2026-000030',
+      replacesOrderId: awaiting.id,
+      replacesOrderReference: awaiting.reference,
+    });
+    orderList([replacement]);
+    let body: Record<string, unknown> | undefined;
+    server.use(
+      http.post(`*/api/v1/orders/${replacement.id}/discard`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(awaiting);
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/orders');
+    const row = (await screen.findByText('O-2026-000030')).closest('tr')!;
+    await user.click(row.querySelector<HTMLButtonElement>('.cds--overflow-menu')!);
+    expect(screen.queryByText('Cancel draft')).not.toBeInTheDocument();
+    await user.click(await screen.findByText('Discard replacement'));
+    expect(await screen.findByText('Discard this replacement?')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Discard replacement' }));
+    await waitFor(() => expect(body).toMatchObject({ expectedVersion: replacement.version }));
   });
 
   it('has no row menu without the permissions', async () => {
