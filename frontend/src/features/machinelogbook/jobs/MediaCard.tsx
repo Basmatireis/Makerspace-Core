@@ -153,7 +153,7 @@ export interface MediaCardProps {
 }
 
 /** Opens the run's print page (the page its recipient gets by notification) or copies its link. */
-function PrintPageActions({ runId }: { runId: string }) {
+export function PrintPageActions({ runId }: { runId: string }) {
   const notify = useNotify();
   const path = `/prints/${runId}`;
   const copy = async () => {
@@ -176,20 +176,13 @@ function PrintPageActions({ runId }: { runId: string }) {
   );
 }
 
-/**
- * "Print files & timelapses": a slideshow over the 3MF previews and timelapses of the runs, with arrows and dots,
- * a fixed two-row caption and the job's signage toggle in the title row.
- */
-export function MediaCard({ recordings, offSignage, onToggleSignage, signagePending, printPageRunId }: MediaCardProps) {
-  const slides = slidesOf(recordings);
-  const [index, setIndex] = useState(0);
-  const current = slides[Math.min(index, slides.length - 1)];
-  const step = (delta: number) => setIndex((value) => (value + delta + slides.length) % slides.length);
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === 'ArrowLeft') step(-1);
-    if (event.key === 'ArrowRight') step(1);
-  };
-  const action = onToggleSignage ? (
+/** The job's signage toggle, or an "Off signage" tag for people who may not change it. */
+export function SignageToggle({
+  offSignage,
+  onToggleSignage,
+  signagePending,
+}: Pick<MediaCardProps, 'offSignage' | 'onToggleSignage' | 'signagePending'>) {
+  return onToggleSignage ? (
     <Button
       kind="ghost"
       size="sm"
@@ -208,9 +201,21 @@ export function MediaCard({ recordings, offSignage, onToggleSignage, signagePend
     <Tag type="outline" size="sm">
       Off signage
     </Tag>
-  ) : undefined;
+  ) : null;
+}
+
+/** A slideshow over 3MF previews and timelapses, with arrows and dots and a fixed two-row caption. */
+export function MediaSlides({ recordings }: { recordings: MachineRunRecording[] }) {
+  const slides = slidesOf(recordings);
+  const [index, setIndex] = useState(0);
+  const current = slides[Math.min(index, slides.length - 1)];
+  const step = (delta: number) => setIndex((value) => (value + delta + slides.length) % slides.length);
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'ArrowLeft') step(-1);
+    if (event.key === 'ArrowRight') step(1);
+  };
   return (
-    <StackCard title="Print files & timelapses" action={action} className="jobs-media">
+    <>
       {slides.length > 1 && (
         <p className="jobs-media__count mj-secondary" aria-live="polite">
           {index + 1} / {slides.length}
@@ -254,6 +259,25 @@ export function MediaCard({ recordings, offSignage, onToggleSignage, signagePend
           <Caption slide={current} />
         </figure>
       )}
+    </>
+  );
+}
+
+/**
+ * "Print files & timelapses": the slideshow over the 3MF previews and timelapses of the runs, with the job's signage
+ * toggle in the title row.
+ */
+export function MediaCard({ recordings, offSignage, onToggleSignage, signagePending, printPageRunId }: MediaCardProps) {
+  const toggle = (
+    <SignageToggle offSignage={offSignage} onToggleSignage={onToggleSignage} signagePending={signagePending} />
+  );
+  return (
+    <StackCard
+      title="Print files & timelapses"
+      action={onToggleSignage || offSignage ? toggle : undefined}
+      className="jobs-media"
+    >
+      <MediaSlides recordings={recordings} />
       {printPageRunId && <PrintPageActions runId={printPageRunId} />}
     </StackCard>
   );

@@ -35,6 +35,7 @@ import { MediaCard } from './jobs/MediaCard';
 import { MaterialUsageTable } from './components/MaterialUsageTable';
 import { SwitchToCustomerMaterialModal } from './jobs/SwitchToCustomerMaterialModal';
 import { useUpdateJobFacts } from './jobs/jobsQueries';
+import { segmentAsLine } from './jobs/runLines';
 import { RunFileUpload, UploadMismatchNotice } from './recording/RunFileUpload';
 import { ResolveReportedUsageModal } from './dialogs/ResolveReportedUsageModal';
 import { ApiError } from '../../api/http-client';
@@ -392,13 +393,7 @@ export function RunDetailPage() {
                     canEdit &&
                     can(PermissionId.inventoryread) &&
                     !run.usages.some((usage) => usage.staffCorrected)
-                      ? (_run, item, segment) =>
-                          setResolutionSegment({
-                            ...item,
-                            plannedQuantityGrams: null,
-                            estimatedQuantityGrams: segment.estimatedQuantityGrams ?? null,
-                            segments: [],
-                          })
+                      ? (_run, item, segment) => setResolutionSegment(segmentAsLine(item, segment))
                       : undefined
                   }
                 />

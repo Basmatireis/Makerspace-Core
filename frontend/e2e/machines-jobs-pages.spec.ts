@@ -30,7 +30,11 @@ const targets: Target[] = [
   {
     name: 'Job detail (recorded run)',
     path: `${base}/jobs/${ids.jobLinked}`,
-    ready: (page) => page.getByRole('table', { name: 'Runs' }).getByText('From machine').first(),
+    ready: (page) =>
+      page
+        .getByRole('region', { name: 'Run properties' })
+        .getByText(/reported by the machine/)
+        .first(),
   },
   {
     name: 'Run detail (unassigned)',
@@ -190,7 +194,7 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
 
   test('cancel run confirmation', async ({ page }) => {
     await page.goto(`${base}/jobs/${ids.jobRunning}`);
-    await page.getByRole('table', { name: 'Runs' }).locator('.cds--overflow-menu').click();
+    await page.getByRole('region', { name: 'Run properties' }).locator('.cds--overflow-menu').click();
     await page.getByRole('menuitem', { name: 'Cancel run' }).click();
     await checkDialog(page, page.getByRole('alertdialog'));
   });
@@ -237,7 +241,7 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
 
   test('detach run confirmation', async ({ page }) => {
     await page.goto(`${base}/jobs/${ids.jobLinked}`);
-    await page.getByRole('table', { name: 'Runs' }).locator('.cds--overflow-menu').click();
+    await page.getByRole('region', { name: 'Run properties' }).locator('.cds--overflow-menu').click();
     await page.getByRole('menuitem', { name: 'Detach from job' }).click();
     await checkDialog(page, page.getByRole('alertdialog'));
   });
@@ -345,7 +349,7 @@ test.describe('read-only role', () => {
     await page.goto(`${base}/jobs/${ids.jobRunning}`);
     await expect(page.getByRole('heading', { name: 'Engraving run', level: 1 })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('table', { name: 'Runs' }).locator('.cds--overflow-menu')).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Run properties' }).locator('.cds--overflow-menu')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Edit job' })).toHaveCount(0);
     await expect(page.locator('.page-header__actions .cds--overflow-menu')).toHaveCount(0);
 

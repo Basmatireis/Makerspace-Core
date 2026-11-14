@@ -85,10 +85,17 @@ const orderAssociation = (orderId: string | null = null) =>
   );
 
 /** Opens the overflow menu in the table row of a run and clicks one of its actions. */
+/** The actions menu of the selected run, in its properties next to the runs table. */
+const runMenu = () =>
+  screen.getByRole('region', { name: 'Run properties' }).querySelector<HTMLButtonElement>('.cds--overflow-menu')!;
+
+const recordedRowOf = (runs: HTMLElement) => within(runs).getByRole('link', { name: 'RN-2026-000007' }).closest('tr')!;
+
 async function runAction(user: ReturnType<typeof userEvent.setup>, runDisplayId: string, action: string) {
+  // The run's actions are in the properties next to the table once the run is selected.
   const runs = await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
-  const row = within(runs).getByRole('link', { name: runDisplayId }).closest('tr')!;
-  await user.click(row.querySelector<HTMLButtonElement>('.cds--overflow-menu')!);
+  await user.click(within(runs).getByRole('link', { name: runDisplayId }).closest('tr')!);
+  await user.click(runMenu());
   await user.click(await screen.findByText(action));
 }
 
@@ -193,7 +200,7 @@ const tooltipText = (button: HTMLElement) =>
 describe('Job detail page', () => {
   const editor = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit] as const;
 
-  it('lists the runs with source, state, "From machine" labels and adds up the runtime', async () => {
+  it('lists one line per run and shows the source and machine labels of the selected run in its properties', async () => {
     const recorded = recordedRun({
       job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
       startedAt: iso(-100),
@@ -217,25 +224,49 @@ describe('Job detail page', () => {
       ),
       noUnassignedRuns,
     );
+    const user = userEvent.setup();
     renderRoute(<App />, `/workshop/jobs/${jobId}`);
     const table = await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
-    // Manual run: no machine labels. Recorded run: link, connector, machine-reported outcome and material.
+    // One line per run: the run ID, one status, start and runtime; source, end and material are in the properties.
+    const headers = [...table.querySelectorAll('thead th')].map((node) => node.textContent);
+    expect(headers).toEqual(['Run', 'Status', 'Start', 'Runtime', 'Needs attention']);
+    expect(table.querySelector('input[type="radio"]')).toBeNull();
     const manualRow = within(table).getByRole('link', { name: 'RN-2026-000001' }).closest('tr')!;
-    expect(within(manualRow).getByText('Manual')).toBeInTheDocument();
-    expect(within(manualRow).queryByText('From machine')).not.toBeInTheDocument();
-    expect(within(manualRow).getByText('183 g PLA Black')).toBeInTheDocument();
+    expect(within(manualRow).getByText('Successful')).toBeInTheDocument();
+    expect(within(manualRow).queryByText('Finished')).not.toBeInTheDocument();
+    expect(within(manualRow).queryByText('183 g PLA Black')).not.toBeInTheDocument();
+    expect(within(manualRow).queryByText('Manual')).not.toBeInTheDocument();
+    expect(manualRow.querySelector('.mj-tag-trigger')).toBeNull();
     const recordedRow = within(table).getByRole('link', { name: 'RN-2026-000007' }).closest('tr')!;
     expect(recordedRow.querySelector('a')).toHaveAttribute('href', `/workshop/jobs/runs/${recordedRunId}`);
-    expect(within(recordedRow).getByText('Recorded')).toBeInTheDocument();
-    // The connector name is a tooltip on an info icon, not text under the tag.
-    expect(within(recordedRow).queryByText('Bambu LAN')).not.toBeInTheDocument();
-    expect(tooltipText(recordedRow.querySelector<HTMLElement>('.recording-hint button')!)).toBe(
-      'Recorded via Bambu LAN.',
+    expect(within(recordedRow).queryByText('Recorded')).not.toBeInTheDocument();
+    expect(within(recordedRow).queryByText('From machine')).not.toBeInTheDocument();
+    expect(within(recordedRow).queryByText('Gearbox housing v3')).not.toBeInTheDocument();
+    expect(recordedRow.querySelector('.cds--overflow-menu')).toBeNull();
+    // An outcome the machine reported says so in a tooltip on the outcome tag.
+    const outcome = recordedRow.querySelector<HTMLElement>('.mj-tag-trigger')!;
+    expect(outcome).toHaveAccessibleName('Successful');
+    expect(document.getElementById(outcome.getAttribute('aria-describedby') ?? '')).toHaveTextContent(
+      'Reported by the machine',
     );
-    expect(within(recordedRow).getAllByText('From machine')).toHaveLength(2);
+    // The latest run is selected; its properties name the source and what the machine reported.
+    const properties = screen.getByRole('region', { name: 'Run properties' });
+    expect(recordedRow).toHaveAttribute('aria-current', 'true');
+    expect(manualRow).not.toHaveAttribute('aria-current');
+    expect(within(properties).getByText('Recorded via Bambu LAN')).toBeInTheDocument();
+    expect(within(properties).getByText('Successful · reported by the machine')).toBeInTheDocument();
+    expect(within(properties).getByText('42 g PETG Grey · reported by the machine')).toBeInTheDocument();
+    // A click on the row, or Enter on the focused row, selects it.
+    await user.click(manualRow);
+    expect(within(properties).getByText('Manual')).toBeInTheDocument();
+    expect(within(properties).getByText('183 g PLA Black')).toBeInTheDocument();
+    recordedRow.focus();
+    await user.keyboard('{Enter}');
+    expect(within(properties).getByText('Recorded via Bambu LAN')).toBeInTheDocument();
+    expect(recordedRow).toHaveAttribute('aria-current', 'true');
     // The replaced run is history: hidden until asked for, and then muted with a Replaced tag.
     expect(within(table).queryByText('RN-2026-000002')).not.toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Show replaced runs (1)' }));
+    await user.click(screen.getByRole('button', { name: 'Show replaced runs (1)' }));
     const replacedRow = within(table).getByRole('link', { name: 'RN-2026-000002' }).closest('tr')!;
     expect(replacedRow).toHaveClass('mj-run-row--replaced');
     expect(within(replacedRow).getByText('Replaced')).toBeInTheDocument();
@@ -243,31 +274,41 @@ describe('Job detail page', () => {
     // Facts: six tiles; the runtime is the sum of the runs that count, the replaced one is not included.
     const labels = [...document.querySelectorAll('.fact-tiles dt')].map((node) => node.textContent);
     expect(labels).toEqual(['Started', 'Material', 'Outcome', 'Recipient', 'Operator', 'Machine']);
-    expect(screen.getByText('Started', { selector: 'dt' }).parentElement).toHaveTextContent(/2 h 30 min · 1 replaced/);
+    expect(screen.getByText('Started', { selector: '.fact-tiles dt' }).parentElement).toHaveTextContent(
+      /2 h 30 min · 1 replaced/,
+    );
   });
 
-  it('explains a run without recorded material in a tooltip instead of text under the value', async () => {
+  it('flags a run whose material needs someone at the end of its line, with the reason in a tooltip', async () => {
     const recorded = recordedRun({
       job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
       usages: [],
       consumptionStatus: { state: 'pending', reason: 'artifact_on_internal_storage', detail: null },
     });
+    const early = recordedRun({
+      id: ids.otherJob,
+      displayId: 'RN-2026-000008',
+      job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
+      usages: [],
+      outcome: 'cancelled',
+      consumptionStatus: { state: 'missing', reason: 'cancelled_before_first_layer', detail: null },
+    });
     server.use(
       as(...editor),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [recorded] }))),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [recorded, early] }))),
       noUnassignedRuns,
     );
     renderRoute(<App />, `/workshop/jobs/${jobId}`);
     const table = await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
     const row = within(table).getByRole('link', { name: 'RN-2026-000007' }).closest('tr')!;
-    // The cell shows the value and an icon button; the sentence is the button's tooltip, reachable by hover and focus.
-    const hint = [...row.querySelectorAll<HTMLElement>('.recording-hint button')].at(-1)!;
-    expect(hint).not.toBeNull();
-    expect(tooltipText(hint)).toMatch(/Print file on the printer’s internal storage\..*Upload it on the run page/);
-    expect(row.querySelector('.cds--toggletip-button')).toBeNull();
-    await userEvent.setup().tab();
-    hint.focus();
-    expect(hint).toHaveFocus();
+    const flag = row.querySelector<HTMLElement>('.attention-flag')!;
+    expect(flag).not.toBeNull();
+    expect(tooltipText(flag)).toMatch(/Print file on the printer’s internal storage\..*Upload it on the run page/);
+    flag.focus();
+    expect(flag).toHaveFocus();
+    // A print cancelled before its first layer used no filament: nothing to flag.
+    const earlyRow = within(table).getByRole('link', { name: 'RN-2026-000008' }).closest('tr')!;
+    expect(earlyRow.querySelector('.attention-flag')).toBeNull();
   });
 
   it('shows a running manual run and cancels it with the version of the run', async () => {
@@ -403,20 +444,12 @@ describe('Job detail page', () => {
     const user = userEvent.setup();
     renderRoute(<App />, `/workshop/jobs/${jobId}`);
     const runs = await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
-    await user.click(
-      within(runs)
-        .getByRole('link', { name: 'RN-2026-000001' })
-        .closest('tr')!
-        .querySelector<HTMLButtonElement>('.cds--overflow-menu')!,
-    );
+    await user.click(within(runs).getByRole('link', { name: 'RN-2026-000001' }).closest('tr')!);
+    await user.click(runMenu());
     expect(await screen.findByText('Delete run')).toBeInTheDocument();
     await user.keyboard('{Escape}');
-    await user.click(
-      within(runs)
-        .getByRole('link', { name: 'RN-2026-000007' })
-        .closest('tr')!
-        .querySelector<HTMLButtonElement>('.cds--overflow-menu')!,
-    );
+    await user.click(recordedRowOf(runs));
+    await user.click(runMenu());
     expect(await screen.findByText('Detach from job')).toBeInTheDocument();
     expect(screen.queryByText('Delete run')).not.toBeInTheDocument();
     expect(screen.queryByText('Delete job')).not.toBeInTheDocument();
@@ -716,6 +749,52 @@ describe('Job detail page', () => {
     await user.click(await screen.findByRole('option', { name: 'Partial failure' }));
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updates).toEqual([{ outcome: 'partial_failure', expectedVersion: 7 }]));
+  });
+
+  it('maps a part of a line fed by several spools from the job page', async () => {
+    const segment = (index: number, grams: string, customerFilament: boolean) => ({
+      index,
+      inputUnitExternalId: '0',
+      slotExternalId: String(index),
+      startedAt: iso(-90),
+      startLayer: index === 0 ? null : 42,
+      estimatedQuantityGrams: grams,
+      split: 'gcode_layer' as const,
+      spoolId: null,
+      materialId: null,
+      customerFilament,
+    });
+    const recorded = recordedRun({
+      job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
+      usages: [usage({ ownership: 'external', quantity: '5.620', materialName: 'PLA White' })],
+      reportedUsageItems: [
+        {
+          lineNumber: 0,
+          reportRevision: 1,
+          slicerFilamentId: '1',
+          plannedQuantityGrams: '11.38',
+          estimatedQuantityGrams: '11.38',
+          method: 'gcode_checkpoint',
+          calculationVersion: 'bambu-gcode-v1',
+          quality: 'medium',
+          segments: [segment(0, '5.62', true), segment(1, '5.76', false)],
+        },
+      ],
+    });
+    server.use(
+      as(...editor, PermissionId.inventoryread),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [recorded] }))),
+      noUnassignedRuns,
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
+    const table = await screen.findByRole('table', { name: 'Material usage' }, { timeout: 5000 });
+    expect(within(table).queryByText('Filament 1 part 1')).not.toBeInTheDocument();
+    await user.click(within(table).getByRole('button', { name: 'Map Filament 1 part 2 of RN-2026-000007' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Map reported material' });
+    // The dialog names the slot of that part and starts from its share, not the whole line.
+    expect(within(dialog).getByText(/reported 5\.76 g for Unit 0 · Slot 1/)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Quantity')).toHaveValue('5.76');
   });
 
   it('replaces the material usage of one run', async () => {

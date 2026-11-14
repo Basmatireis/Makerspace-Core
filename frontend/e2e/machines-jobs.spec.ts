@@ -73,7 +73,8 @@ test.describe('jobs', () => {
     expect(new Date(String(created.run.endsAt)).getTime()).toBeGreaterThan(Date.now() + 3_600_000);
 
     const runs = page.getByRole('table', { name: 'Runs' });
-    await runs.locator('.cds--overflow-menu').click();
+    const properties = page.getByRole('region', { name: 'Run properties' });
+    await properties.locator('.cds--overflow-menu').click();
     await page.getByRole('menuitem', { name: 'Cancel run' }).click();
     const confirm = page.getByRole('alertdialog');
     await expect(confirm).toBeVisible();
@@ -84,8 +85,8 @@ test.describe('jobs', () => {
     expect(world.bodyOf('POST', `/api/v1/machine-runs/${ids.runNew}/cancellation`)).toEqual({ expectedVersion: 1 });
     // The job reads as finished: the outcome tag says Cancelled and the run can no longer be cancelled.
     await expect(runs.getByText('Cancelled', { exact: true }).first()).toBeVisible();
-    await expect(runs.locator('.cds--overflow-menu').first()).toBeVisible();
-    await expect(runs.getByRole('progressbar')).toHaveCount(0);
+    await expect(properties.locator('.cds--overflow-menu')).toBeVisible();
+    await expect(page.getByRole('progressbar')).toHaveCount(0);
   });
 
   test('keeps unsaved input of the job form until the person discards it', async ({ page, world }) => {
@@ -250,12 +251,15 @@ test.describe('runs', () => {
     });
     const runs = page.getByRole('table', { name: 'Runs' });
     await expect(runs.getByRole('link', { name: 'RN-2026-000009' })).toBeVisible();
-    await expect(runs.getByRole('progressbar')).toBeVisible();
-
+    // The selected run's progress and actions are in its properties next to the table.
     await runs
       .getByRole('row', { name: /RN-2026-000009/ })
-      .locator('.cds--overflow-menu')
+      .getByRole('cell')
+      .nth(1)
       .click();
+    const properties = page.getByRole('region', { name: 'Run properties' });
+    await expect(properties.getByRole('progressbar')).toBeVisible();
+    await properties.locator('.cds--overflow-menu').click();
     await page.getByRole('menuitem', { name: 'Detach from job' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Detach' }).click();
     await expect(page.getByText('Run detached', { exact: true })).toBeVisible();
@@ -263,11 +267,13 @@ test.describe('runs', () => {
     await expect(runs.getByRole('link', { name: 'RN-2026-000009' })).toHaveCount(0);
   });
 
-  test('shows the recorded run of a job with the "From machine" labels', async ({ page }) => {
+  test('shows what the machine reported for the recorded run of a job in its properties', async ({ page }) => {
     await page.goto(`${base}/jobs/${ids.jobLinked}`);
     const runs = page.getByRole('table', { name: 'Runs' });
     await expect(runs.getByRole('link', { name: 'RN-2026-000007' })).toBeVisible();
-    await expect(runs.getByText('From machine', { exact: true })).toHaveCount(2);
+    await expect(runs.getByText('From machine', { exact: true })).toHaveCount(0);
+    const properties = page.getByRole('region', { name: 'Run properties' });
+    await expect(properties.getByText(/reported by the machine/)).toHaveCount(2);
     await runs.getByRole('link', { name: 'RN-2026-000007' }).click();
     await expect(page).toHaveURL(`${base}/jobs/runs/${ids.runLinked}`);
     await expect(page.getByRole('heading', { name: 'Gearbox housing v3' })).toBeVisible();

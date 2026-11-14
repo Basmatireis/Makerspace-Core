@@ -104,6 +104,46 @@
   background: var(--cds-layer-accent);
 }
 
+// The selected run next to the runs table: media, then its facts.
+.mj-run-properties .mj-summary {
+  margin-block-start: $spacing-05;
+}
+.mj-run-properties__media-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-02;
+  padding-block-start: $spacing-03;
+}
+.mj-run-properties__media-actions .jobs-media__page-actions {
+  padding-block-start: 0;
+}
+
+// Visually hidden header labels stay inside the scrolling table on narrow screens.
+.cds--data-table.mj-runs-table th {
+  position: relative;
+}
+.mj-runs-table__run {
+  white-space: nowrap;
+}
+.mj-runs-table tbody tr:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+
+// A tag that carries a tooltip: the button only makes it focusable.
+.mj-tag-trigger {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+.mj-tag-trigger:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: 1px;
+}
+
 // Replaced runs stay on the job as history; they read muted.
 .mj-run-row--replaced td {
   color: theme.$text-secondary;
