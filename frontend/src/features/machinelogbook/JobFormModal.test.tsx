@@ -130,6 +130,45 @@ describe('New job', () => {
     expect(body?.hiddenFromSignage).toBe(false);
   });
 
+  it('moves the start of a run that is already done back so that a longer runtime ends now', async () => {
+    let body: CreateMachineJobRequest | undefined;
+    server.use(
+      ...lookups,
+      http.post('*/api/v1/machine-jobs', async ({ request }) => {
+        body = (await request.json()) as CreateMachineJobRequest;
+        return HttpResponse.json(jobFixture(), { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(
+      <ToastProvider>
+        <JobFormModal
+          open
+          mode="create"
+          initialValues={{ machineId: ids.machine, customer }}
+          onClose={() => undefined}
+          onSaved={() => undefined}
+        />
+      </ToastProvider>,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'New job' });
+    await user.click(await within(dialog).findByRole('radio', { name: 'Already done' }));
+    const hours = within(dialog).getByRole('spinbutton', { name: 'Duration (h)' });
+    await user.clear(hours);
+    await user.type(hours, '5');
+    // Started an hour ago and five hours long would end in the future; the run ends now instead.
+    expect(within(dialog).getByRole('combobox', { name: 'Outcome' })).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Create job' }));
+    await waitFor(() => expect(body).toBeDefined());
+    const startsAt = new Date(body!.run.startsAt!).getTime();
+    const endsAt = new Date(body!.run.endsAt).getTime();
+    expect(endsAt).toBeLessThanOrEqual(Date.now());
+    expect(endsAt).toBeGreaterThan(Date.now() - 120_000);
+    // Minute precision of the start field: the runtime stays five hours, give or take that minute.
+    expect(Math.abs(endsAt - startsAt - 5 * 3_600_000)).toBeLessThanOrEqual(60_000);
+    expect(body?.run.outcome).toBe('successful');
+  });
+
   it('suggests the single organization of the chosen person and switches only on request', async () => {
     const person = {
       kind: 'person' as const,

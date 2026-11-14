@@ -108,17 +108,15 @@ async function dialogTitled(title: string) {
   return heading.closest<HTMLElement>('[role="dialog"]')!;
 }
 
+/** Opens "Add from inventory": a new item starts in the article picker; picking the insert shows the form. */
 async function openDialog(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('button', { name: 'Add item' }));
   const choice = await dialogTitled('Add to order');
   await user.click(within(choice).getByText('Something from inventory'));
   await user.click(within(choice).getByRole('button', { name: 'Continue' }));
+  const picker = await dialogTitled('Select article');
+  await user.click(await within(picker).findByText('M3 heat-set insert'));
   return dialogTitled('Add from inventory');
-}
-
-async function pick(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) {
-  await user.click(within(dialog).getByRole('combobox', { name: 'Article' }));
-  await user.click(await screen.findByText('A-0007 · M3 heat-set insert'));
 }
 
 function captureAdd() {
@@ -159,7 +157,6 @@ describe('order items from inventory', () => {
     const user = userEvent.setup();
     renderRoute(<App />, `/orders/${ids.order}`);
     const dialog = await openDialog(user);
-    await pick(user, dialog);
     await waitFor(() => expect(within(dialog).getByLabelText(/^Unit price/)).toHaveValue('0.25'));
     await user.clear(within(dialog).getByLabelText(/^Quantity/));
     await user.type(within(dialog).getByLabelText(/^Quantity/), '4');
@@ -183,7 +180,6 @@ describe('order items from inventory', () => {
     const user = userEvent.setup();
     renderRoute(<App />, `/orders/${ids.order}`);
     const dialog = await openDialog(user);
-    await pick(user, dialog);
     await user.clear(within(dialog).getByLabelText(/^Unit price/));
     await user.type(within(dialog).getByLabelText(/^Unit price/), '0,4');
     await user.click(within(dialog).getByRole('button', { name: 'Add item' }));
@@ -208,7 +204,6 @@ describe('order items from inventory', () => {
     const user = userEvent.setup();
     renderRoute(<App />, `/orders/${ids.order}`);
     const dialog = await openDialog(user);
-    await pick(user, dialog);
     expect(within(dialog).getByText(/This article has no price in any group/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Add item' }));
     expect(await within(dialog).findByText('No price for this customer')).toBeInTheDocument();
@@ -225,7 +220,6 @@ describe('order items from inventory', () => {
     const user = userEvent.setup();
     renderRoute(<App />, `/orders/${ids.order}`);
     const dialog = await openDialog(user);
-    await pick(user, dialog);
     expect(within(dialog).queryByText(/in loose stock/)).not.toBeInTheDocument();
     await user.clear(within(dialog).getByLabelText(/^Quantity/));
     await user.type(within(dialog).getByLabelText(/^Quantity/), '20');

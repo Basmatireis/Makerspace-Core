@@ -61,11 +61,15 @@ export function stockText(material: Pick<Material, 'quantity' | 'unit' | 'countL
   return `${formatQuantity(material.quantity)} ${articleUnitLabel(material.unit as MaterialUnit, material.countLabel)}`;
 }
 
-function StockCell({ material }: { material: Material }) {
-  const empty = Number(material.quantity) <= 0;
+/** The stock of an article; `loose` (selling) counts only what is on no spool. */
+function StockCell({ material, loose }: { material: Material; loose: boolean }) {
+  const quantity = loose ? material.unassignedQuantity : material.quantity;
+  const empty = Number(quantity) <= 0;
   return (
     <div className="mj-cell-stack">
-      <span className={empty ? 'jobs-picker__out' : undefined}>{empty ? 'Out of stock' : stockText(material)}</span>
+      <span className={empty ? 'jobs-picker__out' : undefined}>
+        {empty ? 'Out of stock' : stockText({ ...material, quantity })}
+      </span>
       {!empty && material.stockState === 'low_stock' && <span className="mj-secondary">Low stock</span>}
     </div>
   );
@@ -85,11 +89,13 @@ function PickerBody({
   process,
   selectedMaterialId,
   own,
+  sale,
   onPick,
 }: {
   process?: Process;
   selectedMaterialId?: string;
   own?: { label: string; materialTypeId: string };
+  sale: boolean;
   onPick: (picked: PickedMaterial) => void;
 }) {
   const [search, setSearch] = useState('');
@@ -100,9 +106,13 @@ function PickerBody({
   const types = useQuery(materialTypesQuery());
   const usable = typesForProcess(types.data, process);
   const usableIds = new Set(usable.map((type) => type.id));
-  const articles = materialsForProcess(materials.data?.items ?? [], types.data, process).filter(
-    (material) => material.active && (!types.data || usableIds.has(material.materialTypeId)),
-  );
+  // Selling offers every active article; a machine run only the machine-use articles of its process.
+  const articles = sale
+    ? (materials.data?.items ?? []).filter((material) => material.active)
+    : materialsForProcess(materials.data?.items ?? [], types.data, process).filter(
+        (material) => material.active && (!types.data || usableIds.has(material.materialTypeId)),
+      );
+  const noun = sale ? 'article' : 'material';
   const categories = [...new Map(articles.map((item) => [item.materialTypeId, item.materialTypeName])).entries()].map(
     ([id, label]) => ({ id, label }),
   );
@@ -139,8 +149,8 @@ function PickerBody({
         <Search
           id="material-picker-search"
           size="lg"
-          labelText="Search material"
-          placeholder="Search material, colour, manufacturer, location"
+          labelText={`Search ${noun}`}
+          placeholder={`Search ${noun}, colour, manufacturer, location`}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           autoComplete="off"
@@ -157,7 +167,7 @@ function PickerBody({
       <DataTable rows={rows} headers={headers} size="md" radio>
         {({ rows: tableRows, headers: tableHeaders, getTableProps, getHeaderProps, getRowProps }) => (
           <TableContainer className="jobs-picker__table">
-            <Table {...getTableProps()} aria-label="Materials in stock">
+            <Table {...getTableProps()} aria-label={sale ? 'Articles in stock' : 'Materials in stock'}>
               <TableHead>
                 <TableRow>
                   <th scope="col" className="cds--table-column-checkbox">
@@ -215,7 +225,7 @@ function PickerBody({
                       </TableCell>
                       <TableCell>{material.manufacturer || '—'}</TableCell>
                       <TableCell>
-                        <StockCell material={material} />
+                        <StockCell material={material} loose={sale} />
                       </TableCell>
                       <TableCell>{material.storageLocation || '—'}</TableCell>
                       <TableCell className="jobs-picker__nowrap">{priceRange(material)}</TableCell>
@@ -226,9 +236,11 @@ function PickerBody({
                 {!materials.isPending && visible.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={headers.length + 1}>
-                      {articles.length === 0
-                        ? 'No material of this machine’s process in stock.'
-                        : 'No material matches.'}
+                      {articles.length > 0
+                        ? `No ${noun} matches.`
+                        : sale
+                          ? 'No article in the inventory.'
+                          : 'No material of this machine’s process in stock.'}
                     </TableCell>
                   </TableRow>
                 )}
@@ -237,55 +249,58 @@ function PickerBody({
           </TableContainer>
         )}
       </DataTable>
-      <section className="jobs-picker__own" aria-labelledby="material-picker-own-title">
-        <div>
-          <h3 id="material-picker-own-title" className="jobs-picker__own-title">
-            Recipient’s own material
-          </h3>
-          <p className="mj-secondary">
-            Brought along by the recipient; recorded for the run, never booked from stock or charged.
-          </p>
-        </div>
-        <div className="jobs-picker__own-form">
-          <TextInput
-            id="material-picker-own-label"
-            labelText="Label"
-            placeholder="For example PLA · Sunlu"
-            maxLength={200}
-            value={ownLabel}
-            onChange={(event) => setOwnLabel(event.target.value)}
-          />
-          <FuzzySelectField
-            id="material-picker-own-type"
-            titleText="Category"
-            placeholder="Select a category"
-            options={typeOptions}
-            value={ownType}
-            onChange={setOwnType}
-          />
-          <Button
-            kind="tertiary"
-            size="md"
-            disabled={!canUseOwn}
-            onClick={() =>
-              onPick({
-                kind: 'own',
-                label: ownLabel.trim(),
-                materialType: usable.find((type) => type.id === ownType) ?? null,
-              })
-            }
-          >
-            Use
-          </Button>
-        </div>
-      </section>
+      {!sale && (
+        <section className="jobs-picker__own" aria-labelledby="material-picker-own-title">
+          <div>
+            <h3 id="material-picker-own-title" className="jobs-picker__own-title">
+              Recipient’s own material
+            </h3>
+            <p className="mj-secondary">
+              Brought along by the recipient; recorded for the run, never booked from stock or charged.
+            </p>
+          </div>
+          <div className="jobs-picker__own-form">
+            <TextInput
+              id="material-picker-own-label"
+              labelText="Label"
+              placeholder="For example PLA · Sunlu"
+              maxLength={200}
+              value={ownLabel}
+              onChange={(event) => setOwnLabel(event.target.value)}
+            />
+            <FuzzySelectField
+              id="material-picker-own-type"
+              titleText="Category"
+              placeholder="Select a category"
+              options={typeOptions}
+              value={ownType}
+              onChange={setOwnType}
+            />
+            <Button
+              kind="tertiary"
+              size="md"
+              disabled={!canUseOwn}
+              onClick={() =>
+                onPick({
+                  kind: 'own',
+                  label: ownLabel.trim(),
+                  materialType: usable.find((type) => type.id === ownType) ?? null,
+                })
+              }
+            >
+              Use
+            </Button>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
 
 /**
  * The catalog picker of the material usage editor: a wide modal with search, category, the machine-use articles of
- * the machine's process with stock, unit and sale prices, and a block for material the recipient brought. It is
+ * the machine's process with stock, unit and sale prices, and a block for material the recipient brought. With
+ * `sale` (an order's stock item) it lists every active article with its loose stock and no such block. It is
  * rendered into the document body so it can show while the form dialog that opened it is hidden.
  */
 export function MaterialPickerModal({
@@ -293,6 +308,8 @@ export function MaterialPickerModal({
   process,
   selectedMaterialId,
   own,
+  sale = false,
+  label,
   onClose,
   onPick,
 }: {
@@ -300,6 +317,9 @@ export function MaterialPickerModal({
   process?: Process;
   selectedMaterialId?: string;
   own?: { label: string; materialTypeId: string };
+  sale?: boolean;
+  /** The modal label above the title; by default the process or "Materials in stock". */
+  label?: string;
   onClose: () => void;
   onPick: (picked: PickedMaterial) => void;
 }) {
@@ -311,18 +331,18 @@ export function MaterialPickerModal({
       className="jobs-picker"
       preventCloseOnClickOutside
       selectorPrimaryFocus="#material-picker-search"
-      aria-label="Select material"
+      aria-label={sale ? 'Select article' : 'Select material'}
       onClose={() => {
         onClose();
         return false;
       }}
     >
       <ModalHeader
-        title="Select material"
-        label={process ? `${process.name} · materials in stock` : 'Materials in stock'}
+        title={sale ? 'Select article' : 'Select material'}
+        label={label ?? (process ? `${process.name} · materials in stock` : 'Materials in stock')}
       />
       <ModalBody hasScrollingContent>
-        <PickerBody process={process} selectedMaterialId={selectedMaterialId} own={own} onPick={onPick} />
+        <PickerBody process={process} selectedMaterialId={selectedMaterialId} own={own} sale={sale} onPick={onPick} />
       </ModalBody>
     </ComposedModal>,
     document.body,

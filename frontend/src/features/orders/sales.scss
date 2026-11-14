@@ -647,3 +647,35 @@
     text-decoration: none;
   }
 }
+
+// The order's job picker, laid out like the material picker of a job: the table scrolls inside the wide dialog.
+.sales-picker__table .cds--data-table-content {
+  max-block-size: 24rem;
+  overflow: auto;
+}
+.sales-picker__row {
+  cursor: pointer;
+}
+.sales-picker__nowrap {
+  white-space: nowrap;
+}
+// The chosen article of a stock item, or the button that opens the article picker.
+.sales-article {
+  display: grid;
+  justify-items: start;
+  gap: $spacing-03;
+}
+.sales-article > .jobs-usage__material {
+  justify-self: stretch;
+}
+.sales-picker__folded {
+  display: none;
+}
+@media (max-width: 41.98rem) {
+  .sales-picker__wide {
+    display: none;
+  }
+  .sales-picker__folded {
+    display: block;
+  }
+}
