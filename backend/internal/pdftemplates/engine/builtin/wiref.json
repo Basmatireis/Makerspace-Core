@@ -1,0 +1,553 @@
+{
+ "schemaVersion": 1,
+ "name": "wiRef invoice request",
+ "export": "wiref",
+ "page": {
+  "size": "A4",
+  "orientation": "portrait",
+  "margins": [
+   30,
+   20,
+   22,
+   20
+  ],
+  "font": "Helvetica",
+  "baseSize": 10,
+  "accent": "$c:accent",
+  "locale": "en",
+  "accentBar": true,
+  "filename": "invoice-request-{{request.number}}.pdf"
+ },
+ "styles": {
+  "colors": [
+   {
+    "id": "text",
+    "name": "Text",
+    "value": "#161616"
+   },
+   {
+    "id": "muted",
+    "name": "Muted",
+    "value": "#525252"
+   },
+   {
+    "id": "subtle",
+    "name": "Subtle",
+    "value": "#6f6f6f"
+   },
+   {
+    "id": "accent",
+    "name": "Accent",
+    "value": "#0f62fe"
+   },
+   {
+    "id": "line",
+    "name": "Table lines",
+    "value": "#000000"
+   },
+   {
+    "id": "fill",
+    "name": "Header fill",
+    "value": "#f4f4f4"
+   }
+  ],
+  "text": [
+   {
+    "id": "title",
+    "name": "Title",
+    "font": "Helvetica",
+    "size": 17,
+    "weight": 600,
+    "lineHeight": 1.4173,
+    "color": "$c:text"
+   },
+   {
+    "id": "section",
+    "name": "Section",
+    "font": "Helvetica",
+    "size": 10.5,
+    "weight": 600,
+    "lineHeight": 1.2148,
+    "color": "$c:text"
+   },
+   {
+    "id": "body",
+    "name": "Body",
+    "font": "Helvetica",
+    "size": 10.5,
+    "weight": 400,
+    "lineHeight": 1.5118,
+    "color": "$c:text"
+   },
+   {
+    "id": "label",
+    "name": "Label",
+    "font": "Helvetica",
+    "size": 10,
+    "weight": 400,
+    "lineHeight": 1.474,
+    "color": "$c:muted"
+   },
+   {
+    "id": "value",
+    "name": "Value",
+    "font": "Helvetica",
+    "size": 10,
+    "weight": 400,
+    "lineHeight": 1.474,
+    "color": "$c:text"
+   },
+   {
+    "id": "tableHead",
+    "name": "Table header",
+    "font": "Helvetica",
+    "size": 9.5,
+    "weight": 600,
+    "lineHeight": 2.0887,
+    "color": "$c:text"
+   },
+   {
+    "id": "cell",
+    "name": "Table cell",
+    "font": "Helvetica",
+    "size": 10,
+    "weight": 400,
+    "lineHeight": 1.474,
+    "color": "$c:text"
+   },
+   {
+    "id": "cellRoomy",
+    "name": "Table cell, roomy",
+    "font": "Helvetica",
+    "size": 10,
+    "weight": 400,
+    "lineHeight": 1.7575,
+    "color": "$c:text"
+   },
+   {
+    "id": "totals",
+    "name": "Totals",
+    "font": "Helvetica",
+    "size": 10,
+    "weight": 400,
+    "lineHeight": 2.126,
+    "color": "$c:text"
+   },
+   {
+    "id": "small",
+    "name": "Small",
+    "font": "Helvetica",
+    "size": 8,
+    "weight": 400,
+    "lineHeight": 1.7717,
+    "color": "$c:subtle"
+   },
+   {
+    "id": "brandSmall",
+    "name": "Brand organization",
+    "font": "Helvetica",
+    "size": 8,
+    "weight": 400,
+    "lineHeight": 1.4173,
+    "color": "$c:muted"
+   },
+   {
+    "id": "brand",
+    "name": "Brand name",
+    "font": "Helvetica",
+    "size": 13,
+    "weight": 600,
+    "lineHeight": 1.3083,
+    "color": "$c:text"
+   }
+  ],
+  "sizes": [
+   {
+    "id": "gapXS",
+    "name": "Gap XS",
+    "value": 2,
+    "unit": "mm"
+   },
+   {
+    "id": "gapS",
+    "name": "Gap S",
+    "value": 4,
+    "unit": "mm"
+   },
+   {
+    "id": "gapM",
+    "name": "Gap M",
+    "value": 5,
+    "unit": "mm"
+   },
+   {
+    "id": "gapL",
+    "name": "Gap L",
+    "value": 6,
+    "unit": "mm"
+   },
+   {
+    "id": "label",
+    "name": "Label column",
+    "value": 48,
+    "unit": "mm"
+   }
+  ]
+ },
+ "layers": [],
+ "header": [
+  {
+   "id": "brand",
+   "type": "columns",
+   "title": "Logo and names",
+   "gap": 3.5,
+   "columns": [
+    {
+     "width": 0,
+     "blocks": [
+      {
+       "id": "logo",
+       "type": "image",
+       "title": "Logo",
+       "height": 12
+      }
+     ]
+    },
+    {
+     "width": 1,
+     "blocks": [
+      {
+       "id": "brand-space",
+       "type": "spacer",
+       "title": "Space above the name",
+       "height": 1
+      },
+      {
+       "id": "brand-name",
+       "type": "value",
+       "title": "Organization and application name",
+       "label": "{{makerspace.name | upper}}",
+       "value": "{{makerspace.displayName}}",
+       "labelStyle": "brandSmall",
+       "textStyle": "brand"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "body": [
+  {
+   "id": "title",
+   "type": "heading",
+   "title": "Title",
+   "text": "{{texts.title}}",
+   "textStyle": "title"
+  },
+  {
+   "id": "intro",
+   "type": "text",
+   "title": "Introduction",
+   "text": "{{texts.intro}}",
+   "textStyle": "body"
+  },
+  {
+   "id": "details-space",
+   "type": "spacer",
+   "title": "Space before the details",
+   "height": "$s:gapXS"
+  },
+  {
+   "id": "details",
+   "type": "fields",
+   "title": "Recipient and request",
+   "labelWidth": "$s:label",
+   "labelStyle": "label",
+   "valueStyle": "value",
+   "rows": [
+    {
+     "label": "Recipient",
+     "value": "{{recipient.organization}}",
+     "when": {
+      "path": "recipient.organization",
+      "op": "exists"
+     }
+    },
+    {
+     "label": "Address",
+     "value": "{{recipient.addressLines | join(\", \")}}",
+     "when": {
+      "path": "recipient.addressLines",
+      "op": "exists"
+     }
+    },
+    {
+     "label": "Contact person",
+     "value": "{{recipient.contactName}}{{recipient.contactChannel | prefix(\" (\") | suffix(\")\")}}",
+     "when": {
+      "path": "recipient.contactName",
+      "op": "exists"
+     }
+    },
+    {
+     "label": "Purchase order reference",
+     "value": "{{recipient.purchaseOrderReference}}",
+     "when": {
+      "path": "recipient.purchaseOrderReference",
+      "op": "exists"
+     }
+    },
+    {
+     "label": "Invoice request",
+     "value": "{{request.number}}",
+     "when": {
+      "path": "request.number",
+      "op": "exists"
+     }
+    },
+    {
+     "label": "Order",
+     "value": "{{request.orderNumber}}",
+     "when": {
+      "path": "request.orderNumber",
+      "op": "exists"
+     }
+    },
+    {
+     "label": "Service period",
+     "value": "{{request.servicePeriod.from | date}}{{request.servicePeriod.to | date | prefix(\" to \")}}",
+     "when": {
+      "path": "request.servicePeriod.from",
+      "op": "exists"
+     }
+    },
+    {
+     "label": "Service",
+     "value": "{{request.serviceDescription}}",
+     "when": {
+      "path": "request.serviceDescription",
+      "op": "exists"
+     }
+    }
+   ]
+  },
+  {
+   "id": "items-space",
+   "type": "spacer",
+   "title": "Space before the items",
+   "height": "$s:gapM"
+  },
+  {
+   "id": "items",
+   "type": "table",
+   "title": "Items and totals",
+   "source": "items",
+   "as": "item",
+   "repeatHeader": true,
+   "headerStyle": "tableHead",
+   "totalsStyle": "totals",
+   "subStyle": "small",
+   "headerFill": "$c:fill",
+   "headerRule": "$c:line",
+   "rowRule": "$c:line",
+   "bodyStyle": "cell",
+   "columns": [
+    {
+     "header": "Description",
+     "value": "{{item.description}}",
+     "width": 80,
+     "align": "left"
+    },
+    {
+     "header": "Quantity",
+     "value": "{{item.quantity}}{{item.unit | prefix(\" \")}}",
+     "width": 28,
+     "align": "right"
+    },
+    {
+     "header": "Unit price (EUR)",
+     "value": "{{item.unitPrice | amount}}",
+     "width": 31,
+     "align": "right"
+    },
+    {
+     "header": "Amount (EUR)",
+     "value": "{{item.amount | amount}}",
+     "width": 31,
+     "align": "right"
+    }
+   ],
+   "totals": [
+    {
+     "label": "Order total",
+     "value": "{{amounts.total | currency}}",
+     "when": {
+      "path": "amounts.alreadyPaid",
+      "op": "gt",
+      "value": "0"
+     }
+    },
+    {
+     "label": "Already paid",
+     "value": "-{{amounts.alreadyPaid | currency}}",
+     "when": {
+      "path": "amounts.alreadyPaid",
+      "op": "gt",
+      "value": "0"
+     }
+    },
+    {
+     "label": "Amount to invoice",
+     "value": "{{amounts.toInvoice | currency}}",
+     "bold": true
+    }
+   ]
+  },
+  {
+   "id": "payments-section",
+   "type": "if",
+   "title": "Payments, when there are any",
+   "when": {
+    "path": "payments",
+    "op": "exists"
+   },
+   "then": [
+    {
+     "id": "payments-space",
+     "type": "spacer",
+     "title": "Space before the payments",
+     "height": "$s:gapS"
+    },
+    {
+     "id": "payments-heading",
+     "type": "heading",
+     "title": "Payments heading",
+     "text": "Payments",
+     "textStyle": "section"
+    },
+    {
+     "id": "payments",
+     "type": "table",
+     "title": "Payments",
+     "source": "payments",
+     "as": "payment",
+     "repeatHeader": true,
+     "headerStyle": "tableHead",
+     "totalsStyle": "totals",
+     "subStyle": "small",
+     "headerFill": "$c:fill",
+     "headerRule": "$c:line",
+     "rowRule": "$c:line",
+     "bodyStyle": "cellRoomy",
+     "columns": [
+      {
+       "header": "Payment ID",
+       "value": "{{payment.reference}}",
+       "width": 42,
+       "align": "left"
+      },
+      {
+       "header": "Date",
+       "value": "{{payment.paidAt | date}}",
+       "width": 30,
+       "align": "left"
+      },
+      {
+       "header": "Method",
+       "value": "{{payment.method}}",
+       "width": 67,
+       "align": "left"
+      },
+      {
+       "header": "Amount (EUR)",
+       "value": "{{payment.amount | amount}}",
+       "width": 31,
+       "align": "right"
+      }
+     ]
+    }
+   ],
+   "else": []
+  },
+  {
+   "id": "approval-space",
+   "type": "spacer",
+   "title": "Space before the approval",
+   "height": "$s:gapL"
+  },
+  {
+   "id": "approval",
+   "type": "fields",
+   "title": "Approval",
+   "labelWidth": "$s:label",
+   "labelStyle": "label",
+   "valueStyle": "value",
+   "rows": [
+    {
+     "label": "Approved by",
+     "value": "{{request.approver}}",
+     "when": {
+      "path": "request.approver",
+      "op": "exists"
+     }
+    },
+    {
+     "label": "Approved on",
+     "value": "{{request.approvedAt | date}}",
+     "when": {
+      "path": "request.approvedAt",
+      "op": "exists"
+     }
+    }
+   ]
+  },
+  {
+   "id": "closing-space",
+   "type": "spacer",
+   "title": "Space before the closing text",
+   "height": "$s:gapS"
+  },
+  {
+   "id": "closing",
+   "type": "text",
+   "title": "Closing text",
+   "text": "{{texts.closing}}",
+   "textStyle": "body"
+  }
+ ],
+ "footer": [
+  {
+   "id": "footer-line",
+   "type": "columns",
+   "title": "Footer line",
+   "gap": 0,
+   "columns": [
+    {
+     "width": 1,
+     "blocks": [
+      {
+       "id": "footer-reference",
+       "type": "text",
+       "title": "Request number",
+       "text": "{{request.number}}",
+       "textStyle": "small"
+      }
+     ]
+    },
+    {
+     "width": 1,
+     "blocks": [
+      {
+       "id": "footer-page",
+       "type": "text",
+       "title": "Page number",
+       "text": "Page {{page}} / {{pages}}",
+       "textStyle": "small",
+       "align": "right"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

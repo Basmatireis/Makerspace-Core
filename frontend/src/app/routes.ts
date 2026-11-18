@@ -168,6 +168,9 @@ export const InvoicingSettingsPage = lazy(() =>
     default: InvoicingSettingsPage,
   })),
 );
+export const PdfTemplatesPage = lazy(() =>
+  import('../features/pdftemplates/PdfTemplatesPage').then(({ PdfTemplatesPage }) => ({ default: PdfTemplatesPage })),
+);
 export const MailSettingsPage = lazy(() =>
   import('../features/mail/MailSettingsPage').then(({ MailSettingsPage }) => ({ default: MailSettingsPage })),
 );

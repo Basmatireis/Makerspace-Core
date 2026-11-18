@@ -113,7 +113,7 @@ func newSettingsFixture(t *testing.T) *settingsFixture {
 	pool := testdb.Pool(t)
 	notifier := &fakeNotifier{}
 	return &settingsFixture{
-		s:        NewService(pool, notifier, nil),
+		s:        NewService(pool, notifier),
 		pool:     pool,
 		notifier: notifier,
 		admin:    principalWith(t, pool, authorization.InvoicingSettingsManage),
@@ -252,7 +252,7 @@ func TestDeliverMailsRecipientAndCCWithPDFAttachment(t *testing.T) {
 		!bytes.HasPrefix(mail.Attachments[0].Data, []byte("%PDF-")) {
 		t.Fatalf("attachment %+v", mail.Attachments)
 	}
-	if !strings.Contains(pdfText(t, mail.Attachments[0].Data), "EUR 81.50") {
+	if !strings.Contains(pdfText(t, mail.Attachments[0].Data), "EUR81.50") {
 		t.Fatal("PDF lacks the total")
 	}
 }

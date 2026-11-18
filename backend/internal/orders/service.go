@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -35,6 +36,8 @@ type Service struct {
 	// location is the makerspace time zone: the cash journal and the cashbook work in its whole days.
 	location *time.Location
 	notices  NotificationEmitter
+	// pdf renders the cashbook and receipt PDFs.
+	pdf PDFRenderer
 }
 
 // NotificationEmitter is the part of the notification event source this package uses. It writes inside the caller's
@@ -54,7 +57,7 @@ func (s *Service) WithNotifications(notices NotificationEmitter) *Service {
 }
 
 func NewService(pool *pgxpool.Pool, jobs *machinelogbook.Service) *Service {
-	return &Service{pool: pool, jobs: jobs, location: time.UTC}
+	return &Service{pool: pool, jobs: jobs, location: time.UTC, pdf: pdftemplates.BuiltinRenderer{}}
 }
 
 // WithLocation sets the makerspace time zone for day-based cash reports. Without it they use UTC days.

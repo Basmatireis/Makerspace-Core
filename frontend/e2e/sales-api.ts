@@ -849,6 +849,15 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
       });
     }
 
+    if ((match = path.match(/^\/api\/v1\/orders\/([^/]+)\/receipt\.pdf$/))) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/pdf',
+        headers: { 'Content-Disposition': `attachment; filename="receipt-${match[1]}.pdf"` },
+        body: '%PDF-1.4\n%%EOF\n',
+      });
+    }
+
     // Payments, register, invoice requests
     if ((match = path.match(/^\/api\/v1\/payments\/([^/]+)$/)) && match[1] !== 'cash-register') {
       const found = world.payments.find((entry) => entry.id === match![1]);

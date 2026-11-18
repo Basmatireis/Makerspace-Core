@@ -24,13 +24,19 @@ const (
 	maxVisitorEnrollmentSubmissionBytes = 12 << 20
 	// maxNotificationRuleBodyBytes fits the largest rule definition the database accepts (256 KiB) with its envelope.
 	maxNotificationRuleBodyBytes = 288 << 10
+	// maxPDFTemplateBodyBytes fits the largest template document (256 KiB) with its envelope.
+	maxPDFTemplateBodyBytes = 288 << 10
 )
 
 // requestBodyLimits overrides maxJSONRequestBodyBytes for the operations that accept larger
 // bodies. Binary uploads get one byte above the feature limit so the service can tell an
 // oversized upload from one that is exactly at the limit.
 var requestBodyLimits = map[string]int64{
-	routeKey(http.MethodPost, "/notification-rules"):                            maxNotificationRuleBodyBytes,
+	routeKey(http.MethodPost, "/notification-rules"): maxNotificationRuleBodyBytes,
+	// 2 MiB asset plus one byte (pdftemplates.MaxAssetBytes in phase 2); the preview and draft documents are JSON up to 256 KiB.
+	routeKey(http.MethodPost, "/pdf-templates/assets"):                          2<<20 + 1,
+	routeKey(http.MethodPut, "/pdf-templates/{export}/draft"):                   maxPDFTemplateBodyBytes,
+	routeKey(http.MethodPost, "/pdf-templates/{export}/preview"):                maxPDFTemplateBodyBytes,
 	routeKey(http.MethodPut, "/notification-rules/{ruleId}"):                    maxNotificationRuleBodyBytes,
 	routeKey(http.MethodPost, "/me/notification-subscriptions"):                 maxNotificationRuleBodyBytes,
 	routeKey(http.MethodPut, "/me/notification-subscriptions/{subscriptionId}"): maxNotificationRuleBodyBytes,

@@ -46,3 +46,8 @@ export async function renderPdf(url: string, container: HTMLElement, signal: Abo
     void task.destroy();
   }
 }
+
+/** Parses PDF bytes held in memory (not fetched from a URL); the caller draws pages itself and destroys the document. */
+export async function loadPdfData(data: Uint8Array) {
+  return getDocument({ data }).promise;
+}

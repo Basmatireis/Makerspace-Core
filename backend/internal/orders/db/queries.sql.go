@@ -970,6 +970,18 @@ func (q *Queries) GetPerson(ctx context.Context, id uuid.UUID) (GetPersonRow, er
 	return i, err
 }
 
+const getPersonMatriculation = `-- name: GetPersonMatriculation :one
+SELECT COALESCE(matriculation_number, '')::text AS matriculation_number FROM people WHERE id = $1
+`
+
+// Empty when the person has none; only read for a caller who holds people.read.matriculation.
+func (q *Queries) GetPersonMatriculation(ctx context.Context, personID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getPersonMatriculation, personID)
+	var matriculation_number string
+	err := row.Scan(&matriculation_number)
+	return matriculation_number, err
+}
+
 const getRequest = `-- name: GetRequest :one
 SELECT id, reference, order_id, order_reference, provider, state, currency, requested_amount, supersedes_request_id, version, created_at FROM external_invoice_requests WHERE id=$1
 `
@@ -2250,6 +2262,41 @@ func (q *Queries) ListPayments(ctx context.Context, arg ListPaymentsParams) ([]P
 	return items, nil
 }
 
+const listReceiptPreviewOrders = `-- name: ListReceiptPreviewOrders :many
+SELECT o.id, o.reference
+FROM orders o
+WHERE o.status = 'finalized'
+  AND (SELECT COALESCE(sum(a.amount), 0) FROM payment_allocations a WHERE a.order_id = o.id) > 0
+ORDER BY o.finalized_at DESC NULLS LAST, o.id DESC
+LIMIT $1
+`
+
+type ListReceiptPreviewOrdersRow struct {
+	ID        uuid.UUID
+	Reference string
+}
+
+// The newest finalized orders that have a receipt (a settled amount above 0), for previews of the receipt template.
+func (q *Queries) ListReceiptPreviewOrders(ctx context.Context, rowLimit int32) ([]ListReceiptPreviewOrdersRow, error) {
+	rows, err := q.db.Query(ctx, listReceiptPreviewOrders, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReceiptPreviewOrdersRow{}
+	for rows.Next() {
+		var i ListReceiptPreviewOrdersRow
+		if err := rows.Scan(&i.ID, &i.Reference); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRequests = `-- name: ListRequests :many
 SELECT id, reference, order_id, order_reference, provider, state, currency, requested_amount, supersedes_request_id, version, created_at FROM external_invoice_requests WHERE ($1::text='' OR reference ILIKE '%'||$1||'%' OR order_reference ILIKE '%'||$1||'%') AND ($2::text='' OR state=$2) AND ($3::uuid IS NULL OR order_id=$3) ORDER BY created_at DESC,id DESC LIMIT $5 OFFSET $4
 `
@@ -2646,6 +2693,48 @@ func (q *Queries) PreviousCashCountTime(ctx context.Context, countedAt time.Time
 	var counted_at time.Time
 	err := row.Scan(&counted_at)
 	return counted_at, err
+}
+
+const receiptPayments = `-- name: ReceiptPayments :many
+SELECT p.id, p.reference, p.method, p.occurred_at, sum(a.amount)::numeric AS amount
+FROM payments p JOIN payment_allocations a ON a.payment_id = p.id
+WHERE a.order_id = $1 AND p.entry_kind = 'receipt'
+GROUP BY p.id HAVING sum(a.amount) > 0 ORDER BY p.occurred_at, p.reference
+`
+
+type ReceiptPaymentsRow struct {
+	ID         uuid.UUID
+	Reference  string
+	Method     string
+	OccurredAt time.Time
+	Amount     pgtype.Numeric
+}
+
+// The receipts that still count towards an order with the amount each contributes to it, oldest first.
+func (q *Queries) ReceiptPayments(ctx context.Context, orderID *uuid.UUID) ([]ReceiptPaymentsRow, error) {
+	rows, err := q.db.Query(ctx, receiptPayments, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReceiptPaymentsRow{}
+	for rows.Next() {
+		var i ReceiptPaymentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Reference,
+			&i.Method,
+			&i.OccurredAt,
+			&i.Amount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const reconciliationTotals = `-- name: ReconciliationTotals :many

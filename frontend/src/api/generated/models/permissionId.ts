@@ -93,6 +93,7 @@ export const PermissionId = {
   scimmanage: 'scim.manage',
   mailmanage: 'mail.manage',
   invoicingsettingsmanage: 'invoicing.settings.manage',
+  pdf_templatesmanage: 'pdf_templates.manage',
   brandingmanage: 'branding.manage',
   machinesread: 'machines.read',
   machinesmanage: 'machines.manage',

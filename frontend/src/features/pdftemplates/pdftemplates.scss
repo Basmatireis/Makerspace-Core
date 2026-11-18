@@ -1,0 +1,1144 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/colors' as colors;
+
+// PDF template editor: structure · page preview · properties, full width below the app header like the signage screen
+// editor. Carbon components carry the controls; this file holds layout, the structure tree, the insert toolbar and the
+// preview overlay, which have no Carbon equivalent.
+
+.pdft {
+  --pdft-left: 300px;
+  --pdft-right: 320px;
+  display: flex;
+  flex-direction: column;
+  block-size: calc(100vh - 3rem);
+  background: theme.$background;
+}
+.pdft-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03 $spacing-05;
+  padding: 0 $spacing-05 0 0;
+  border-block-end: 1px solid theme.$border-subtle-01;
+  background: theme.$layer-01;
+}
+// The title takes the width of the structure pane below it and centres its lines in the bar.
+.pdft-bar__title {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: $spacing-02;
+  box-sizing: border-box;
+  inline-size: var(--pdft-left, 300px);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding: $spacing-04 $spacing-05;
+}
+.pdft-bar__heading {
+  min-inline-size: 0;
+  margin: 0;
+  @include type-style('productive-heading-03');
+}
+// The title is the document switcher: it keeps the heading look and only shows a hover/press state and a chevron.
+.pdft-bar__doc {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+  max-inline-size: 100%;
+  margin-inline-start: -$spacing-03;
+  padding: $spacing-02 $spacing-03;
+  border: 0;
+  background: transparent;
+  color: theme.$text-primary;
+  font: inherit;
+  cursor: pointer;
+  svg {
+    flex: none;
+    fill: theme.$icon-primary;
+  }
+  &:hover,
+  &[aria-expanded='true'] {
+    background: theme.$layer-hover-01;
+  }
+  &:active {
+    background: theme.$layer-active-01;
+  }
+  &:focus-visible {
+    outline: 2px solid theme.$focus;
+    outline-offset: -2px;
+  }
+}
+.pdft-bar__doc-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+// Below 80 rem the title gives up width to the selects and actions, so the bar stays on one line down to 66 rem.
+@media (max-width: 80rem) {
+  .pdft-bar__title {
+    inline-size: min(var(--pdft-left, 300px), 13rem);
+  }
+  .pdft-bar__select {
+    flex-basis: 10rem;
+  }
+}
+.pdft-bar__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+  .cds--tag {
+    margin: 0;
+  }
+}
+.pdft-bar__select {
+  flex: 0 1 12rem;
+  min-inline-size: 8rem;
+  padding-block: $spacing-03;
+}
+// Undo, redo and the actions sit together at the right end of the bar, and wrap together.
+.pdft-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  margin-inline-start: auto;
+  padding-block: $spacing-03;
+}
+.pdft-bar__group {
+  display: flex;
+}
+.pdft-notice {
+  padding: $spacing-03 $spacing-05 0;
+  .cds--inline-notification {
+    margin: 0;
+    max-inline-size: none;
+  }
+}
+
+// Three panes with splitters between them ------------------------------------------------------------------------------
+.pdft-work {
+  flex: 1;
+  min-block-size: 0;
+  display: grid;
+  grid-template-columns: var(--pdft-left) 0 minmax(0, 1fr) 0 var(--pdft-right);
+}
+.pdft-pane {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  background: theme.$layer-01;
+}
+.pdft-pane--left {
+  border-inline-end: 1px solid theme.$border-subtle-01;
+}
+.pdft-pane--right {
+  border-inline-start: 1px solid theme.$border-subtle-01;
+}
+.pdft-tabpanel {
+  flex: 1;
+  min-block-size: 0;
+  padding: 0;
+  overflow: auto;
+}
+.pdft-tabpanel[hidden] {
+  display: none;
+}
+.pdft-pane .cds--tabs {
+  flex: none;
+}
+// Properties, Styles and Variables panels ----------------------------------------------------------------------------
+.pdft-panel {
+  min-block-size: 0;
+}
+.pdft-props {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  padding: $spacing-05;
+}
+.pdft-nodehead {
+  display: flex;
+  align-items: center;
+  gap: $spacing-01;
+}
+.pdft-nodehead__title {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  @include type-style('heading-compact-02');
+}
+.pdft-subhead {
+  margin: 0;
+  @include type-style('heading-compact-01');
+}
+.pdft-hint {
+  margin: 0;
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+.pdft-warn {
+  margin: 0;
+  padding: $spacing-03 $spacing-04;
+  border-inline-start: 3px solid theme.$support-warning;
+  background: theme.$layer-02;
+  @include type-style('body-compact-01');
+}
+.pdft-notices {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  .cds--inline-notification {
+    margin: 0;
+    max-inline-size: none;
+    min-inline-size: 0;
+  }
+}
+.pdft-row2,
+.pdft-row4 {
+  display: grid;
+  gap: $spacing-04;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.pdft-row4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.pdft-row2 > *,
+.pdft-row4 > * {
+  min-inline-size: 0;
+}
+// Number inputs have an intrinsic width: let them shrink with their column instead of overflowing the card.
+.pdft-row2 .cds--number input[type='number'],
+.pdft-row4 .cds--number input[type='number'] {
+  min-inline-size: 0;
+}
+.pdft-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03 $spacing-05;
+}
+.pdft-items {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-04;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  > .pdft-item {
+    align-self: stretch;
+  }
+}
+.pdft-item {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-02;
+  padding: $spacing-04;
+  background: theme.$layer-02;
+}
+.pdft-item__fields {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+  flex: 1;
+  min-inline-size: 0;
+}
+.pdft-cond {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+  min-inline-size: 0;
+  margin: 0;
+  padding: $spacing-04;
+  border: 1px solid theme.$border-subtle-01;
+}
+.pdft-appearance {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  padding-block-start: $spacing-05;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+.pdft-asset {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-03;
+  .cds--form-item {
+    align-self: stretch;
+  }
+}
+.pdft-mono {
+  font-family: 'IBM Plex Mono', monospace;
+  @include type-style('code-01');
+}
+
+// Colour and size fields ---------------------------------------------------------------------------------------------
+.pdft-field {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+}
+.pdft-colorfield,
+.pdft-sizefield {
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+  min-inline-size: 0;
+}
+.pdft-sizefield--input {
+  align-items: flex-end;
+  .cds--form-item,
+  .cds--number {
+    flex: 1;
+    min-inline-size: 0;
+  }
+}
+.pdft-sizechip {
+  max-inline-size: 100%;
+}
+// The swatch button of a colour field and the picker's popover: Carbon has no colour picker.
+.pdft-colorfield .cds--popover-container {
+  flex: 1;
+  min-inline-size: 0;
+}
+.pdft-colorbtn {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  inline-size: 100%;
+  block-size: 2rem;
+  padding: 0 $spacing-03;
+  border: 0;
+  border-block-end: 1px solid theme.$border-strong-01;
+  background: theme.$field-01;
+  color: theme.$text-primary;
+  text-align: start;
+  cursor: pointer;
+  @include type-style('body-compact-01');
+  &:hover {
+    background: theme.$field-hover-01;
+  }
+  &:focus-visible {
+    outline: 2px solid theme.$focus;
+    outline-offset: -2px;
+  }
+}
+.pdft-colorbtn--swatch {
+  inline-size: 2rem;
+  padding: 0 $spacing-03;
+  justify-content: center;
+}
+.pdft-colorbtn__text {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pdft-colorbtn__hex {
+  color: theme.$text-secondary;
+  @include type-style('code-01');
+}
+.pdft-linkicon {
+  flex: none;
+  color: colors.$purple-60;
+  .cds--g100 & {
+    color: colors.$purple-40;
+  }
+}
+.pdft-swatch {
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+  border: 1px solid theme.$border-strong-01;
+  box-sizing: border-box;
+}
+.pdft-swatch--none {
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    theme.$support-error,
+    transparent calc(50% + 1px)
+  );
+}
+.pdft-swatch--button {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  padding: 0;
+  cursor: pointer;
+  &[aria-pressed='true'] {
+    outline: 2px solid theme.$focus;
+    outline-offset: 1px;
+  }
+  &:focus-visible {
+    outline: 2px solid theme.$focus;
+    outline-offset: 1px;
+  }
+}
+.pdft-cpick {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  inline-size: 17rem;
+  padding: $spacing-05;
+}
+.pdft-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+}
+.pdft-cpick__link {
+  margin: 0;
+  padding: $spacing-03;
+  // Linked values are purple like Carbon's purple tag, in both themes.
+  background: colors.$purple-10;
+  color: colors.$purple-70;
+  .cds--g100 & {
+    background: colors.$purple-80;
+    color: colors.$purple-20;
+  }
+  @include type-style('helper-text-01');
+}
+.pdft-cpick__linkbtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  &:focus-visible {
+    outline: 2px solid theme.$focus;
+  }
+}
+.pdft-cpick__area,
+.pdft-cpick__hue {
+  position: relative;
+  touch-action: none;
+  cursor: crosshair;
+  &:focus-visible {
+    outline: 2px solid theme.$focus;
+    outline-offset: 2px;
+  }
+}
+.pdft-cpick__area {
+  block-size: 9rem;
+}
+.pdft-cpick__hue {
+  block-size: 0.75rem;
+  // The hue gradient and the knob's white ring are fixed colours: they show the colour being picked, not the theme.
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+.pdft-cpick__knob {
+  position: absolute;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 40%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.pdft-cpick__hue .pdft-cpick__knob {
+  inset-block-start: 50%;
+}
+.pdft-cpick__hex {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-03;
+  .cds--form-item {
+    flex: 1;
+  }
+}
+
+// Styles tab ---------------------------------------------------------------------------------------------------------
+.pdft-styles__section {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+}
+.pdft-styles__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+.pdft-stylerow {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  .cds--form-item {
+    flex: 1;
+    min-inline-size: 0;
+  }
+}
+// The name takes the rest of the row; colour, usage and delete stay compact.
+.pdft-stylemeta {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.pdft-sizestyle {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  padding-block-end: $spacing-04;
+  border-block-end: 1px solid theme.$border-subtle-01;
+}
+.pdft-stylecard {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+  padding: $spacing-04;
+  background: theme.$layer-02;
+}
+.pdft-agprev {
+  flex: none;
+  inline-size: 2rem;
+  text-align: center;
+  @include type-style('heading-03');
+}
+.pdft-use {
+  flex: none;
+  min-inline-size: 2.5rem;
+  color: theme.$text-secondary;
+  text-align: end;
+  @include type-style('helper-text-01');
+}
+
+// Variables tab ------------------------------------------------------------------------------------------------------
+.pdft-vars {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+  padding: $spacing-05;
+  .cds--inline-notification {
+    margin: 0;
+    max-inline-size: none;
+  }
+}
+.pdft-vargroup {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-01;
+}
+.pdft-vargroup__desc {
+  color: theme.$text-secondary;
+  font-weight: 400;
+}
+.pdft-var {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: $spacing-01;
+  padding: $spacing-03 $spacing-04;
+  border: 0;
+  background: transparent;
+  color: theme.$text-primary;
+  text-align: start;
+  cursor: pointer;
+  &:hover {
+    background: theme.$layer-hover-01;
+  }
+  &:focus-visible {
+    outline: 2px solid theme.$focus;
+    outline-offset: -2px;
+  }
+}
+.pdft-var__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+.pdft-var__type {
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+.pdft-var__desc {
+  @include type-style('body-compact-01');
+}
+.pdft-var__example {
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+.pdft-filter {
+  margin: 0;
+  padding-block: $spacing-01;
+  @include type-style('body-compact-01');
+}
+.pdft-splitter {
+  position: relative;
+  z-index: 5;
+  inline-size: 0;
+  &::before {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: -4px;
+    inline-size: 8px;
+    cursor: col-resize;
+  }
+  &::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: -1px;
+    inline-size: 2px;
+    background: transparent;
+    transition: background 0.1s;
+  }
+  &:hover::after,
+  &:focus-visible::after {
+    background: theme.$border-interactive;
+  }
+  &:focus-visible {
+    outline: none;
+  }
+}
+body.pdft-resizing {
+  cursor: col-resize;
+  user-select: none;
+  .pdft-pages {
+    pointer-events: none;
+  }
+}
+
+// Structure tree -----------------------------------------------------------------------------------------------------
+.pdft-tree,
+.pdft-group {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pdft-tree__help {
+  padding: $spacing-04 $spacing-05 $spacing-07;
+}
+.pdft-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-03;
+  &:focus-visible {
+    outline: 2px solid theme.$focus;
+    outline-offset: -2px;
+  }
+}
+.pdft-row--page,
+.pdft-row--node {
+  min-block-size: 2.5rem;
+  padding-block: $spacing-02;
+  padding-inline-end: $spacing-03;
+  border-inline-start: 3px solid transparent;
+  cursor: pointer;
+  &:hover {
+    background: theme.$layer-hover-01;
+  }
+}
+.pdft-row--page {
+  margin-block-start: $spacing-03;
+}
+.pdft-row--compact {
+  min-block-size: 1.75rem;
+  padding-block: $spacing-01;
+  .pdft-l1 {
+    color: theme.$text-secondary;
+    @include type-style('label-01');
+  }
+}
+.pdft-row--inactive .pdft-lines,
+.pdft-row--inactive .pdft-ic {
+  opacity: 0.6;
+}
+.pdft-row--sel {
+  background: theme.$layer-selected-01;
+  border-inline-start-color: theme.$border-interactive;
+}
+.pdft-row--section {
+  align-items: flex-start;
+  padding: $spacing-05 $spacing-03 $spacing-03;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+.pdft-row--branch {
+  align-items: center;
+  min-block-size: 1.5rem;
+  color: theme.$text-helper;
+  text-transform: uppercase;
+  letter-spacing: 0.32px;
+  @include type-style('label-01');
+}
+.pdft-guide {
+  position: absolute;
+  inset-block: 0;
+  inline-size: 1px;
+  background: theme.$border-subtle-01;
+}
+.pdft-tw {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1rem;
+  block-size: 1.125rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: theme.$icon-secondary;
+  cursor: pointer;
+  svg {
+    transition: transform 0.12s;
+  }
+}
+.pdft-tw--wide {
+  inline-size: 1.5rem;
+}
+.pdft-tw--closed svg {
+  transform: rotate(-90deg);
+}
+.pdft-ic {
+  flex: none;
+  margin-block-start: 1px;
+  fill: theme.$icon-secondary;
+}
+.pdft-ic--loop {
+  fill: theme.$support-info;
+}
+.pdft-ic--cond {
+  fill: theme.$support-warning;
+}
+.pdft-ic--layer {
+  fill: theme.$support-success;
+}
+.pdft-ic--pos {
+  fill: theme.$text-helper;
+}
+.pdft-lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.pdft-l1 {
+  overflow: hidden;
+  color: theme.$text-primary;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  @include type-style('body-compact-01');
+}
+.pdft-l1--strong {
+  font-weight: 600;
+}
+.pdft-l1--untitled {
+  color: theme.$text-secondary;
+}
+.pdft-l2 {
+  overflow: hidden;
+  color: theme.$text-helper;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  @include type-style('label-01');
+}
+.pdft-section-text {
+  flex: 1;
+  min-inline-size: 0;
+}
+.pdft-section-title {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  @include type-style('heading-compact-01');
+}
+.pdft-count {
+  color: theme.$text-helper;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  @include type-style('label-01');
+}
+.pdft-section-desc {
+  color: theme.$text-helper;
+  @include type-style('label-01');
+}
+.pdft-err {
+  flex: none;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  margin-block-start: 5px;
+  border-radius: 50%;
+  background: theme.$support-error;
+}
+.pdft-grip {
+  flex: none;
+  fill: theme.$text-helper;
+  opacity: 0;
+  cursor: grab;
+}
+.pdft-row:hover .pdft-grip,
+.pdft-row--sel .pdft-grip {
+  opacity: 1;
+}
+.pdft-row--dragging {
+  opacity: 0.4;
+}
+.pdft-drop--before::before,
+.pdft-drop--after::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  block-size: 2px;
+  background: theme.$border-interactive;
+  z-index: 2;
+  pointer-events: none;
+}
+.pdft-drop--before::before {
+  inset-block-start: -1px;
+}
+.pdft-drop--after::after {
+  inset-block-end: -1px;
+}
+.pdft-drop--into {
+  background: theme.$layer-selected-01;
+  box-shadow: inset 0 0 0 1px theme.$border-interactive;
+}
+.pdft-tree--tool .pdft-row {
+  cursor: copy;
+}
+.pdft-row .cds--text-input {
+  block-size: 1.5rem;
+  margin-block: -3px;
+}
+.pdft-row .cds--form-item {
+  flex: 1;
+}
+
+// Preview ------------------------------------------------------------------------------------------------------------
+.pdft-center {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+  background: theme.$layer-02;
+}
+.pdft-pages {
+  flex: 1;
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $spacing-06;
+  padding: $spacing-06 $spacing-06 5.5rem;
+  overflow: auto;
+  &:focus-visible {
+    outline: 2px solid theme.$focus;
+    outline-offset: -2px;
+  }
+}
+.pdft-pagewrap {
+  position: relative;
+  flex: none;
+  box-shadow: 0 2px 6px theme.$shadow;
+}
+.pdft-pno {
+  position: absolute;
+  inset-block-start: -1.125rem;
+  inset-inline-end: 0;
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+// The sheet of paper stays white in both themes.
+.pdft-page {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+}
+.pdft-page__canvas {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+}
+.pdft-overlay {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: default;
+}
+.pdft-pages--element .pdft-overlay {
+  cursor: move;
+}
+.pdft-pages--tool .pdft-overlay {
+  cursor: crosshair;
+}
+.pdft-outline {
+  position: absolute;
+  pointer-events: none;
+}
+.pdft-outline--hover {
+  outline: 1px dashed theme.$border-interactive;
+}
+.pdft-outline--selected {
+  outline: 2px solid theme.$border-interactive;
+  outline-offset: 1px;
+  background: rgba(theme.$border-interactive, 0.06);
+}
+.pdft-frame {
+  position: absolute;
+  z-index: 30;
+  outline: 1px solid theme.$border-interactive;
+  pointer-events: none;
+}
+.pdft-handle {
+  position: absolute;
+  inline-size: 8px;
+  block-size: 8px;
+  background: #fff;
+  border: 1px solid theme.$border-interactive;
+  pointer-events: auto;
+  touch-action: none;
+  &--nw {
+    inset: -4px auto auto -4px;
+    cursor: nwse-resize;
+  }
+  &--n {
+    inset: -4px auto auto calc(50% - 4px);
+    cursor: ns-resize;
+  }
+  &--ne {
+    inset: -4px -4px auto auto;
+    cursor: nesw-resize;
+  }
+  &--e {
+    inset: calc(50% - 4px) -4px auto auto;
+    cursor: ew-resize;
+  }
+  &--se {
+    inset: auto -4px -4px auto;
+    cursor: nwse-resize;
+  }
+  &--s {
+    inset: auto auto -4px calc(50% - 4px);
+    cursor: ns-resize;
+  }
+  &--sw {
+    inset: auto auto -4px -4px;
+    cursor: nesw-resize;
+  }
+  &--w {
+    inset: calc(50% - 4px) auto auto -4px;
+    cursor: ew-resize;
+  }
+}
+.pdft-readout {
+  position: absolute;
+  inset-block-start: -1.375rem;
+  inset-inline-start: 0;
+  padding: 1px $spacing-02;
+  background: theme.$background-inverse;
+  color: theme.$text-inverse;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  @include type-style('code-01');
+}
+.pdft-drawrect {
+  position: absolute;
+  z-index: 40;
+  border: 1px dashed theme.$border-interactive;
+  background: rgba(theme.$border-interactive, 0.08);
+  pointer-events: none;
+}
+
+// Insert toolbar and footer ------------------------------------------------------------------------------------------
+.pdft-insertbar {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-end: 3.5rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  max-inline-size: calc(100% - 1.5rem);
+  background: theme.$layer-01;
+  box-shadow: 0 2px 6px theme.$shadow;
+  transform: translateX(-50%);
+}
+.pdft-insertbar__group {
+  display: flex;
+  align-items: center;
+}
+.pdft-insertbar__sep {
+  align-self: stretch;
+  inline-size: 1px;
+  margin-block: $spacing-03;
+  margin-inline: $spacing-01;
+  background: theme.$border-subtle-01;
+}
+.pdft-insertbar .cds--overflow-menu.pdft-insertbar__more {
+  inline-size: 1.25rem;
+  block-size: 3rem;
+  min-inline-size: 0;
+}
+.pdft-toolhint {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-end: 6.5rem;
+  z-index: 19;
+  max-inline-size: calc(100% - 1.5rem);
+  padding: $spacing-02 $spacing-04;
+  overflow: hidden;
+  background: theme.$background-inverse;
+  color: theme.$text-inverse;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  @include type-style('label-01');
+}
+.cds--overflow-menu-options.pdft-flyout {
+  inline-size: 20rem;
+  .cds--overflow-menu-options__btn {
+    max-inline-size: none;
+    block-size: auto;
+    min-block-size: 2.5rem;
+    padding-block: $spacing-03;
+  }
+}
+// "Move to…" can list dozens of places: the list scrolls instead of leaving the window.
+.cds--overflow-menu-options.pdft-flyout--places {
+  max-block-size: min(24rem, 70vh);
+  overflow-y: auto;
+}
+.pdft-flyout__item {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr) 1.5rem;
+  align-items: center;
+  gap: $spacing-03;
+  inline-size: 100%;
+}
+.pdft-flyout__icon {
+  fill: currentcolor;
+}
+.pdft-flyout__text {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  text-align: start;
+}
+.pdft-flyout__desc {
+  color: theme.$text-secondary;
+  white-space: normal;
+  @include type-style('helper-text-01');
+}
+.pdft-flyout__key {
+  color: theme.$text-helper;
+  text-align: end;
+  @include type-style('code-01');
+}
+.pdft-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03 $spacing-05;
+  padding: $spacing-03 $spacing-05;
+  border-block-start: 1px solid theme.$border-subtle-01;
+  background: theme.$layer-01;
+}
+.pdft-foot__meta {
+  margin-inline-end: auto;
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+.pdft-zoom {
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+}
+.pdft-zoom__value {
+  min-inline-size: 3.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  @include type-style('body-compact-01');
+}
+
+// Modals ---------------------------------------------------------------------------------------------------------------
+.pdft-versions__who {
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+.pdft-versions__action {
+  text-align: end;
+}
+.pdft-versions__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  margin-block-start: $spacing-05;
+}
+.pdft-modal__note {
+  margin-block: $spacing-04;
+  color: theme.$text-secondary;
+}
+
+// Below the `lg` breakpoint the editor shows NarrowPreview instead of the panes: a notice and the read-only preview.
+.pdft--narrow .pdft-center {
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdft-tw svg,
+  .pdft-splitter::after {
+    transition: none;
+  }
+}
+
+.pdft-kbd {
+  font-family: 'IBM Plex Mono', monospace;
+  @include type-style('code-01');
+}
+
+// The ghost of an element being moved: its rendered pixels at the new place, over a cover of the paper at the old one.
+.pdft-ghost__cover {
+  position: absolute;
+  background: #fff;
+  pointer-events: none;
+}
+.pdft-ghost {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+}
+.pdft-ghost__picture {
+  position: absolute;
+}
+
+// The error screen of the editor.
+.pdft-crash {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  max-inline-size: 40rem;
+  padding: $spacing-07 $spacing-05;
+}
+.pdft-crash__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+// A row of a grid: its height field takes the width, the move buttons sit beside it.
+.pdft-gridrow__head {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-01;
+  .pdft-field {
+    flex: 1;
+    min-inline-size: 0;
+  }
+}

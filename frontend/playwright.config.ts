@@ -17,10 +17,34 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',
   outputDir: 'test-results',
+  // WebKit is opt-in (PLAYWRIGHT_WEBKIT=true, after `pnpm exec playwright install webkit`) and runs only the specs
+  // that end in `.webkit.spec.ts` (Chromium runs them too); CI installs Chromium only.
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: chromeExecutable ? { executablePath: chromeExecutable } : undefined,
+      },
+    },
+    ...(process.env.PLAYWRIGHT_WEBKIT === 'true'
+      ? [
+          {
+            name: 'webkit',
+            testMatch: /.*(pdf-templates|webkit).*\.spec\.ts/,
+            use: {
+              ...devices['Desktop Safari'],
+              // For a WebKit build that is not the one this Playwright version expects (its `pw_run.sh`).
+              launchOptions: process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE_PATH
+                ? { executablePath: process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE_PATH }
+                : undefined,
+            },
+          },
+        ]
+      : []),
+  ],
   use: {
-    ...devices['Desktop Chrome'],
     baseURL,
-    launchOptions: chromeExecutable ? { executablePath: chromeExecutable } : undefined,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },

@@ -1379,6 +1379,33 @@ type PaymentAllocation struct {
 	CreatedAt            time.Time
 }
 
+type PdfTemplateAsset struct {
+	ID                 uuid.UUID
+	FileName           string
+	ContentType        string
+	ByteSize           int32
+	Sha256             []byte
+	Data               []byte
+	Width              int32
+	Height             int32
+	CreatedByAccountID *uuid.UUID
+	CreatedAt          time.Time
+}
+
+type PdfTemplateVersion struct {
+	ID                   uuid.UUID
+	ExportKind           string
+	Version              int32
+	State                string
+	Document             []byte
+	Revision             int32
+	CreatedByAccountID   *uuid.UUID
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	PublishedAt          pgtype.Timestamptz
+	PublishedByAccountID *uuid.UUID
+}
+
 type PendingLogin struct {
 	ID              uuid.UUID
 	TokenDigest     []byte

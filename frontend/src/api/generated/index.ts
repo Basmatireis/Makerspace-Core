@@ -27,6 +27,7 @@ export * from './open-days/open-days';
 export * from './orders/orders';
 export * from './organizations/organizations';
 export * from './payments/payments';
+export * from './pdf-templates/pdf-templates';
 export * from './people/people';
 export * from './permissions/permissions';
 export * from './pricing/pricing';

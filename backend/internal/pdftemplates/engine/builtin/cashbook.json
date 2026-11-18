@@ -1,0 +1,559 @@
+{
+ "schemaVersion": 1,
+ "name": "HTU Kassabuch",
+ "export": "cashbook",
+ "page": {
+  "size": "A4",
+  "orientation": "portrait",
+  "margins": [
+   52.08,
+   19.93,
+   20,
+   20.03
+  ],
+  "font": "Helvetica",
+  "baseSize": 9,
+  "accent": "$c:ink",
+  "locale": "de",
+  "accentBar": false,
+  "filename": "cashbook-{{period.kind}}-{{period.from | date(\"yyyy-MM-dd\")}}-{{period.to | date(\"yyyy-MM-dd\")}}.pdf"
+ },
+ "styles": {
+  "colors": [
+   {
+    "id": "ink",
+    "name": "Form ink",
+    "value": "#3c3c3c"
+   },
+   {
+    "id": "rule",
+    "name": "Form rule",
+    "value": "#000000"
+   },
+   {
+    "id": "grey",
+    "name": "Form grey",
+    "value": "#7f7f7f"
+   },
+   {
+    "id": "reference",
+    "name": "Receipt number",
+    "value": "#6f6f6f"
+   }
+  ],
+  "text": [
+   {
+    "id": "title",
+    "name": "Form title",
+    "font": "Helvetica",
+    "size": 18.0,
+    "weight": 600,
+    "lineHeight": 1.2,
+    "color": "$c:ink"
+   },
+   {
+    "id": "label",
+    "name": "Form label",
+    "font": "Helvetica",
+    "size": 11.04,
+    "weight": 600,
+    "lineHeight": 1.1476,
+    "color": "$c:ink"
+   },
+   {
+    "id": "labelRegular",
+    "name": "Form entry",
+    "font": "Helvetica",
+    "size": 11.04,
+    "weight": 400,
+    "lineHeight": 1.1476,
+    "color": "$c:ink"
+   },
+   {
+    "id": "entry",
+    "name": "Table entry",
+    "font": "Helvetica",
+    "size": 9,
+    "weight": 400,
+    "lineHeight": 1.1,
+    "color": "$c:ink"
+   },
+   {
+    "id": "reference",
+    "name": "Receipt number",
+    "font": "Helvetica",
+    "size": 7,
+    "weight": 400,
+    "lineHeight": 1.1,
+    "color": "$c:reference"
+   },
+   {
+    "id": "amount",
+    "name": "Sum",
+    "font": "Helvetica",
+    "size": 10.0,
+    "weight": 600,
+    "lineHeight": 1.2,
+    "color": "$c:ink"
+   }
+  ],
+  "sizes": [
+   {
+    "id": "rule",
+    "name": "Form rule",
+    "value": 0.17,
+    "unit": "mm"
+   },
+   {
+    "id": "row",
+    "name": "Row height",
+    "value": 9.457,
+    "unit": "mm"
+   },
+   {
+    "id": "rowFirst",
+    "name": "Row height, first sheet",
+    "value": 9.4536,
+    "unit": "mm"
+   }
+  ]
+ },
+ "layers": [
+  {
+   "id": "letterhead",
+   "type": "layer",
+   "title": "HTU letterhead",
+   "pages": "all",
+   "elements": [
+    {
+     "id": "htu-logo",
+     "type": "graphic",
+     "title": "HTU logo",
+     "x": 22.98,
+     "y": 19.78,
+     "w": 62.95,
+     "h": 20.7,
+     "art": "htu-logo"
+    },
+    {
+     "id": "htu-triangles-top",
+     "type": "graphic",
+     "title": "Triangles, top right",
+     "x": 181.85,
+     "y": 7.87,
+     "w": 19.99,
+     "h": 35.78,
+     "art": "htu-corner-top"
+    },
+    {
+     "id": "htu-triangles-bottom",
+     "type": "graphic",
+     "title": "Triangles, bottom right",
+     "x": 181.85,
+     "y": 241.31,
+     "w": 19.99,
+     "h": 47.64,
+     "art": "htu-corner-bottom"
+    },
+    {
+     "id": "htu-footer",
+     "type": "graphic",
+     "title": "HTU footer with address",
+     "x": 7.98,
+     "y": 261.48,
+     "w": 147.28,
+     "h": 22.28,
+     "art": "htu-footer"
+    },
+    {
+     "id": "fold-mark-upper",
+     "type": "line",
+     "title": "Fold mark, upper",
+     "x": 0,
+     "y": 105.12,
+     "w": 10.71,
+     "h": 0,
+     "stroke": 0.49,
+     "color": "$c:ink"
+    },
+    {
+     "id": "fold-mark-lower",
+     "type": "line",
+     "title": "Fold mark, lower",
+     "x": 0,
+     "y": 210.28,
+     "w": 10.71,
+     "h": 0,
+     "stroke": 0.49,
+     "color": "$c:ink"
+    }
+   ]
+  },
+  {
+   "id": "first-page",
+   "type": "layer",
+   "title": "Head block on the first page",
+   "pages": "first",
+   "elements": [
+    {
+     "id": "head-block",
+     "type": "grid",
+     "title": "Head block",
+     "colWidths": [
+      37.55,
+      132.49
+     ],
+     "stroke": "$s:rule",
+     "color": "$c:rule",
+     "rows": [
+      {
+       "height": 7.49,
+       "cells": [
+        {
+         "text": "Kassabuch",
+         "textStyle": "title",
+         "align": "center",
+         "span": 2
+        }
+       ]
+      },
+      {
+       "height": 15.7,
+       "cells": [
+        {
+         "text": "Studienvertretung\nStudienlabor\nReferat",
+         "textStyle": "label",
+         "valign": "top"
+        },
+        {
+         "text": "{{organization.unit}}",
+         "textStyle": "labelRegular"
+        }
+       ]
+      },
+      {
+       "height": 10,
+       "cells": [
+        {
+         "text": "Wirtschaftsjahr",
+         "textStyle": "label",
+         "valign": "top"
+        },
+        {
+         "text": "{{period.businessYear}} · Zeitraum {{period.from | date}} – {{period.to | date}}{{period.contents | prefix(\" · \")}}",
+         "textStyle": "labelRegular",
+         "valign": "top"
+        }
+       ]
+      }
+     ],
+     "x": 20.03,
+     "y": 52.08,
+     "w": 170.04
+    }
+   ]
+  }
+ ],
+ "header": [],
+ "body": [
+  {
+   "id": "contents",
+   "type": "if",
+   "title": "Cash register or all payments",
+   "when": {
+    "path": "period.contents",
+    "op": "empty"
+   },
+   "then": [
+    {
+     "id": "sheets-cash-register",
+     "type": "sheet",
+     "title": "Sheets of the cash register, with the balance",
+     "source": "lines",
+     "as": "line",
+     "firstTop": 85.27,
+     "nextTop": 52.08,
+     "rowsFirst": 14,
+     "rowsNext": 17,
+     "rowHeight": "$s:row",
+     "rowHeightFirst": "$s:rowFirst",
+     "headHeight": 9.44,
+     "headHeightFirst": 4.67,
+     "carryHeight": 9.48,
+     "carryHeightFirst": 9.1,
+     "sumHeight": 9.44,
+     "sumHeightFirst": 9.48,
+     "fillEmpty": true,
+     "color": "$c:rule",
+     "textColor": "$c:ink",
+     "subColor": "$c:reference",
+     "stroke": "$s:rule",
+     "headerStyle": "label",
+     "bodyStyle": "entry",
+     "subStyle": "reference",
+     "totalsStyle": "amount",
+     "columns": [
+      {
+       "header": "Nr.",
+       "value": "{{line.no}}",
+       "x": 20.03,
+       "w": 15.07,
+       "align": "left"
+      },
+      {
+       "header": "Datum",
+       "value": "{{line.date | date}}",
+       "x": 35.1,
+       "w": 22.48,
+       "align": "left"
+      },
+      {
+       "header": "Kassierer*in",
+       "value": "{{line.cashier}}",
+       "x": 57.58,
+       "w": 27.52,
+       "align": "left"
+      },
+      {
+       "header": "Text",
+       "value": "{{line.text}}{{line.orderSummary | prefix(\" · \")}}",
+       "sub": "{{line.receiptNumber}}",
+       "x": 85.1,
+       "w": 60.0,
+       "align": "left"
+      },
+      {
+       "header": "Einnahme",
+       "value": "{{line.in | amount}}",
+       "x": 145.1,
+       "w": 22.54,
+       "align": "right"
+      },
+      {
+       "header": "Ausgabe",
+       "value": "{{line.out | amount}}",
+       "x": 167.64,
+       "w": 22.43,
+       "align": "right"
+      }
+     ],
+     "carry": {
+      "label": "Bestand/Übertrag von\nvorheriger Seite",
+      "value": "{{sheet.carry | number(2)}}",
+      "outFill": "$c:grey"
+     },
+     "sum": {
+      "label": "Summe/Bestand",
+      "in": "{{sheet.balance | number(2)}}",
+      "out": "",
+      "outFill": "$c:grey"
+     }
+    }
+   ],
+   "else": [
+    {
+     "id": "sheets-all-payments",
+     "type": "sheet",
+     "title": "Sheets of all payments, with the method and sums",
+     "source": "lines",
+     "as": "line",
+     "firstTop": 85.27,
+     "nextTop": 52.08,
+     "rowsFirst": 14,
+     "rowsNext": 17,
+     "rowHeight": "$s:row",
+     "rowHeightFirst": "$s:rowFirst",
+     "headHeight": 9.44,
+     "headHeightFirst": 4.67,
+     "carryHeight": 9.48,
+     "carryHeightFirst": 9.1,
+     "sumHeight": 9.44,
+     "sumHeightFirst": 9.48,
+     "fillEmpty": true,
+     "color": "$c:rule",
+     "textColor": "$c:ink",
+     "subColor": "$c:reference",
+     "stroke": "$s:rule",
+     "headerStyle": "label",
+     "bodyStyle": "entry",
+     "subStyle": "reference",
+     "totalsStyle": "amount",
+     "columns": [
+      {
+       "header": "Nr.",
+       "value": "{{line.no}}",
+       "x": 20.03,
+       "w": 15.07,
+       "align": "left"
+      },
+      {
+       "header": "Datum",
+       "value": "{{line.date | date}}",
+       "x": 35.1,
+       "w": 22.48,
+       "align": "left"
+      },
+      {
+       "header": "Kassierer*in",
+       "value": "{{line.cashier}}",
+       "x": 57.58,
+       "w": 27.52,
+       "align": "left"
+      },
+      {
+       "header": "Text",
+       "value": "{{line.text}}{{line.orderSummary | prefix(\" · \")}}{{line.method | prefix(\" (\") | suffix(\")\")}}",
+       "sub": "{{line.receiptNumber}}",
+       "x": 85.1,
+       "w": 60.0,
+       "align": "left"
+      },
+      {
+       "header": "Einnahme",
+       "value": "{{line.in | amount}}",
+       "x": 145.1,
+       "w": 22.54,
+       "align": "right"
+      },
+      {
+       "header": "Ausgabe",
+       "value": "{{line.out | amount}}",
+       "x": 167.64,
+       "w": 22.43,
+       "align": "right"
+      }
+     ],
+     "carry": {
+      "label": "Bestand/Übertrag von\nvorheriger Seite",
+      "value": "",
+      "outFill": "$c:grey"
+     },
+     "sum": {
+      "label": "Summe/Bestand",
+      "in": "{{sheet.sumIn | number(2)}}",
+      "out": "{{sheet.sumOut | number(2)}}"
+     }
+    }
+   ]
+  },
+  {
+   "id": "closing-break",
+   "type": "pagebreak",
+   "title": "Closing sheet on a new page"
+  },
+  {
+   "id": "totals",
+   "type": "grid",
+   "title": "Totals",
+   "colWidths": [
+    125.07,
+    22.54,
+    22.43
+   ],
+   "stroke": "$s:rule",
+   "color": "$c:rule",
+   "rows": [
+    {
+     "height": 9.52,
+     "cells": [
+      {
+       "text": "Gesamtsumme (aller Einnahmen & Ausgaben)",
+       "textStyle": "label",
+       "align": "right"
+      },
+      {
+       "text": "{{totals.in | number(2)}}",
+       "textStyle": "amount",
+       "align": "right"
+      },
+      {
+       "text": "{{totals.out | number(2)}}",
+       "textStyle": "amount",
+       "align": "right"
+      }
+     ]
+    },
+    {
+     "height": 9.48,
+     "cells": [
+      {
+       "text": "Anfangsbestand (Wirtschaftsjahr)",
+       "textStyle": "label",
+       "align": "right"
+      },
+      {
+       "text": "{{totals.opening | number(2)}}",
+       "textStyle": "amount",
+       "align": "right"
+      },
+      {
+       "fill": "$c:grey"
+      }
+     ]
+    },
+    {
+     "height": 9.53,
+     "cells": [
+      {
+       "text": "Endbestand (Wirtschaftsjahr)",
+       "textStyle": "label",
+       "align": "right"
+      },
+      {
+       "text": "{{totals.closing | number(2)}}",
+       "textStyle": "amount",
+       "align": "right"
+      },
+      {
+       "fill": "$c:grey"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "signatures",
+   "type": "grid",
+   "title": "Signatures",
+   "colWidths": [
+    95.14,
+    74.9
+   ],
+   "stroke": "$s:rule",
+   "color": "$c:rule",
+   "rows": [
+    {
+     "height": 19.65,
+     "cells": [
+      {
+       "text": "Name, Datum & Unterschrift\nKostenstellenverantwortliche/r",
+       "textStyle": "label",
+       "align": "right"
+      }
+     ]
+    },
+    {
+     "height": 20.02,
+     "cells": [
+      {
+       "text": "Name, Datum & Unterschrift\nWirtschaftsreferent/in",
+       "textStyle": "label",
+       "align": "right"
+      }
+     ]
+    },
+    {
+     "height": 19.98,
+     "cells": [
+      {
+       "text": "Name, Datum & Unterschrift\nVorsitzende/r",
+       "textStyle": "label",
+       "align": "right"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "footer": []
+}

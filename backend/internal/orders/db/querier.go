@@ -58,6 +58,8 @@ type Querier interface {
 	GetOrganization(ctx context.Context, id uuid.UUID) (GetOrganizationRow, error)
 	GetPayment(ctx context.Context, id uuid.UUID) (Payment, error)
 	GetPerson(ctx context.Context, id uuid.UUID) (GetPersonRow, error)
+	// Empty when the person has none; only read for a caller who holds people.read.matriculation.
+	GetPersonMatriculation(ctx context.Context, personID uuid.UUID) (string, error)
 	GetRequest(ctx context.Context, id uuid.UUID) (ExternalInvoiceRequest, error)
 	GetRequestDetails(ctx context.Context, requestID uuid.UUID) (ExternalInvoiceRequestDetail, error)
 	GetRequestWiRefDelivery(ctx context.Context, requestID uuid.UUID) (GetRequestWiRefDeliveryRow, error)
@@ -98,6 +100,8 @@ type Querier interface {
 	ListOwnPayableOrderIDs(ctx context.Context, personID *uuid.UUID) ([]uuid.UUID, error)
 	ListOwnRecentOrderIDs(ctx context.Context, arg ListOwnRecentOrderIDsParams) ([]uuid.UUID, error)
 	ListPayments(ctx context.Context, arg ListPaymentsParams) ([]Payment, error)
+	// The newest finalized orders that have a receipt (a settled amount above 0), for previews of the receipt template.
+	ListReceiptPreviewOrders(ctx context.Context, rowLimit int32) ([]ListReceiptPreviewOrdersRow, error)
 	ListRequests(ctx context.Context, arg ListRequestsParams) ([]ExternalInvoiceRequest, error)
 	LockCashRegister(ctx context.Context) error
 	LockOperation(ctx context.Context, operationKey string) error
@@ -123,6 +127,8 @@ type Querier interface {
 	PaymentAllocations(ctx context.Context, paymentID *uuid.UUID) ([]PaymentAllocation, error)
 	PaymentReversalExists(ctx context.Context, reversesPaymentID *uuid.UUID) (bool, error)
 	PreviousCashCountTime(ctx context.Context, countedAt time.Time) (time.Time, error)
+	// The receipts that still count towards an order with the amount each contributes to it, oldest first.
+	ReceiptPayments(ctx context.Context, orderID *uuid.UUID) ([]ReceiptPaymentsRow, error)
 	ReconciliationTotals(ctx context.Context, arg ReconciliationTotalsParams) ([]ReconciliationTotalsRow, error)
 	ReleaseItemClaim(ctx context.Context, orderItemID uuid.UUID) error
 	ReleaseOrderClaims(ctx context.Context, orderID uuid.UUID) error

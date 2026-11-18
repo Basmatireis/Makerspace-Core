@@ -221,7 +221,7 @@ func TestForwardingSendsOneMailWithPDFToTheConfiguredRecipient(t *testing.T) {
 	f := newFixture(t)
 	a := f.actors(t)
 	box := &mailbox{}
-	mailer := invoicing.NewService(f.pool, box, nil)
+	mailer := invoicing.NewService(f.pool, box)
 	f.s.WithInvoiceDelivery(mailer)
 	r := submittedRequest(t, f, a, "10")
 

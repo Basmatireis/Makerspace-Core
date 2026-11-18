@@ -9,8 +9,18 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+### Added
+
+- **Editable PDF templates.** The wiRef invoice request, the cashbook (Kassabuch) and a new order receipt are rendered from templates with a draft, published versions, history and restore, uploaded images and previews with sample data or real records (`/pdf-templates`, permission `pdf_templates.manage`, migration 00146). Built-in defaults reproduce the previous PDFs. The receipt page has a "Download PDF" button (`GET /orders/{orderId}/receipt.pdf`). Sensitive fields are redacted per reader permission; wiRef record previews also need `orders.read`, uploaded PNG and JPEG images are re-encoded (no EXIF or GPS data is stored) and `pdf_templates.manage` is a high-trust permission. See [docs/pdf-templates.md](docs/pdf-templates.md).
+
+
+>>>>>>> origin/claude/pdf-template-editor-64a7e5
 ### Changed
 
+- **PDF template editing.** Templates have a `grid` block for static form tables, the HTU letterhead is available in its parts (`htu-logo`, `htu-corner-top`, `htu-corner-bottom`, `htu-footer`), and previews list the nodes not shown with the data (`inactive`). The built-in templates are rebuilt for editing: every element is titled, the Kassabuch head block and closing sheet are grids, the wiRef recipient details are one fields block. Preview boxes are numbered from page 1 as the editor expects, layers no longer report a box over the whole page.
+- The cashbook PDF is rendered by the template engine instead of dedicated code. Its default file name is `cashbook-<from>-<to>.pdf`; on refund lines the reason now precedes the order summary.
 - **Cashbook says what a receipt was for.** Payment lines of the cashbook PDF and CSV name what their order charged after the order reference: the processes of its machine jobs ("FDM 3D printing und Material"), the material types of articles sold from stock and manual items, joined and cut with an ellipsis (48 characters in the CSV; on the Kassabuch sheet up to 64, as much as fits the text column). The Kassabuch sheet no longer shows the customer; the CSV still does. Refunds and corrections describe the order of the receipt they reverse. Shown only with `orders.read`, like the customer. See [docs/orders.md](docs/orders.md).
 =======
 ### Fixed

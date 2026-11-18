@@ -27,6 +27,7 @@ import {
   InventoryPage,
   InvitationPage,
   InvoicingSettingsPage,
+  PdfTemplatesPage,
   JobDetailPage,
   JobsPage,
   LaborordnungPage,
@@ -590,6 +591,14 @@ export function App() {
               element={
                 <PermissionRoute allOf={['invoicing.settings.manage']}>
                   <InvoicingSettingsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="settings/pdf-templates"
+              element={
+                <PermissionRoute allOf={['pdf_templates.manage']}>
+                  <PdfTemplatesPage />
                 </PermissionRoute>
               }
             />

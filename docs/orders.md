@@ -53,6 +53,8 @@ Commands use caller-generated UUIDv7 `operationKey`s. The service serializes ret
 
 There are no counter sales. Every Machine Job has a customer (Person or Organization) and every sale goes through an ordinary Order. The `/counter-sales` endpoints were removed; Orders that were created that way remain ordinary finalized Orders (the `anonymous` customer kind and its database checks stay for them). A terminal payment is an external fact. PostgreSQL rollback cannot undo it. If recording fails after a successful terminal payment, retry the same operation and reference without charging again; never assume a database failure refunded it.
 
+The cashbook PDF and the receipt PDF (`GET /orders/{orderId}/receipt.pdf`) are rendered from editable templates; see [PDF templates](pdf-templates.md).
+
 ## wiRef workflow
 
 A separate ExternalInvoiceRequest has a `W-2026-000001` reference and the states `draft → submitted → issued`, plus `issued → cancellation_requested → cancelled`. `submitted` is shown as "Awaiting approval"; `issued` means "approved and forwarded to wiRef". The former `ready` state is gone.

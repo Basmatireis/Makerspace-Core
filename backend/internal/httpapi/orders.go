@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
@@ -973,4 +974,27 @@ func (s *Server) PayOwnBalance(
 		return nil, err
 	}
 	return openapi.PayOwnBalance201JSONResponse(dto), nil
+}
+
+func (s *Server) GetOrderReceiptPdf(
+	ctx context.Context,
+	r openapi.GetOrderReceiptPdfRequestObject,
+) (openapi.GetOrderReceiptPdfResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	file, err := s.orders.ReceiptPDF(ctx, p, r.OrderId, r.Params.PaymentId)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.GetOrderReceiptPdf200ApplicationpdfResponse{
+		Body:          bytes.NewReader(file.Data),
+		ContentLength: int64(len(file.Data)),
+		Headers: openapi.GetOrderReceiptPdf200ResponseHeaders{
+			CacheControl:        "no-store",
+			ContentDisposition:  attachmentDisposition(file.Filename),
+			XContentTypeOptions: "nosniff",
+		},
+	}, nil
 }
