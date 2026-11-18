@@ -1,6 +1,5 @@
 import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { LoginPage } from '../features/auth/LoginPage';
 import { PermissionRoute, ProtectedRoute, useCurrentUser } from '../features/auth/auth';
 import { canAccessSettings } from '../features/auth/permissions';
 import { AppShell } from './AppShell';
@@ -11,6 +10,7 @@ import { machineLogbookPaths } from '../features/machinelogbook/shared/paths';
 import { DeviceBridgeProvider } from '../features/kiosk/DeviceBridgeProvider';
 import {
   AboutPage,
+  LoginPage,
   ActivityPage,
   AttendancePage,
   BrandingLegalSettingsPage,

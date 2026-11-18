@@ -1,5 +1,8 @@
 import { lazy } from 'react';
 
+export const LoginPage = lazy(() =>
+  import('../features/auth/LoginPage').then(({ LoginPage }) => ({ default: LoginPage })),
+);
 export const ResetPasswordPage = lazy(() =>
   import('../features/auth/ResetPasswordPage').then(({ ResetPasswordPage }) => ({ default: ResetPasswordPage })),
 );
