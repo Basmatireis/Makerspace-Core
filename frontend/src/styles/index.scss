@@ -2230,6 +2230,15 @@ body.panel-sheet-open .app-main > * {
   gap: $spacing-05;
 }
 
+.error-report__reference,
+.error-report__help {
+  @include type-style('body-compact-01');
+}
+
+.error-report__help {
+  color: theme.$text-secondary;
+}
+
 .visually-hidden {
   position: absolute !important;
   width: 1px !important;
