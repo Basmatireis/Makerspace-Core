@@ -6,6 +6,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { setReauthenticationHandler } from './api/http-client';
 import { queryClient } from './api/query-client';
 import { App } from './app/App';
+import { rememberComponentStack } from './app/errorSummary';
 import { RouteErrorPage } from './app/RouteErrorPage';
 import { SessionEventHandler } from './features/auth/auth';
 import { BrandingProvider } from './features/branding/branding';
@@ -31,7 +32,13 @@ const router = createBrowserRouter([
   },
 ]);
 
-createRoot(document.getElementById('root')!).render(
+createRoot(document.getElementById('root')!, {
+  // Keeps the component stack of an error an error boundary caught, so the error page can include it in its details.
+  onCaughtError: (error, errorInfo) => {
+    console.error(error);
+    rememberComponentStack(error, errorInfo.componentStack);
+  },
+}).render(
   <StrictMode>
     {/* Tooltips, toggletips and dropdown menus are positioned as fixed layers, so tables, tiles and modals with
         overflow no longer clip them. */}

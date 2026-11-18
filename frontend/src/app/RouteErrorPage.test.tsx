@@ -1,7 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../api/http-client';
 import { claimChunkReload, isChunkLoadError } from './chunkLoadRecovery';
+import { rememberComponentStack } from './errorSummary';
 import { RouteErrorPage } from './RouteErrorPage';
 
 function renderWithError(error: unknown) {
@@ -14,6 +17,7 @@ function renderWithError(error: unknown) {
 
 describe('RouteErrorPage', () => {
   const reload = vi.fn();
+  const originalLocation = window.location;
 
   beforeEach(() => {
     window.sessionStorage.clear();
@@ -23,7 +27,8 @@ describe('RouteErrorPage', () => {
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    // Only location is restored: unstubbing every global would also remove the test setup's ResizeObserver.
+    vi.stubGlobal('location', originalLocation);
     vi.restoreAllMocks();
     reload.mockReset();
   });
@@ -64,5 +69,56 @@ describe('RouteErrorPage', () => {
     expect(screen.getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to dashboard' })).toHaveAttribute('href', '/dashboard');
     expect(screen.queryByText('boom')).not.toBeInTheDocument();
+    expect(screen.queryByText('Likely cause')).not.toBeInTheDocument();
+  });
+
+  it('shows an error code and reference and keeps the details collapsed', async () => {
+    renderWithError(new Error('boom'));
+
+    expect(screen.getByText(/^Error code/, { selector: 'p' })).toHaveTextContent(
+      /Error code RENDER · Reference [A-Z2-9]{8} ·/,
+    );
+    expect(await screen.findByRole('button', { name: 'Technical details' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('copies sanitized details including the component stack', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+    const error = new Error('Failed for ada@example.org');
+    rememberComponentStack(error, '\n    at CashbookEditor\n    at PdfTemplatesPage');
+    renderWithError(error);
+
+    await user.click(await screen.findByRole('button', { name: 'Copy details' }));
+
+    const copied = writeText.mock.calls[0][0];
+    expect(copied).toContain('Error code: RENDER');
+    expect(copied).toContain('Error: Error: Failed for [email]');
+    expect(copied).toContain('at CashbookEditor');
+    expect(copied).not.toContain('ada@example.org');
+    expect(screen.getByRole('button', { name: 'Details copied' })).toBeInTheDocument();
+  });
+
+  it('opens the details when copying is not allowed', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
+    renderWithError(new Error('boom'));
+
+    await user.click(await screen.findByRole('button', { name: 'Copy details' }));
+
+    expect(screen.getByText('Could not copy automatically.')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Technical details' })).toHaveAttribute('aria-expanded', 'true'),
+    );
+  });
+
+  it('names the status and request id of an API error', async () => {
+    const user = userEvent.setup();
+    renderWithError(new ApiError(502, { message: 'Bad gateway', requestId: 'req-7' }));
+
+    expect(screen.getByText('API_502', { selector: 'strong' })).toBeInTheDocument();
+    expect(screen.getByText(/failed to handle a request/)).toBeInTheDocument();
+    const details = await screen.findByRole('button', { name: 'Technical details' });
+    await user.click(details);
+    expect(within(details.closest('li')!).getByText(/Request id: req-7/)).toBeInTheDocument();
   });
 });
