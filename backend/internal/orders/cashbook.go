@@ -8,10 +8,12 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/orders/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -60,6 +62,7 @@ type cashbookLine struct {
 	effect         decimal.Decimal
 	balance        decimal.Decimal
 	orderReference string
+	contents       orderContents
 	customer       string
 	paymentReason  string
 	movementReason CashMovementReason
@@ -67,6 +70,46 @@ type cashbookLine struct {
 	countReference string
 	countReason    CashCountReason
 	recordedBy     string
+}
+
+// orderContents is what the order of a cashbook line charged: the processes of its machine jobs, whether they used
+// the makerspace's material, and the material types of articles sold from stock and manual items, each once.
+type orderContents struct {
+	processes []string
+	materials bool
+	goods     []string
+}
+
+func appendOnce(list []string, value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return list
+	}
+	for _, kept := range list {
+		if strings.EqualFold(kept, value) {
+			return list
+		}
+	}
+	return append(list, value)
+}
+
+// collectOrderContents groups the items of the cashbook's orders by order.
+func collectOrderContents(rows []db.ListCashbookOrderContentsRow) map[uuid.UUID]orderContents {
+	result := map[uuid.UUID]orderContents{}
+	for _, row := range rows {
+		c := result[row.OrderID]
+		switch OrderItemKind(row.Kind) {
+		case ItemMachineJob:
+			c.processes = appendOnce(c.processes, row.ProcessName)
+			c.materials = c.materials || row.UsedMaterials
+		case ItemInventory:
+			c.goods = appendOnce(c.goods, row.ArticleCategory)
+		default:
+			c.goods = appendOnce(c.goods, row.Description)
+		}
+		result[row.OrderID] = c
+	}
+	return result
 }
 
 // cashbook is everything an export shows.
@@ -119,7 +162,8 @@ func (s *Service) ExportCashbook(
 		location:    s.location,
 		withBalance: query.Contents == CashbookCashRegister,
 	}
-	withCustomer := p.Has(authorization.OrdersRead)
+	// Customer names and what an order charged are order data.
+	withOrders := p.Has(authorization.OrdersRead)
 	err = s.readOnly(ctx, func(q *db.Queries) error {
 		rows, e := q.ListCashbookEntries(ctx, db.ListCashbookEntriesParams{
 			RowLimit: MaxCashbookExportEntries + 1,
@@ -144,6 +188,21 @@ func (s *Service) ExportCashbook(
 			}
 			book.opening = opening.expected()
 		}
+		contents := map[uuid.UUID]orderContents{}
+		if withOrders {
+			// Text, so that the simple protocol can send the list too.
+			orderIDs := []string{}
+			for _, row := range rows {
+				if row.OrderID != nil {
+					orderIDs = append(orderIDs, row.OrderID.String())
+				}
+			}
+			items, e := q.ListCashbookOrderContents(ctx, orderIDs)
+			if e != nil {
+				return e
+			}
+			contents = collectOrderContents(items)
+		}
 		balance := book.opening
 		for _, row := range rows {
 			line := cashbookLine{
@@ -159,8 +218,11 @@ func (s *Service) ExportCashbook(
 				countReference: row.CountReference,
 				recordedBy:     row.RecordedByName,
 			}
-			if withCustomer {
+			if withOrders {
 				line.customer = row.CustomerName
+				if row.OrderID != nil {
+					line.contents = contents[*row.OrderID]
+				}
 			}
 			if row.CountReason != nil {
 				line.countReason = CashCountReason(*row.CountReason)
@@ -228,6 +290,7 @@ var (
 
 type cashbookWords struct {
 	receipt, refund, correction, withdrawal, deposit string
+	and, materials, machineUse                       string
 	movementReasons                                  map[CashMovementReason]string
 	countReasons                                     map[CashCountReason]string
 	methods                                          map[PaymentMethod]string
@@ -236,10 +299,12 @@ type cashbookWords struct {
 var (
 	germanWords = cashbookWords{
 		receipt: "Einnahme", refund: "Rückzahlung", correction: "Korrektur", withdrawal: "Entnahme", deposit: "Einlage",
+		and: "und", materials: "Material", machineUse: "Maschinennutzung",
 		movementReasons: movementReasonGerman, countReasons: countReasonGerman, methods: methodGerman,
 	}
 	englishWords = cashbookWords{
 		receipt: "Receipt", refund: "Refund", correction: "Correction", withdrawal: "Withdrawal", deposit: "Deposit",
+		and: "and", materials: "materials", machineUse: "Machine use",
 		movementReasons: movementReasonEnglish, countReasons: countReasonEnglish, methods: methodEnglish,
 	}
 )
@@ -254,14 +319,43 @@ func joinParts(parts ...string) string {
 	return strings.Join(kept, " · ")
 }
 
-// describe is the text of a cashbook line, e.g. "Einnahme O-2026-000012 · Name" or "Entnahme · Tresor · note".
-func (w cashbookWords) describe(line cashbookLine, withMethod bool) string {
+const (
+	// MaxCashbookSummaryLength bounds the order summary of a CSV line in characters.
+	MaxCashbookSummaryLength = 48
+	// MaxKassabuchSummaryLength bounds it on the PDF sheet, which has no customer; a line shortens it further until
+	// its text fits the two lines of the text column.
+	MaxKassabuchSummaryLength = 64
+	minKassabuchSummaryLength = 16
+)
+
+// summary says what an order charged, e.g. "Laser cutting, FDM 3D printing and materials, Filament", shortened with
+// an ellipsis to length characters.
+func (w cashbookWords) summary(c orderContents, length int) string {
+	services := strings.Join(c.processes, ", ")
+	switch {
+	case services == "" && c.materials:
+		services = w.machineUse + " " + w.and + " " + w.materials
+	case c.materials:
+		services += " " + w.and + " " + w.materials
+	}
+	text := strings.Join(append(appendOnce(nil, services), c.goods...), ", ")
+	if utf8.RuneCountInString(text) <= length {
+		return text
+	}
+	runes := []rune(text)[:length-1]
+	return strings.TrimRight(string(runes), " ,") + "…"
+}
+
+// describe is the text of a cashbook line, e.g. "Receipt O-2026-000012 · FDM 3D printing and materials · Name" or
+// "Withdrawal · Moved to safe · note", with the order summary cut to summaryLength. Refunds and corrections of a
+// receipt describe its order the same way.
+func (w cashbookWords) describe(line cashbookLine, withMethod bool, summaryLength int) string {
 	var text string
 	switch {
 	case line.kind == JournalReceipt:
-		text = joinParts(w.receipt+" "+line.orderReference, line.customer)
+		text = joinParts(w.receipt+" "+line.orderReference, w.summary(line.contents, summaryLength), line.customer)
 	case line.kind == JournalRefund:
-		text = joinParts(w.refund+" "+line.orderReference, line.paymentReason)
+		text = joinParts(w.refund+" "+line.orderReference, w.summary(line.contents, summaryLength), line.paymentReason)
 	case line.kind == JournalCorrection && line.countReference != "":
 		text = joinParts(
 			w.correction,
@@ -270,7 +364,7 @@ func (w cashbookWords) describe(line cashbookLine, withMethod bool) string {
 			line.note,
 		)
 	case line.kind == JournalCorrection:
-		text = joinParts(w.correction+" "+line.orderReference, line.paymentReason)
+		text = joinParts(w.correction+" "+line.orderReference, w.summary(line.contents, summaryLength), line.paymentReason)
 	case line.kind == JournalWithdrawal:
 		text = joinParts(w.withdrawal, w.movementReasons[line.movementReason], line.note)
 	default:
@@ -348,7 +442,7 @@ func (b cashbook) csv() []byte {
 		cells := []string{
 			line.at.In(b.location).Format("02.01.2006"),
 			line.reference,
-			englishWords.describe(line, !b.withBalance),
+			englishWords.describe(line, !b.withBalance, MaxCashbookSummaryLength),
 			optionalAmount(in, csvAmount),
 			optionalAmount(out, csvAmount),
 		}
