@@ -201,3 +201,96 @@ func TestPastOpenDayScheduleChangesNeedEditPast(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestOngoingOpenDayTimeslotsAreJudgedOneByOne(t *testing.T) {
+	e := newEditPastEnv(t)
+	ctx := testContext(t)
+	// An open day that is half over: the first timeslot has ended, the second is still to come.
+	first := e.now.Add(-3 * time.Hour).Truncate(time.Minute)
+	day := e.openDay(first, 2*time.Hour, 2, 0)
+	later := e.addSlot(day, e.now.Add(time.Hour).Truncate(time.Minute), 2*time.Hour)
+	e.holdSlot(day, day.timeslot, day.supervisorRequirement, e.alice)
+
+	// Signing up for the timeslot still to come works; correcting the ended one is refused.
+	if _, err := e.opendays.Join(ctx, e.bob, day.id, later.supervisorRequirement, nil); err != nil {
+		t.Fatalf("join the later timeslot: %v", err)
+	}
+	if _, err := e.opendays.Assign(ctx, e.assigner, day.id, day.supervisorRequirement, e.carol.PersonID, nil); !errors.Is(err, apperror.PermissionDenied) {
+		t.Fatalf("assigning in the ended timeslot: %v", err)
+	}
+
+	// Dropping the ended timeslot (and with it Alice's assignment) needs open_days.edit_past although the day goes on.
+	laterID := later.id
+	var laterStart, laterEnd time.Time
+	if err := e.pool.QueryRow(ctx, `SELECT starts_at, ends_at FROM open_day_timeslots WHERE id=$1`, later.id).Scan(&laterStart, &laterEnd); err != nil {
+		t.Fatal(err)
+	}
+	periodVersion, dayVersion := e.versions(day.id)
+	drop := opendays.ScheduleDelta{ExpectedPeriodVersion: periodVersion, Updates: []opendays.ScheduleInput{{
+		ID: day.id, ExpectedVersion: dayVersion,
+		Timeslots: []opendays.TimeslotInput{{ID: &laterID, StartsAt: laterStart, EndsAt: laterEnd, Requirements: supervisorPlaces(3)}},
+	}}}
+	if _, err := e.opendays.SaveSchedule(ctx, e.manager, e.period, drop, nil); !errors.Is(err, apperror.PermissionDenied) {
+		t.Fatalf("manager dropping an ended timeslot: %v", err)
+	}
+	if got := e.count(`SELECT count(*) FROM open_day_assignments WHERE person_id=$1`, e.alice.PersonID); got != 1 {
+		t.Fatalf("alice's assignment after the refused save: %d", got)
+	}
+	// Cancelling the whole day touches the ended timeslot too.
+	if _, err := e.opendays.SaveSchedule(ctx, e.manager, e.period, opendays.ScheduleDelta{
+		ExpectedPeriodVersion: periodVersion,
+		Removals:              []opendays.RemovalInput{{ID: day.id, ExpectedVersion: dayVersion}},
+	}, nil); !errors.Is(err, apperror.PermissionDenied) {
+		t.Fatalf("manager cancelling a day with an ended timeslot: %v", err)
+	}
+	// Changing only the timeslot still to come stays open_days.manage alone, and Bob, who holds it, is told.
+	periodVersion, dayVersion = e.versions(day.id)
+	firstID := day.timeslot
+	var firstStart, firstEnd time.Time
+	if err := e.pool.QueryRow(ctx, `SELECT starts_at, ends_at FROM open_day_timeslots WHERE id=$1`, day.timeslot).Scan(&firstStart, &firstEnd); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.opendays.SaveSchedule(ctx, e.manager, e.period, opendays.ScheduleDelta{
+		ExpectedPeriodVersion: periodVersion, Updates: []opendays.ScheduleInput{{
+			ID: day.id, ExpectedVersion: dayVersion, Timeslots: []opendays.TimeslotInput{
+				{ID: &firstID, StartsAt: firstStart, EndsAt: firstEnd, Requirements: supervisorPlaces(2)},
+				{ID: &laterID, StartsAt: laterStart, EndsAt: laterEnd.Add(30 * time.Minute), Requirements: supervisorPlaces(3)},
+			},
+		}},
+	}, nil); err != nil {
+		t.Fatalf("manager changing the timeslot still to come: %v", err)
+	}
+	e.expectCount(e.bob, inbox.KindOpenDayTimeslotChanged, 1, "bob, who holds the later timeslot")
+}
+
+func TestSeriesThatReachIntoThePastNeedEditPast(t *testing.T) {
+	e := newEditPastEnv(t)
+	ctx := testContext(t)
+	from := time.Date(e.now.Year(), e.now.Month(), e.now.Day()-28, 0, 0, 0, 0, time.UTC)
+	until := time.Date(e.now.Year(), e.now.Month(), e.now.Day()-2, 0, 0, 0, 0, time.UTC)
+	weekday := int(from.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	create := func() opendays.ScheduleDelta {
+		var periodVersion int64
+		if err := e.pool.QueryRow(ctx, `SELECT version FROM open_day_periods WHERE id=$1`, e.period).Scan(&periodVersion); err != nil {
+			t.Fatal(err)
+		}
+		return opendays.ScheduleDelta{ExpectedPeriodVersion: periodVersion, SeriesCreates: []opendays.SeriesCreate{{
+			Weekday: weekday, FromDate: from, UntilDate: until, SeriesTemplate: opendays.SeriesTemplate{
+				Timeslots: []opendays.ClockRange{{Start: "10:00", End: "12:00"}}, SupervisorPlaces: 1,
+				ForcedDates: []time.Time{from},
+			},
+		}}}
+	}
+	if _, err := e.opendays.SaveSchedule(ctx, e.manager, e.period, create(), nil); !errors.Is(err, apperror.PermissionDenied) {
+		t.Fatalf("manager creating a series in the past: %v", err)
+	}
+	if got := e.count(`SELECT count(*) FROM open_days WHERE period_id=$1`, e.period); got != 0 {
+		t.Fatalf("open days after the refused save: %d", got)
+	}
+	if _, err := e.opendays.SaveSchedule(ctx, e.leader, e.period, create(), nil); err != nil {
+		t.Fatalf("leader creating a series in the past: %v", err)
+	}
+}

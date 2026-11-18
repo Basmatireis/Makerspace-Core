@@ -474,7 +474,7 @@ export async function installOpenDaysApi(page: Page, world: World) {
 
     // As in the backend: an ended timeslot takes no self sign-up or leave, and corrections need open_days.edit_past.
     const ended = (openDay: Day | undefined, timeslotId: string | null) =>
-      openDay?.timeslots.some((slot) => slot.id === timeslotId && new Date(slot.endsAt) <= new Date()) ?? false;
+      openDay?.timeslots.some((slot) => slot.id === timeslotId && new Date(slot.endsAt) <= clock) ?? false;
     const slotOfRequirement = (openDay: Day | undefined, requirementId: string) =>
       openDay ? (place(openDay, requirementId)?.slot.id ?? null) : null;
     const slotOfAssignment = (openDay: Day | undefined, assignmentId: string) =>
