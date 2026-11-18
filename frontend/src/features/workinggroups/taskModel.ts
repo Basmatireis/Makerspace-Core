@@ -1,3 +1,4 @@
+import { addCalendarDays, dateInAppTimeZone } from '../../app/dateTime';
 import type {
   WorkingGroupPerson,
   WorkingGroupTicket,
@@ -91,16 +92,12 @@ export function todoTask(todo: WorkingGroupTodo): Task {
 
 export const isOpen = (task: Task) => task.state === 'new' || task.state === 'open';
 
-// Dates are plain `YYYY-MM-DD` strings; calendar arithmetic runs in UTC like the API's repeat rule.
-export const todayOn = () => new Date().toISOString().slice(0, 10);
+// Dates are plain `YYYY-MM-DD` strings; "today" is the calendar day in the app time zone.
+export const todayOn = () => dateInAppTimeZone(new Date());
 const dayMs = 86_400_000;
 export const daysBetween = (from: string, to: string) =>
   Math.round((Date.parse(`${to.slice(0, 10)}T00:00:00Z`) - Date.parse(`${from.slice(0, 10)}T00:00:00Z`)) / dayMs);
-export function addDays(date: string, days: number): string {
-  const moved = new Date(`${date}T00:00:00Z`);
-  moved.setUTCDate(moved.getUTCDate() + days);
-  return moved.toISOString().slice(0, 10);
-}
+export const addDays = addCalendarDays;
 
 export function bucketOf(task: Task, today: string): Bucket {
   if (!isOpen(task)) return 'done';

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   WorkingGroup,
+  WorkingGroupComment,
   WorkingGroupSummary,
   WorkingGroupTicket,
   WorkingGroupTodo,
@@ -14,6 +15,8 @@ import { currentUserFixture, fixturePersonId, otherPersonId } from '../../test/f
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { addDays, todayOn } from './taskModel';
+
+const manageToo = [PermissionId.working_groupsread, PermissionId.working_groupsmanage];
 
 const printId = '0192f6f8-743e-7c77-a349-cd07c3e8e001';
 const woodId = '0192f6f8-743e-7c77-a349-cd07c3e8e002';
@@ -132,7 +135,13 @@ interface Served {
 
 function serve(
   permissions: PermissionId[],
-  options: { groups?: WorkingGroup[]; tickets?: WorkingGroupTicket[]; todos?: WorkingGroupTodo[] } = {},
+  options: {
+    groups?: WorkingGroup[];
+    tickets?: WorkingGroupTicket[];
+    todos?: WorkingGroupTodo[];
+    truncated?: boolean;
+    comments?: WorkingGroupComment[];
+  } = {},
 ): Served {
   const groups = options.groups ?? [printGroup, woodGroup];
   const tickets = options.tickets ?? [inboxTicket, plannedTicket, woodTicket];
@@ -143,13 +152,15 @@ function serve(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
     http.get('*/api/v1/working-groups', () => HttpResponse.json({ items: groups.map(summary) })),
     ...groups.map((group) => http.get(`*/api/v1/working-groups/${group.id}`, () => HttpResponse.json(group))),
-    http.get('*/api/v1/working-group-tickets', () => HttpResponse.json({ items: tickets })),
+    http.get('*/api/v1/working-group-tickets', () =>
+      HttpResponse.json({ items: tickets, truncated: options.truncated }),
+    ),
     http.get('*/api/v1/working-group-todos', () => HttpResponse.json({ items: todos })),
     http.get('*/api/v1/working-group-tickets/:id', ({ params }) =>
       HttpResponse.json({
         ticket: tickets.find((candidate) => candidate.id === params.id),
         followers: [],
-        comments: [],
+        comments: options.comments ?? [],
       }),
     ),
     http.get('*/api/v1/working-group-todos/:id', ({ params }) =>
@@ -186,6 +197,14 @@ function serve(
         followers: [],
         comments: [],
       });
+    }),
+    http.delete('*/api/v1/working-group-tickets/:id', ({ params }) => {
+      record('deleteTicket', params.id);
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.delete('*/api/v1/working-group-tickets/:id/comments/:commentId', ({ params }) => {
+      record('deleteComment', params.commentId);
+      return HttpResponse.json({ ticket: tickets[0], followers: [], comments: [] });
     }),
     http.put('*/api/v1/working-groups/:id/columns', async ({ request }) => {
       record('columns', await request.json());
@@ -351,5 +370,70 @@ describe('working group tickets and to-dos', () => {
     expect(await screen.findByRole('button', { name: /Saw is blunt/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Board view' })).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Board' })).not.toBeInTheDocument();
+  });
+});
+
+describe('working group tasks: review fixes', () => {
+  it('counts today in the app time zone just after midnight in Vienna', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      // 22:30 UTC on 30 June is 00:30 on 1 July in Vienna.
+      vi.setSystemTime(new Date('2026-06-30T22:30:00Z'));
+      expect(todayOn()).toBe('2026-07-01');
+      expect(addDays(todayOn(), 7)).toBe('2026-07-08');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('offers deleting a ticket and a comment only with working_groups.manage', async () => {
+    const user = userEvent.setup();
+    const comment: WorkingGroupComment = {
+      id: '0192f6f8-743e-7c77-a349-cd07c3e8b001',
+      author: grace,
+      text: 'Looking into it.',
+      internal: false,
+      createdAt: '2026-01-02T10:00:00Z',
+    };
+    serve(readOnly, { comments: [comment] });
+    const { unmount } = renderRoute(<App />, '/working-groups/tasks');
+    await user.click(await screen.findByRole('button', { name: /Printer jams/ }));
+    expect(await screen.findByText('Looking into it.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete comment' })).not.toBeInTheDocument();
+    unmount();
+
+    const served = serve(manageToo, { comments: [comment] });
+    renderRoute(<App />, '/working-groups/tasks');
+    await user.click(await screen.findByRole('button', { name: /Printer jams/ }));
+    await user.click(await screen.findByRole('button', { name: 'Delete comment' }));
+    await waitFor(() => expect(served.bodies.deleteComment).toEqual([comment.id]));
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete ticket' });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete ticket' }));
+    await waitFor(() => expect(served.bodies.deleteTicket).toEqual([inboxTicket.id]));
+  });
+
+  it('warns when the ticket list is truncated', async () => {
+    serve(readOnly, { truncated: true });
+    renderRoute(<App />, '/working-groups/tasks');
+    expect(await screen.findByText('Older closed tickets are not shown.')).toBeInTheDocument();
+  });
+
+  it('says so when someone else changed the state of a ticket', async () => {
+    const user = userEvent.setup();
+    serve(readOnly);
+    server.use(
+      http.post('*/api/v1/working-group-tickets/:id/plan', () =>
+        HttpResponse.json({ code: 'working_group_task_state', message: 'Conflict' }, { status: 409 }),
+      ),
+    );
+    renderRoute(<App />, '/working-groups/tasks');
+    await user.click(await screen.findByRole('button', { name: /Printer jams/ }));
+    await user.click(await screen.findByRole('button', { name: 'Plan it' }));
+    const plan = await screen.findByRole('dialog', { name: 'Plan it' });
+    await user.click(within(plan).getByRole('button', { name: 'Plan it' }));
+    expect(await within(plan).findByText('This was changed by someone else.')).toBeInTheDocument();
   });
 });

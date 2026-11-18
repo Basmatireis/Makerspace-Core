@@ -65,7 +65,7 @@ export function TaskList({ tasks, today, groups, selectedKey, onSelect }: Props)
                     task={task}
                     bucket={section.key}
                     today={today}
-                    columns={groups.get(task.groupId)?.columns ?? []}
+                    columns={groups.get(task.groupId)?.columns}
                     selected={task.key === selectedKey}
                     onSelect={onSelect}
                   />
@@ -97,7 +97,8 @@ function TaskRow({
   task: Task;
   bucket: Bucket;
   today: string;
-  columns: WorkingGroup['columns'];
+  /** Undefined until the group's columns are loaded; the track waits for them. */
+  columns: WorkingGroup['columns'] | undefined;
   selected: boolean;
   onSelect: (key: string) => void;
 }) {
@@ -149,7 +150,7 @@ function TaskRow({
           </>
         )}
       </span>
-      <Track task={task} columns={columns} />
+      {columns ? <Track task={task} columns={columns} /> : <span />}
       <span className={`wg-ldue${hint ? ` is-${hint.tone}` : ''}`}>{hint?.text}</span>
     </button>
   );

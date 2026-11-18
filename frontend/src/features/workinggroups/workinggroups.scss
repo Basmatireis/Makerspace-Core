@@ -587,13 +587,6 @@
   @include type-style('helper-text-01');
 }
 
-.wg-col__more {
-  all: unset;
-  cursor: pointer;
-  color: theme.$link-primary;
-  @include type-style('helper-text-01');
-}
-
 // Detail panel.
 .wg-panel-actions {
   display: flex;

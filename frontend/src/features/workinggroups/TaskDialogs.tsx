@@ -30,7 +30,7 @@ import { DateInput } from '../../app/DateInput';
 import { useNotify } from '../../app/toasts';
 import { workingGroupOptions } from './queries';
 import { REPEAT_CHOICES, addDays, firstName, todayOn, type Task } from './taskModel';
-import { useWgMutation } from './useWgMutation';
+import { taskErrorText, useWgMutation } from './useWgMutation';
 
 function DialogShell({
   heading,
@@ -424,7 +424,9 @@ function PlanForm({
       heading="Plan it"
       primary="Plan it"
       pending={plan.isPending}
-      failed={plan.isError ? 'It could not be planned. Reload the page and try again.' : undefined}
+      failed={
+        plan.isError ? taskErrorText(plan.error, 'It could not be planned. Reload the page and try again.') : undefined
+      }
       failedTitle="Not planned"
       onClose={onClose}
       onSubmit={() => void submit()}
@@ -484,7 +486,9 @@ export function CloseTicketDialog({ task, onClose }: { task: Task; onClose: () =
       heading="Answer and close"
       primary="Close the ticket"
       pending={close.isPending}
-      failed={close.isError ? 'It could not be closed. Reload the page and try again.' : undefined}
+      failed={
+        close.isError ? taskErrorText(close.error, 'It could not be closed. Reload the page and try again.') : undefined
+      }
       failedTitle="Not closed"
       onClose={onClose}
       onSubmit={() => void submit()}

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Tag } from '@carbon/react';
+import { Button, Tag } from '@carbon/react';
 import type { WorkingGroup } from '../../api/generated/models';
 import { Avatar } from './TaskList';
 import { dueHint, firstName, isOpen, kindLine, type Task } from './taskModel';
@@ -122,9 +122,9 @@ export function TaskBoard({ group, tasks, today, selectedKey, onSelect, onMove }
               })}
             </ul>
             {lane.id === 'done' && !allDone && lane.items.length > DONE_SHOWN && (
-              <button type="button" className="wg-col__more" onClick={() => setAllDone(true)}>
+              <Button kind="ghost" size="sm" onClick={() => setAllDone(true)}>
                 Show all {lane.items.length}
-              </button>
+              </Button>
             )}
           </section>
         );

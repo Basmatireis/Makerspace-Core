@@ -11,10 +11,18 @@ export function useWgMutation<Variables>(run: (variables: Variables) => Promise<
   });
 }
 
+export const TASK_CHANGED = 'This was changed by someone else.';
+
+/** The message for a failed action: a state conflict (409 `working_group_task_state`) has its own wording. */
+export function taskErrorText(error: unknown, fallback: string): string {
+  return apiErrorCode(error) === 'working_group_task_state' ? TASK_CHANGED : fallback;
+}
+
 /** The inline message for a failed save: a stale write has its own wording. */
 export function saveErrorText(error: unknown): string | null {
   if (!error) return null;
-  return apiErrorCode(error) === 'stale_write'
-    ? 'Someone else changed this just now. The latest version is shown; try again.'
-    : 'Not saved. Check your connection and try again.';
+  if (apiErrorCode(error) === 'stale_write') {
+    return 'Someone else changed this just now. The latest version is shown; try again.';
+  }
+  return taskErrorText(error, 'Not saved. Check your connection and try again.');
 }

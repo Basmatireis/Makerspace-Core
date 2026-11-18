@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
-import { Modal } from '@carbon/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { InlineNotification, Modal } from '@carbon/react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import { apiErrorCode } from '../../api/http-client';
 import type { WorkingGroup } from '../../api/generated/models';
 import {
   markWorkingGroupTodoDone,
@@ -43,7 +44,7 @@ import {
   type StatusKey,
   type Task,
 } from './taskModel';
-import { useWgMutation } from './useWgMutation';
+import { TASK_CHANGED, useWgMutation } from './useWgMutation';
 import './workinggroups.scss';
 
 type Dialog =
@@ -66,7 +67,9 @@ export function WorkingGroupTasksPage() {
   const ticketsQuery = useQuery(workingGroupTicketsOptions);
   const todosQuery = useQuery(workingGroupTodosOptions);
   const groups = useMemo(() => orderGroups(groupsQuery.data?.items ?? []), [groupsQuery.data]);
-  const detailQueries = useQueries({ queries: groups.map((group) => workingGroupOptions(group.id)) });
+  const detailQueries = useQueries({
+    queries: groups.map((group) => ({ ...workingGroupOptions(group.id), staleTime: 30_000 })),
+  });
   const details = new Map<string, WorkingGroup>();
   for (const query of detailQueries) if (query.data) details.set(query.data.id, query.data);
 
@@ -77,6 +80,8 @@ export function WorkingGroupTasksPage() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const opener = useRef<HTMLElement | null>(null);
+  const rowOpener = useRef<HTMLElement | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const panelFits = useListPanelLayout();
 
   const today = todayOn();
@@ -146,6 +151,18 @@ export function WorkingGroupTasksPage() {
   ];
 
   const selected = allTasks.find((task) => task.key === selectedKey) ?? null;
+  const loaded = ticketsQuery.isSuccess && todosQuery.isSuccess;
+  useEffect(() => {
+    // The selected item is gone after a refetch (deleted, or no longer visible): focus moves to the list.
+    if (loaded && selectedKey !== null && selected === null) {
+      setSelectedKey(null);
+      listRef.current?.focus();
+    }
+  }, [loaded, selectedKey, selected]);
+  const select = (key: string) => {
+    rowOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setSelectedKey(key);
+  };
 
   const setParam = (name: string, value: string | null) =>
     setParams(
@@ -176,7 +193,12 @@ export function WorkingGroupTasksPage() {
     updateWorkingGroupTodo(args.task.id, { expectedVersion: args.task.version, columnId: args.columnId }),
   );
   const doneTodo = useWgMutation((task: Task) => markWorkingGroupTodoDone(task.id));
-  const failed = () => notify({ kind: 'error', title: 'Not moved', subtitle: 'Reload the page and try again.' });
+  const failed = (error: unknown) =>
+    notify(
+      apiErrorCode(error) === 'working_group_task_state'
+        ? { kind: 'warning', title: TASK_CHANGED }
+        : { kind: 'error', title: 'Not moved', subtitle: 'Reload the page and try again.' },
+    );
 
   const moveTask = (task: Task, target: BoardTarget) => {
     if (!task.inside) return;
@@ -238,7 +260,10 @@ export function WorkingGroupTasksPage() {
       me={me}
       onPlan={(task) => open({ type: 'plan', task })}
       onAnswer={(task) => open({ type: 'close', task })}
-      onGone={() => setSelectedKey(null)}
+      onGone={() => {
+        setSelectedKey(null);
+        listRef.current?.focus();
+      }}
     />
   ) : (
     <DetailPanel>
@@ -282,7 +307,7 @@ export function WorkingGroupTasksPage() {
         onScope={setScope}
       />
       <ListWithPanel panel={panel} panelLabel="Ticket or to-do details">
-        <div className="wg-card-list">
+        <div className="wg-card-list" ref={listRef} tabIndex={-1}>
           <TaskToolbar
             search={search}
             onSearch={setSearch}
@@ -299,23 +324,25 @@ export function WorkingGroupTasksPage() {
             view={view}
             onView={(next) => setParam('view', next === 'board' ? 'board' : null)}
           />
+          {ticketsQuery.data?.truncated && (
+            <InlineNotification
+              kind="warning"
+              lowContrast
+              hideCloseButton
+              title="Older closed tickets are not shown."
+            />
+          )}
           {view === 'board' && detail ? (
             <TaskBoard
               group={detail}
               tasks={visible}
               today={today}
               selectedKey={selectedKey}
-              onSelect={setSelectedKey}
+              onSelect={select}
               onMove={moveTask}
             />
           ) : (
-            <TaskList
-              tasks={visible}
-              today={today}
-              groups={details}
-              selectedKey={selectedKey}
-              onSelect={setSelectedKey}
-            />
+            <TaskList tasks={visible} today={today} groups={details} selectedKey={selectedKey} onSelect={select} />
           )}
         </div>
       </ListWithPanel>
@@ -327,7 +354,10 @@ export function WorkingGroupTasksPage() {
           passiveModal
           size="md"
           modalHeading={selected.kind === 'ticket' ? 'Ticket' : 'To-do'}
-          onRequestClose={() => setSelectedKey(null)}
+          onRequestClose={() => {
+            setSelectedKey(null);
+            window.setTimeout(() => rowOpener.current?.focus(), 0);
+          }}
         >
           {panel}
         </Modal>

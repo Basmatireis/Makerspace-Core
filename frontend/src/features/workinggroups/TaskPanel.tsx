@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { TrashCan } from '@carbon/icons-react';
 import { Button, Checkbox, InlineNotification, Select, SelectItem, Tag, TextArea } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import type { WorkingGroup, WorkingGroupComment } from '../../api/generated/models';
@@ -6,7 +7,10 @@ import {
   addWorkingGroupTicketComment,
   addWorkingGroupTodoComment,
   closeWorkingGroupTicket,
+  deleteWorkingGroupTicket,
+  deleteWorkingGroupTicketComment,
   deleteWorkingGroupTodo,
+  deleteWorkingGroupTodoComment,
   followWorkingGroupTicket,
   markWorkingGroupTodoDone,
   reopenWorkingGroupTicket,
@@ -20,9 +24,10 @@ import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { DetailPanel, DetailPanelHead, DetailPanelSection } from '../../app/components/DetailPanel';
 import { Fact, FactsGrid } from '../../app/components/Facts';
 import { Avatar } from './TaskList';
-import { workingGroupTicketOptions, workingGroupTodoOptions } from './queries';
+import { useCurrentUser } from '../auth/auth';
+import { canManageWorkingGroups, workingGroupTicketOptions, workingGroupTodoOptions } from './queries';
 import { firstName, formatDate, kindLine, personName, repeatLabel, type Task } from './taskModel';
-import { saveErrorText, useWgMutation } from './useWgMutation';
+import { saveErrorText, taskErrorText, useWgMutation } from './useWgMutation';
 
 interface Props {
   task: Task;
@@ -68,7 +73,8 @@ export function TaskPanel({ task, group, me, onPlan, onAnswer, onGone }: Props) 
   const follow = useWgMutation((following: boolean) =>
     following ? unfollowWorkingGroupTicket(task.id) : followWorkingGroupTicket(task.id),
   );
-  const remove = useWgMutation(() => deleteWorkingGroupTodo(task.id));
+  const manage = canManageWorkingGroups(useCurrentUser());
+  const remove = useWgMutation(() => (isTicket ? deleteWorkingGroupTicket(task.id) : deleteWorkingGroupTodo(task.id)));
 
   const inside = task.inside;
   const members = group?.members ?? [];
@@ -94,6 +100,19 @@ export function TaskPanel({ task, group, me, onPlan, onAnswer, onGone }: Props) 
       {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={error} />}
 
       <div className="wg-panel-actions">
+        {isTicket && manage && (
+          <Button
+            ref={deleteButton}
+            kind="danger--ghost"
+            size="md"
+            onClick={() => {
+              remove.reset();
+              setConfirmDelete(true);
+            }}
+          >
+            Delete
+          </Button>
+        )}
         {isTicket && inside && task.state === 'new' && (
           <>
             <Button kind="tertiary" size="md" onClick={() => onAnswer(task)}>
@@ -244,16 +263,16 @@ export function TaskPanel({ task, group, me, onPlan, onAnswer, onGone }: Props) 
         {isTicket && !open && ticket?.closedAt && <Fact label="Closed">{formatDate(ticket.closedAt)}</Fact>}
       </FactsGrid>
 
-      <Comments task={task} comments={comments} inside={inside} />
+      <Comments task={task} comments={comments} inside={inside} manage={manage} />
 
-      {!isTicket && (
+      {(!isTicket || manage) && (
         <DestructiveActionDialog
           open={confirmDelete}
-          title="Delete to-do"
+          title={isTicket ? 'Delete ticket' : 'Delete to-do'}
           fate="permanent"
-          confirmLabel="Delete to-do"
+          confirmLabel={isTicket ? 'Delete ticket' : 'Delete to-do'}
           pending={remove.isPending}
-          error={remove.isError ? 'The to-do could not be deleted.' : undefined}
+          error={remove.isError ? taskErrorText(remove.error, 'It could not be deleted.') : undefined}
           launcherButtonRef={deleteButton}
           onClose={() => setConfirmDelete(false)}
           onConfirm={() =>
@@ -276,10 +295,12 @@ function Comments({
   task,
   comments,
   inside,
+  manage,
 }: {
   task: Task;
   comments: readonly WorkingGroupComment[];
   inside: boolean;
+  manage: boolean;
 }) {
   const isTicket = task.kind === 'ticket';
   const [text, setText] = useState('');
@@ -288,6 +309,9 @@ function Comments({
     isTicket
       ? addWorkingGroupTicketComment(task.id, { text: text.trim(), internal })
       : addWorkingGroupTodoComment(task.id, { text: text.trim() }),
+  );
+  const removeComment = useWgMutation((commentId: string) =>
+    isTicket ? deleteWorkingGroupTicketComment(task.id, commentId) : deleteWorkingGroupTodoComment(task.id, commentId),
   );
   const count = Math.max(task.commentCount, comments.length);
   return (
@@ -311,6 +335,18 @@ function Comments({
                 </p>
                 <p className="wg-comment__text">{comment.text}</p>
               </div>
+              {manage && (
+                <Button
+                  hasIconOnly
+                  kind="danger--ghost"
+                  size="sm"
+                  renderIcon={TrashCan}
+                  iconDescription="Delete comment"
+                  tooltipPosition="left"
+                  disabled={removeComment.isPending}
+                  onClick={() => removeComment.mutate(comment.id)}
+                />
+              )}
             </li>
           ))}
         </ul>
