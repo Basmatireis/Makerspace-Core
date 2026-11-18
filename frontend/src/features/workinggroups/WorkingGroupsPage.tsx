@@ -9,7 +9,13 @@ import { EmptyState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { PageSectionTabs } from '../machinelogbook/components/machineParts';
 import { QueryBoundary } from '../machinelogbook/shared/QueryBoundary';
-import { canManageWorkingGroups, editableWorkingGroups, workingGroupOptions, workingGroupsOptions } from './queries';
+import {
+  canManageWorkingGroups,
+  editableWorkingGroups,
+  orderGroups,
+  workingGroupOptions,
+  workingGroupsOptions,
+} from './queries';
 import './workinggroups.scss';
 
 function isHttps(url: string | undefined): url is string {
@@ -21,13 +27,6 @@ function isHttps(url: string | undefined): url is string {
 }
 
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
-
-/** The caller's own groups first, then the others, each by name. */
-function orderGroups(groups: readonly WorkingGroupSummary[]): WorkingGroupSummary[] {
-  const own = groups.filter((group) => group.isMember || group.isLead).sort(byName);
-  const others = groups.filter((group) => !group.isMember && !group.isLead).sort(byName);
-  return [...own, ...others];
-}
 
 /** Working groups → Overview: who looks after which machines and places. */
 export function WorkingGroupsPage() {

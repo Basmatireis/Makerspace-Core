@@ -199,7 +199,12 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
     workingGroups.push({
       label: 'Overview',
       to: '/working-groups',
-      active: pathname.startsWith('/working-groups'),
+      active: pathname === '/working-groups',
+    });
+    workingGroups.push({
+      label: 'Tickets & to-dos',
+      to: '/working-groups/tasks',
+      active: pathname.startsWith('/working-groups/tasks'),
     });
   }
 

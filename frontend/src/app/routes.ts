@@ -147,6 +147,11 @@ export const WorkingGroupsPage = lazy(() =>
     default: WorkingGroupsPage,
   })),
 );
+export const WorkingGroupTasksPage = lazy(() =>
+  import('../features/workinggroups/WorkingGroupTasksPage').then(({ WorkingGroupTasksPage }) => ({
+    default: WorkingGroupTasksPage,
+  })),
+);
 export const WorkingGroupsSettingsPage = lazy(() =>
   import('../features/workinggroups/WorkingGroupsSettingsPage').then(({ WorkingGroupsSettingsPage }) => ({
     default: WorkingGroupsSettingsPage,

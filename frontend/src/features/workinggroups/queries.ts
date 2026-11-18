@@ -2,9 +2,13 @@ import { queryOptions } from '@tanstack/react-query';
 import type { CurrentUser, WorkingGroupSummary } from '../../api/generated/models';
 import {
   getWorkingGroup,
+  getWorkingGroupTicket,
+  getWorkingGroupTodo,
   listWorkingGroupMachines,
   listWorkingGroupPeople,
   listWorkingGroups,
+  listWorkingGroupTickets,
+  listWorkingGroupTodos,
 } from '../../api/generated/working-groups/working-groups';
 import { hasPermission, PermissionId } from '../auth/permissions';
 
@@ -14,7 +18,42 @@ export const workingGroupKeys = {
   detail: (id: string) => [...workingGroupKeys.all, 'detail', id] as const,
   people: (search: string) => [...workingGroupKeys.all, 'people', search] as const,
   machines: () => [...workingGroupKeys.all, 'machines'] as const,
+  tickets: () => [...workingGroupKeys.all, 'tickets'] as const,
+  todos: () => [...workingGroupKeys.all, 'todos'] as const,
+  ticket: (id: string) => [...workingGroupKeys.all, 'ticket', id] as const,
+  todo: (id: string) => [...workingGroupKeys.all, 'todo', id] as const,
 };
+
+export const workingGroupTicketsOptions = queryOptions({
+  queryKey: workingGroupKeys.tickets(),
+  queryFn: ({ signal }) => listWorkingGroupTickets(undefined, { signal }),
+});
+
+/** The API returns only the to-dos of groups the caller is inside. */
+export const workingGroupTodosOptions = queryOptions({
+  queryKey: workingGroupKeys.todos(),
+  queryFn: ({ signal }) => listWorkingGroupTodos(undefined, { signal }),
+});
+
+export const workingGroupTicketOptions = (id: string) =>
+  queryOptions({
+    queryKey: workingGroupKeys.ticket(id),
+    queryFn: ({ signal }) => getWorkingGroupTicket(id, { signal }),
+  });
+
+export const workingGroupTodoOptions = (id: string) =>
+  queryOptions({
+    queryKey: workingGroupKeys.todo(id),
+    queryFn: ({ signal }) => getWorkingGroupTodo(id, { signal }),
+  });
+
+/** The caller's own groups first, then the others, each by name. */
+export function orderGroups(groups: readonly WorkingGroupSummary[]): WorkingGroupSummary[] {
+  const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
+  const own = groups.filter((group) => group.isMember || group.isLead).sort(byName);
+  const others = groups.filter((group) => !group.isMember && !group.isLead).sort(byName);
+  return [...own, ...others];
+}
 
 export const workingGroupsOptions = queryOptions({
   queryKey: workingGroupKeys.list(),
