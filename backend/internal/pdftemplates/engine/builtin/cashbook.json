@@ -16,7 +16,7 @@
   "accent": "$c:ink",
   "locale": "de",
   "accentBar": false,
-  "filename": "cashbook-{{period.from | date(\"yyyy-MM-dd\")}}-{{period.to | date(\"yyyy-MM-dd\")}}.pdf"
+  "filename": "cashbook-{{period.kind}}-{{period.from | date(\"yyyy-MM-dd\")}}-{{period.to | date(\"yyyy-MM-dd\")}}.pdf"
  },
  "styles": {
   "colors": [

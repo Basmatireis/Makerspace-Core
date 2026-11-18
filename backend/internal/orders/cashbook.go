@@ -12,6 +12,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/orders/db"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates/engine"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -123,6 +124,8 @@ type cashbook struct {
 	closing     decimal.Decimal
 	location    *time.Location
 	withBalance bool
+	// withOrders says whether the reader may see order data: customer names and what an order charged.
+	withOrders bool
 }
 
 func (b cashbook) amounts(line cashbookLine) (in, out decimal.Decimal) {
@@ -132,28 +135,28 @@ func (b cashbook) amounts(line cashbookLine) (in, out decimal.Decimal) {
 	return line.effect, decimal.Zero
 }
 
-// ExportCashbook renders the cashbook of whole days as PDF (the HTU Kassabuch sheet) or CSV. Customer names are
-// order data and appear only for people with orders.read.
-func (s *Service) ExportCashbook(
+// loadCashbook reads the cashbook of whole days from one consistent snapshot. Customer names and what an order
+// charged are order data and are read only for people with orders.read.
+func (s *Service) loadCashbook(
 	ctx context.Context,
 	p authorization.Principal,
 	query CashbookExportQuery,
-) (CashbookFile, error) {
+) (cashbook, error) {
 	if err := require(p, authorization.PaymentsRead, authorization.CashMovementsRead); err != nil {
-		return CashbookFile{}, err
+		return cashbook{}, err
 	}
 	if query.Contents != CashbookCashRegister && query.Contents != CashbookAllPayments {
-		return CashbookFile{}, apperror.Invalid("Unsupported cashbook contents")
+		return cashbook{}, apperror.Invalid("Unsupported cashbook contents")
 	}
 	if query.Format != CashbookPDF && query.Format != CashbookCSV {
-		return CashbookFile{}, apperror.Invalid("Unsupported cashbook format")
+		return cashbook{}, apperror.Invalid("Unsupported cashbook format")
 	}
 	if query.From.IsZero() || query.To.IsZero() {
-		return CashbookFile{}, apperror.Invalid("The first and the last day are required")
+		return cashbook{}, apperror.Invalid("The first and the last day are required")
 	}
 	span, err := s.days(&query.From, &query.To)
 	if err != nil {
-		return CashbookFile{}, err
+		return cashbook{}, err
 	}
 	book := cashbook{
 		from:        query.From,
@@ -164,6 +167,7 @@ func (s *Service) ExportCashbook(
 	}
 	// Customer names and what an order charged are order data.
 	withOrders := p.Has(authorization.OrdersRead)
+	book.withOrders = withOrders
 	err = s.readOnly(ctx, func(q *db.Queries) error {
 		rows, e := q.ListCashbookEntries(ctx, db.ListCashbookEntriesParams{
 			RowLimit: MaxCashbookExportEntries + 1,
@@ -236,6 +240,17 @@ func (s *Service) ExportCashbook(
 		book.closing = balance
 		return nil
 	})
+	return book, err
+}
+
+// ExportCashbook renders the cashbook of whole days as PDF (with the effective cashbook template, by default the
+// HTU Kassabuch sheet) or CSV. Customer names are order data and appear only for people with orders.read.
+func (s *Service) ExportCashbook(
+	ctx context.Context,
+	p authorization.Principal,
+	query CashbookExportQuery,
+) (CashbookFile, error) {
+	book, err := s.loadCashbook(ctx, p, query)
 	if err != nil {
 		return CashbookFile{}, err
 	}
@@ -248,11 +263,11 @@ func (s *Service) ExportCashbook(
 	if query.Format == CashbookCSV {
 		return CashbookFile{Filename: name + ".csv", ContentType: "text/csv; charset=utf-8", Data: book.csv()}, nil
 	}
-	data, err := renderCashbookPDF(book)
+	data, filename, err := s.pdf.RenderEffective(ctx, engine.KindCashbook, book.pdfData(), principalCan(p))
 	if err != nil {
 		return CashbookFile{}, err
 	}
-	return CashbookFile{Filename: name + ".pdf", ContentType: "application/pdf", Data: data}, nil
+	return CashbookFile{Filename: filename, ContentType: "application/pdf", Data: data}, nil
 }
 
 var (

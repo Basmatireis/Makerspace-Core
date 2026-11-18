@@ -110,6 +110,20 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 			}
 			continue
 		}
+		if key == "exportKind" {
+			// A PDF template change names the export it concerns, one of a fixed set, never template content.
+			if text, ok := value.(string); !ok || (text != "wiref" && text != "cashbook" && text != "receipt") {
+				return fmt.Errorf("invalid audit %s metadata", key)
+			}
+			continue
+		}
+		if key == "templateVersion" {
+			text, ok := value.(string)
+			if _, err := strconv.ParseUint(text, 10, 31); !ok || err != nil {
+				return fmt.Errorf("invalid audit %s metadata", key)
+			}
+			continue
+		}
 		if countMetadataKey(key) {
 			// Counts (for example how many records a merge moved) are aggregate numbers, never personal data.
 			text, ok := value.(string)
@@ -138,7 +152,8 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 			key != "artifactId" &&
 			key != "commandId" &&
 			key != "trainingId" &&
-			key != "variantId" {
+			key != "variantId" &&
+			key != "assetId" {
 			return fmt.Errorf("audit metadata key %q is not allowlisted", key)
 		}
 		text, ok := value.(string)

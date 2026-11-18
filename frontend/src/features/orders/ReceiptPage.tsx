@@ -1,13 +1,16 @@
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@carbon/react';
-import { ArrowLeft, Printer } from '@carbon/icons-react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { ArrowLeft, Download, Printer } from '@carbon/icons-react';
+import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Order, OrderPayment } from '../../api/generated/models';
+import { getOrderReceiptPdf } from '../../api/generated/orders/orders';
 import { BrandMark } from '../../app/BrandMark';
 import { EmptyState, ErrorState, FullPageLoading } from '../../app/PageState';
 import { PageShell } from '../../app/PageShell';
 import { formatDateTime } from '../../app/dateTime';
 import { useBranding } from '../branding/branding';
+import { saveBlob } from '../configtransfer/helpers';
+import { useNotify } from '../machinelogbook/shared/toasts';
 import { formatQuantity } from '../machinelogbook/shared/format';
 import { formatMoney } from './formatting';
 import { methodLabel } from './labels';
@@ -41,6 +44,7 @@ export function ReceiptPage() {
 
 function Receipt({ order }: { order: Order }) {
   const branding = useBranding();
+  const notify = useNotify();
   const [params] = useSearchParams();
   const only = params.get('payment');
   const shares = receiptPaymentShares(order).filter((share) => !only || share.paymentId === only);
@@ -57,6 +61,12 @@ function Receipt({ order }: { order: Order }) {
   const outstanding = toCents(order.outstandingAmount);
   const pending = loaded.some((result) => result.isPending);
   const failed = loaded.some((result) => result.isError);
+  // Binary download: the generated client returns the PDF as a Blob (apiFetch), which the browser then saves.
+  const download = useMutation({
+    mutationFn: () => getOrderReceiptPdf(order.id, only ? { paymentId: only } : undefined),
+    onSuccess: (blob) => saveBlob(blob, `receipt-${order.reference}.pdf`),
+    onError: () => notify({ kind: 'error', title: 'The receipt PDF could not be downloaded' }),
+  });
   const available = canPrintReceipt(order) && shares.length > 0;
   const lastPayment = shares
     .map((share) => payments.get(share.paymentId)?.occurredAt)
@@ -78,6 +88,11 @@ function Receipt({ order }: { order: Order }) {
           <Button as={Link} to={`/orders/${order.id}`} kind="tertiary" renderIcon={ArrowLeft}>
             Back to order
           </Button>
+          {available && (
+            <Button kind="tertiary" renderIcon={Download} disabled={download.isPending} onClick={() => download.mutate()}>
+              Download PDF
+            </Button>
+          )}
           {available && (
             <Button kind="primary" renderIcon={Printer} disabled={pending || failed} onClick={() => window.print()}>
               Print

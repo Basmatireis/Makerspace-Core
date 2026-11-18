@@ -4,8 +4,14 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Added
+
+- **Editable PDF templates.** The wiRef invoice request, the cashbook (Kassabuch) and a new order receipt are rendered from templates with a draft, published versions, history and restore, uploaded images and previews with sample data or real records (`/pdf-templates`, permission `pdf_templates.manage`, migration 00146). Built-in defaults reproduce the previous PDFs. The receipt page has a "Download PDF" button (`GET /orders/{orderId}/receipt.pdf`). Sensitive fields are redacted per reader permission. See [docs/pdf-templates.md](docs/pdf-templates.md).
+
+
 ### Changed
 
+- The cashbook PDF is rendered by the template engine instead of dedicated code. Its default file name is `cashbook-<from>-<to>.pdf`; on refund lines the reason now precedes the order summary.
 - **Cashbook says what a receipt was for.** Payment lines of the cashbook PDF and CSV name what their order charged after the order reference: the processes of its machine jobs ("FDM 3D printing und Material"), the material types of articles sold from stock and manual items, joined and cut with an ellipsis (48 characters in the CSV; on the Kassabuch sheet up to 64, as much as fits the text column). The Kassabuch sheet no longer shows the customer; the CSV still does. Refunds and corrections describe the order of the receipt they reverse. Shown only with `orders.read`, like the customer. See [docs/orders.md](docs/orders.md).
 
 ## [0.19.1] - 2026-11-12

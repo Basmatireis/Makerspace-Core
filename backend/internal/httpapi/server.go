@@ -32,6 +32,7 @@ import (
 	oidcservice "github.com/Basmatireis/Makerspace-Core/backend/internal/oidc"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/orders"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
@@ -78,6 +79,7 @@ type Server struct {
 	laborordnung       *laborordnung.Service
 	orders             *orders.Service
 	invoicing          *invoicing.Service
+	pdfTemplates       *pdftemplates.Service
 	machineLogbook     *machinelogbook.Service
 	printArtifacts     *printartifacts.Service
 	printing           *printing.Service
@@ -202,11 +204,20 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		return nil, fmt.Errorf("initialize signage: %w", err)
 	}
 	surveyService := surveys.NewService(pool, cfg, notifier).WithNotifications(notificationEmitter)
-	invoicingService := invoicing.NewService(pool, notifier, brandingService)
+	invoicingService := invoicing.NewService(pool, notifier)
 	ordersService := orders.NewService(pool, machineLogbook).
 		WithInvoiceDelivery(invoicingService).
 		WithLocation(location).
 		WithNotifications(notificationEmitter)
+	// The exports render with the PDF templates, whose previews read records of the orders and invoicing packages:
+	// both are built first and receive the renderer afterwards.
+	pdfTemplatesService := pdftemplates.NewService(pool, brandingService, pdftemplates.Records{
+		WiRef:    wirefRecords{orders: ordersService, invoicing: invoicingService},
+		Cashbook: cashbookRecords{orders: ordersService},
+		Receipt:  receiptRecords{orders: ordersService},
+	})
+	invoicingService.WithPDFTemplates(pdfTemplatesService)
+	ordersService.WithPDFTemplates(pdfTemplatesService)
 	rolesService := roles.NewService(pool)
 	managedDevicesService := manageddevices.NewService(pool)
 	visitorService := visitor.NewService(pool, cfg, fileService, labRulesService, notifier)
@@ -269,6 +280,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		runRecordings:      runRecordingsService,
 		orders:             ordersService,
 		invoicing:          invoicingService,
+		pdfTemplates:       pdfTemplatesService,
 		supervisors:        supervisors.NewService(pool, staffingService),
 		staffing:           staffingService,
 		dashboard:          dashboard.NewService(pool, staffingService, openDaysService, eventService, ordersService, machineLogbook),

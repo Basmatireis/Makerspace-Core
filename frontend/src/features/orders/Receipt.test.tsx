@@ -91,6 +91,26 @@ describe('receipt action', () => {
     );
   });
 
+  it('downloads the receipt PDF of the order from the server', async () => {
+    as(everything);
+    serve(full);
+    let requested = '';
+    server.use(
+      http.get(`*/api/v1/orders/${ids.order}/receipt.pdf`, ({ request }) => {
+        requested = new URL(request.url).search;
+        return new HttpResponse('%PDF-1.4', { headers: { 'Content-Type': 'application/pdf' } });
+      }),
+    );
+    const saved = vi.fn();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: saved }));
+    const user = userEvent.setup();
+    renderRoute(<App />, `/orders/${ids.order}/receipt?payment=${ids.payment}`);
+    await user.click(await screen.findByRole('button', { name: 'Download PDF' }));
+    await waitFor(() => expect(saved).toHaveBeenCalled());
+    expect(requested).toBe(`?paymentId=${ids.payment}`);
+    vi.unstubAllGlobals();
+  });
+
   it('is not offered on a refund line', async () => {
     as(everything);
     const refund = receipt({

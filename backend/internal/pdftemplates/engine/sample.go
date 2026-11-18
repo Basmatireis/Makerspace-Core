@@ -156,7 +156,7 @@ func sampleCashbook() Data {
 		})
 	}
 	return Data{
-		"period": map[string]any{"from": "2026-10-01", "to": "2026-10-31", "businessYear": "2026", "contents": ""},
+		"period": map[string]any{"from": "2026-10-01", "to": "2026-10-31", "businessYear": "2026", "contents": "", "kind": "cash-register"},
 		"organization": map[string]any{
 			"name":       "HTU Graz",
 			"unit":       "Makerspace (Studienlabor)",

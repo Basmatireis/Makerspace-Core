@@ -594,6 +594,13 @@ var Tables = []Table{
 		"body_format": System,
 		"body_css":    Catalog,
 	}},
+	// Templates are layout and configuration; their data is rendered from records at run time, never stored.
+	{Name: "pdf_template_assets", Columns: map[string]Treatment{
+		"file_name": Catalog, "content_type": System, "sha256": System, "data": Catalog,
+	}},
+	{Name: "pdf_template_versions", Columns: map[string]Treatment{
+		"export_kind": System, "state": System, "document": Catalog,
+	}},
 	{Name: "signage_announcement_values", Columns: map[string]Treatment{"key": System, "value": Catalog}},
 	{Name: "signage_announcements"},
 	{Name: "signage_assets", Columns: map[string]Treatment{"kind": System, "name": Catalog}},

@@ -11,56 +11,13 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/orders/db"
-	"github.com/go-pdf/fpdf"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates/engine"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates/pdftest"
 	"github.com/google/uuid"
 	"github.com/ledongthuc/pdf"
 	"github.com/shopspring/decimal"
 )
-
-func TestCashbookLayoutFillsFourteenThenSeventeenRows(t *testing.T) {
-	cases := []struct {
-		rows int
-		want []cashbookSheet
-	}{
-		{0, []cashbookSheet{{0, 0}}},
-		{1, []cashbookSheet{{0, 1}}},
-		{14, []cashbookSheet{{0, 14}}},
-		{15, []cashbookSheet{{0, 14}, {14, 15}}},
-		{31, []cashbookSheet{{0, 14}, {14, 31}}},
-		{40, []cashbookSheet{{0, 14}, {14, 31}, {31, 40}}},
-	}
-	for _, c := range cases {
-		got := layoutCashbook(c.rows)
-		if len(got) != len(c.want) {
-			t.Fatalf("%d rows: sheets %+v", c.rows, got)
-		}
-		for i := range got {
-			if got[i] != c.want[i] {
-				t.Fatalf("%d rows: sheet %d = %+v, want %+v", c.rows, i, got[i], c.want[i])
-			}
-		}
-	}
-	// Both sheet kinds end where the form ends, above the footer.
-	for _, g := range []kbSheet{kbFirstSheet, kbNextSheet} {
-		top := kbTop + kbTitleRow + kbOrgRow + kbYearRow
-		if g.rows == CashbookSheetRows {
-			top = kbTop
-		}
-		bottom := top + g.carry + g.head + float64(g.rows)*g.body + g.sum
-		if bottom < 240.5 || bottom > 241.5 {
-			t.Fatalf("sheet with %d rows ends at %.2f mm", g.rows, bottom)
-		}
-	}
-	if ops, err := parseLetterhead(kassabuchLetterhead); err != nil || len(ops) < 1000 {
-		t.Fatalf("letterhead: %d ops, %v", len(ops), err)
-	}
-	if _, err := parseLetterhead("#12345\nF"); err == nil {
-		t.Fatal("bad colour accepted")
-	}
-	if _, err := parseLetterhead("M 1"); err == nil {
-		t.Fatal("short operator accepted")
-	}
-}
 
 func sampleCashbook(n int, contents CashbookContents) cashbook {
 	vienna, _ := time.LoadLocation("Europe/Vienna")
@@ -70,6 +27,7 @@ func sampleCashbook(n int, contents CashbookContents) cashbook {
 		contents:    contents,
 		location:    vienna,
 		withBalance: contents == CashbookCashRegister,
+		withOrders:  true,
 		opening:     decimal.RequireFromString("1000"),
 	}
 	balance := b.opening
@@ -139,6 +97,19 @@ func TestCashbookCSVFormat(t *testing.T) {
 	}
 }
 
+// renderCashbook renders a cashbook with the built-in cashbook template.
+func renderCashbook(t *testing.T, b cashbook, can func(string) bool) []byte {
+	t.Helper()
+	data, _, err := pdftemplates.BuiltinRenderer{}.RenderEffective(
+		t.Context(), engine.KindCashbook, b.pdfData(), can)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func allowAll(string) bool { return true }
+
 func pdfPages(t *testing.T, data []byte) []string {
 	t.Helper()
 	reader, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
@@ -158,8 +129,10 @@ func pdfPages(t *testing.T, data []byte) []string {
 
 func requireTexts(t *testing.T, page string, texts ...string) {
 	t.Helper()
+	// Text extraction breaks lines and spaces where the layout does, so the comparison ignores white space.
+	squash := func(text string) string { return strings.Join(strings.Fields(text), "") }
 	for _, text := range texts {
-		if !strings.Contains(page, text) {
+		if !strings.Contains(squash(page), squash(text)) {
 			t.Fatalf("page lacks %q: %s", text, page)
 		}
 	}
@@ -172,11 +145,7 @@ func TestCashbookPDFFollowsTheKassabuchSheets(t *testing.T) {
 	}
 	for _, c := range []struct{ entries, pages int }{{0, 2}, {1, 2}, {14, 2}, {15, 3}, {40, 4}} {
 		b := sampleCashbook(c.entries, CashbookCashRegister)
-		data, err := renderCashbookPDF(b)
-		if err != nil {
-			t.Fatal(err)
-		}
-		pages := pdfPages(t, data)
+		pages := pdfPages(t, renderCashbook(t, b, allowAll))
 		if len(pages) != c.pages {
 			t.Fatalf("%d entries: %d pages", c.entries, len(pages))
 		}
@@ -194,17 +163,17 @@ func TestCashbookPDFFollowsTheKassabuchSheets(t *testing.T) {
 		// The first sheet closes with the balance after its last entry, which the next sheet carries over.
 		firstClose := b.opening
 		if c.entries > 0 {
-			firstClose = b.lines[min(c.entries, CashbookFirstSheetRows)-1].balance
+			firstClose = b.lines[min(c.entries, 14)-1].balance
 		}
 		requireTexts(t, pages[0], germanAmount(firstClose))
 		for i, page := range pages[1 : len(pages)-1] {
 			requireTexts(t, page, "Bestand/Übertrag von", "Summe/Bestand", "Nr.", "Kassierer*in",
-				strconv.Itoa(CashbookFirstSheetRows+i*CashbookSheetRows+1))
+				strconv.Itoa(14+i*17+1))
 			if strings.Contains(page, "Wirtschaftsjahr") || strings.Contains(page, "Gesamtsumme") {
 				t.Fatalf("%d entries: head block or totals on sheet %d", c.entries, i+2)
 			}
 		}
-		if c.entries > CashbookFirstSheetRows {
+		if c.entries > 14 {
 			requireTexts(t, pages[1], germanAmount(firstClose), strconv.Itoa(min(c.entries, 31)))
 		}
 		final := pages[len(pages)-1]
@@ -216,11 +185,7 @@ func TestCashbookPDFFollowsTheKassabuchSheets(t *testing.T) {
 	}
 
 	b := sampleCashbook(2, CashbookAllPayments)
-	data, err := renderCashbookPDF(b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pages := pdfPages(t, data)
+	pages := pdfPages(t, renderCashbook(t, b, allowAll))
 	if len(pages) != 2 {
 		t.Fatalf("all payments: %d pages", len(pages))
 	}
@@ -410,42 +375,53 @@ func TestCashbookOrderContentsFromTheItems(t *testing.T) {
 	}
 }
 
-func TestKassabuchLineFitsTheSummaryToTheColumn(t *testing.T) {
-	pdf := fpdf.New("P", "mm", "A4", "")
-	k := kbPDF{Fpdf: pdf, tr: pdf.UnicodeTranslatorFromDescriptor("")}
-	width := kbRules[4] - kbRules[3] - 2*kbPad
-	fits := func(text string) bool { return strings.Join(k.wrap(text, 7.5, width), " ") == text }
-	long := orderContents{
-		processes: []string{"Laser cutter", "FDM 3D printer", "Embroidery machine"},
-		materials: true,
-		goods:     []string{"Fasteners", "Bike parts", "Vinyl foil", "Plywood"},
-	}
-	line := cashbookLine{kind: JournalReceipt, method: PaymentExternal, orderReference: "O-2026-000123",
-		contents: long, customer: "Jürgen Weiß"}
-	short := cashbookLine{kind: JournalReceipt, method: PaymentCash, orderReference: "O-2026-000123",
-		contents: orderContents{processes: []string{"FDM 3D printer"}, materials: true}, customer: "Jürgen Weiß"}
+func TestCashbookPDFDataMatchesTheSchema(t *testing.T) {
+	pdftest.AssertData(t, engine.KindCashbook, sampleCashbook(3, CashbookCashRegister).pdfData())
+	pdftest.AssertData(t, engine.KindCashbook, sampleCashbook(3, CashbookAllPayments).pdfData())
+}
 
-	register := k.lineText(line, false, width)
-	payments := k.lineText(line, true, width)
-	for _, text := range []string{register, payments} {
-		if !fits(text) || !strings.HasPrefix(text, k.tr("Einnahme O-2026-000123 · Laser cutter, FDM 3D printer")) ||
-			!strings.Contains(text, "\x85") || strings.Contains(text, k.tr("Jürgen Weiß")) {
-			t.Fatalf("%q", text)
-		}
+func TestCashbookPDFDataKeepsOrderDataToReadersWhoMaySeeIt(t *testing.T) {
+	b := sampleCashbook(3, CashbookCashRegister)
+	b.withOrders = true
+	lines := b.pdfData()["lines"].([]map[string]any)
+	receipt, withdrawal, correction := lines[0], lines[1], lines[2]
+	if receipt["text"] != "Einnahme O-2026-000123" || receipt["orderSummary"] != "FDM 3D printing und Material" ||
+		receipt["customer"] != "Jürgen Weiß" || receipt["kind"] != "Einnahme" || receipt["method"] != "Bar" {
+		t.Fatalf("receipt %+v", receipt)
 	}
-	// The method stays whole; the summary gives way, but no more than needed and never beyond its bound.
-	if !strings.HasSuffix(payments, "(Rechnung wiRef)") || len(payments) >= len(register)+len(" (Rechnung wiRef)") {
-		t.Fatalf("register %q, all payments %q", register, payments)
+	if withdrawal["text"] != "Entnahme · Sonstiges · =cmd; \"quoted\"" || withdrawal["orderSummary"] != "" ||
+		correction["text"] != "Korrektur · Zählungsdifferenz K-2026-0001 · Zählfehler" || correction["orderSummary"] != "" {
+		t.Fatalf("movements %+v / %+v", withdrawal, correction)
 	}
-	if len(register) <= len(k.tr(germanWords.describe(line, false, MaxCashbookSummaryLength)))-len(" · Jürgen Weiß") ||
-		len(register) > len("Einnahme O-2026-000123 · ")+MaxKassabuchSummaryLength+1 {
-		t.Fatalf("register summary not grown: %q", register)
+	b.withOrders = false
+	receipt = b.pdfData()["lines"].([]map[string]any)[0]
+	if receipt["orderSummary"] != "" || receipt["customer"] != "" || receipt["text"] != "Einnahme O-2026-000123" {
+		t.Fatalf("order data without orders.read: %+v", receipt)
 	}
-	if got := k.lineText(short, true, width); got != k.tr("Einnahme O-2026-000123 · FDM 3D printer und Material (Bar)") {
-		t.Fatalf("short %q", got)
+}
+
+func TestCashbookPDFDataLeavesTheBalanceOutWithoutTheCashRegister(t *testing.T) {
+	data := sampleCashbook(2, CashbookAllPayments).pdfData()
+	totals, period := data["totals"].(map[string]any), data["period"].(map[string]any)
+	if totals["opening"] != nil || totals["closing"] != nil || period["contents"] != "alle Zahlungen" {
+		t.Fatalf("totals %+v period %+v", totals, period)
 	}
-	empty := cashbookLine{kind: JournalWithdrawal, movementReason: CashReasonSafe, note: "Kassasturz"}
-	if got := k.lineText(empty, false, width); got != k.tr("Entnahme · Tresor · Kassasturz") {
-		t.Fatalf("movement %q", got)
+	register := sampleCashbook(2, CashbookCashRegister).pdfData()
+	if register["totals"].(map[string]any)["opening"] == nil || register["period"].(map[string]any)["contents"] != "" {
+		t.Fatalf("register %+v", register)
+	}
+	spanning := sampleCashbook(0, CashbookCashRegister)
+	spanning.from, spanning.to = time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC), time.Date(2027, 1, 31, 0, 0, 0, 0, time.UTC)
+	if year := spanning.pdfData()["period"].(map[string]any)["businessYear"]; year != "2026/27" {
+		t.Fatalf("business year %v", year)
+	}
+}
+
+func TestCashbookPDFHidesOrderDataFromReadersWithoutPermission(t *testing.T) {
+	b := sampleCashbook(1, CashbookCashRegister)
+	b.withOrders = false
+	pages := pdfPages(t, renderCashbook(t, b, func(string) bool { return false }))
+	if strings.Contains(pages[0], "Jürgen Weiß") || strings.Contains(pages[0], "FDM 3D printing") {
+		t.Fatalf("order data on the sheet: %s", pages[0])
 	}
 }

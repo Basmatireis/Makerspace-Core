@@ -408,3 +408,27 @@ LEFT JOIN materials m ON m.id = i.source_material_id AND i.kind = 'inventory_ite
 LEFT JOIN material_types t ON t.id = m.material_type_id
 WHERE i.order_id = ANY(sqlc.arg(order_ids)::text[]::uuid[]) AND i.removed_at IS NULL
 ORDER BY i.order_id, i.position, i.id;
+
+-- name: GetPersonMatriculation :one
+-- Empty when the person has none; only read for a caller who holds people.read.matriculation.
+SELECT COALESCE(matriculation_number, '')::text AS matriculation_number FROM people WHERE id = sqlc.arg(person_id);
+
+-- name: ListReceiptPreviewOrders :many
+-- The newest finalized orders that have a receipt (a settled amount above 0), for previews of the receipt template.
+SELECT o.id, o.reference,
+       COALESCE(s.display_name, p.first_name || ' ' || p.last_name, g.name, '')::text AS customer_name
+FROM orders o
+LEFT JOIN order_customer_snapshots s ON s.order_id = o.id
+LEFT JOIN people p ON p.id = o.customer_person_id
+LEFT JOIN organizations g ON g.id = o.customer_organization_id
+WHERE o.status = 'finalized'
+  AND (SELECT COALESCE(sum(a.amount), 0) FROM payment_allocations a WHERE a.order_id = o.id) > 0
+ORDER BY o.finalized_at DESC NULLS LAST, o.id DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: ReceiptPayments :many
+-- The receipts that still count towards an order with the amount each contributes to it, oldest first.
+SELECT p.id, p.reference, p.method, p.occurred_at, sum(a.amount)::numeric AS amount
+FROM payments p JOIN payment_allocations a ON a.payment_id = p.id
+WHERE a.order_id = sqlc.arg(order_id) AND p.entry_kind = 'receipt'
+GROUP BY p.id HAVING sum(a.amount) > 0 ORDER BY p.occurred_at, p.reference;

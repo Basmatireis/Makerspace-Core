@@ -103,6 +103,7 @@ var schemaGroups = map[Kind][]groupDef{
 		{name: "Period", fields: []fieldDef{
 			f("period.from", FieldDate), f("period.to", FieldDate), f("period.businessYear", FieldText),
 			f("period.contents", FieldText),
+			f("period.kind", FieldText),
 		}},
 		{name: "Organization", fields: []fieldDef{
 			f("organization.name", FieldText), f("organization.unit", FieldText),
@@ -195,6 +196,7 @@ var fieldDocs = map[string]string{
 	"period.from":                        "First day of the export",
 	"period.to":                          "Last day of the export",
 	"period.businessYear":                "Business year of the period",
+	"period.kind":                        `"cash-register" or "all-payments"; used in the file name`,
 	"period.contents":                    `Empty for the cash register; "alle Zahlungen" when the export covers every payment method`,
 	"organization.name":                  "Name of the student union",
 	"organization.unit":                  "Studienlabor or Referat the cash register belongs to",
