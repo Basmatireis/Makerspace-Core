@@ -321,27 +321,17 @@ describe('protected application routing', () => {
       'href',
       '/THIRD_PARTY_NOTICES.txt',
     );
-    expect(within(screen.getByRole('main')).queryByRole('link', { name: 'Imprint' })).not.toBeInTheDocument();
+    const main = screen.getByRole('main');
+    expect(within(main).getByRole('link', { name: 'Imprint' })).toHaveAttribute('href', '/legal/imprint');
+    // Inside the application the navigation has the legal links, so there is no footer.
+    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
   });
 
-  it('shows the footer with the legal and About links on application pages', async () => {
-    server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture())));
-    renderRoute(<App />, '/about');
+  it('ends pages opened from outside the application with the legal footer', async () => {
+    renderRoute(<App />, '/survey/a-survey-token');
     const footer = await screen.findByRole('contentinfo');
     expect(within(footer).getByRole('link', { name: 'Imprint' })).toHaveAttribute('href', '/legal/imprint');
     expect(within(footer).getByRole('link', { name: 'Privacy policy' })).toHaveAttribute('href', '/legal/privacy');
-    expect(within(footer).getByRole('link', { name: 'About' })).toHaveAttribute('href', '/about');
-  });
-
-  it('keeps the footer off the standalone legal pages', async () => {
-    server.use(
-      http.get('*/api/v1/public/legal/imprint', () =>
-        HttpResponse.json({ kind: 'imprint', title: 'Imprint', mode: 'internal', markdown: 'Text', externalUrl: null }),
-      ),
-    );
-    renderRoute(<App />, '/legal/imprint');
-    expect(await screen.findByRole('heading', { name: 'Imprint' })).toBeInTheDocument();
-    expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
   });
 
   it('redirects the legacy legal route to the public imprint', async () => {
