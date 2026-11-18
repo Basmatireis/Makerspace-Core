@@ -41,6 +41,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getTransferSpoolStockUrl = (materialId: UUIDv7,) => {
 
 
@@ -55,25 +75,11 @@ export const getTransferSpoolStockUrl = (materialId: UUIDv7,) => {
 export const transferSpoolStock = async (materialId: UUIDv7,
     transferSpoolStockRequest: TransferSpoolStockRequest, options?: Parameters<typeof apiFetch>[1]): Promise<InventoryTransaction> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<InventoryTransaction>(getTransferSpoolStockUrl(materialId),
+  return apiFetch<InventoryTransaction>(getTransferSpoolStockUrl(materialId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(transferSpoolStockRequest)
   }
 );}
@@ -124,25 +130,11 @@ export const getCreateFilamentSpoolUrl = () => {
  */
 export const createFilamentSpool = async (createFilamentSpoolRequest: CreateFilamentSpoolRequest, options?: Parameters<typeof apiFetch>[1]): Promise<FilamentSpool> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<FilamentSpool>(getCreateFilamentSpoolUrl(),
+  return apiFetch<FilamentSpool>(getCreateFilamentSpoolUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createFilamentSpoolRequest)
   }
 );}
@@ -206,25 +198,11 @@ export const getUpdateFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 export const updateFilamentSpool = async (spoolId: UUIDv7,
     updateFilamentSpoolRequest: UpdateFilamentSpoolRequest, options?: Parameters<typeof apiFetch>[1]): Promise<FilamentSpool> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<FilamentSpool>(getUpdateFilamentSpoolUrl(spoolId),
+  return apiFetch<FilamentSpool>(getUpdateFilamentSpoolUrl(spoolId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateFilamentSpoolRequest)
   }
 );}
@@ -241,25 +219,11 @@ export const getAddFilamentSpoolIdentifierUrl = (spoolId: UUIDv7,) => {
 export const addFilamentSpoolIdentifier = async (spoolId: UUIDv7,
     addFilamentSpoolIdentifierRequest: AddFilamentSpoolIdentifierRequest, options?: Parameters<typeof apiFetch>[1]): Promise<FilamentSpoolIdentifier> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<FilamentSpoolIdentifier>(getAddFilamentSpoolIdentifierUrl(spoolId),
+  return apiFetch<FilamentSpoolIdentifier>(getAddFilamentSpoolIdentifierUrl(spoolId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(addFilamentSpoolIdentifierRequest)
   }
 );}
@@ -327,25 +291,11 @@ export const getConsumeFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 export const consumeFilamentSpool = async (spoolId: UUIDv7,
     spoolInventoryCommand: SpoolInventoryCommand, options?: Parameters<typeof apiFetch>[1]): Promise<InventoryMutationResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<InventoryMutationResult>(getConsumeFilamentSpoolUrl(spoolId),
+  return apiFetch<InventoryMutationResult>(getConsumeFilamentSpoolUrl(spoolId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(spoolInventoryCommand)
   }
 );}
@@ -362,25 +312,11 @@ export const getCorrectFilamentSpoolStockUrl = (spoolId: UUIDv7,) => {
 export const correctFilamentSpoolStock = async (spoolId: UUIDv7,
     correctSpoolStockRequest: CorrectSpoolStockRequest, options?: Parameters<typeof apiFetch>[1]): Promise<InventoryMutationResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<InventoryMutationResult>(getCorrectFilamentSpoolStockUrl(spoolId),
+  return apiFetch<InventoryMutationResult>(getCorrectFilamentSpoolStockUrl(spoolId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(correctSpoolStockRequest)
   }
 );}
@@ -401,25 +337,11 @@ export const getRetireFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 export const retireFilamentSpool = async (spoolId: UUIDv7,
     retireFilamentSpoolRequest: RetireFilamentSpoolRequest, options?: Parameters<typeof apiFetch>[1]): Promise<FilamentSpool> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<FilamentSpool>(getRetireFilamentSpoolUrl(spoolId),
+  return apiFetch<FilamentSpool>(getRetireFilamentSpoolUrl(spoolId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(retireFilamentSpoolRequest)
   }
 );}
@@ -440,25 +362,11 @@ export const getRestoreFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 export const restoreFilamentSpool = async (spoolId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<FilamentSpool> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<FilamentSpool>(getRestoreFilamentSpoolUrl(spoolId),
+  return apiFetch<FilamentSpool>(getRestoreFilamentSpoolUrl(spoolId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -479,25 +387,11 @@ export const getPurgeFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 export const purgeFilamentSpool = async (spoolId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getPurgeFilamentSpoolUrl(spoolId),
+  return apiFetch<void>(getPurgeFilamentSpoolUrl(spoolId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}

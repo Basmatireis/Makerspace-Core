@@ -43,6 +43,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getGetPrinterProfileUrl = (machineId: UUIDv7,) => {
 
 
@@ -77,25 +97,11 @@ export const getConfigurePrinterProfileUrl = (machineId: UUIDv7,) => {
 export const configurePrinterProfile = async (machineId: UUIDv7,
     configurePrinterRequest: ConfigurePrinterRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterProfile> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PrinterProfile>(getConfigurePrinterProfileUrl(machineId),
+  return apiFetch<PrinterProfile>(getConfigurePrinterProfileUrl(machineId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(configurePrinterRequest)
   }
 );}
@@ -244,25 +250,11 @@ export const putPrinterErrorCode = async (sourceFamily: 'print' | 'hms',
     code: string,
     printerErrorCodeInput: PrinterErrorCodeInput, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterErrorCode> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PrinterErrorCode>(getPutPrinterErrorCodeUrl(sourceFamily,code),
+  return apiFetch<PrinterErrorCode>(getPutPrinterErrorCodeUrl(sourceFamily,code),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(printerErrorCodeInput)
   }
 );}
@@ -333,25 +325,11 @@ export const getSavePrinterSetupUrl = (machineId: UUIDv7,) => {
 export const savePrinterSetup = async (machineId: UUIDv7,
     printerSetupRequest: PrinterSetupRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterProfile> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PrinterProfile>(getSavePrinterSetupUrl(machineId),
+  return apiFetch<PrinterProfile>(getSavePrinterSetupUrl(machineId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(printerSetupRequest)
   }
 );}
@@ -368,25 +346,11 @@ export const getCreatePrinterInputUnitUrl = (machineId: UUIDv7,) => {
 export const createPrinterInputUnit = async (machineId: UUIDv7,
     createPrinterInputUnitRequest: CreatePrinterInputUnitRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterInputUnit> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PrinterInputUnit>(getCreatePrinterInputUnitUrl(machineId),
+  return apiFetch<PrinterInputUnit>(getCreatePrinterInputUnitUrl(machineId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createPrinterInputUnitRequest)
   }
 );}
@@ -403,25 +367,11 @@ export const getCreatePrinterSlotUrl = (inputUnitId: UUIDv7,) => {
 export const createPrinterSlot = async (inputUnitId: UUIDv7,
     createPrinterSlotRequest: CreatePrinterSlotRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterSlot> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PrinterSlot>(getCreatePrinterSlotUrl(inputUnitId),
+  return apiFetch<PrinterSlot>(getCreatePrinterSlotUrl(inputUnitId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createPrinterSlotRequest)
   }
 );}
@@ -438,25 +388,11 @@ export const getUpdatePrinterInputUnitUrl = (inputUnitId: UUIDv7,) => {
 export const updatePrinterInputUnit = async (inputUnitId: UUIDv7,
     updatePrinterInputUnitRequest: UpdatePrinterInputUnitRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterInputUnit> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PrinterInputUnit>(getUpdatePrinterInputUnitUrl(inputUnitId),
+  return apiFetch<PrinterInputUnit>(getUpdatePrinterInputUnitUrl(inputUnitId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updatePrinterInputUnitRequest)
   }
 );}
@@ -473,25 +409,11 @@ export const getUpdatePrinterSlotUrl = (slotId: UUIDv7,) => {
 export const updatePrinterSlot = async (slotId: UUIDv7,
     updatePrinterSlotRequest: UpdatePrinterSlotRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterSlot> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PrinterSlot>(getUpdatePrinterSlotUrl(slotId),
+  return apiFetch<PrinterSlot>(getUpdatePrinterSlotUrl(slotId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updatePrinterSlotRequest)
   }
 );}
@@ -508,25 +430,11 @@ export const getMountPrinterSpoolUrl = (slotId: UUIDv7,) => {
 export const mountPrinterSpool = async (slotId: UUIDv7,
     mountSpoolRequest: MountSpoolRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterSlot> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PrinterSlot>(getMountPrinterSpoolUrl(slotId),
+  return apiFetch<PrinterSlot>(getMountPrinterSpoolUrl(slotId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(mountSpoolRequest)
   }
 );}
@@ -547,25 +455,11 @@ export const getMountCustomerFilamentUrl = (slotId: UUIDv7,) => {
 export const mountCustomerFilament = async (slotId: UUIDv7,
     mountCustomerFilamentRequest: MountCustomerFilamentRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterSlot> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PrinterSlot>(getMountCustomerFilamentUrl(slotId),
+  return apiFetch<PrinterSlot>(getMountCustomerFilamentUrl(slotId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(mountCustomerFilamentRequest)
   }
 );}

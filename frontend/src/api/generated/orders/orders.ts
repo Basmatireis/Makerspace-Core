@@ -33,6 +33,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getListOrdersUrl = (params?: ListOrdersParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -70,25 +90,11 @@ export const getCreateOrderUrl = () => {
 
 export const createOrder = async (orderDraftInput: OrderDraftInput, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getCreateOrderUrl(),
+  return apiFetch<Order>(getCreateOrderUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderDraftInput)
   }
 );}
@@ -125,25 +131,11 @@ export const getUpdateOrderUrl = (orderId: UUIDv7,) => {
 export const updateOrder = async (orderId: UUIDv7,
     updateOrderDraftInput: UpdateOrderDraftInput, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getUpdateOrderUrl(orderId),
+  return apiFetch<Order>(getUpdateOrderUrl(orderId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateOrderDraftInput)
   }
 );}
@@ -196,25 +188,11 @@ export const getAddOrderItemUrl = (orderId: UUIDv7,) => {
 export const addOrderItem = async (orderId: UUIDv7,
     orderItemInput: OrderItemInput, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getAddOrderItemUrl(orderId),
+  return apiFetch<Order>(getAddOrderItemUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderItemInput)
   }
 );}
@@ -233,25 +211,11 @@ export const updateOrderItem = async (orderId: UUIDv7,
     itemId: UUIDv7,
     orderItemInput: OrderItemInput, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getUpdateOrderItemUrl(orderId,itemId),
+  return apiFetch<Order>(getUpdateOrderItemUrl(orderId,itemId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderItemInput)
   }
 );}
@@ -270,25 +234,11 @@ export const removeOrderItem = async (orderId: UUIDv7,
     itemId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getRemoveOrderItemUrl(orderId,itemId),
+  return apiFetch<Order>(getRemoveOrderItemUrl(orderId,itemId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -307,25 +257,11 @@ export const refreshOrderItem = async (orderId: UUIDv7,
     itemId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getRefreshOrderItemUrl(orderId,itemId),
+  return apiFetch<Order>(getRefreshOrderItemUrl(orderId,itemId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -342,25 +278,11 @@ export const getFinalizeOrderUrl = (orderId: UUIDv7,) => {
 export const finalizeOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getFinalizeOrderUrl(orderId),
+  return apiFetch<Order>(getFinalizeOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -377,25 +299,11 @@ export const getCheckoutOrderUrl = (orderId: UUIDv7,) => {
 export const checkoutOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getCheckoutOrderUrl(orderId),
+  return apiFetch<Order>(getCheckoutOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -412,25 +320,11 @@ export const getCancelOrderUrl = (orderId: UUIDv7,) => {
 export const cancelOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getCancelOrderUrl(orderId),
+  return apiFetch<Order>(getCancelOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -447,25 +341,11 @@ export const getReverseOrderUrl = (orderId: UUIDv7,) => {
 export const reverseOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getReverseOrderUrl(orderId),
+  return apiFetch<Order>(getReverseOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -486,25 +366,11 @@ export const getDiscardReplacementOrderUrl = (orderId: UUIDv7,) => {
 export const discardReplacementOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getDiscardReplacementOrderUrl(orderId),
+  return apiFetch<Order>(getDiscardReplacementOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -525,25 +391,11 @@ export const getCreateReplacementOrderUrl = (orderId: UUIDv7,) => {
 export const createReplacementOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getCreateReplacementOrderUrl(orderId),
+  return apiFetch<Order>(getCreateReplacementOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -564,25 +416,11 @@ export const getReplaceOrderUrl = (orderId: UUIDv7,) => {
 export const replaceOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getReplaceOrderUrl(orderId),
+  return apiFetch<Order>(getReplaceOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}

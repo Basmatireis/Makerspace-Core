@@ -43,6 +43,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getGetNotificationCatalogUrl = () => {
 
 
@@ -105,25 +125,11 @@ export const getCreateNotificationRuleUrl = () => {
  */
 export const createNotificationRule = async (notificationRuleInput: NotificationRuleInput, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationRule> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<NotificationRule>(getCreateNotificationRuleUrl(),
+  return apiFetch<NotificationRule>(getCreateNotificationRuleUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(notificationRuleInput)
   }
 );}
@@ -143,25 +149,11 @@ export const getDryRunNotificationRuleUrl = () => {
  */
 export const dryRunNotificationRule = async (notificationRuleDryRunRequest: NotificationRuleDryRunRequest, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationRuleDryRun> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<NotificationRuleDryRun>(getDryRunNotificationRuleUrl(),
+  return apiFetch<NotificationRuleDryRun>(getDryRunNotificationRuleUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(notificationRuleDryRunRequest)
   }
 );}
@@ -285,25 +277,11 @@ export const getUpdateNotificationRuleUrl = (ruleId: UUIDv7,) => {
 export const updateNotificationRule = async (ruleId: UUIDv7,
     updateNotificationRuleRequest: UpdateNotificationRuleRequest, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationRule> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<NotificationRule>(getUpdateNotificationRuleUrl(ruleId),
+  return apiFetch<NotificationRule>(getUpdateNotificationRuleUrl(ruleId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateNotificationRuleRequest)
   }
 );}
@@ -324,25 +302,11 @@ export const getDeleteNotificationRuleUrl = (ruleId: UUIDv7,) => {
 export const deleteNotificationRule = async (ruleId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteNotificationRuleUrl(ruleId),
+  return apiFetch<void>(getDeleteNotificationRuleUrl(ruleId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -386,25 +350,11 @@ export const getCreateNotificationCategoryUrl = () => {
  */
 export const createNotificationCategory = async (createNotificationCategoryRequest: CreateNotificationCategoryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationCategory> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<NotificationCategory>(getCreateNotificationCategoryUrl(),
+  return apiFetch<NotificationCategory>(getCreateNotificationCategoryUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createNotificationCategoryRequest)
   }
 );}
@@ -425,25 +375,11 @@ export const getUpdateNotificationCategoryUrl = (categoryId: UUIDv7,) => {
 export const updateNotificationCategory = async (categoryId: UUIDv7,
     updateNotificationCategoryRequest: UpdateNotificationCategoryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationCategory> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<NotificationCategory>(getUpdateNotificationCategoryUrl(categoryId),
+  return apiFetch<NotificationCategory>(getUpdateNotificationCategoryUrl(categoryId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateNotificationCategoryRequest)
   }
 );}
@@ -464,25 +400,11 @@ export const getDeleteNotificationCategoryUrl = (categoryId: UUIDv7,) => {
 export const deleteNotificationCategory = async (categoryId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteNotificationCategoryUrl(categoryId),
+  return apiFetch<void>(getDeleteNotificationCategoryUrl(categoryId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -526,25 +448,11 @@ export const getAnswerOwnNotificationConsentsUrl = () => {
  */
 export const answerOwnNotificationConsents = async (answerNotificationConsentsRequest: AnswerNotificationConsentsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationSettings> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<NotificationSettings>(getAnswerOwnNotificationConsentsUrl(),
+  return apiFetch<NotificationSettings>(getAnswerOwnNotificationConsentsUrl(),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(answerNotificationConsentsRequest)
   }
 );}
@@ -565,25 +473,11 @@ export const getSetOwnNotificationRulePreferenceUrl = (ruleId: UUIDv7,) => {
 export const setOwnNotificationRulePreference = async (ruleId: UUIDv7,
     setNotificationRulePreferenceRequest: SetNotificationRulePreferenceRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getSetOwnNotificationRulePreferenceUrl(ruleId),
+  return apiFetch<void>(getSetOwnNotificationRulePreferenceUrl(ruleId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(setNotificationRulePreferenceRequest)
   }
 );}
@@ -630,25 +524,11 @@ export const setPersonNotificationRulePreference = async (personId: string,
     ruleId: UUIDv7,
     setNotificationRulePreferenceRequest: SetNotificationRulePreferenceRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getSetPersonNotificationRulePreferenceUrl(personId,ruleId),
+  return apiFetch<void>(getSetPersonNotificationRulePreferenceUrl(personId,ruleId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(setNotificationRulePreferenceRequest)
   }
 );}
@@ -692,25 +572,11 @@ export const getCreateOwnNotificationSubscriptionUrl = () => {
  */
 export const createOwnNotificationSubscription = async (notificationRuleInput: NotificationRuleInput, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationRule> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<NotificationRule>(getCreateOwnNotificationSubscriptionUrl(),
+  return apiFetch<NotificationRule>(getCreateOwnNotificationSubscriptionUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(notificationRuleInput)
   }
 );}
@@ -755,25 +621,11 @@ export const getUpdateOwnNotificationSubscriptionUrl = (subscriptionId: UUIDv7,)
 export const updateOwnNotificationSubscription = async (subscriptionId: UUIDv7,
     updateNotificationRuleRequest: UpdateNotificationRuleRequest, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationRule> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<NotificationRule>(getUpdateOwnNotificationSubscriptionUrl(subscriptionId),
+  return apiFetch<NotificationRule>(getUpdateOwnNotificationSubscriptionUrl(subscriptionId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateNotificationRuleRequest)
   }
 );}
@@ -794,25 +646,11 @@ export const getDeleteOwnNotificationSubscriptionUrl = (subscriptionId: UUIDv7,)
 export const deleteOwnNotificationSubscription = async (subscriptionId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteOwnNotificationSubscriptionUrl(subscriptionId),
+  return apiFetch<void>(getDeleteOwnNotificationSubscriptionUrl(subscriptionId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}

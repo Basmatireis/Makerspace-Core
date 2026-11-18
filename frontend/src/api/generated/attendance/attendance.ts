@@ -44,6 +44,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getGetTerminalContextUrl = () => {
 
 
@@ -153,25 +173,11 @@ export const getTerminalPasswordCheckInUrl = () => {
  */
 export const terminalPasswordCheckIn = async (terminalPasswordCheckInRequest: TerminalPasswordCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Visit>(getTerminalPasswordCheckInUrl(),
+  return apiFetch<Visit>(getTerminalPasswordCheckInUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(terminalPasswordCheckInRequest)
   }
 );}
@@ -197,25 +203,11 @@ export const getTerminalPinCheckInUrl = () => {
  */
 export const terminalPinCheckIn = async (terminalPinCheckInRequest: TerminalPinCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Visit>(getTerminalPinCheckInUrl(),
+  return apiFetch<Visit>(getTerminalPinCheckInUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(terminalPinCheckInRequest)
   }
 );}
@@ -238,25 +230,11 @@ export const getRequestTerminalEmailCodeUrl = () => {
  */
 export const requestTerminalEmailCode = async (requestEmailLoginCodeRequest: RequestEmailLoginCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getRequestTerminalEmailCodeUrl(),
+  return apiFetch<void>(getRequestTerminalEmailCodeUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(requestEmailLoginCodeRequest)
   }
 );}
@@ -287,25 +265,11 @@ export const getTerminalEmailCodeCheckInUrl = () => {
  */
 export const terminalEmailCodeCheckIn = async (terminalEmailCodeCheckInRequest: TerminalEmailCodeCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Visit>(getTerminalEmailCodeCheckInUrl(),
+  return apiFetch<Visit>(getTerminalEmailCodeCheckInUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(terminalEmailCodeCheckInRequest)
   }
 );}
@@ -324,25 +288,11 @@ export const getTerminalPasswordCheckOutUrl = () => {
  */
 export const terminalPasswordCheckOut = async (attendancePasswordRequest: AttendancePasswordRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Visit>(getTerminalPasswordCheckOutUrl(),
+  return apiFetch<Visit>(getTerminalPasswordCheckOutUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(attendancePasswordRequest)
   }
 );}
@@ -361,25 +311,11 @@ export const getTerminalPinCheckOutUrl = () => {
  */
 export const terminalPinCheckOut = async (attendancePinRequest: AttendancePinRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Visit>(getTerminalPinCheckOutUrl(),
+  return apiFetch<Visit>(getTerminalPinCheckOutUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(attendancePinRequest)
   }
 );}
@@ -398,25 +334,11 @@ export const getTerminalEmailCodeCheckOutUrl = () => {
  */
 export const terminalEmailCodeCheckOut = async (attendanceEmailCodeRequest: AttendanceEmailCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Visit>(getTerminalEmailCodeCheckOutUrl(),
+  return apiFetch<Visit>(getTerminalEmailCodeCheckOutUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(attendanceEmailCodeRequest)
   }
 );}
@@ -437,25 +359,11 @@ export const getTerminalAnswerConsentsUrl = () => {
  */
 export const terminalAnswerConsents = async (terminalConsentRequest: TerminalConsentRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getTerminalAnswerConsentsUrl(),
+  return apiFetch<void>(getTerminalAnswerConsentsUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(terminalConsentRequest)
   }
 );}
@@ -499,25 +407,11 @@ export const getTerminalSurveyOfferSubmitUrl = (token: string,) => {
 export const terminalSurveyOfferSubmit = async (token: string,
     submitSurveyResponse: SubmitSurveyResponse, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getTerminalSurveyOfferSubmitUrl(token),
+  return apiFetch<void>(getTerminalSurveyOfferSubmitUrl(token),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(submitSurveyResponse)
   }
 );}
@@ -586,25 +480,11 @@ export const getSaveTerminalCameraCalibrationUrl = () => {
  */
 export const saveTerminalCameraCalibration = async (kioskCameraSettings: KioskCameraSettings, options?: Parameters<typeof apiFetch>[1]): Promise<KioskCameraSettings> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<KioskCameraSettings>(getSaveTerminalCameraCalibrationUrl(),
+  return apiFetch<KioskCameraSettings>(getSaveTerminalCameraCalibrationUrl(),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(kioskCameraSettings)
   }
 );}
@@ -698,25 +578,11 @@ export const getSupervisedVisitCheckInUrl = () => {
  */
 export const supervisedVisitCheckIn = async (supervisedCheckInRequest: SupervisedCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Visit>(getSupervisedVisitCheckInUrl(),
+  return apiFetch<Visit>(getSupervisedVisitCheckInUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(supervisedCheckInRequest)
   }
 );}
@@ -758,25 +624,11 @@ export const getVoidVisitUrl = (visitId: UUIDv7,) => {
 export const voidVisit = async (visitId: UUIDv7,
     voidVisitRequest: VoidVisitRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Visit>(getVoidVisitUrl(visitId),
+  return apiFetch<Visit>(getVoidVisitUrl(visitId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(voidVisitRequest)
   }
 );}

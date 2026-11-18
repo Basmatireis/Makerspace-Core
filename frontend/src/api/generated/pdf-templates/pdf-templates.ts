@@ -35,6 +35,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getListPdfTemplatesUrl = () => {
 
 
@@ -105,25 +125,11 @@ export const getUploadPdfTemplateAssetUrl = (params: UploadPdfTemplateAssetParam
 export const uploadPdfTemplateAsset = async (uploadPdfTemplateAssetBody: Blob,
     params: UploadPdfTemplateAssetParams, options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplateAsset> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PdfTemplateAsset>(getUploadPdfTemplateAssetUrl(params),
+  return apiFetch<PdfTemplateAsset>(getUploadPdfTemplateAssetUrl(params),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/octet-stream', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/octet-stream' }, options?.headers),
     body: uploadPdfTemplateAssetBody
   }
 );}
@@ -292,25 +298,11 @@ export const getSavePdfTemplateDraftUrl = (_export: 'wiref' | 'cashbook' | 'rece
 export const savePdfTemplateDraft = async (_export: 'wiref' | 'cashbook' | 'receipt',
     savePdfTemplateDraftRequest: SavePdfTemplateDraftRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplateDraftResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PdfTemplateDraftResult>(getSavePdfTemplateDraftUrl(_export),
+  return apiFetch<PdfTemplateDraftResult>(getSavePdfTemplateDraftUrl(_export),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(savePdfTemplateDraftRequest)
   }
 );}
@@ -355,25 +347,11 @@ export const getPublishPdfTemplateDraftUrl = (_export: 'wiref' | 'cashbook' | 'r
 export const publishPdfTemplateDraft = async (_export: 'wiref' | 'cashbook' | 'receipt',
     publishPdfTemplateRequest: PublishPdfTemplateRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplateVersion> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PdfTemplateVersion>(getPublishPdfTemplateDraftUrl(_export),
+  return apiFetch<PdfTemplateVersion>(getPublishPdfTemplateDraftUrl(_export),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(publishPdfTemplateRequest)
   }
 );}
@@ -394,25 +372,11 @@ export const getPreviewPdfTemplateUrl = (_export: 'wiref' | 'cashbook' | 'receip
 export const previewPdfTemplate = async (_export: 'wiref' | 'cashbook' | 'receipt',
     previewPdfTemplateRequest: PreviewPdfTemplateRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplatePreview> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PdfTemplatePreview>(getPreviewPdfTemplateUrl(_export),
+  return apiFetch<PdfTemplatePreview>(getPreviewPdfTemplateUrl(_export),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(previewPdfTemplateRequest)
   }
 );}
