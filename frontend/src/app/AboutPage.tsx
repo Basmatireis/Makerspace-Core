@@ -1,5 +1,8 @@
+import type { ReactNode } from 'react';
 import { Link as CarbonLink, ListItem, Stack, Tile, UnorderedList } from '@carbon/react';
+import { Link } from 'react-router-dom';
 import { useBranding } from '../features/branding/branding';
+import type { PublicLegalLink } from '../api/generated/models';
 import { Fact, FactsGrid } from './components/Facts';
 import { PageShell } from './PageShell';
 
@@ -16,8 +19,17 @@ const areas: [string, string][] = [
   ['Signage', 'Content for the displays in the lab.'],
 ];
 
+function LegalLink({ link, children }: { link: PublicLegalLink; children: ReactNode }) {
+  if (link.mode === 'external') return <CarbonLink href={link.href}>{children}</CarbonLink>;
+  return (
+    <CarbonLink as={Link} to={link.href}>
+      {children}
+    </CarbonLink>
+  );
+}
+
 export function AboutPage() {
-  const { identity } = useBranding();
+  const { identity, legal } = useBranding();
   return (
     <PageShell title="About">
       <div className="detail-grid">
@@ -61,6 +73,10 @@ export function AboutPage() {
                 third-party notices
               </CarbonLink>{' '}
               for their licenses.
+            </p>
+            <p>
+              <LegalLink link={legal.imprint}>Imprint</LegalLink> ·{' '}
+              <LegalLink link={legal.privacy}>Privacy policy</LegalLink>
             </p>
           </Stack>
         </Tile>

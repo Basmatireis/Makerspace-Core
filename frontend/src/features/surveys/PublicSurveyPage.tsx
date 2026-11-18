@@ -11,7 +11,6 @@ import {
 import type { SurveyAnswerInput, SurveyQuestion } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { FullPageLoading } from '../../app/PageState';
-import { LegalLinks } from '../branding/LegalLinks';
 import { isAnswered, visibleQuestionIds, type AnswerValue } from './surveyModel';
 import { toAnswerInputs } from './surveyAnswers';
 import './surveys.scss';
@@ -104,7 +103,6 @@ function PublicSurvey({ kind }: { kind: Kind }) {
           {survey.data.anonymous && (
             <p className="survey-public__note">Your response is stored without a person identifier.</p>
           )}
-          <LegalLinks />
         </header>
         {shown.map((question, index) => (
           <Controller

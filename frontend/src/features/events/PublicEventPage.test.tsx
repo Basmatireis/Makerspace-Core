@@ -73,7 +73,10 @@ describe('Public event page', () => {
       'src',
       `/api/v1/public/events/${publicId}/banner`,
     );
-    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+    // No application navigation: the only navigation is the legal footer of pages opened from outside the app.
+    expect(screen.getAllByRole('navigation').map((nav) => nav.getAttribute('aria-label'))).toEqual([
+      'Legal information',
+    ]);
     expect(screen.getByRole('heading', { name: 'Help us' })).toBeInTheDocument();
     expect(screen.getByText('2 of 4 filled')).toBeInTheDocument();
     expect(screen.getByText('Members only')).toBeInTheDocument();

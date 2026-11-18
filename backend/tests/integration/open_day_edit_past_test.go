@@ -205,10 +205,20 @@ func TestPastOpenDayScheduleChangesNeedEditPast(t *testing.T) {
 func TestOngoingOpenDayTimeslotsAreJudgedOneByOne(t *testing.T) {
 	e := newEditPastEnv(t)
 	ctx := testContext(t)
-	// An open day that is half over: the first timeslot has ended, the second is still to come.
-	first := e.now.Add(-3 * time.Hour).Truncate(time.Minute)
-	day := e.openDay(first, 2*time.Hour, 2, 0)
-	later := e.addSlot(day, e.now.Add(time.Hour).Truncate(time.Minute), 2*time.Hour)
+	// An open day that is half over: the first timeslot has ended, the second is still to come. Both start within a
+	// few minutes of now, because all timeslots of a day must start on the same date in the makerspace timezone; hours
+	// apart they straddle midnight late in the evening.
+	vienna, err := time.LoadLocation("Europe/Vienna")
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := e.now.In(vienna)
+	if sinceMidnight := local.Sub(time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, vienna)); sinceMidnight < 10*time.Minute {
+		t.Skip("an ended and an upcoming timeslot on the same date need a few minutes after midnight")
+	}
+	first := e.now.Add(-5 * time.Minute).Truncate(time.Minute)
+	day := e.openDay(first, 2*time.Minute, 2, 0)
+	later := e.addSlot(day, e.now.Add(time.Minute).Truncate(time.Minute).Add(time.Minute), 2*time.Hour)
 	e.holdSlot(day, day.timeslot, day.supervisorRequirement, e.alice)
 
 	// Signing up for the timeslot still to come works; correcting the ended one is refused.
