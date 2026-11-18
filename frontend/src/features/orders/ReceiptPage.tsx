@@ -89,7 +89,12 @@ function Receipt({ order }: { order: Order }) {
             Back to order
           </Button>
           {available && (
-            <Button kind="tertiary" renderIcon={Download} disabled={download.isPending} onClick={() => download.mutate()}>
+            <Button
+              kind="tertiary"
+              renderIcon={Download}
+              disabled={download.isPending}
+              onClick={() => download.mutate()}
+            >
               Download PDF
             </Button>
           )}
