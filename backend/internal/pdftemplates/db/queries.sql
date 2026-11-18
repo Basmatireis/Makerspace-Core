@@ -4,7 +4,7 @@ SELECT pg_advisory_xact_lock(hashtextextended('pdf_template_versions:' || sqlc.a
 
 -- name: ListVersionMetas :many
 -- A creator or publisher name is empty when the account no longer exists.
--- Newest first, without the documents.
+-- Newest first, without the documents, at most row_limit versions.
 SELECT v.id, v.export_kind, v.version, v.state, v.revision, v.created_at, v.updated_at, v.published_at,
        COALESCE(NULLIF(btrim(creator.first_name || ' ' || creator.last_name), ''), '')::text AS created_by_name,
        COALESCE(NULLIF(btrim(publisher.first_name || ' ' || publisher.last_name), ''), '')::text AS published_by_name
@@ -14,7 +14,8 @@ LEFT JOIN people creator ON creator.id = creator_account.person_id
 LEFT JOIN accounts publisher_account ON publisher_account.id = v.published_by_account_id
 LEFT JOIN people publisher ON publisher.id = publisher_account.person_id
 WHERE v.export_kind = sqlc.arg(export_kind)
-ORDER BY v.version DESC;
+ORDER BY v.version DESC
+LIMIT sqlc.arg(row_limit);
 
 -- name: ListCurrentVersions :many
 -- The draft and the published version of every export, with documents.
@@ -68,6 +69,8 @@ SELECT document FROM pdf_template_versions
 WHERE export_kind = sqlc.arg(export_kind) AND state = 'published';
 
 -- name: NextVersionNumber :one
+-- The next number of an export. A discarded draft is deleted, so its number is reused by the next draft; the audit
+-- events of both carry the (different) resource ids.
 SELECT (COALESCE(max(version), 0) + 1)::integer AS version
 FROM pdf_template_versions
 WHERE export_kind = sqlc.arg(export_kind);
@@ -107,10 +110,15 @@ WHERE id = sqlc.arg(id) AND state = 'draft' AND revision = sqlc.arg(expected_rev
 RETURNING *;
 
 -- name: ListAssets :many
--- Metadata only, newest first.
+-- Metadata only, newest first, at most row_limit images.
 SELECT id, file_name, content_type, byte_size, width, height, created_at
 FROM pdf_template_assets
-ORDER BY created_at DESC, id DESC;
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: AssetsExist :one
+-- How many of the given asset ids are stored.
+SELECT count(*) FROM pdf_template_assets WHERE id = ANY(sqlc.arg(ids)::uuid[]);
 
 -- name: GetAssetMeta :one
 SELECT id, file_name, content_type, byte_size, width, height, created_at

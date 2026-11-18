@@ -85,7 +85,7 @@ func TestPDFDataMatchesTheWiRefSchema(t *testing.T) {
 
 func TestPDFDataFillsTextsAndSwitches(t *testing.T) {
 	settings := defaultSettings()
-	settings.ShowContactPerson, settings.ShowServicePeriod = false, false
+	settings.ShowContactPerson = false
 	data := SampleDocument(sampleTime()).PDFData(settings)
 	texts, show := data["texts"].(map[string]any), data["show"].(map[string]any)
 	if texts["title"] != "Invoice request W-2026-000123" ||
@@ -93,7 +93,7 @@ func TestPDFDataFillsTextsAndSwitches(t *testing.T) {
 		texts["closing"] != "Approved by Sam Approver on 21.10.2026." {
 		t.Errorf("texts = %+v", texts)
 	}
-	if show["contactPerson"] != "" || show["servicePeriod"] != "" || show["approver"] != "true" {
+	if show["contactPerson"] != "" || show["servicePeriod"] != "true" || show["approver"] != "true" {
 		t.Errorf("show = %+v", show)
 	}
 	period := data["request"].(map[string]any)["servicePeriod"].(map[string]any)
@@ -105,6 +105,33 @@ func TestPDFDataFillsTextsAndSwitches(t *testing.T) {
 	period = single.PDFData(settings)["request"].(map[string]any)["servicePeriod"].(map[string]any)
 	if period["from"] != "2026-10-01" || period["to"] != "" {
 		t.Errorf("single day period = %+v", period)
+	}
+}
+
+func TestPDFDataLeavesOutWhatTheSettingsSwitchOff(t *testing.T) {
+	settings := defaultSettings()
+	settings.ShowApprover, settings.ShowContactPerson, settings.ShowPurchaseOrder = false, false, false
+	settings.ShowServicePeriod, settings.ShowServiceDescription = false, false
+	data := SampleDocument(sampleTime()).PDFData(settings)
+	request, recipient := data["request"].(map[string]any), data["recipient"].(map[string]any)
+	period := request["servicePeriod"].(map[string]any)
+	for name, got := range map[string]any{
+		"request.approver": request["approver"], "request.serviceDescription": request["serviceDescription"],
+		"servicePeriod.from": period["from"], "servicePeriod.to": period["to"],
+		"recipient.contactName": recipient["contactName"], "recipient.contactChannel": recipient["contactChannel"],
+		"recipient.purchaseOrderReference": recipient["purchaseOrderReference"],
+	} {
+		if got != "" {
+			t.Errorf("%s = %v with the switch off, want empty", name, got)
+		}
+	}
+	if recipient["organization"] == "" || request["number"] == "" {
+		t.Error("the fields without a switch must stay")
+	}
+	// With the switches on the same values are present, so the test above checks the gate and not empty sample data.
+	on := SampleDocument(sampleTime()).PDFData(defaultSettings())["recipient"].(map[string]any)
+	if on["contactName"] == "" || on["contactChannel"] == "" || on["purchaseOrderReference"] == "" {
+		t.Errorf("recipient with switches on = %+v", on)
 	}
 }
 

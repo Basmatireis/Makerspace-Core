@@ -148,6 +148,8 @@ func (s *Service) SaveDraft(
 	return result, nil
 }
 
+// insertDraft starts a draft with the next version number of the export. A discarded draft is deleted, so its
+// number is reused by the next draft; the audit events of both name different resource ids.
 func (s *Service) insertDraft(
 	ctx context.Context,
 	q *db.Queries,
@@ -177,7 +179,8 @@ func loadVersion(ctx context.Context, q *db.Queries, id uuid.UUID, kind engine.K
 		row.PublishedAt, row.CreatedByName, row.PublishedByName, row.Document), nil
 }
 
-// DiscardDraft deletes the draft of an export; without a draft it is a 404.
+// DiscardDraft deletes the draft of an export; without a draft it is a 404. It deliberately takes no revision: the
+// editor asks the person to confirm before it discards, and the draft is working state, never a published record.
 func (s *Service) DiscardDraft(
 	ctx context.Context,
 	p authorization.Principal,
@@ -241,6 +244,24 @@ func (s *Service) Publish(
 		if problems := engine.Check(doc); engine.HasErrors(problems) {
 			return hasProblems(problems)
 		}
+		// An image may have been deleted since the draft was saved; the export lock held here keeps DeleteAsset
+		// (which takes every export lock) from removing one meanwhile.
+		if referenced := engine.ReferencedAssets(doc); len(referenced) > 0 {
+			ids := make([]uuid.UUID, 0, len(referenced))
+			for _, id := range referenced {
+				ids = append(ids, uuid.MustParse(id))
+			}
+			found, err := q.AssetsExist(ctx, ids)
+			if err != nil {
+				return fmt.Errorf("check pdf template assets: %w", err)
+			}
+			if int(found) != len(ids) {
+				return hasProblems([]engine.Problem{{
+					Severity: engine.SeverityError,
+					Message:  "The template uses an uploaded image that no longer exists; remove it or upload it again",
+				}})
+			}
+		}
 		if _, err := q.ArchivePublished(ctx, string(kind)); err != nil {
 			return fmt.Errorf("archive published pdf template: %w", err)
 		}
@@ -278,7 +299,8 @@ func hasProblems(problems []engine.Problem) error {
 }
 
 // Restore copies a version into the draft of its export: it replaces an existing draft or starts a new one.
-// Restoring the draft itself is a 409.
+// Restoring the draft itself is a 409. Replacing the draft takes no revision check, deliberately: the editor asks
+// the person to confirm that the current draft is overwritten.
 func (s *Service) Restore(
 	ctx context.Context,
 	p authorization.Principal,

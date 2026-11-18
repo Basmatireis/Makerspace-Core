@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
 	"io"
 	"log/slog"
@@ -510,10 +511,12 @@ func TestPDFTemplateAssetsOverHTTP(t *testing.T) {
 	}
 	response = manager.call(http.MethodGet, "/pdf-templates/assets/"+asset.Id.String(), nil)
 	assertStatus(t, response, http.StatusOK)
+	// The stored image is a re-encoding of the upload, so it is compared by its pixels.
+	stored, err := png.Decode(bytes.NewReader(readResponse(t, response)))
 	if response.Header.Get("Content-Type") != "image/png" || response.Header.Get("X-Content-Type-Options") != "nosniff" ||
 		!strings.Contains(response.Header.Get("Content-Security-Policy"), "default-src 'none'") ||
-		!bytes.Equal(readResponse(t, response), pngBytes(t)) {
-		t.Fatalf("asset download headers = %v", response.Header)
+		err != nil || stored.Bounds().Dx() != 8 || stored.Bounds().Dy() != 8 {
+		t.Fatalf("asset download headers = %v, decode error %v", response.Header, err)
 	}
 	nobody.expectError(http.MethodGet, "/pdf-templates/assets/"+asset.Id.String(), nil, http.StatusForbidden, "permission_denied")
 	manager.expectError(http.MethodGet, "/pdf-templates/assets/"+ids.New().String(), nil, http.StatusNotFound, "not_found")
@@ -557,6 +560,67 @@ func TestPDFTemplateAssetsOverHTTP(t *testing.T) {
 	if uploaded != 2 || deleted != 2 {
 		t.Fatalf("asset audit events: %d uploaded, %d deleted", uploaded, deleted)
 	}
+}
+
+func TestPDFTemplateUploadsDropMetadata(t *testing.T) {
+	h := newPDFTemplatesHTTP(t)
+	var source bytes.Buffer
+	if err := jpeg.Encode(&source, image.NewRGBA(image.Rect(0, 0, 8, 8)), nil); err != nil {
+		t.Fatal(err)
+	}
+	payload := []byte("Exif\x00\x00GPSLatitude=47.07 camera-serial-4711")
+	withEXIF := append([]byte{0xff, 0xd8, 0xff, 0xe1, byte((len(payload) + 2) >> 8), byte(len(payload) + 2)}, payload...)
+	withEXIF = append(withEXIF, source.Bytes()[2:]...)
+	response := h.master.callRaw(http.MethodPost, "/pdf-templates/assets?fileName=photo.jpg", "image/jpeg", withEXIF)
+	assertStatus(t, response, http.StatusCreated)
+	var asset openapi.PdfTemplateAsset
+	decodeResponse(t, response, &asset)
+	status, contentType, stored := h.master.download("/pdf-templates/assets/" + asset.Id.String())
+	if status != http.StatusOK || contentType != "image/jpeg" || bytes.Contains(stored, []byte("camera-serial")) ||
+		bytes.Contains(stored, []byte("GPSLatitude")) || bytes.Contains(stored, []byte("Exif")) {
+		t.Fatalf("download: %d %s, metadata left in the stored image: %v", status, contentType, bytes.Contains(stored, []byte("Exif")))
+	}
+	if asset.ByteSize != len(stored) {
+		t.Fatalf("recorded size %d, stored %d bytes", asset.ByteSize, len(stored))
+	}
+	var inDatabase int
+	if err := h.pool.QueryRow(testContext(t),
+		`SELECT count(*) FROM pdf_template_assets WHERE position('\x47505354'::bytea IN data) > 0 OR position('camera-serial'::bytea IN data) > 0`,
+	).Scan(&inDatabase); err != nil || inDatabase != 0 {
+		t.Fatalf("metadata in the database: %d, %v", inDatabase, err)
+	}
+}
+
+func TestPublishRefusesATemplateWhoseImageIsGone(t *testing.T) {
+	h := newPDFTemplatesHTTP(t)
+	admin := h.master
+	response := admin.callRaw(http.MethodPost, "/pdf-templates/assets?fileName=logo.png", "image/png", pngBytes(t))
+	assertStatus(t, response, http.StatusCreated)
+	var asset openapi.PdfTemplateAsset
+	decodeResponse(t, response, &asset)
+	doc := admin.documentWith("receipt", "With a picture",
+		map[string]any{"id": "pic", "type": "picture", "asset": asset.Id.String(), "w": 20, "h": 20})
+	draft := admin.saveDraft("receipt", doc, nil)
+	// An image cannot be deleted through the API while a draft uses it; a row removed behind its back is caught at publication.
+	if _, err := h.pool.Exec(testContext(t), `DELETE FROM pdf_template_assets WHERE id = $1`, asset.Id); err != nil {
+		t.Fatal(err)
+	}
+	admin.expectError(http.MethodPost, "/pdf-templates/receipt/publish",
+		map[string]any{"expectedRevision": draft.Version.Revision}, http.StatusUnprocessableEntity, "pdf_template_has_problems")
+	// A canonical id of an image that never existed is refused the same way, and a draft that does not use one publishes.
+	ghost := admin.documentWith("receipt", "Ghost",
+		map[string]any{"id": "pic", "type": "picture", "asset": ids.New().String(), "w": 20, "h": 20})
+	saved := admin.saveDraft("receipt", ghost, &draft.Version.Revision)
+	admin.expectError(http.MethodPost, "/pdf-templates/receipt/publish",
+		map[string]any{"expectedRevision": saved.Version.Revision}, http.StatusUnprocessableEntity, "pdf_template_has_problems")
+	plain := admin.saveDraft("receipt", admin.documentWith("receipt", "Plain", textBlock("t", "Plain")), &saved.Version.Revision)
+	admin.publish("receipt", plain.Version.Revision)
+
+	// A spelling of the id other than the canonical one cannot even be saved.
+	upper := admin.documentWith("receipt", "Upper",
+		map[string]any{"id": "pic", "type": "picture", "asset": strings.ToUpper(asset.Id.String()), "w": 20, "h": 20})
+	admin.expectError(http.MethodPut, "/pdf-templates/receipt/draft", map[string]any{"document": upper},
+		http.StatusUnprocessableEntity, "pdf_template_invalid")
 }
 
 func TestPDFTemplateAssetCountIsBounded(t *testing.T) {
@@ -728,8 +792,9 @@ func TestPublishedTemplatesShapeTheRealExportsAndRedactByPermission(t *testing.T
 	response = viewer.call(http.MethodGet, "/pdf-templates/receipt", nil)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &detail)
-	if len(detail.PreviewSources) != 1 || detail.PreviewSources[0].Id != paid.Id.String() {
-		t.Fatalf("receipt sources = %+v", detail.PreviewSources)
+	if len(detail.PreviewSources) != 1 || detail.PreviewSources[0].Id != paid.Id.String() ||
+		detail.PreviewSources[0].Label != paid.Reference {
+		t.Fatalf("receipt sources = %+v, want the reference %q only", detail.PreviewSources, paid.Reference)
 	}
 }
 
@@ -748,5 +813,193 @@ func TestPDFTemplateRoutesDistinguishAssetsFromExports(t *testing.T) {
 	decodeResponse(t, response, &detail)
 	if detail.Export != "cashbook" {
 		t.Fatalf("detail = %+v", detail.Export)
+	}
+}
+
+// finalizedOrder creates an order of one manual item for a person and finalizes it, still unpaid.
+func (s apiSession) finalizedOrder(customerID, description, price string) openapi.Order {
+	s.h.t.Helper()
+	response := s.call(http.MethodPost, "/orders", map[string]any{
+		"customer": map[string]any{"kind": "person", "id": customerID},
+	})
+	assertStatus(s.h.t, response, http.StatusCreated)
+	var order openapi.Order
+	decodeResponse(s.h.t, response, &order)
+	response = s.call(http.MethodPost, "/orders/"+order.Id.String()+"/items", map[string]any{
+		"kind": "manual", "description": description, "quantity": "1", "unit": "pc", "unitPrice": price,
+		"expectedVersion": order.Version,
+	})
+	assertStatus(s.h.t, response, http.StatusCreated)
+	decodeResponse(s.h.t, response, &order)
+	response = s.call(http.MethodPost, "/orders/"+order.Id.String()+"/finalize",
+		map[string]any{"operationKey": ids.New().String(), "expectedVersion": order.Version})
+	assertStatus(s.h.t, response, http.StatusCreated)
+	decodeResponse(s.h.t, response, &order)
+	return order
+}
+
+func (s apiSession) newPerson(first, last string) openapi.Person {
+	s.h.t.Helper()
+	response := s.call(http.MethodPost, "/people", map[string]any{
+		"firstName": first, "lastName": last, "email": strings.ToLower(first+"-"+last) + "@example.test",
+	})
+	assertStatus(s.h.t, response, http.StatusCreated)
+	var person openapi.Person
+	decodeResponse(s.h.t, response, &person)
+	return person
+}
+
+// invoiceRequest creates a request for the order and, when forward is set, submits and forwards it to wiRef.
+func (s apiSession) invoiceRequest(order openapi.Order, forward bool) openapi.ExternalInvoiceRequest {
+	s.h.t.Helper()
+	response := s.call(http.MethodPost, "/orders/"+order.Id.String()+"/external-invoice-requests", map[string]any{
+		"operationKey": ids.New().String(), "expectedVersion": order.Version,
+		"details": map[string]any{
+			"recipientName": "Billing Recipient GmbH", "addressLine1": "Street 1", "postalCode": "8010",
+			"locality": "Graz", "countryCode": "AT", "contactName": "Contact Person",
+			"serviceStartsOn": "2026-10-01", "serviceEndsOn": "2026-10-06", "serviceDescription": "Machine service",
+		},
+	})
+	assertStatus(s.h.t, response, http.StatusCreated)
+	var request openapi.ExternalInvoiceRequest
+	decodeResponse(s.h.t, response, &request)
+	if !forward {
+		return request
+	}
+	for _, action := range []string{"submit", "forward"} {
+		response = s.call(http.MethodPost, "/external-invoice-requests/"+request.Id.String()+"/"+action,
+			map[string]any{"operationKey": ids.New().String(), "expectedVersion": request.Version})
+		assertStatus(s.h.t, response, http.StatusCreated)
+		decodeResponse(s.h.t, response, &request)
+	}
+	return request
+}
+
+func TestWiRefRecordPreviewsNeedOrdersReadAndOnlyOfferForwardedRequests(t *testing.T) {
+	h := newPDFTemplatesHTTP(t)
+	admin := h.master
+	customer := admin.newPerson("Marie", "Hofer")
+
+	// An order paid in part in cash, whose open rest goes to wiRef, so the document lists payments.
+	order := admin.finalizedOrder(customer.Id.String(), "Laser engraving", "10")
+	response := admin.call(http.MethodPost, "/orders/"+order.Id.String()+"/payments", map[string]any{
+		"operationKey": ids.New().String(), "expectedVersion": order.Version,
+		"payment": map[string]any{"method": "cash", "amount": "4", "occurredAt": time.Now().UTC()},
+	})
+	assertStatus(t, response, http.StatusCreated)
+	decodeResponse(t, response, &order)
+	forwarded := admin.invoiceRequest(order, true)
+	draftOnly := admin.invoiceRequest(admin.finalizedOrder(customer.Id.String(), "Vinyl cutting", "5"), false)
+
+	document := admin.documentWith("wiref", "Payments",
+		map[string]any{"id": "each", "type": "repeat", "source": "payments", "as": "pay",
+			"blocks": []map[string]any{textBlock("row", "Paid {{pay.method}} {{pay.amount}} end")}})
+	previewOf := func(who apiSession, id string) *http.Response {
+		return who.call(http.MethodPost, "/pdf-templates/wiref/preview", map[string]any{
+			"document": document, "source": map[string]any{"kind": "record", "id": id},
+		})
+	}
+
+	// external_invoice_requests.read alone shows neither the sources nor the document: the payments need orders.read.
+	requestsOnly := h.member("pdf_templates.manage", "external_invoice_requests.read")
+	response = requestsOnly.call(http.MethodGet, "/pdf-templates/wiref", nil)
+	assertStatus(t, response, http.StatusOK)
+	var detail openapi.PdfTemplateDetail
+	decodeResponse(t, response, &detail)
+	if len(detail.PreviewSources) != 0 {
+		t.Fatalf("a reader without orders.read is offered %+v", detail.PreviewSources)
+	}
+	response = previewOf(requestsOnly, forwarded.Id.String())
+	assertStatus(t, response, http.StatusForbidden)
+	response.Body.Close()
+	ordersOnly := h.member("pdf_templates.manage", "orders.read")
+	response = previewOf(ordersOnly, forwarded.Id.String())
+	assertStatus(t, response, http.StatusForbidden)
+	response.Body.Close()
+
+	// With both permissions the forwarded request is offered by its number only, and renders with its payments.
+	reader := h.member("pdf_templates.manage", "external_invoice_requests.read", "orders.read")
+	response = reader.call(http.MethodGet, "/pdf-templates/wiref", nil)
+	assertStatus(t, response, http.StatusOK)
+	decodeResponse(t, response, &detail)
+	if len(detail.PreviewSources) != 1 || detail.PreviewSources[0].Id != forwarded.Id.String() ||
+		detail.PreviewSources[0].Label != forwarded.Reference {
+		t.Fatalf("sources = %+v, want the forwarded request %q alone", detail.PreviewSources, forwarded.Reference)
+	}
+	response = previewOf(reader, forwarded.Id.String())
+	assertStatus(t, response, http.StatusOK)
+	var preview openapi.PdfTemplatePreview
+	decodeResponse(t, response, &preview)
+	if got := pdfText(t, preview.Pdf); !strings.Contains(got, "PaidCash4.00end") || !strings.Contains(got, "PaidwiRefinvoice6.00end") {
+		t.Fatalf("wiRef preview text %q", got)
+	}
+
+	// A request that was not forwarded has no PDF, and an unknown one is just as absent.
+	reader.expectError(http.MethodPost, "/pdf-templates/wiref/preview", map[string]any{
+		"document": document, "source": map[string]any{"kind": "record", "id": draftOnly.Id.String()}},
+		http.StatusNotFound, "not_found")
+	reader.expectError(http.MethodPost, "/pdf-templates/wiref/preview", map[string]any{
+		"document": document, "source": map[string]any{"kind": "record", "id": ids.New().String()}},
+		http.StatusNotFound, "not_found")
+}
+
+func TestCashbookOrderSummaryIsRedactedWithoutOrdersRead(t *testing.T) {
+	h := newPDFTemplatesHTTP(t)
+	admin := h.master
+	cashier := h.member("pdf_templates.manage", "payments.read", "cash_movements.read")
+	viewer := h.member("pdf_templates.manage", "payments.read", "cash_movements.read", "orders.read")
+
+	customer := admin.newPerson("Marie", "Hofer")
+	order := admin.finalizedOrder(customer.Id.String(), "Laser engraving", "10")
+	response := admin.call(http.MethodPost, "/orders/"+order.Id.String()+"/payments", map[string]any{
+		"operationKey": ids.New().String(), "expectedVersion": order.Version,
+		"payment": map[string]any{"method": "cash", "amount": "10", "occurredAt": time.Now().UTC()},
+	})
+	assertStatus(t, response, http.StatusCreated)
+	response.Body.Close()
+
+	document := admin.documentWith("cashbook", "Summaries",
+		map[string]any{"id": "each", "type": "repeat", "source": "lines", "as": "line",
+			"blocks": []map[string]any{textBlock("row", "Summary [{{line.orderSummary}}] end")}})
+	draft := admin.saveDraft("cashbook", document, nil)
+	admin.publish("cashbook", draft.Version.Revision)
+
+	today := time.Now().In(mustVienna(t)).Format("2006-01-02")
+	exportPath := "/payments/cashbook-export?from=" + today + "&to=" + today
+	_, _, full := admin.download(exportPath)
+	if got := pdfText(t, full); !strings.Contains(got, "Summary[Laserengraving]end") {
+		t.Fatalf("export with orders.read: %q", got)
+	}
+	status, _, bare := cashier.download(exportPath)
+	if got := pdfText(t, bare); status != http.StatusOK || !strings.Contains(got, "Summary[]end") ||
+		strings.Contains(got, "Laserengraving") {
+		t.Fatalf("export without orders.read: %d %q", status, got)
+	}
+
+	response = cashier.call(http.MethodGet, "/pdf-templates/cashbook", nil)
+	assertStatus(t, response, http.StatusOK)
+	var detail openapi.PdfTemplateDetail
+	decodeResponse(t, response, &detail)
+	month := detail.PreviewSources[0].Id
+	for _, c := range []struct {
+		who     apiSession
+		visible bool
+	}{{cashier, false}, {viewer, true}} {
+		response = c.who.call(http.MethodPost, "/pdf-templates/cashbook/preview", map[string]any{
+			"document": document, "source": map[string]any{"kind": "record", "id": month},
+		})
+		assertStatus(t, response, http.StatusOK)
+		var preview openapi.PdfTemplatePreview
+		decodeResponse(t, response, &preview)
+		got := pdfText(t, preview.Pdf)
+		if c.visible != strings.Contains(got, "Laserengraving") {
+			t.Fatalf("preview (summary visible: %v): %q", c.visible, got)
+		}
+		if !c.visible && jsonString(t, preview.Redacted) != `["lines[].orderSummary"]` {
+			t.Fatalf("redacted = %v", preview.Redacted)
+		}
+		if c.visible && len(preview.Redacted) != 0 {
+			t.Fatalf("redacted = %v for a reader with orders.read", preview.Redacted)
+		}
 	}
 }

@@ -188,9 +188,10 @@ func (s *Service) CashbookPDFData(ctx context.Context, p authorization.Principal
 }
 
 // PreviewInvoiceRequests lists the newest approved (forwarded) wiRef requests as sources for wiRef template
-// previews. It needs external_invoice_requests.read.
+// previews. It needs external_invoice_requests.read and orders.read: the document lists the order's payments,
+// which the request API shows only to readers of orders.
 func (s *Service) PreviewInvoiceRequests(ctx context.Context, p authorization.Principal) ([]PDFSource, error) {
-	if err := require(p, authorization.ExternalInvoiceRequestsRead); err != nil {
+	if err := require(p, authorization.ExternalInvoiceRequestsRead, authorization.OrdersRead); err != nil {
 		return nil, err
 	}
 	rows, err := db.New(s.pool).ListRequests(ctx, db.ListRequestsParams{
@@ -201,23 +202,20 @@ func (s *Service) PreviewInvoiceRequests(ctx context.Context, p authorization.Pr
 	}
 	sources := make([]PDFSource, 0, len(rows))
 	for _, row := range rows {
-		details, err := db.New(s.pool).GetRequestDetails(ctx, row.ID)
-		if err != nil {
-			return nil, fmt.Errorf("load invoice request details: %w", err)
-		}
-		sources = append(sources, PDFSource{ID: row.ID.String(), Label: joinParts(row.Reference, details.RecipientName)})
+		sources = append(sources, PDFSource{ID: row.ID.String(), Label: row.Reference})
 	}
 	return sources, nil
 }
 
 // InvoiceRequestDocument returns an approved wiRef request as the document its PDF shows, for previews with a real
-// record. A request that was not forwarded to wiRef has no PDF and is a 404.
+// record. A request that was not forwarded to wiRef has no PDF and is a 404. Like the listing it needs
+// external_invoice_requests.read and orders.read.
 func (s *Service) InvoiceRequestDocument(
 	ctx context.Context,
 	p authorization.Principal,
 	id string,
 ) (invoicing.Document, error) {
-	if err := require(p, authorization.ExternalInvoiceRequestsRead); err != nil {
+	if err := require(p, authorization.ExternalInvoiceRequestsRead, authorization.OrdersRead); err != nil {
 		return invoicing.Document{}, err
 	}
 	requestID, err := uuid.Parse(id)
@@ -459,7 +457,7 @@ func (s *Service) PreviewReceipts(ctx context.Context, p authorization.Principal
 	}
 	sources := make([]PDFSource, 0, len(rows))
 	for _, row := range rows {
-		sources = append(sources, PDFSource{ID: row.ID.String(), Label: joinParts(row.Reference, strings.TrimSpace(row.CustomerName))})
+		sources = append(sources, PDFSource{ID: row.ID.String(), Label: row.Reference})
 	}
 	return sources, nil
 }

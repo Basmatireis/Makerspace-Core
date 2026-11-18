@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -66,6 +67,18 @@ func Check(doc Document) []Problem {
 	return c.out.problems()
 }
 
+// ReferencedAssets lists the ids of the uploaded images and SVGs a document places, each once, sorted.
+func ReferencedAssets(doc Document) []string {
+	c := newChecker(doc)
+	c.document()
+	ids := make([]string, 0, len(c.assets))
+	for id := range c.assets {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids
+}
+
 type checker struct {
 	doc    Document
 	out    *problemList
@@ -73,6 +86,8 @@ type checker struct {
 	colors map[string]bool
 	texts  map[string]bool
 	sizes  map[string]bool
+	// assets are the ids of the uploaded images the document places.
+	assets map[string]bool
 }
 
 func newChecker(doc Document) *checker {
@@ -82,6 +97,7 @@ func newChecker(doc Document) *checker {
 		colors: map[string]bool{},
 		texts:  map[string]bool{},
 		sizes:  map[string]bool{},
+		assets: map[string]bool{},
 	}
 	for _, s := range doc.Styles.Colors {
 		c.colors[s.ID] = true
@@ -200,11 +216,15 @@ func (c *checker) block(b *Block, sc *scope, flow bool, region string) {
 	case BlockPicture:
 		if _, err := uuid.Parse(b.Asset); err != nil {
 			c.out.error(id, "The picture names no uploaded image")
+		} else {
+			c.assets[b.Asset] = true
 		}
 	case BlockGraphic:
 		if asset, ok := strings.CutPrefix(b.Art, artAssetPrefix); ok {
 			if _, err := uuid.Parse(asset); err != nil {
 				c.out.error(id, "The graphic names no uploaded SVG")
+			} else {
+				c.assets[asset] = true
 			}
 		}
 	case BlockPageBreak:

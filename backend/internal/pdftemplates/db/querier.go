@@ -16,6 +16,8 @@ type Querier interface {
 	// whole UUID strings (`picture.asset`, `graphic.art` as `asset:<id>`), so a substring test over the document text
 	// finds every reference and can only err on the side of keeping the asset. Archived versions do not count.
 	AssetIsReferenced(ctx context.Context, assetID string) (bool, error)
+	// How many of the given asset ids are stored.
+	AssetsExist(ctx context.Context, ids []uuid.UUID) (int64, error)
 	CountAssets(ctx context.Context) (int64, error)
 	DeleteAsset(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteDraft(ctx context.Context, exportKind string) (DeleteDraftRow, error)
@@ -30,15 +32,17 @@ type Querier interface {
 	GetVersionForUpdate(ctx context.Context, arg GetVersionForUpdateParams) (PdfTemplateVersion, error)
 	InsertAsset(ctx context.Context, arg InsertAssetParams) (InsertAssetRow, error)
 	InsertDraft(ctx context.Context, arg InsertDraftParams) (PdfTemplateVersion, error)
-	// Metadata only, newest first.
-	ListAssets(ctx context.Context) ([]ListAssetsRow, error)
+	// Metadata only, newest first, at most row_limit images.
+	ListAssets(ctx context.Context, rowLimit int32) ([]ListAssetsRow, error)
 	// The draft and the published version of every export, with documents.
 	ListCurrentVersions(ctx context.Context) ([]ListCurrentVersionsRow, error)
 	// A creator or publisher name is empty when the account no longer exists.
-	// Newest first, without the documents.
-	ListVersionMetas(ctx context.Context, exportKind string) ([]ListVersionMetasRow, error)
+	// Newest first, without the documents, at most row_limit versions.
+	ListVersionMetas(ctx context.Context, arg ListVersionMetasParams) ([]ListVersionMetasRow, error)
 	// Serializes mutations of one export's versions for the rest of the transaction.
 	LockExport(ctx context.Context, exportKind string) error
+	// The next number of an export. A discarded draft is deleted, so its number is reused by the next draft; the audit
+	// events of both carry the (different) resource ids.
 	NextVersionNumber(ctx context.Context, exportKind string) (int32, error)
 	PublishDraft(ctx context.Context, arg PublishDraftParams) (PdfTemplateVersion, error)
 	// Matches only while the draft still has the revision the caller saw; no row means it is stale.

@@ -58,7 +58,17 @@ func text(value string) string { return strings.Join(paragraphs(value), "\n\n") 
 // the wiRef schema of the template engine.
 func (d Document) PDFData(s Settings) engine.Data {
 	values := d.values(s)
+	// What the settings switch off stays out of the data, so a custom template cannot print it either.
+	shown := func(on bool, value string) string {
+		if on {
+			return value
+		}
+		return ""
+	}
 	from, to := d.servicePeriodDays()
+	if !s.ShowServicePeriod {
+		from, to = "", ""
+	}
 	var approvedAt any
 	if !d.ApprovedAt.IsZero() {
 		approvedAt = d.ApprovedAt
@@ -91,16 +101,16 @@ func (d Document) PDFData(s Settings) engine.Data {
 			"number":             d.RequestNumber,
 			"orderNumber":        d.OrderNumber,
 			"approvedAt":         approvedAt,
-			"approver":           d.Approver,
+			"approver":           shown(s.ShowApprover, d.Approver),
 			"servicePeriod":      map[string]any{"from": from, "to": to},
-			"serviceDescription": d.ServiceDescription,
+			"serviceDescription": shown(s.ShowServiceDescription, d.ServiceDescription),
 		},
 		"recipient": map[string]any{
 			"organization":           d.Organisation,
 			"addressLines":           addressLines,
-			"contactName":            d.ContactName,
-			"contactChannel":         d.ContactChannel,
-			"purchaseOrderReference": d.PurchaseOrderReference,
+			"contactName":            shown(s.ShowContactPerson, d.ContactName),
+			"contactChannel":         shown(s.ShowContactPerson, d.ContactChannel),
+			"purchaseOrderReference": shown(s.ShowPurchaseOrder, d.PurchaseOrderReference),
 		},
 		"amounts": map[string]any{
 			"total":       decimalOrZero(d.Total),

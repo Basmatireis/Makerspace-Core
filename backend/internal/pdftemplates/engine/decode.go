@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/google/uuid"
 )
 
 // Limits of a template document. Exceeding one is the error pdf_template_too_large.
@@ -837,12 +838,13 @@ func (v *validator) value(path string, raw any, p prop) {
 			v.fail(path, "Expected the id of a text style")
 		}
 	case pAsset:
-		if text, ok := raw.(string); !ok || text == "" || len(text) > 64 {
+		if text, ok := raw.(string); !ok || !canonicalUUID(text) {
 			v.fail(path, "Expected the id of an uploaded image")
 		}
 	case pArt:
 		text, ok := raw.(string)
-		if !ok || (text != ArtLetterhead && (!strings.HasPrefix(text, artAssetPrefix) || len(text) > 80)) {
+		id, isAsset := strings.CutPrefix(text, artAssetPrefix)
+		if !ok || (text != ArtLetterhead && (!isAsset || !canonicalUUID(id))) {
 			v.fail(path, "Expected %s or asset:<id>", ArtLetterhead)
 		}
 	case pBool:
@@ -899,3 +901,11 @@ func validColor(text string) bool {
 }
 
 func formatBound(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
+
+// canonicalUUID says whether text is a UUID in its one canonical spelling (lower case, hyphenated). Other spellings
+// that uuid.Parse accepts (braces, urn: prefix, no hyphens, upper case) are refused, so an asset id has exactly one
+// form: the asset-in-use test and the reference check at publication compare it as text.
+func canonicalUUID(text string) bool {
+	parsed, err := uuid.Parse(text)
+	return err == nil && parsed.String() == text
+}

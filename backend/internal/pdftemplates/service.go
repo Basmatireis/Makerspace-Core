@@ -113,6 +113,9 @@ type DraftResult struct {
 	Problems []engine.Problem
 }
 
+// maxListedVersions bounds the version history an export lists; the newest versions come first.
+const maxListedVersions = 500
+
 // Error codes of this package; the engine has its own for invalid documents.
 const (
 	CodeHasProblems       = "pdf_template_has_problems"
@@ -261,7 +264,7 @@ func (s *Service) ListVersions(ctx context.Context, p authorization.Principal, k
 	if err := validKind(kind); err != nil {
 		return nil, err
 	}
-	rows, err := db.New(s.pool).ListVersionMetas(ctx, string(kind))
+	rows, err := db.New(s.pool).ListVersionMetas(ctx, db.ListVersionMetasParams{ExportKind: string(kind), RowLimit: maxListedVersions})
 	if err != nil {
 		return nil, fmt.Errorf("list pdf template versions: %w", err)
 	}
@@ -313,7 +316,8 @@ func (s *Service) recordSource(kind engine.Kind) RecordSource {
 func recordPermissions(kind engine.Kind) []authorization.Permission {
 	switch kind {
 	case engine.KindWiRef:
-		return []authorization.Permission{authorization.ExternalInvoiceRequestsRead}
+		// The wiRef document lists the order's payments, which the request API shows only with orders.read.
+		return []authorization.Permission{authorization.ExternalInvoiceRequestsRead, authorization.OrdersRead}
 	case engine.KindCashbook:
 		return []authorization.Permission{authorization.PaymentsRead, authorization.CashMovementsRead}
 	case engine.KindReceipt:

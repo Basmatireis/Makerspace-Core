@@ -388,7 +388,7 @@ export const getPreviewPdfTemplateUrl = (_export: 'wiref' | 'cashbook' | 'receip
 }
 
 /**
- * Requires pdf_templates.manage; a `record` source additionally needs the permission of the export (wiref: external_invoice_requests.read; cashbook: payments.read and cash_movements.read; receipt: orders.read) and fields the caller may not read are rendered empty and listed in `redacted`. Nothing is stored.
+ * Requires pdf_templates.manage; a `record` source additionally needs the permission of the export (wiref: external_invoice_requests.read and orders.read; cashbook: payments.read and cash_movements.read; receipt: orders.read) and fields the caller may not read are rendered empty and listed in `redacted`. Nothing is stored.
  * @summary Render a possibly unsaved document
  */
 export const previewPdfTemplate = async (_export: 'wiref' | 'cashbook' | 'receipt',

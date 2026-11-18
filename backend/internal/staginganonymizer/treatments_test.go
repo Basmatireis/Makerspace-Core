@@ -14,6 +14,9 @@ var keptPersonalFields = map[string]string{
 	"organizations.postal_code":        "an organization's address, not a person's",
 	"organizations.locality":           "an organization's address, not a person's",
 	"machine_runs.vendor_job_id":       "the number the printer assigned to the job",
+	"pdf_template_versions.document":   "template layout and wording of the makerspace's own PDFs; it holds no record data",
+	"pdf_template_assets.data":         "images chosen by an administrator for the templates, stripped of metadata at upload",
+	"pdf_template_assets.file_name":    "the file name an administrator gave the image",
 }
 
 // TestPrivacyRegistryFieldsAreNotKeptUnnoticed cross-checks the privacy registry: a column that a data

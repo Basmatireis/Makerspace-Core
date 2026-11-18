@@ -415,12 +415,8 @@ SELECT COALESCE(matriculation_number, '')::text AS matriculation_number FROM peo
 
 -- name: ListReceiptPreviewOrders :many
 -- The newest finalized orders that have a receipt (a settled amount above 0), for previews of the receipt template.
-SELECT o.id, o.reference,
-       COALESCE(s.display_name, p.first_name || ' ' || p.last_name, g.name, '')::text AS customer_name
+SELECT o.id, o.reference
 FROM orders o
-LEFT JOIN order_customer_snapshots s ON s.order_id = o.id
-LEFT JOIN people p ON p.id = o.customer_person_id
-LEFT JOIN organizations g ON g.id = o.customer_organization_id
 WHERE o.status = 'finalized'
   AND (SELECT COALESCE(sum(a.amount), 0) FROM payment_allocations a WHERE a.order_id = o.id) > 0
 ORDER BY o.finalized_at DESC NULLS LAST, o.id DESC

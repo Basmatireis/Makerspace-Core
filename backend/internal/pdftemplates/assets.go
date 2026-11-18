@@ -71,7 +71,7 @@ func (s *Service) ListAssets(ctx context.Context, p authorization.Principal) ([]
 	if err := requireManage(p); err != nil {
 		return nil, err
 	}
-	rows, err := db.New(s.pool).ListAssets(ctx)
+	rows, err := db.New(s.pool).ListAssets(ctx, MaxAssets+1)
 	if err != nil {
 		return nil, fmt.Errorf("list pdf template assets: %w", err)
 	}
@@ -107,7 +107,8 @@ func (s *Service) GetAsset(ctx context.Context, p authorization.Principal, id uu
 }
 
 // UploadAsset stores a PNG, JPEG or SVG image. The type is sniffed from the content and the size and pixel limits
-// are checked before anything is stored (422 pdf_template_asset_invalid).
+// are checked before anything is stored (422 pdf_template_asset_invalid). A PNG or JPEG is re-encoded, so metadata
+// such as EXIF or GPS data is never stored.
 func (s *Service) UploadAsset(
 	ctx context.Context,
 	p authorization.Principal,
@@ -123,7 +124,7 @@ func (s *Service) UploadAsset(
 		return Asset{}, err
 	}
 	// Decoding an image is the expensive part, so it happens before the transaction opens.
-	info, err := engine.InspectAsset(data)
+	info, data, err := engine.PrepareAsset(data)
 	if err != nil {
 		return Asset{}, err
 	}

@@ -5669,7 +5669,7 @@ paths:
       tags: [PDF Templates]
       operationId: previewPdfTemplate
       summary: Render a possibly unsaved document
-      description: "Requires pdf_templates.manage; a `record` source additionally needs the permission of the export (wiref: external_invoice_requests.read; cashbook: payments.read and cash_movements.read; receipt: orders.read) and fields the caller may not read are rendered empty and listed in `redacted`. Nothing is stored."
+      description: "Requires pdf_templates.manage; a `record` source additionally needs the permission of the export (wiref: external_invoice_requests.read and orders.read; cashbook: payments.read and cash_movements.read; receipt: orders.read) and fields the caller may not read are rendered empty and listed in `redacted`. Nothing is stored."
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PreviewPdfTemplateRequest"}}}}
       responses:

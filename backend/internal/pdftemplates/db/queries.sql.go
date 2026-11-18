@@ -44,6 +44,18 @@ func (q *Queries) AssetIsReferenced(ctx context.Context, assetID string) (bool, 
 	return referenced, err
 }
 
+const assetsExist = `-- name: AssetsExist :one
+SELECT count(*) FROM pdf_template_assets WHERE id = ANY($1::uuid[])
+`
+
+// How many of the given asset ids are stored.
+func (q *Queries) AssetsExist(ctx context.Context, ids []uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, assetsExist, ids)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countAssets = `-- name: CountAssets :one
 SELECT count(*) FROM pdf_template_assets
 `
@@ -409,6 +421,7 @@ const listAssets = `-- name: ListAssets :many
 SELECT id, file_name, content_type, byte_size, width, height, created_at
 FROM pdf_template_assets
 ORDER BY created_at DESC, id DESC
+LIMIT $1
 `
 
 type ListAssetsRow struct {
@@ -421,9 +434,9 @@ type ListAssetsRow struct {
 	CreatedAt   time.Time
 }
 
-// Metadata only, newest first.
-func (q *Queries) ListAssets(ctx context.Context) ([]ListAssetsRow, error) {
-	rows, err := q.db.Query(ctx, listAssets)
+// Metadata only, newest first, at most row_limit images.
+func (q *Queries) ListAssets(ctx context.Context, rowLimit int32) ([]ListAssetsRow, error) {
+	rows, err := q.db.Query(ctx, listAssets, rowLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -521,7 +534,13 @@ LEFT JOIN accounts publisher_account ON publisher_account.id = v.published_by_ac
 LEFT JOIN people publisher ON publisher.id = publisher_account.person_id
 WHERE v.export_kind = $1
 ORDER BY v.version DESC
+LIMIT $2
 `
+
+type ListVersionMetasParams struct {
+	ExportKind string
+	RowLimit   int32
+}
 
 type ListVersionMetasRow struct {
 	ID              uuid.UUID
@@ -537,9 +556,9 @@ type ListVersionMetasRow struct {
 }
 
 // A creator or publisher name is empty when the account no longer exists.
-// Newest first, without the documents.
-func (q *Queries) ListVersionMetas(ctx context.Context, exportKind string) ([]ListVersionMetasRow, error) {
-	rows, err := q.db.Query(ctx, listVersionMetas, exportKind)
+// Newest first, without the documents, at most row_limit versions.
+func (q *Queries) ListVersionMetas(ctx context.Context, arg ListVersionMetasParams) ([]ListVersionMetasRow, error) {
+	rows, err := q.db.Query(ctx, listVersionMetas, arg.ExportKind, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -585,6 +604,8 @@ FROM pdf_template_versions
 WHERE export_kind = $1
 `
 
+// The next number of an export. A discarded draft is deleted, so its number is reused by the next draft; the audit
+// events of both carry the (different) resource ids.
 func (q *Queries) NextVersionNumber(ctx context.Context, exportKind string) (int32, error) {
 	row := q.db.QueryRow(ctx, nextVersionNumber, exportKind)
 	var version int32

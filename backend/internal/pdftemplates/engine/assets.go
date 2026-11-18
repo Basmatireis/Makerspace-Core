@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
-	_ "image/jpeg" // registers the JPEG decoder
+	"image/jpeg"
 	"image/png"
 	"io"
 	"net/http"
@@ -91,6 +91,43 @@ func InspectAsset(data []byte) (AssetInfo, error) {
 		return AssetInfo{ContentType: ContentTypeSVG, Width: int(svg.width + 0.5), Height: int(svg.height + 0.5)}, nil
 	}
 	return AssetInfo{}, assetInvalid("Only PNG, JPEG and SVG images can be used")
+}
+
+// jpegQuality is the quality of a re-encoded JPEG upload.
+const jpegQuality = 90
+
+// PrepareAsset inspects an upload and returns the bytes to store. A PNG or JPEG is decoded and encoded afresh, so
+// nothing but the pixels survives: EXIF data (camera, GPS position, author), text chunks and trailing bytes never
+// reach the database or a PDF. A JPEG loses its orientation tag with the rest, and the re-encoding is lossy; a PNG
+// becomes an 8-bit RGBA one. An SVG is kept as it is, since only its outlines are ever read. The result is again
+// limited to MaxAssetBytes.
+func PrepareAsset(data []byte) (AssetInfo, []byte, error) {
+	info, err := InspectAsset(data)
+	if err != nil {
+		return AssetInfo{}, nil, err
+	}
+	if info.ContentType == ContentTypeSVG {
+		return info, data, nil
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return AssetInfo{}, nil, assetInvalid("The image cannot be read")
+	}
+	var out bytes.Buffer
+	if info.ContentType == ContentTypeJPEG {
+		err = jpeg.Encode(&out, img, &jpeg.Options{Quality: jpegQuality})
+	} else {
+		normalized := image.NewNRGBA(img.Bounds())
+		draw.Draw(normalized, normalized.Bounds(), img, img.Bounds().Min, draw.Src)
+		err = png.Encode(&out, normalized)
+	}
+	if err != nil {
+		return AssetInfo{}, nil, assetInvalid("The image cannot be read")
+	}
+	if out.Len() > MaxAssetBytes {
+		return AssetInfo{}, nil, assetInvalid(fmt.Sprintf("Images may be at most %d MiB", MaxAssetBytes>>20))
+	}
+	return info, out.Bytes(), nil
 }
 
 func assetInvalid(message string) error {
