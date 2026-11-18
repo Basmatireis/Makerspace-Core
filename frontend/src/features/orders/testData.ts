@@ -46,6 +46,8 @@ export function order(overrides: Partial<Order> = {}): Order {
     replacesOrderReference: null,
     replacedByOrderId: null,
     replacedByOrderReference: null,
+    pendingReplacementOrderId: null,
+    pendingReplacementOrderReference: null,
     activeExternalRequestId: null,
     activeExternalRequestReference: null,
     activeExternalRequestState: null,

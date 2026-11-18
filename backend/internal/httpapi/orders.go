@@ -355,6 +355,32 @@ func (s *Server) CreateReplacementOrder(
 	return openapi.CreateReplacementOrder201JSONResponse(dto), nil
 }
 
+func (s *Server) DiscardReplacementOrder(
+	ctx context.Context,
+	r openapi.DiscardReplacementOrderRequestObject,
+) (openapi.DiscardReplacementOrderResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	input, err := mapFinancialJSON[orders.OrderCommand](r.Body)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.orders.Command(ctx, p, r.OrderId, input, "discard", requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	dto, err := mapFinancialJSON[openapi.Order](result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.DiscardReplacementOrder200JSONResponse(dto), nil
+}
+
 func (s *Server) ReplaceOrder(
 	ctx context.Context,
 	r openapi.ReplaceOrderRequestObject,

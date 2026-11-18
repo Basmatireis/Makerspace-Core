@@ -20,40 +20,36 @@ import { reasonKindHelp } from './labels';
 import { formatCents, toCents } from './money';
 import { useOperationKeys } from './operations';
 import { checkEntry, newPaymentEntry, PaymentEntryForm, toPaymentInputs } from './PaymentEntry';
-import { allOrdersQuery, useFinanceMutation } from './queries';
+import { orderQuery, useFinanceMutation } from './queries';
 
 /**
- * Corrects a finalized order: reverse all charges, or commit a linked replacement draft that takes over the remaining payments.
- * Whole receipts can be reversed in the same operation; nothing becomes customer credit.
+ * Corrects a finalized order: reverse all charges, or commit its replacement in progress (started with Replace), which
+ * takes over the remaining payments. Whole receipts can be reversed in the same operation; nothing becomes customer
+ * credit.
  */
 export function CorrectOrderModal({
   order,
   canReversePayments,
   canCarry,
-  initialReplacementId = '',
   onClose,
 }: {
   order: Order;
   canReversePayments: boolean;
   canCarry: boolean;
-  initialReplacementId?: string;
   onClose: () => void;
 }) {
   const notify = useNotify();
   const key = useOperationKeys();
-  const [mode, setMode] = useState<'reverse' | 'replace'>(
-    canCarry && order.status === 'finalized' ? 'replace' : 'reverse',
-  );
+  const replacementId = order.pendingReplacementOrderId ?? '';
+  const canReplace = canCarry && !!replacementId;
+  const [mode, setMode] = useState<'reverse' | 'replace'>(canReplace ? 'replace' : 'reverse');
   const [reason, setReason] = useState('');
-  const [replacementId, setReplacementId] = useState(initialReplacementId);
   const [reverseIds, setReverseIds] = useState<string[]>([]);
   const [kind, setKind] = useState<PaymentReversalInput['reasonKind']>('refund');
   const [reference, setReference] = useState('');
   const [addPayment, setAddPayment] = useState(false);
   const [occurredAt] = useState(() => new Date().toISOString());
-  const candidates = useQuery({ ...allOrdersQuery(), enabled: canCarry });
-  const drafts = (candidates.data ?? []).filter((item) => item.status === 'draft' && item.replacesOrderId === order.id);
-  const replacement = drafts.find((item) => item.id === replacementId);
+  const replacement = useQuery({ ...orderQuery(replacementId), enabled: canReplace }).data;
   const [entry, setEntry] = useState(() => newPaymentEntry(0));
   const receipts = [
     ...new Map(
@@ -128,7 +124,7 @@ export function CorrectOrderModal({
           A finalized order is never edited. Reverse its charges, or replace it with a corrected order: the original is
           reversed at that moment and its remaining payments move over. No customer credit is created.
         </p>
-        {canCarry && canReverse && (
+        {canReplace && canReverse && (
           <RadioButtonGroup
             legendText="What do you want to do?"
             name="correct-mode"
@@ -136,7 +132,11 @@ export function CorrectOrderModal({
             valueSelected={mode}
             onChange={(value) => setMode(value as 'reverse' | 'replace')}
           >
-            <RadioButton id="correct-replace" value="replace" labelText="Commit a replacement draft" />
+            <RadioButton
+              id="correct-replace"
+              value="replace"
+              labelText={`Commit replacement ${order.pendingReplacementOrderReference}`}
+            />
             <RadioButton id="correct-reverse" value="reverse" labelText="Reverse all charges" />
           </RadioButtonGroup>
         )}
@@ -149,23 +149,16 @@ export function CorrectOrderModal({
           value={reason}
           onChange={(event) => setReason(event.target.value)}
         />
-        {mode === 'replace' && (
-          <Select
-            id="replacement-id"
-            labelText="Replacement draft"
-            value={replacementId}
-            onChange={(event) => setReplacementId(event.target.value)}
-            helperText={drafts.length === 0 ? 'Create a replacement draft first, edit it, then come back.' : undefined}
-          >
-            <SelectItem value="" text="Choose a replacement draft" />
-            {drafts.map((item) => (
-              <SelectItem
-                key={item.id}
-                value={item.id}
-                text={`${item.reference} · ${formatCents(toCents(item.totalAmount))}`}
-              />
-            ))}
-          </Select>
+        {mode === 'replace' && replacement && (
+          <p>
+            {replacement.reference} is charged with <strong>{formatCents(toCents(replacement.totalAmount))}</strong>{' '}
+            instead of {order.reference}.
+          </p>
+        )}
+        {mode === 'reverse' && canCarry && !replacementId && order.status === 'finalized' && (
+          <p className="mj-secondary">
+            To charge a corrected order instead, use Replace and edit the replacement first.
+          </p>
         )}
         {canReversePayments && receipts.length > 0 && (
           <>

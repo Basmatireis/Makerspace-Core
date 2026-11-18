@@ -268,7 +268,7 @@ func (s *Service) Command(
 	requestID *uuid.UUID,
 ) (Order, error) {
 	perm := authorization.OrdersFinalize
-	if action == OrderActionCancel || action == OrderActionReplacements {
+	if action == OrderActionCancel || action == OrderActionReplacements || action == OrderActionDiscard {
 		perm = authorization.OrdersWrite
 	}
 	if action == OrderActionReverse || action == OrderActionReplace {
@@ -307,12 +307,28 @@ func (s *Service) Command(
 		}
 		return s.load(ctx, q, *old.OrderID)
 	}
-	var o, replacement db.Order
-	if action == OrderActionReplace {
-		if input.ReplacementOrderID == uuid.Nil {
+	// Replace and discard touch an original and its replacement draft: linked is the other order of the pair, and
+	// both are locked in id order so the two commands cannot deadlock each other.
+	var o, linked db.Order
+	if action == OrderActionReplace || action == OrderActionDiscard {
+		other := input.ReplacementOrderID
+		if action == OrderActionDiscard {
+			row, e := q.GetOrder(ctx, id)
+			if e != nil {
+				return Order{}, databaseError(e)
+			}
+			if row.ReplacesOrderID == nil {
+				return Order{}, apperror.Conflicting(
+					"order_not_replacement",
+					"Only replacement drafts can be discarded; cancel other drafts",
+				)
+			}
+			other = *row.ReplacesOrderID
+		}
+		if other == uuid.Nil {
 			return Order{}, apperror.Invalid("Replacement order is required")
 		}
-		ids := []uuid.UUID{id, input.ReplacementOrderID}
+		ids := []uuid.UUID{id, other}
 		sort.Slice(ids, func(i, j int) bool { return ids[i].String() < ids[j].String() })
 		for _, key := range ids {
 			row, e := q.LockOrder(ctx, key)
@@ -322,7 +338,7 @@ func (s *Service) Command(
 			if key == id {
 				o = row
 			} else {
-				replacement = row
+				linked = row
 			}
 		}
 	} else {
@@ -337,6 +353,12 @@ func (s *Service) Command(
 	resultID := id
 	switch action {
 	case OrderActionCancel:
+		if o.ReplacesOrderID != nil && OrderStatus(o.Status) == OrderDraft {
+			return Order{}, apperror.Conflicting(
+				"replacement_discard_required",
+				"Discard a replacement draft instead of cancelling it",
+			)
+		}
 		if err = draft(o); err == nil {
 			err = q.ReleaseOrderClaims(ctx, id)
 		}
@@ -387,6 +409,15 @@ func (s *Service) Command(
 			return Order{}, apperror.Conflicting(
 				"order_already_replaced",
 				"This order already has a committed replacement",
+			)
+		} else if !errors.Is(e, pgx.ErrNoRows) {
+			return Order{}, e
+		}
+		// The original is locked, so a concurrent start waits here and then sees this draft.
+		if open, e := q.OpenReplacement(ctx, &id); e == nil {
+			return Order{}, apperror.Conflicting(
+				"replacement_in_progress",
+				"Replacement "+open.Reference+" is already in progress; continue or discard it",
 			)
 		} else if !errors.Is(e, pgx.ErrNoRows) {
 			return Order{}, e
@@ -446,7 +477,27 @@ func (s *Service) Command(
 			}
 			resultID = next.ID
 		}
+	case OrderActionDiscard:
+		if err = draft(o); err != nil {
+			return Order{}, err
+		}
+		if o.ReplacesOrderID == nil || *o.ReplacesOrderID != linked.ID {
+			return Order{}, apperror.Conflicting("order_not_replacement", "Only replacement drafts can be discarded")
+		}
+		// The draft never had a financial effect: deleting it removes its items and job claims with it.
+		var deleted int64
+		if deleted, err = q.DeleteDraftOrder(ctx, id); err == nil && deleted != 1 {
+			err = apperror.Conflicting("order_not_draft", "Only draft orders may be discarded")
+		}
+		if err == nil {
+			err = q.BumpOrder(ctx, linked.ID)
+		}
+		if err == nil {
+			err = writeAudit(ctx, tx, p, "order.replacement_discarded", "order", linked.ID, requestID, "replacement")
+		}
+		resultID = linked.ID
 	case OrderActionReplace:
+		replacement := linked
 		if err = require(
 			p,
 			authorization.OrdersFinalize,

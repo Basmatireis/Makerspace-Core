@@ -62,6 +62,45 @@ test.describe('sales and payments', () => {
     await expect(page.getByRole('button', { name: 'More order actions' })).toHaveCount(0);
   });
 
+  test('Replace opens a linked draft; the original offers Continue and Discard beside its notice', async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`/orders/${salesIds.open}`);
+    await page.getByRole('button', { name: 'Replace', exact: true }).click();
+    await expect(page.getByText('This draft replaces an order')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Discard replacement' })).toBeVisible();
+
+    await page.goto(`/orders/${salesIds.open}`);
+    const notice = page.locator('.cds--actionable-notification').filter({ hasText: 'Replacement in progress' });
+    const text = notice.locator('.cds--actionable-notification__subtitle');
+    const continueButton = notice.getByRole('button', { name: 'Continue' });
+    const discardButton = notice.getByRole('button', { name: 'Discard' });
+    await expect(continueButton).toBeVisible();
+    await expect(discardButton).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Replace', exact: true })).toHaveCount(0);
+    // On a wide screen the actions sit on the text's line: the subtitle stays one line high.
+    const line = (await text.boundingBox())!;
+    const action = (await continueButton.boundingBox())!;
+    expect(line.height).toBeLessThan(action.height * 1.5);
+    expect(action.y).toBeLessThan(line.y + line.height);
+    await expectNoAccessibilityViolations(page, '#main-content');
+    await page.screenshot({ path: testInfo.outputPath('replacement-in-progress-1440.png') });
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await expectNoHorizontalScroll(page);
+    await expect(continueButton).toBeInViewport();
+    await page.screenshot({ path: testInfo.outputPath('replacement-in-progress-375.png') });
+
+    await discardButton.focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('alertdialog', { name: 'Discard this replacement?' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Discard replacement' }).click();
+    await expect(notice).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Replace', exact: true })).toBeVisible();
+  });
+
   test('a row opens the order in the panel with its flag, items and payments', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/orders');

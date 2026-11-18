@@ -435,6 +435,17 @@
   flex-direction: column;
   align-items: flex-start;
 }
+// Actions that follow the notice text on its line and wrap below it like a word when the line is full (phones).
+.sales-notice-inline-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+  vertical-align: middle;
+}
+// Carbon spaces its notification action button for the notification's own button area; here it sits in the text.
+.sales-notice-inline-actions .cds--actionable-notification__action-button.cds--btn--ghost {
+  margin: 0;
+}
 .sales-notice-actions {
   display: flex;
   flex-wrap: wrap;
