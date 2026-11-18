@@ -47,6 +47,11 @@ export type RenderAnnouncement = {
   /** Absent means plain. */
   bodyFormat?: RichTextFormat;
   bodyCss?: string;
+  /** Own background colour (`#rrggbb`) and the text colour derived from it; null or absent is the tone's colour. */
+  color?: string | null;
+  textColor?: string | null;
+  /** Background image URL, tinted with the colour (or the tone's) at 70 %. Absent or null is none. */
+  imageUrl?: string | null;
   startsAt: number;
 };
 

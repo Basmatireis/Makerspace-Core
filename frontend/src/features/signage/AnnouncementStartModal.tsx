@@ -8,6 +8,7 @@ import {
   Select,
   SelectItem,
   Stack,
+  Toggle,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, useWatch } from 'react-hook-form';
@@ -15,7 +16,9 @@ import type { SignageAnnouncement, SignageDisplay } from '../../api/generated/mo
 import { startSignageAnnouncement, updateSignageAnnouncement } from '../../api/generated/signage/signage';
 import { DateTimeInput } from '../../app/DateInput';
 import { AnnouncementFieldInput } from './AnnouncementFieldInput';
+import { AnnouncementLookFields } from './AnnouncementLookFields';
 import { AnnouncementPreview } from './AnnouncementPreview';
+import { announcementTextColor, lookOf } from './announcementLook';
 import {
   defaultsOf,
   fromLocalValue,
@@ -28,8 +31,8 @@ import { usePublishedView } from './displayHooks';
 import { PublishedScreen } from './displayParts';
 import { renderAnnouncement } from './engine/announcements';
 import { isStaleWrite, orientationOf } from './helpers';
-import { useMachineOptions, useMakerspaceTimeZone } from './preview';
-import { displaysQuery, groupsQuery, signageKeys, templatesQuery } from './queries';
+import { assetContentUrl, useMachineOptions, useMakerspaceTimeZone } from './preview';
+import { assetsQuery, displaysQuery, groupsQuery, signageKeys, templatesQuery } from './queries';
 import type { RenderAnnouncement } from './render/types';
 
 type EndMode = 'stopped' | 'at' | 'after';
@@ -44,6 +47,10 @@ type Values = {
   endMode: EndMode;
   endAt: string;
   duration: string;
+  /** Off: the template's colour and image. On: `color` and `imageAssetId`, whose null is the tone colour and no image. */
+  ownLook: boolean;
+  color: string | null;
+  imageAssetId: string | null;
 };
 type Option = { id: string; label: string };
 
@@ -88,6 +95,9 @@ export function AnnouncementStartModal({
       endMode: announcement?.endsAt ? 'at' : 'stopped',
       endAt: announcement?.endsAt ? toLocalValue(new Date(announcement.endsAt)) : nextHour(new Date(), 2),
       duration: '60',
+      ownLook: announcement?.ownLook ?? false,
+      color: announcement?.color ?? null,
+      imageAssetId: announcement?.imageAssetId ?? null,
     },
   });
   const draft = useWatch({ control: form.control }) as Values;
@@ -127,7 +137,8 @@ export function AnnouncementStartModal({
             : null)) ||
       null,
   };
-  const valid = missing.size === 0 && Object.values(errors).every((error) => error === null);
+  const colorError = draft.ownLook && draft.color !== null && announcementTextColor(draft.color) === null;
+  const valid = missing.size === 0 && !colorError && Object.values(errors).every((error) => error === null);
 
   // {display} and {location} depend on the screen; the preview uses the first one targeted.
   const groupMembers = groups.filter((group) => draft.groupIds.includes(group.id)).flatMap((group) => group.displayIds);
@@ -139,6 +150,16 @@ export function AnnouncementStartModal({
     display ??
     displays[0];
   const machineNames = Object.fromEntries(machines.map((machine) => [machine.id, machine.name]));
+  // The look the announcement ends up with: its own, or else the template's.
+  const assets = useQuery(assetsQuery()).data?.items;
+  const effectiveColor = draft.ownLook ? draft.color : (template?.color ?? null);
+  const effectiveImage = draft.ownLook ? draft.imageAssetId : (template?.imageAssetId ?? null);
+  const look = lookOf(
+    effectiveColor,
+    effectiveImage
+      ? assetContentUrl(effectiveImage, assets?.find((asset) => asset.id === effectiveImage)?.sha256)
+      : null,
+  );
   const message =
     template && startsAt
       ? renderAnnouncement(
@@ -165,6 +186,7 @@ export function AnnouncementStartModal({
             body: message.body,
             bodyFormat: message.bodyFormat,
             bodyCss: message.bodyCss,
+            ...look,
             startsAt: 0,
           },
         ]
@@ -181,11 +203,15 @@ export function AnnouncementStartModal({
         draft.target === 'all'
           ? { allDisplays: true, displayIds: [], groupIds: [] }
           : { allDisplays: false, displayIds: draft.displayIds, groupIds: draft.groupIds };
+      const ownLook = draft.ownLook
+        ? { ownLook: true, color: draft.color, imageAssetId: draft.imageAssetId }
+        : { ownLook: false };
       const window = { endsAt: endsAt ? endsAt.toISOString() : null };
       return announcement
         ? updateSignageAnnouncement(announcement.id, {
             expectedVersion: announcement.version,
             values: draft.values,
+            ...ownLook,
             ...targets,
             startsAt: startsAt!.toISOString(),
             ...window,
@@ -193,6 +219,7 @@ export function AnnouncementStartModal({
         : startSignageAnnouncement({
             templateId: draft.templateId,
             values: draft.values,
+            ...ownLook,
             ...targets,
             ...(draft.startMode === 'at' ? { startsAt: startsAt!.toISOString() } : {}),
             ...window,
@@ -213,9 +240,19 @@ export function AnnouncementStartModal({
     clearServer();
     if (valid && template && startsAt) mutation.mutate();
   };
+  // Switching template keeps an own look on purpose: it was chosen for this announcement, not by the template.
   const chooseTemplate = (id: string) => {
     form.setValue('templateId', id);
     form.setValue('values', defaultsOf(templates.find((item) => item.id === id)?.fields ?? []));
+    clearServer();
+  };
+  const setOwnLook = (own: boolean) => {
+    // Switching it on starts from the template's look, so a small change does not mean starting over.
+    if (own && !draft.ownLook) {
+      form.setValue('color', template?.color ?? null);
+      form.setValue('imageAssetId', template?.imageAssetId ?? null);
+    }
+    form.setValue('ownLook', own);
     clearServer();
   };
   const setValue = (key: string, value: string) => {
@@ -281,6 +318,32 @@ export function AnnouncementStartModal({
             )}
           </div>
         ))}
+
+        <div>
+          <Toggle
+            id="ann-own-look"
+            labelText="Use the template's look"
+            toggled={!draft.ownLook}
+            onToggle={(useTemplate) => setOwnLook(!useTemplate)}
+          />
+          {draft.ownLook && template && (
+            <AnnouncementLookFields
+              idPrefix="ann"
+              tone={template.tone}
+              color={draft.color}
+              imageAssetId={draft.imageAssetId}
+              serverError={serverErrors.color}
+              onColorChange={(next) => {
+                form.setValue('color', next);
+                clearServer();
+              }}
+              onImageChange={(next) => {
+                form.setValue('imageAssetId', next);
+                clearServer();
+              }}
+            />
+          )}
+        </div>
 
         <RadioButtonGroup
           legendText="Shown on"

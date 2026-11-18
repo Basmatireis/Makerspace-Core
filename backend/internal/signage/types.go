@@ -292,6 +292,8 @@ type ReferenceKind string
 const (
 	ReferenceScene        ReferenceKind = "scene"
 	ReferenceAnnouncement ReferenceKind = "announcement"
+	// ReferenceTemplate is an announcement template that uses an image asset as its default image.
+	ReferenceTemplate ReferenceKind = "template"
 	// ReferenceRule is a rule of a display; the reference id is the display's.
 	ReferenceRule ReferenceKind = "rule"
 	// ReferenceDisplay is a display's default scene list; the reference id is the display's.

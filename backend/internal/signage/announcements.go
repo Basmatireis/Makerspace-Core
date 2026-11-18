@@ -2,6 +2,7 @@ package signage
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"sort"
 	"time"
@@ -30,10 +31,14 @@ type Announcement struct {
 	StartsAt       time.Time
 	EndsAt         *time.Time
 	Status         AnnouncementState // scheduled | active
-	Rendered       Rendered
-	Version        int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	// OwnLook means Color and ImageAssetID replace the template's; they are nil otherwise.
+	OwnLook      bool
+	Color        *string
+	ImageAssetID *uuid.UUID
+	Rendered     Rendered
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // AnnouncementInput is the writable part of an announcement. StartsAt nil means now (on start).
@@ -45,6 +50,10 @@ type AnnouncementInput struct {
 	GroupIDs    []uuid.UUID
 	StartsAt    *time.Time
 	EndsAt      *time.Time
+	// OwnLook false means the template's look; Color and ImageAssetID must be nil then.
+	OwnLook      bool
+	Color        *string
+	ImageAssetID *uuid.UUID
 }
 
 func (s *Service) statusOf(startsAt time.Time, now time.Time) AnnouncementState {
@@ -143,6 +152,23 @@ func (s *Service) hydrateFor(
 			machineNames[machine.ID.String()] = machine.Name
 		}
 	}
+	// The effective images with their checksums, for the rendered look.
+	var imageIDs []uuid.UUID
+	for _, row := range rows {
+		if _, image := effectiveLook(templates[row.TemplateID], row); image != nil {
+			imageIDs = append(imageIDs, *image)
+		}
+	}
+	digests := map[uuid.UUID]string{}
+	if imageIDs = distinct(imageIDs); len(imageIDs) > 0 {
+		digestRows, err := q.ListSignageAssetDigests(ctx, uuidStrings(imageIDs))
+		if err != nil {
+			return nil, err
+		}
+		for _, digest := range digestRows {
+			digests[digest.ID] = hex.EncodeToString(digest.Sha256)
+		}
+	}
 	now := s.now()
 	result := make([]Announcement, 0, len(rows))
 	for _, row := range rows {
@@ -179,6 +205,8 @@ func (s *Service) hydrateFor(
 				MachineNames: machineNames,
 			},
 		)
+		rendered.Color, rendered.Image = lookOf(template, row, digests)
+		rendered.TextColor = textColorOf(rendered.Color)
 		result = append(result, Announcement{
 			ID:          row.ID,
 			TemplateID:  row.TemplateID,
@@ -186,7 +214,8 @@ func (s *Service) hydrateFor(
 			AllDisplays: row.AllDisplays,
 			DisplayIDs:  displayIDs,
 			GroupIDs:    groupIDs,
-			StartsAt:    row.StartsAt.UTC(), EndsAt: endsAt, Status: s.statusOf(row.StartsAt, now), Rendered: rendered,
+			OwnLook:     row.OwnLook, Color: row.Color, ImageAssetID: row.ImageAssetID,
+			StartsAt: row.StartsAt.UTC(), EndsAt: endsAt, Status: s.statusOf(row.StartsAt, now), Rendered: rendered,
 			Version: row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
 		})
 	}
@@ -417,6 +446,10 @@ func (s *Service) StartAnnouncement(
 	if err := s.verifyMachineValues(ctx, q, template.Fields, values); err != nil {
 		return Announcement{}, err
 	}
+	color, err := s.checkLook(ctx, q, input)
+	if err != nil {
+		return Announcement{}, err
+	}
 	id := ids.New()
 	actor := principal.AccountID
 	row, err := q.CreateSignageAnnouncement(ctx, signagedb.CreateSignageAnnouncementParams{
@@ -426,6 +459,9 @@ func (s *Service) StartAnnouncement(
 		StartsAt:           startsAt,
 		EndsAt:             pgTime(endsAt),
 		CreatedByAccountID: &actor,
+		OwnLook:            input.OwnLook,
+		Color:              color,
+		ImageAssetID:       input.ImageAssetID,
 	})
 	if err != nil {
 		return Announcement{}, databaseError(err)
@@ -441,7 +477,7 @@ func (s *Service) StartAnnouncement(
 		"signage_announcement",
 		id,
 		requestID,
-		[]string{"template", "values", "displays", "startsAt", "endsAt"},
+		[]string{"template", "values", "displays", "startsAt", "endsAt", "ownLook", "color", "imageAssetId"},
 	); err != nil {
 		return Announcement{}, err
 	}
@@ -536,8 +572,13 @@ func (s *Service) UpdateAnnouncement(
 	if err := s.verifyMachineValues(ctx, q, template.Fields, values); err != nil {
 		return Announcement{}, err
 	}
+	color, err := s.checkLook(ctx, q, input)
+	if err != nil {
+		return Announcement{}, err
+	}
 	row, err := q.UpdateSignageAnnouncement(ctx, signagedb.UpdateSignageAnnouncementParams{
 		AllDisplays: input.AllDisplays, StartsAt: startsAt, EndsAt: pgTime(endsAt), ID: id, ExpectedVersion: expected,
+		OwnLook: input.OwnLook, Color: color, ImageAssetID: input.ImageAssetID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Announcement{}, apperror.StaleWrite
@@ -556,7 +597,7 @@ func (s *Service) UpdateAnnouncement(
 		"signage_announcement",
 		id,
 		requestID,
-		[]string{"values", "displays", "startsAt", "endsAt"},
+		[]string{"values", "displays", "startsAt", "endsAt", "ownLook", "color", "imageAssetId"},
 	); err != nil {
 		return Announcement{}, err
 	}

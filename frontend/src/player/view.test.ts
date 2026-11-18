@@ -193,6 +193,9 @@ describe('resolveView', () => {
       body: '**b**',
       bodyFormat: 'markdown' as const,
       bodyCss: 'p{}',
+      color: null,
+      textColor: null,
+      image: null,
       startsAt: new Date(0).toISOString(),
       endsAt: null,
     };
@@ -265,6 +268,9 @@ describe('resolveView', () => {
       body: '',
       bodyFormat: 'plain' as const,
       bodyCss: '',
+      color: null,
+      textColor: null,
+      image: null,
       startsAt: new Date(0).toISOString(),
       endsAt: new Date(10_000).toISOString(),
     };

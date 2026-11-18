@@ -42,6 +42,14 @@ export interface SignageAnnouncementTemplate {
   bodyFormat: SignageRichTextFormat;
   /** @maxLength 20000 */
   bodyCss: string;
+  /**
+     * Default background colour of the template's announcements as lower-case `#rrggbb`; null means the tone colour.
+     * @nullable
+     * @pattern ^#[0-9a-f]{6}$
+     */
+  color: string | null;
+  /** Default background image (an image asset); null means no image. */
+  imageAssetId: UUIDv7 | null;
   /** @maxItems 20 */
   fields: SignageTemplateField[];
   version: Version;

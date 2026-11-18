@@ -270,3 +270,20 @@ export function registerFontFaces(fonts: readonly FontFace[], doc: Document = do
   style.textContent = rules.join('\n');
   doc.head.append(style);
 }
+
+/** The own colour, its text colour and the image of an announcement as CSS (render.css reads the custom properties). */
+export function announcementLookStyle(item: {
+  color?: string | null;
+  textColor?: string | null;
+  imageUrl?: string | null;
+}) {
+  const style: Record<string, string> = {};
+  if (item.color) style['--sg-ann-bg'] = item.color;
+  if (item.color && item.textColor) {
+    style.color = item.textColor;
+    // The shadow is the opposite shade of the text (only drawn over an image).
+    style['--sg-ann-shadow'] = item.textColor === '#ffffff' ? 'rgba(0, 0, 0, 0.55)' : 'rgba(255, 255, 255, 0.55)';
+  }
+  if (item.imageUrl) style['--sg-ann-image'] = cssUrl(item.imageUrl);
+  return style as CSSProperties;
+}

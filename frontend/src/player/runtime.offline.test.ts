@@ -204,6 +204,146 @@ describe('PlayerRuntime offline cache', () => {
       });
     }
 
+    describe('announcement images', () => {
+      const withImage = (id: string, image: ReturnType<typeof asset> | null) =>
+        ({
+          ...(announcement(id, null) as object),
+          color: '#0f62fe',
+          textColor: '#ffffff',
+          image: image && { assetId: image.id, sha256: image.sha256, url: image.url },
+        }) as never;
+
+      it('caches the image of a listed announcement, keeps it offline and evicts it when unlisted', async () => {
+        const { store, caches } = env();
+        const photo = asset('photo');
+        let announcements = [withImage('a', photo)];
+        const online = new PlayerRuntime({
+          api: fakeApi({
+            manifest: async () => ({ unchanged: false, manifest: manifest(1, { assets: [asset('img-1')] }) }),
+            live: async () => live({ announcements }),
+          }),
+          store,
+        });
+        online.start();
+        await settle(5_000);
+        expect(caches.keysOf(ASSET_CACHE)).toContain(assetKey(photo.sha256));
+        expect(caches.keysOf(ASSET_CACHE)).toContain(assetKey(asset('img-1').sha256));
+        online.stop();
+
+        // Offline restart: the persisted announcement still names the cached image, and a new revision keeps it.
+        const offline = new PlayerRuntime({ api: offlineApi(), store });
+        offline.start();
+        await settle(5_000);
+        expect(offline.getSnapshot().view?.data.announcements[0]).toMatchObject({
+          color: '#0f62fe',
+          textColor: '#ffffff',
+          imageUrl: photo.url,
+        });
+        expect(caches.keysOf(ASSET_CACHE)).toContain(assetKey(photo.sha256));
+        offline.stop();
+
+        // Unlisted images go; the manifest's assets stay.
+        announcements = [];
+        const later = new PlayerRuntime({
+          api: fakeApi({
+            manifest: async () => ({ unchanged: true }),
+            live: async () => live({ announcements }),
+          }),
+          store,
+        });
+        later.start();
+        await settle(5_000);
+        expect(caches.keysOf(ASSET_CACHE)).toEqual([assetKey(asset('img-1').sha256)]);
+        later.stop();
+      });
+
+      it('does not retry a failed image until the listed set changes, and still evicts', async () => {
+        const { store, caches, downloads } = env({
+          gate: async (url) => {
+            if (url === photo.url) throw new Error('offline');
+          },
+        });
+        const photo = asset('photo');
+        const runtime = new PlayerRuntime({
+          api: fakeApi({
+            manifest: async () => ({ unchanged: false, manifest: manifest(1, { assets: [asset('img-1')] }) }),
+            live: async () => live({ announcements: [withImage('a', photo)] }),
+          }),
+          store,
+        });
+        await store.ensureAsset(asset('old'));
+        runtime.start();
+        await settle(30_000);
+        expect(downloads.filter((url) => url === photo.url)).toHaveLength(1);
+        expect(caches.keysOf(ASSET_CACHE)).toEqual([assetKey(asset('img-1').sha256)]);
+        runtime.stop();
+      });
+
+      it('lets a running eviction finish before a new revision downloads', async () => {
+        const { store, caches, downloads } = env();
+        const photo = asset('photo');
+        const release = deferred();
+        let holding = false;
+        let announcements: never[] = [];
+        const slowStore = {
+          ...store,
+          retain: async (keep: Parameters<typeof store.retain>[0]) => {
+            if (holding) await release.promise;
+            return store.retain(keep);
+          },
+        };
+        let latest = manifest(1, { assets: [asset('img-1')] });
+        const runtime = new PlayerRuntime({
+          api: fakeApi({
+            manifest: async (known) =>
+              known === latest.revision ? { unchanged: true } : { unchanged: false, manifest: latest },
+            live: async () => live({ announcements }),
+          }),
+          store: slowStore,
+        });
+        runtime.start();
+        await settle(1_000);
+        // An announcement with an image is listed; its eviction pass is held back; now another revision arrives.
+        holding = true;
+        announcements = [withImage('a', photo)] as never[];
+        await settle(15_000);
+        latest = manifest(2, { assets: [asset('img-2')] });
+        const refreshed = runtime.refreshManifest();
+        await settle(1_000);
+        expect(downloads).not.toContain(asset('img-2').url);
+        release.resolve();
+        await refreshed;
+        await settle(5_000);
+        expect(caches.keysOf(ASSET_CACHE).sort()).toEqual(
+          [assetKey(photo.sha256), assetKey(asset('img-2').sha256)].sort(),
+        );
+        runtime.stop();
+      });
+
+      it('keeps listed images when a new revision evicts the old assets', async () => {
+        const { store, caches } = env();
+        const photo = asset('photo');
+        let latest = manifest(1, { assets: [asset('img-1')] });
+        const runtime = new PlayerRuntime({
+          api: fakeApi({
+            manifest: async (known) =>
+              known === latest.revision ? { unchanged: true } : { unchanged: false, manifest: latest },
+            live: async () => live({ announcements: [withImage('a', photo)] }),
+          }),
+          store,
+        });
+        runtime.start();
+        await settle(5_000);
+        latest = manifest(2, { assets: [asset('img-2')] });
+        await runtime.refreshManifest();
+        await settle(5_000);
+        expect(caches.keysOf(ASSET_CACHE).sort()).toEqual(
+          [assetKey(photo.sha256), assetKey(asset('img-2').sha256)].sort(),
+        );
+        runtime.stop();
+      });
+    });
+
     it('shows persisted announcements and open days after an offline restart, never machines', async () => {
       const { store } = env();
       await seed(store, 3_600_000);

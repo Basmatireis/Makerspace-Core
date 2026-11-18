@@ -244,7 +244,7 @@ export const getDeleteSignageAssetUrl = (assetId: string,) => {
 }
 
 /**
- * Answers 409 `signage_in_use` with `details.references` while a scene uses the asset as background or in a widget.
+ * Answers 409 `signage_in_use` with `details.references` while a scene uses the asset as background or in a widget (reference kind `scene`), an announcement template uses it as its image (kind `template`) or an active or scheduled announcement with its own look shows it (kind `announcement`). Ended announcements just lose the image.
  * @summary Delete an asset that no draft scene references
  */
 export const deleteSignageAsset = async (assetId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {

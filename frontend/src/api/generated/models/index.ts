@@ -986,6 +986,7 @@ export * from './setTrainingRecordRequest';
 export * from './signageAgendaWidget';
 export * from './signageAgendaWidgetType';
 export * from './signageAnnouncement';
+export * from './signageAnnouncementImage';
 export * from './signageAnnouncementList';
 export * from './signageAnnouncementStatus';
 export * from './signageAnnouncementTemplate';

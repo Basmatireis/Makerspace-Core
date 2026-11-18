@@ -98,6 +98,11 @@ type Querier interface {
 	ListDisplaysWithDefaultScene(ctx context.Context, sceneID uuid.UUID) ([]ListDisplaysWithDefaultSceneRow, error)
 	ListGroupsWithDefaultScene(ctx context.Context, sceneID uuid.UUID) ([]ListGroupsWithDefaultSceneRow, error)
 	ListLatestSignagePublications(ctx context.Context, displayIds []string) ([]ListLatestSignagePublicationsRow, error)
+	// Images shown by announcements in force for one display (the same set as ListLiveSignageAnnouncementsForDisplay): an
+	// announcement's own image, or its template's image while it has no own look.
+	ListLiveAnnouncementImageIDsForDisplay(ctx context.Context, arg ListLiveAnnouncementImageIDsForDisplayParams) ([]uuid.UUID, error)
+	// Active or scheduled announcements with their own look that show the image.
+	ListLiveAnnouncementsUsingImage(ctx context.Context, arg ListLiveAnnouncementsUsingImageParams) ([]ListLiveAnnouncementsUsingImageRow, error)
 	ListLiveSignageAnnouncements(ctx context.Context, now time.Time) ([]SignageAnnouncement, error)
 	// Announcements in force for one display. Without broadcasts (web embeds) only announcements that name the display
 	// itself count, never those for all displays or for its group.
@@ -112,6 +117,7 @@ type Querier interface {
 	ListSignageAnnouncementDisplays(ctx context.Context, announcementIds []string) ([]SignageAnnouncementDisplay, error)
 	ListSignageAnnouncementGroups(ctx context.Context, announcementIds []string) ([]SignageAnnouncementGroup, error)
 	ListSignageAnnouncementValues(ctx context.Context, announcementIds []string) ([]SignageAnnouncementValue, error)
+	ListSignageAssetDigests(ctx context.Context, ids []string) ([]ListSignageAssetDigestsRow, error)
 	ListSignageAssetKinds(ctx context.Context, ids []string) ([]ListSignageAssetKindsRow, error)
 	ListSignageAssets(ctx context.Context, kind *string) ([]ListSignageAssetsRow, error)
 	ListSignageAssetsByIDs(ctx context.Context, ids []string) ([]ListSignageAssetsByIDsRow, error)
@@ -151,6 +157,7 @@ type Querier interface {
 	// newest first. Without all_machines only the given machines; ended_after NULL means any age.
 	ListSignageTimelapses(ctx context.Context, arg ListSignageTimelapsesParams) ([]ListSignageTimelapsesRow, error)
 	ListSignageWebEmbeds(ctx context.Context, ids []string) ([]ListSignageWebEmbedsRow, error)
+	ListTemplatesUsingImage(ctx context.Context, id *uuid.UUID) ([]ListTemplatesUsingImageRow, error)
 	// The scenes a scene list refers to, share-locked so that a concurrent deletion or change of a scene's ratio
 	// either waits for this transaction or is seen by it.
 	LockSignageScenesForShare(ctx context.Context, ids []string) ([]LockSignageScenesForShareRow, error)

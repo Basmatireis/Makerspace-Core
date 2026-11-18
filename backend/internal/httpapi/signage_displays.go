@@ -721,8 +721,13 @@ func signageLiveDTO(live signage.LiveData, base string) openapi.SignagePlayerLiv
 			Body:       announcement.Body,
 			BodyFormat: openapi.SignageRichTextFormat(announcement.BodyFormat),
 			BodyCss:    announcement.BodyCSS,
-			StartsAt:   announcement.StartsAt,
-			EndsAt:     nullableTimeValue(announcement.EndsAt),
+			Color:      nullableValue(announcement.Color),
+			TextColor:  nullableValue(announcement.TextColor),
+			Image: signageImageDTO(announcement.Image, func(image signage.AnnouncementImage) string {
+				return base + "/assets/" + image.AssetID.String() + "/" + image.SHA256
+			}),
+			StartsAt: announcement.StartsAt,
+			EndsAt:   nullableTimeValue(announcement.EndsAt),
 		})
 	}
 	ruleNotices := make([]openapi.SignagePlayerRuleNotice, 0, len(live.RuleNotices))

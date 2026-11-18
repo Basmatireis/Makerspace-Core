@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SignageAnnouncementImage } from './signageAnnouncementImage';
 import type { SignageRichTextFormat } from './signageRichTextFormat';
 import type { SignageTone } from './signageTone';
 import type { UUIDv7 } from './uUIDv7';
@@ -31,6 +32,20 @@ export interface SignagePlayerLiveAnnouncement {
   body: string;
   bodyFormat: SignageRichTextFormat;
   bodyCss: string;
+  /**
+     * Effective background colour; null means the tone colour.
+     * @nullable
+     * @pattern ^#[0-9a-f]{6}$
+     */
+  color: string | null;
+  /**
+     * Text colour derived from `color`; null exactly when `color` is null.
+     * @nullable
+     * @pattern ^#[0-9a-f]{6}$
+     */
+  textColor: string | null;
+  /** Effective background image; `url` is the asset path of the calling player or web embed. It is only served while the announcement is in force for that display or embed. */
+  image: SignageAnnouncementImage | null;
   startsAt: string;
   /** @nullable */
   endsAt: string | null;

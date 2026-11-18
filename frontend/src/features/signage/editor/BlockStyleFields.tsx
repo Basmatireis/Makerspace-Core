@@ -32,6 +32,7 @@ export function ColorField({
   emptyText = 'Not set',
   fallback,
   allowTransparent = false,
+  error,
   onChange,
 }: {
   id: string;
@@ -45,6 +46,8 @@ export function ColorField({
   emptyText?: string;
   /** Swatch colour while no colour is set. */
   fallback?: string;
+  /** A problem with the colour that is not a typo (e.g. no readable text colour); marks the input invalid. */
+  error?: string;
   onChange: (value: string | null) => void;
 }) {
   // While typing, the half-finished text is kept here; it is dropped on blur so the field shows the stored value again.
@@ -61,9 +64,13 @@ export function ColorField({
         placeholder={mixed ? 'Mixed' : nullable ? emptyText : '#rrggbb'}
         autoComplete="off"
         value={text}
-        invalid={invalid}
+        invalid={invalid || Boolean(error)}
         invalidText={
-          allowTransparent ? 'Enter a hex colour like #161616 or transparent' : 'Enter a hex colour like #161616'
+          invalid || !error
+            ? allowTransparent
+              ? 'Enter a hex colour like #161616 or transparent'
+              : 'Enter a hex colour like #161616'
+            : error
         }
         onChange={(event) => {
           const next = event.target.value.trim();
@@ -97,6 +104,7 @@ export function ColorRow({
   emptyText,
   fallback,
   allowTransparent = false,
+  error,
   onChange,
 }: {
   id: string;
@@ -108,6 +116,7 @@ export function ColorRow({
   fallback?: string;
   /** Adds a button that makes the colour transparent. */
   allowTransparent?: boolean;
+  error?: string;
   onChange: (value: string | null) => void;
 }) {
   return (
@@ -120,6 +129,7 @@ export function ColorRow({
         emptyText={emptyText}
         fallback={fallback}
         allowTransparent={allowTransparent}
+        error={error}
         onChange={onChange}
       />
       {allowTransparent && (
