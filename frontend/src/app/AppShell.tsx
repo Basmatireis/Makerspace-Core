@@ -41,7 +41,7 @@ const CalendarSubscriptionDialog = lazy(() => import('../features/profile/Calend
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 /** Pages that use the whole width below the header, without page padding. */
-const FULL_WIDTH_PATHS = /^\/signage\/scenes\/[^/]+\/?$/;
+const FULL_WIDTH_PATHS = /^\/(signage\/scenes\/[^/]+|settings\/pdf-templates)\/?$/;
 
 function currentNarrowState(): boolean {
   return typeof window.matchMedia === 'function' ? window.matchMedia(NARROW_SHELL_QUERY).matches : false;
@@ -63,7 +63,7 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isNarrow, setIsNarrow] = useState(currentNarrowState);
-  // Full-width work pages (the screen editor) keep the header but open the navigation only on request.
+  // Full-width work pages (the signage screen editor, the PDF template editor) keep the header but open the navigation only on request.
   const fullWidth = FULL_WIDTH_PATHS.test(location.pathname);
   const [sideNavExpanded, setSideNavExpanded] = useState(() => !currentNarrowState() && !fullWidth);
   const [profilePanelOpen, setProfilePanelOpen] = useState(false);

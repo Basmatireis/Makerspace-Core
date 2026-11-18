@@ -194,6 +194,7 @@ const catalog: Catalog = {
     ['mail.manage', 'Manage email delivery'],
     ['branding.manage', 'Manage branding'],
     ['invoicing.settings.manage', 'Manage invoicing settings'],
+    ['pdf_templates.manage', 'Edit and publish PDF templates'],
     ['oidc.manage', 'Manage OIDC providers'],
     ['scim.manage', 'Manage SCIM provisioning'],
   ],
