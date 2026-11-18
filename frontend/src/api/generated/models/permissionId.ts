@@ -65,6 +65,7 @@ export const PermissionId = {
   open_dayssignup: 'open_days.signup',
   open_daysassign: 'open_days.assign',
   open_daysmanage: 'open_days.manage',
+  open_daysedit_past: 'open_days.edit_past',
   eventsread: 'events.read',
   eventsmanage: 'events.manage',
   eventsstaffingmanage: 'events.staffing.manage',

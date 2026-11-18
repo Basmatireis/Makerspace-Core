@@ -102,6 +102,13 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 			}
 			continue
 		}
+		if key == "retroactive" {
+			// A correction of something that is already over is flagged, nothing else.
+			if text, ok := value.(string); !ok || text != "true" {
+				return fmt.Errorf("invalid audit %s metadata", key)
+			}
+			continue
+		}
 		if key == "fromMembership" || key == "toMembership" {
 			// Membership changes name the system role keys, never role names.
 			text, ok := value.(string)

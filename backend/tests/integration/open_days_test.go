@@ -33,8 +33,9 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 		t.Fatal(err)
 	}
 
-	startDate := time.Date(2026, time.October, 1, 0, 0, 0, 0, time.UTC)
-	endDate := time.Date(2027, time.January, 31, 0, 0, 0, 0, time.UTC)
+	// Far in the future (28 years on keeps the weekdays), so sign-ups never meet a timeslot that has ended.
+	startDate := time.Date(2054, time.October, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2055, time.January, 31, 0, 0, 0, 0, time.UTC)
 	period, err := service.CreatePeriod(ctx, manager, "Winter Semester 2026/27", startDate, endDate, nil, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -43,8 +44,8 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 		t.Fatalf("period = %#v", period)
 	}
 
-	startsAt := time.Date(2026, time.October, 7, 14, 0, 0, 0, time.UTC)
-	endsAt := time.Date(2026, time.October, 7, 17, 0, 0, 0, time.UTC)
+	startsAt := time.Date(2054, time.October, 7, 14, 0, 0, 0, time.UTC)
+	endsAt := time.Date(2054, time.October, 7, 17, 0, 0, 0, time.UTC)
 	note := "manager-only preparation note"
 	input := opendays.ScheduleInput{
 		StartsAt:     startsAt,
@@ -509,15 +510,15 @@ func TestOpenDayPeriodDeletionRequiresManagePermissionAndCascadesSchedule(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	startsOn := time.Date(2026, time.October, 1, 0, 0, 0, 0, time.UTC)
-	endsOn := time.Date(2026, time.October, 31, 0, 0, 0, 0, time.UTC)
+	startsOn := time.Date(2054, time.October, 1, 0, 0, 0, 0, time.UTC)
+	endsOn := time.Date(2054, time.October, 31, 0, 0, 0, 0, time.UTC)
 	period, err := service.CreatePeriod(ctx, manager, "Disposable draft", startsOn, endsOn, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = service.CreateOpenDay(ctx, manager, period.ID, period.Version, opendays.ScheduleInput{
-		StartsAt: time.Date(2026, time.October, 7, 14, 0, 0, 0, time.UTC),
-		EndsAt:   time.Date(2026, time.October, 7, 17, 0, 0, 0, time.UTC),
+		StartsAt: time.Date(2054, time.October, 7, 14, 0, 0, 0, time.UTC),
+		EndsAt:   time.Date(2054, time.October, 7, 17, 0, 0, 0, time.UTC),
 		Requirements: []opendays.RequirementInput{
 			{Kind: "supervisor", RequiredCount: 0},
 			{Kind: "trainee", RequiredCount: 0},
@@ -550,8 +551,8 @@ func TestOpenDayPeriodDeletionRequiresManagePermissionAndCascadesSchedule(t *tes
 		t.Fatal(err)
 	}
 	schedule, err := service.CreateOpenDay(ctx, manager, staffed.ID, staffed.Version, opendays.ScheduleInput{
-		StartsAt: time.Date(2026, time.October, 14, 14, 0, 0, 0, time.UTC),
-		EndsAt:   time.Date(2026, time.October, 14, 17, 0, 0, 0, time.UTC),
+		StartsAt: time.Date(2054, time.October, 14, 14, 0, 0, 0, time.UTC),
+		EndsAt:   time.Date(2054, time.October, 14, 17, 0, 0, 0, time.UTC),
 		Requirements: []opendays.RequirementInput{
 			{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{}},
 			{Kind: "trainee", RequiredCount: 0},

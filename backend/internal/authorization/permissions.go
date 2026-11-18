@@ -72,6 +72,7 @@ const (
 	OpenDaysSignup                     Permission = Permission(openapi.OpenDaysSignup)
 	OpenDaysAssign                     Permission = Permission(openapi.OpenDaysAssign)
 	OpenDaysManage                     Permission = Permission(openapi.OpenDaysManage)
+	OpenDaysEditPast                   Permission = Permission(openapi.OpenDaysEditPast)
 	EventsRead                         Permission = Permission(openapi.EventsRead)
 	EventsManage                       Permission = Permission(openapi.EventsManage)
 	EventsStaffingManage               Permission = Permission(openapi.EventsStaffingManage)
@@ -186,7 +187,7 @@ var registry = []Permission{
 	WebSignIn,
 	PeopleRolesAssign,
 	RolesRead, RolesManage, AuditRead,
-	OpenDaysRead, OpenDaysReadAssignments, OpenDaysSignup, OpenDaysAssign, OpenDaysManage,
+	OpenDaysRead, OpenDaysReadAssignments, OpenDaysSignup, OpenDaysAssign, OpenDaysManage, OpenDaysEditPast,
 	EventsRead, EventsManage, EventsStaffingManage, EventsAssign, EventsSignup, EventsReadAssignments,
 	ManagedDevicesRead, ManagedDevicesManage, SessionPoliciesManage,
 	AttendanceRead, AttendanceAssist, AttendanceCorrect, AttendanceStatisticsRead,
@@ -275,6 +276,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	OpenDaysSignup:                     "Sign up for and leave eligible Open Day assignments.",
 	OpenDaysAssign:                     "Assign and remove eligible people on Open Days.",
 	OpenDaysManage:                     "Manage Open Day periods, schedules, calendar context, and lifecycle.",
+	OpenDaysEditPast:                   "Correct Open Days that have ended: their timeslots, details and assignments.",
 	EventsRead:                         "Read confirmed and past Events with their programme, planning data, files, and staffing counts; drafts need an organizer permission.",
 	EventsManage:                       "Create and manage Events including drafts, lifecycle, publication, schedules, planning, and files.",
 	EventsStaffingManage:               "Manage Event shifts, staffing requirements, eligibility, and staffing identities; see drafts.",

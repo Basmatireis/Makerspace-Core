@@ -89,6 +89,7 @@ const catalog: Catalog = {
     ['open_days.signup', 'Sign up for Open Days'],
     ['open_days.assign', 'Assign Open Day participants'],
     ['open_days.manage', 'Manage Open Days'],
+    ['open_days.edit_past', 'Correct past Open Days'],
   ],
   Events: [
     ['events.read', 'View events'],
