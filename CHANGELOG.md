@@ -4,45 +4,29 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
 ### Added
 
 - **Editable PDF templates.** The wiRef invoice request, the cashbook (Kassabuch) and a new order receipt are rendered from templates with a draft, published versions, history and restore, uploaded images and previews with sample data or real records (`/pdf-templates`, permission `pdf_templates.manage`, migration 00146). Built-in defaults reproduce the previous PDFs. The receipt page has a "Download PDF" button (`GET /orders/{orderId}/receipt.pdf`). Sensitive fields are redacted per reader permission; wiRef record previews also need `orders.read`, uploaded PNG and JPEG images are re-encoded (no EXIF or GPS data is stored) and `pdf_templates.manage` is a high-trust permission. See [docs/pdf-templates.md](docs/pdf-templates.md).
 
 
->>>>>>> origin/claude/pdf-template-editor-64a7e5
 ### Changed
 
 - **PDF template editing.** Templates have a `grid` block for static form tables, the HTU letterhead is available in its parts (`htu-logo`, `htu-corner-top`, `htu-corner-bottom`, `htu-footer`), and previews list the nodes not shown with the data (`inactive`). The built-in templates are rebuilt for editing: every element is titled, the Kassabuch head block and closing sheet are grids, the wiRef recipient details are one fields block. Preview boxes are numbered from page 1 as the editor expects, layers no longer report a box over the whole page.
 - The cashbook PDF is rendered by the template engine instead of dedicated code. Its default file name is `cashbook-<from>-<to>.pdf`; on refund lines the reason now precedes the order summary.
 - **Cashbook says what a receipt was for.** Payment lines of the cashbook PDF and CSV name what their order charged after the order reference: the processes of its machine jobs ("FDM 3D printing und Material"), the material types of articles sold from stock and manual items, joined and cut with an ellipsis (48 characters in the CSV; on the Kassabuch sheet up to 64, as much as fits the text column). The Kassabuch sheet no longer shows the customer; the CSV still does. Refunds and corrections describe the order of the receipt they reverse. Shown only with `orders.read`, like the customer. See [docs/orders.md](docs/orders.md).
-=======
+
 ### Fixed
 
 - **Role filter on the People page for Supervisors.** Viewers who see people's roles in Directory › People (`people.read.all`) can now filter by role without `roles.read`. The filter options come from the new `GET /people/role-options`, which returns only each role's ID, name and system key; role permissions and settings still need `roles.read`.
->>>>>>> origin/claude/people-role-filter-supervisors-563dd5
-=======
-### Changed
 
 - **Replacing an order.** **Replace** on a finalized or reversed order creates the replacement draft already linked to it and prefilled with its customer and items, and opens it. An order has at most one open replacement draft: its page shows "Replacement in progress" with Continue and Discard, and Correct order… commits that draft instead of asking to pick one. Discarding deletes the draft (`POST /orders/{orderId}/discard`, `orders.write`, audited on the original as `order.replacement_discarded`) instead of leaving a cancelled order; replacement drafts can no longer be cancelled. Orders carry `pendingReplacementOrderId`/`pendingReplacementOrderReference`. Migration 00143 cancels all but the newest open replacement draft of each order. See [docs/orders.md](docs/orders.md).
->>>>>>> origin/claude/linked-replacement-order-fab622
-=======
+
 ### Added
 
 - **Signage announcement colour and image (backend).** Announcement templates set a default colour and background image; an announcement may use its own look. The text colour is derived and unreadable colours are refused (`signage_color_contrast`). Live announcements carry the effective colour, text colour and image, players and web embeds may fetch the images of announcements in force, and image assets in use are protected from deletion. Migration 00141.
->>>>>>> origin/claude/announcement-colours-images-9aae26
-=======
-### Changed
 
 - **Signage notices are chosen on the display.** A notification rule's signage action no longer picks displays; it only sets duration and tone. Each display and display group chooses on its new Notices tab which rules' notices it shows, or all of them; a display shows its own choice and its group's, and a display that joins a group picks up the group's notices at once. The rule editor lists where a rule's notices appear. Existing rules keep their displays: migration 00144 turns their `displayIds` into display choices. API: `NotificationRuleSignageTarget.displayIds` is removed; new `GET /signage/notification-rules`, `GET/PUT /signage/displays/{displayId}/notices`, `GET/PUT /signage/groups/{groupId}/notices`, and `signageShownOn` on `GET /notification-rules/{ruleId}`. See [docs/signage.md](docs/signage.md#notices-of-notification-rules).
->>>>>>> origin/claude/signage-notice-opt-in-0a0787
-=======
+
 ### Added
 
 - **"Nothing to bill" for jobs.** A job that has ended, is priced completely and has a final price of 0 (also when waived with a fixed price 0 or a 100 % discount) now has nothing to bill: `MachineJob.nothingToBill`, billing state `nothing_to_bill` in the work items, the billing filter and the dashboard's own jobs, shown neutrally as "Nothing to bill" in the jobs table. Such jobs no longer count as unbilled and are not offered on orders. Jobs whose price is not known yet keep Pending / Price incomplete.
@@ -51,7 +35,6 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - **Jobs worth nothing on orders** (#129). Adding a job with nothing to bill to an order, or refreshing an order line whose job dropped to 0, is refused with `409 nothing_to_bill`; remove such a job from the order instead.
 - **Add to order on a job never offered an existing draft** (#130). The dialog searched drafts by customer name, but drafts have no captured name yet. `GET /orders` gains a `customerId` filter, which the dialog now uses, and `search` matches the current customer name of orders without a captured name. Without a draft of the recipient the dialog says so.
->>>>>>> origin/claude/job-billing-states-c5e33b
 
 ## [0.19.1] - 2026-11-12
 

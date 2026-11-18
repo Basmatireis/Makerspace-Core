@@ -3367,7 +3367,6 @@ func (q *Queries) ListSignageWebEmbeds(ctx context.Context, ids []string) ([]Lis
 	return items, nil
 }
 
-<<<<<<< HEAD
 const listTemplatesUsingImage = `-- name: ListTemplatesUsingImage :many
 SELECT id, name FROM signage_announcement_templates WHERE image_asset_id = $1 ORDER BY lower(name), id
 `
@@ -3395,7 +3394,8 @@ func (q *Queries) ListTemplatesUsingImage(ctx context.Context, id *uuid.UUID) ([
 		return nil, err
 	}
 	return items, nil
-=======
+}
+
 const lockSignageDisplayGroup = `-- name: LockSignageDisplayGroup :one
 SELECT id FROM signage_display_groups WHERE id = $1 FOR NO KEY UPDATE
 `
@@ -3416,7 +3416,6 @@ func (q *Queries) LockSignageDisplayKind(ctx context.Context, id uuid.UUID) (str
 	var kind string
 	err := row.Scan(&kind)
 	return kind, err
->>>>>>> origin/claude/signage-notice-opt-in-0a0787
 }
 
 const lockSignageScenesForShare = `-- name: LockSignageScenesForShare :many

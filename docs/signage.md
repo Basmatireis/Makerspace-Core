@@ -283,7 +283,6 @@ Shows the timelapse videos of recent prints as a slideshow.
 - Player caching: the runtime keeps the listed clips in the Cache Storage cache `signage-timelapses-v1`, keyed by their player URL path (which embeds the sha256), downloading newly listed clips one at a time after the manifest's assets, evicting clips no longer listed, and skipping a clip that does not fit the free quota (reported in the heartbeat errors). The service worker answers the player timelapse path from that cache including byte ranges, like assets. The list is persisted with the other live data (24 h). A clip that is not cached yet is skipped by the widget until it is; without Cache Storage the widget plays the clips from the network.
 - Rendering (shared renderer, the widget code is a lazily loaded chunk like the calendar widget, so the player bundle budget holds): clips newest first, each from the start until it ends or `maxSeconds` pass, then the next with the transition; a widget without clips shows only its style box. Admin previews play the clips the same way.
 
-<<<<<<< HEAD
 ## Announcement colour and image
 
 Migration `00141_signage_announcement_look.sql`. A template sets the default look of its announcements; an announcement may override it ("own look").
@@ -296,7 +295,7 @@ Migration `00141_signage_announcement_look.sql`. A template sets the default loo
 - Rendering: the image is the background behind the text (`cover`, centred), tinted by the announcement colour (else the tone colour) at 85 % opacity, and the text gets a soft shadow of the opposite shade. Whether a photo stays readable still depends on the photo, so check the preview.
 - Asset access: the player and embed asset endpoints also serve an asset that is the effective image of an announcement in force for that display or embed right now (the set the live data shows; a web embed never gets broadcasts) with the matching sha256. Nothing else becomes reachable.
 - Deleting an image asset answers 409 `signage_in_use` while a template (reference kind `template`) or an active or scheduled announcement with its own look (kind `announcement`) uses it. Ended announcements lose the image.
-=======
+
 ## Notices of notification rules
 
 A notification rule with a signage action only says "show on signage" with a duration and a tone; displays and display groups choose which rules' notices they show (issue #120, migration 00144).
@@ -306,7 +305,6 @@ A notification rule with a signage action only says "show on signage" with a dur
 - API: `GET /signage/notification-rules` (`signage.read`) lists central rules with a signage action plus every rule already chosen, with name, `enabled` and `hasSignageAction` only. `GET/PUT /signage/displays/{displayId}/notices` and `GET/PUT /signage/groups/{groupId}/notices` read (`signage.read`) and replace (`signage.manage`) `{allRules, ruleIds (≤ 200)}`; only central rules with a signage action can be newly chosen (422), so choosing never reveals other rules' names. Changes take effect at once, without publishing, and are audited as `signage_display.notices_changed` / `signage_display_group.notices_changed` (changed field `notices`). A chosen rule that loses its signage action stays chosen (and can be kept on save) and shows nothing until it gets one. `signageShownOn` leaves out revoked displays.
 - Admin UI: a **Notices** tab on the display and group pages with "All signage notices" and a checklist of the rules; a grouped display shows its group's choice read-only. The rule editor's signage action shows where the notices currently appear (read-only).
 - Migration: each display a rule's signage actions (first actions and escalation steps) named becomes an opt-in of that display (a rule with several signage actions now reaches the union of their displays on each of them); `displayIds` is removed from the rules. Live notices keep one row per delivery. Rolling back writes the displays that show a rule (own choice, group members, "all", at most 20) back into every signage action of the rule and drops live notices.
->>>>>>> origin/claude/signage-notice-opt-in-0a0787
 
 ## Web embeds
 

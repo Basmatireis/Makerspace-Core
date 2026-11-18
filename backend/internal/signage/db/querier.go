@@ -169,12 +169,9 @@ type Querier interface {
 	// newest first. Without all_machines only the given machines; ended_after NULL means any age.
 	ListSignageTimelapses(ctx context.Context, arg ListSignageTimelapsesParams) ([]ListSignageTimelapsesRow, error)
 	ListSignageWebEmbeds(ctx context.Context, ids []string) ([]ListSignageWebEmbedsRow, error)
-<<<<<<< HEAD
 	ListTemplatesUsingImage(ctx context.Context, id *uuid.UUID) ([]ListTemplatesUsingImageRow, error)
-=======
 	LockSignageDisplayGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	LockSignageDisplayKind(ctx context.Context, id uuid.UUID) (string, error)
->>>>>>> origin/claude/signage-notice-opt-in-0a0787
 	// The scenes a scene list refers to, share-locked so that a concurrent deletion or change of a scene's ratio
 	// either waits for this transaction or is seen by it.
 	LockSignageScenesForShare(ctx context.Context, ids []string) ([]LockSignageScenesForShareRow, error)

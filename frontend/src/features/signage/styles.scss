@@ -522,7 +522,6 @@
   min-inline-size: 0;
 }
 
-<<<<<<< HEAD
 // Colour and image of an announcement (template and start dialogs)
 .sg-look {
   display: grid;
@@ -536,11 +535,12 @@
   grid-auto-flow: column;
   grid-template-columns: minmax(0, 1fr);
   align-items: end;
-=======
+  gap: $spacing-03;
+}
+
 .sg-notice-rule {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
->>>>>>> origin/claude/signage-notice-opt-in-0a0787
   gap: $spacing-03;
 }
