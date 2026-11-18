@@ -177,8 +177,6 @@ func TestVisitorGetsASessionRestrictedToNotificationSettingsOnlyWithThePurpose(t
 	}
 	h.expect(h.do(client, http.MethodPut, "/me/notifications/rules/"+rule.ID.String()+"/preference",
 		map[string]any{"inApp": false, "email": true}), http.StatusNoContent, "")
-	h.expect(h.do(client, http.MethodPut, "/me/notifications/feedback-at-checkout", map[string]any{"ask": false}),
-		http.StatusNoContent, "")
 	h.expect(h.do(client, http.MethodPut, "/me/notifications/consents", map[string]any{
 		"place": "app", "answers": []map[string]any{{"categoryId": h.news.String(), "granted": true}},
 	}), http.StatusOK, "")
@@ -186,16 +184,11 @@ func TestVisitorGetsASessionRestrictedToNotificationSettingsOnlyWithThePurpose(t
 		AND email AND NOT in_app`, 1, visitor.AccountID, rule.ID)
 	assertCount(t, h.pool, `SELECT count(*) FROM audit_events WHERE action='notification_preference.changed'
 		AND actor_account_id=$1 AND metadata->>'personId'=$2`, 1, visitor.AccountID, visitor.PersonID.String())
-	assertCount(t, h.pool, `SELECT count(*) FROM audit_events WHERE action='notification_feedback_at_checkout.changed'
-		AND resource_id=$1`, 1, visitor.PersonID)
 	// The same values again change nothing and are not audited.
 	h.expect(h.do(client, http.MethodPut, "/me/notifications/rules/"+rule.ID.String()+"/preference",
 		map[string]any{"inApp": false, "email": true}), http.StatusNoContent, "")
-	h.expect(h.do(client, http.MethodPut, "/me/notifications/feedback-at-checkout", map[string]any{"ask": false}),
-		http.StatusNoContent, "")
-	assertCount(t, h.pool, `SELECT count(*) FROM audit_events WHERE action IN
-		('notification_preference.changed','notification_feedback_at_checkout.changed') AND actor_account_id=$1`, 2,
-		visitor.AccountID)
+	assertCount(t, h.pool, `SELECT count(*) FROM audit_events WHERE action='notification_preference.changed'
+		AND actor_account_id=$1`, 1, visitor.AccountID)
 
 	// Everything else is refused, including what could widen the session.
 	for _, call := range []struct {
@@ -350,25 +343,18 @@ func TestStaffReadAndChangeAnotherPersonsNotificationSettings(t *testing.T) {
 	preference := base + "/rules/" + rule.ID.String() + "/preference"
 	h.expect(h.do(reader, http.MethodPut, preference, map[string]any{"inApp": false, "email": false}),
 		http.StatusForbidden, "permission_denied")
-	h.expect(h.do(nobody, http.MethodPut, base+"/feedback-at-checkout", map[string]any{"ask": false}),
-		http.StatusForbidden, "permission_denied")
 	h.expect(h.do(supervisor, http.MethodPut, base+"/rules/"+mandatory.ID.String()+"/preference",
 		map[string]any{"inApp": false, "email": false}), http.StatusUnprocessableEntity, "mandatory_notification")
 	h.expect(h.do(supervisor, http.MethodPut, base+"/rules/"+ids.New().String()+"/preference",
 		map[string]any{"inApp": true, "email": false}), http.StatusNotFound, "not_found")
 	h.expect(h.do(supervisor, http.MethodPut, preference, map[string]any{"inApp": false, "email": false}),
 		http.StatusNoContent, "")
-	h.expect(h.do(supervisor, http.MethodPut, base+"/feedback-at-checkout", map[string]any{"ask": false}),
-		http.StatusNoContent, "")
 	assertCount(t, h.pool, `SELECT count(*) FROM notification_rule_preferences WHERE account_id=$1 AND rule_id=$2
 		AND NOT in_app AND NOT email`, 1, target.AccountID, rule.ID)
-	assertCount(t, h.pool, `SELECT count(*) FROM person_notification_settings WHERE person_id=$1
-		AND NOT ask_feedback_at_checkout`, 1, target.PersonID)
-	assertCount(t, h.pool, `SELECT count(*) FROM audit_events WHERE action IN
-		('notification_preference.changed','notification_feedback_at_checkout.changed')
-		AND metadata->>'personId'=$1 AND actor_account_id <> $2`, 2, target.PersonID.String(), target.AccountID)
+	assertCount(t, h.pool, `SELECT count(*) FROM audit_events WHERE action='notification_preference.changed'
+		AND metadata->>'personId'=$1 AND actor_account_id <> $2`, 1, target.PersonID.String(), target.AccountID)
 
-	// A person without an account has no channel choices, but a feedback switch.
+	// A person without an account has no channel choices.
 	response = h.do(supervisor, http.MethodGet, "/people/"+noAccount.String()+"/notification-settings", nil)
 	assertStatus(t, response, http.StatusOK)
 	view = openapi.PersonNotificationSettings{}
@@ -379,8 +365,6 @@ func TestStaffReadAndChangeAnotherPersonsNotificationSettings(t *testing.T) {
 	h.expect(h.do(supervisor, http.MethodPut, "/people/"+noAccount.String()+"/notification-settings/rules/"+
 		rule.ID.String()+"/preference", map[string]any{"inApp": true, "email": true}),
 		http.StatusConflict, notifyrules.PersonHasNoAccountCode)
-	h.expect(h.do(supervisor, http.MethodPut, "/people/"+noAccount.String()+"/notification-settings/feedback-at-checkout",
-		map[string]any{"ask": false}), http.StatusNoContent, "")
 }
 
 func TestNotificationSettingsChangesRaiseOneEventPerSave(t *testing.T) {
@@ -407,7 +391,8 @@ func TestNotificationSettingsChangesRaiseOneEventPerSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	person := e.person("ns-trigger-person")
+	crew := e.role("Trigger crew", nil)
+	person := e.person("ns-trigger-person", crew.ID)
 	staff := e.person("ns-trigger-staff", e.grant(authorization.NotificationSettingsManageAll))
 
 	if _, err := e.rules.AnswerConsents(ctx, person, []notifyrules.ConsentAnswer{
@@ -437,7 +422,10 @@ func TestNotificationSettingsChangesRaiseOneEventPerSave(t *testing.T) {
 		notifyrules.PlaceApp, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.rules.SetPersonAskFeedbackAtCheckout(ctx, staff, person.PersonID, false, nil); err != nil {
+	reachRule := e.rule("lab_rules_published", "{person}", "role:"+crew.ID.String())
+	if err := e.rules.SetPersonRulePreference(
+		ctx, staff, person.PersonID, reachRule.ID, notifyrules.Preference{InApp: false, Email: false}, nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if e.told(person.PersonID, rule.ID) != 2 || e.told(person.PersonID, byStaff.ID) != 1 {
@@ -447,7 +435,7 @@ func TestNotificationSettingsChangesRaiseOneEventPerSave(t *testing.T) {
 		LIMIT 1`, rule.ID).Scan(&body); err != nil {
 		t.Fatal(err)
 	}
-	if body != "Feedback at check-out: off" {
+	if !strings.HasSuffix(body, ": e-mail off, in-app off") {
 		t.Fatalf("staff change body %q", body)
 	}
 
@@ -509,11 +497,6 @@ func TestStaffChangesRespectMastersRuleReachAndRuleVisibility(t *testing.T) {
 
 	// Only a master changes a master's settings.
 	masterAccount := seedAccount(t, h.pool, "ns-reach-master", true)
-	if err := h.rules.SetPersonAskFeedbackAtCheckout(ctx, staff, masterAccount.personID, false, nil); !apperror.IsCode(
-		err, "permission_denied",
-	) {
-		t.Fatalf("staff changed a master's feedback switch: %v", err)
-	}
 	if err := h.rules.SetPersonRulePreference(ctx, staff, masterAccount.personID, rule.ID, notifyrules.Preference{}, nil); !apperror.IsCode(
 		err, "permission_denied",
 	) {
@@ -526,12 +509,12 @@ func TestStaffChangesRespectMastersRuleReachAndRuleVisibility(t *testing.T) {
 	if err != nil || !master.Master {
 		t.Fatalf("master principal: %v", err)
 	}
-	other := seedAccount(t, h.pool, "ns-reach-master-2", true)
-	if err := h.rules.SetPersonAskFeedbackAtCheckout(ctx, master, other.personID, false, nil); err != nil {
-		t.Fatalf("a master changing another master's switch: %v", err)
+	// A master may change another master's settings.
+	otherMaster := seedAccount(t, h.pool, "ns-reach-master-2", true)
+	h.exec(`INSERT INTO person_roles(person_id, role_id) VALUES($1,$2)`, otherMaster.personID, crew.ID)
+	if err := h.rules.SetPersonRulePreference(ctx, master, otherMaster.personID, rule.ID, notifyrules.Preference{Email: true}, nil); err != nil {
+		t.Fatalf("a master changing another master's channels: %v", err)
 	}
-	assertCount(t, h.pool, `SELECT count(*) FROM audit_events WHERE action='notification_feedback_at_checkout.changed'
-		AND resource_id=$1`, 0, masterAccount.personID)
 
 	// Staff who may not read the central rules see that a rule reaches the person, but not what it says.
 	view, err := h.rules.PersonSettings(ctx, staff, target.PersonID)
@@ -582,7 +565,7 @@ func TestLowAssuranceStaffSessionsOnlyReadOtherPeoplesSettings(t *testing.T) {
 	if _, err := h.rules.PersonSettings(ctx, pin, target.PersonID); err != nil {
 		t.Fatalf("PIN session reading another person's settings: %v", err)
 	}
-	if err := h.rules.SetPersonAskFeedbackAtCheckout(ctx, pin, target.PersonID, false, nil); !apperror.IsCode(
+	if err := h.rules.SetPersonRulePreference(ctx, pin, target.PersonID, ids.New(), notifyrules.Preference{InApp: true}, nil); !apperror.IsCode(
 		err, "permission_denied",
 	) {
 		t.Fatalf("PIN session changed another person's settings: %v", err)
@@ -624,7 +607,8 @@ func TestNotificationSettingsTriggerLimitsChannelsRecipientsAndSubscribers(t *te
 		t.Fatal(err)
 	}
 	person := e.person("ns-limit-person")
-	if err := e.rules.SetAskFeedbackAtCheckout(ctx, person, false, nil); err != nil {
+	if _, err := e.rules.AnswerConsents(ctx, person, []notifyrules.ConsentAnswer{{CategoryID: e.news, Granted: true}},
+		notifyrules.PlaceApp, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if e.told(person.PersonID, rule.ID) != 1 || e.told(allowed.PersonID, rule.ID) != 1 || e.told(blind.PersonID, rule.ID) != 0 {
@@ -682,8 +666,9 @@ func TestRestrictedSessionEdgeCases(t *testing.T) {
 	h.expect(h.do(client, http.MethodGet, "/me/notifications/settings", nil), http.StatusOK, "")
 
 	// The CSRF check applies to restricted sessions as to any other.
-	response := doJSON(t, client, http.MethodPut, h.server.URL+"/api/v1/me/notifications/feedback-at-checkout",
-		settingsOrigin, "", map[string]any{"ask": false})
+	response := doJSON(t, client, http.MethodPut,
+		h.server.URL+"/api/v1/me/notifications/rules/"+ids.New().String()+"/preference",
+		settingsOrigin, "", map[string]any{"inApp": false, "email": true})
 	h.expect(response, http.StatusForbidden, "csrf_invalid")
 
 	// A disabled account's restricted session stops working.

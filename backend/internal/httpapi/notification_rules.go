@@ -363,7 +363,7 @@ func notificationSettingsDTO(settings notifyrules.Settings) openapi.Notification
 		})
 	}
 	return openapi.NotificationSettings{
-		Consents: consents, ConsentPending: settings.ConsentPending, AskFeedbackAtCheckout: settings.AskFeedbackAtCheckout,
+		Consents: consents, ConsentPending: settings.ConsentPending,
 		Rules: rules,
 	}
 }
@@ -426,23 +426,6 @@ func (s *Server) SetOwnNotificationRulePreference(
 	return openapi.SetOwnNotificationRulePreference204Response{}, nil
 }
 
-func (s *Server) SetOwnFeedbackAtCheckout(
-	ctx context.Context,
-	r openapi.SetOwnFeedbackAtCheckoutRequestObject,
-) (openapi.SetOwnFeedbackAtCheckoutResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	if err := s.notifyRules.SetAskFeedbackAtCheckout(ctx, p, r.Body.Ask, requestIDPointer(ctx)); err != nil {
-		return nil, err
-	}
-	return openapi.SetOwnFeedbackAtCheckout204Response{}, nil
-}
-
 func (s *Server) GetPersonNotificationSettings(
 	ctx context.Context,
 	r openapi.GetPersonNotificationSettingsRequestObject,
@@ -478,25 +461,6 @@ func (s *Server) SetPersonNotificationRulePreference(
 		return nil, err
 	}
 	return openapi.SetPersonNotificationRulePreference204Response{}, nil
-}
-
-func (s *Server) SetPersonFeedbackAtCheckout(
-	ctx context.Context,
-	r openapi.SetPersonFeedbackAtCheckoutRequestObject,
-) (openapi.SetPersonFeedbackAtCheckoutResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	if err := s.notifyRules.SetPersonAskFeedbackAtCheckout(
-		ctx, p, r.PersonId, r.Body.Ask, requestIDPointer(ctx),
-	); err != nil {
-		return nil, err
-	}
-	return openapi.SetPersonFeedbackAtCheckout204Response{}, nil
 }
 
 func (s *Server) ListOwnNotificationSubscriptions(

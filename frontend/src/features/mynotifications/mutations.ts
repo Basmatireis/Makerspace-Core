@@ -2,7 +2,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NotificationSettings } from '../../api/generated/models';
 import {
   answerOwnNotificationConsents,
-  setOwnFeedbackAtCheckout,
   setOwnNotificationRulePreference,
 } from '../../api/generated/notification-rules/notification-rules';
 import { useNotify } from '../../app/toasts';
@@ -51,22 +50,6 @@ export function useChangeConsent() {
     onError: (_error, _answer, rollback?: Rollback) => {
       if (rollback?.previous) queryClient.setQueryData(myNotificationKeys.settings(), rollback.previous);
       notify({ kind: 'error', title: 'Your answer was not saved', subtitle: 'Check the connection and try again.' });
-    },
-  });
-}
-
-export function useChangeFeedbackAtCheckout() {
-  const queryClient = useQueryClient();
-  const notify = useNotify();
-  const optimistic = useOptimisticSettings();
-  return useMutation({
-    mutationFn: (ask: boolean) => setOwnFeedbackAtCheckout({ ask }),
-    onMutate: (ask) => optimistic((settings) => ({ ...settings, askFeedbackAtCheckout: ask })),
-    onSuccess: (_result, ask) =>
-      notify({ kind: 'success', title: ask ? 'The tablet may ask you at check-out' : 'The tablet will not ask you' }),
-    onError: (_error, _ask, rollback?: Rollback) => {
-      if (rollback?.previous) queryClient.setQueryData(myNotificationKeys.settings(), rollback.previous);
-      notify({ kind: 'error', title: 'Your choice was not saved', subtitle: 'Check the connection and try again.' });
     },
   });
 }

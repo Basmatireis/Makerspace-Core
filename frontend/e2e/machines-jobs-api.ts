@@ -958,7 +958,6 @@ function notificationSettings() {
   return {
     consents: [consent(951, 'Service & safety', 'required', null), consent(952, 'News & events', 'consent', true)],
     consentPending: false,
-    askFeedbackAtCheckout: true,
     rules: [
       {
         ruleId: id(961),
@@ -1674,10 +1673,6 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
     // Notification settings: the standalone page behind every mail's link, and the staff view of a person.
     if (path === '/api/v1/me/notifications/settings') return ok(route, world.notificationSettings);
     if (path === '/api/v1/me/notifications/consents' && method === 'PUT') return ok(route, world.notificationSettings);
-    if (path === '/api/v1/me/notifications/feedback-at-checkout' && method === 'PUT') {
-      world.notificationSettings.askFeedbackAtCheckout = Boolean(body?.ask);
-      return route.fulfill({ status: 204 });
-    }
     if ((match = path.match(/^\/api\/v1\/me\/notifications\/rules\/([^/]+)\/preference$/)) && method === 'PUT') {
       const rule = world.notificationSettings.rules.find((item) => item.ruleId === match?.[1]);
       if (!rule) return notFound(route);

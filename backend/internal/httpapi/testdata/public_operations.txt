@@ -87,7 +87,6 @@ POST /terminal/email-code RequestTerminalEmailCode
 POST /terminal/presence/{visitId}/check-out TerminalPublicCheckOut
 POST /terminal/survey-offers/{token}/answer-now TerminalSurveyOfferAnswerNow
 POST /terminal/survey-offers/{token}/decline TerminalSurveyOfferDecline
-POST /terminal/survey-offers/{token}/never TerminalSurveyOfferNever
 POST /terminal/survey-offers/{token}/responses TerminalSurveyOfferSubmit
 POST /terminal/survey-offers/{token}/send-email TerminalSurveyOfferSendEmail
 POST /visitor-enrollment/context BeginVisitorEnrollment

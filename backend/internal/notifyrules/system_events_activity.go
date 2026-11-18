@@ -304,7 +304,7 @@ func (e *SystemEvents) RoleChanged(
 }
 
 // NotificationSettingsChanged raises notification_settings_changed once for a save that changed a person's channel
-// choices, feedback-at-check-out switch or consents. changes are readable lines of what changed, labels only; the
+// choices or consents. changes are readable lines of what changed, labels only; the
 // actor is the person who saved, the person themselves or a staff member.
 func (e *SystemEvents) NotificationSettingsChanged(
 	ctx context.Context,

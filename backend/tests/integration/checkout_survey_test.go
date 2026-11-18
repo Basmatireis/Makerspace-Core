@@ -210,16 +210,6 @@ func TestSurveyIsOfferedOnlyAfterASelfCheckOutThatQualifies(t *testing.T) {
 		t.Fatal("offered on a tablet with offerSurveysAtCheckout off")
 	}
 
-	// A person who switched the question off.
-	c, _ := e.person("c", true, e.device.Device.ID)
-	if _, err := e.pool.Exec(e.ctx, `INSERT INTO person_notification_settings (person_id, ask_feedback_at_checkout) VALUES ($1, false)`,
-		c.personID); err != nil {
-		t.Fatal(err)
-	}
-	if visit = e.selfCheckOut(c, e.device); visit.SurveyOffer != nil {
-		t.Fatal("offered although the person turned feedback at check-out off")
-	}
-
 	// A supervisor's check-out is not at a tablet. (Tapping a name offers an anonymous survey, tested below.)
 	_, f := e.person("f", true, e.device.Device.ID)
 	supervised, err := e.attendance.SupervisedCheckOut(e.ctx, e.supervisor(), f, nil)
@@ -312,7 +302,7 @@ func TestAnsweringTheOfferAtTheTabletKeepsTheSurveyOutOfTheMailbox(t *testing.T)
 		}
 		a, _ := e.person("answers", true, e.device.Device.ID)
 		offer := e.selfCheckOut(a, e.device).SurveyOffer
-		if offer == nil || !offer.MailConsent || !offer.CanStopAsking || offer.Anonymous != anonymous {
+		if offer == nil || !offer.MailConsent || offer.Anonymous != anonymous {
 			t.Fatalf("offer with consent = %+v", offer)
 		}
 		survey, err := e.svc.OfferedSurvey(e.ctx, e.device.Device.ID, offer.Token)
@@ -389,39 +379,23 @@ func TestSendingTheOfferByEmailWorksWithoutConsentAndLeavesConsentAlone(t *testi
 	}
 }
 
-func TestDecliningAndNeverAskingEndTheOfferAndStartTheCooldown(t *testing.T) {
+func TestDecliningEndsTheOfferAndStartsTheCooldown(t *testing.T) {
 	e := newCheckoutEnv(t, true)
 	a, _ := e.person("no", true, e.device.Device.ID)
 	visit := e.selfCheckOut(a, e.device)
-	if err := e.svc.DeclineOffered(e.ctx, e.device.Device.ID, visit.SurveyOffer.Token, false, nil); err != nil {
+	if err := e.svc.DeclineOffered(e.ctx, e.device.Device.ID, visit.SurveyOffer.Token); err != nil {
 		t.Fatal(err)
 	}
 	if e.count(`SELECT count(*) FROM survey_invitations WHERE status = 'cancelled'`) != 1 ||
-		e.count(`SELECT count(*) FROM survey_ask_cooldowns WHERE person_id = $1`, a.personID) != 1 ||
-		e.count(`SELECT count(*) FROM person_notification_settings WHERE person_id = $1 AND NOT ask_feedback_at_checkout`, a.personID) != 0 {
-		t.Fatal("decline did not cancel the invitation and keep the choice")
+		e.count(`SELECT count(*) FROM survey_ask_cooldowns WHERE person_id = $1`, a.personID) != 1 {
+		t.Fatal("decline did not cancel the invitation and start the cooldown")
 	}
-	if err := e.svc.DeclineOffered(e.ctx, e.device.Device.ID, visit.SurveyOffer.Token, false, nil); !errors.Is(err, apperror.NotFound) {
+	if err := e.svc.DeclineOffered(e.ctx, e.device.Device.ID, visit.SurveyOffer.Token); !errors.Is(err, apperror.NotFound) {
 		t.Fatalf("second decline: %v", err)
 	}
 	e.checkIn(a, e.device.Device.ID)
 	if again := e.selfCheckOut(a, e.device); again.SurveyOffer != nil {
 		t.Fatal("asked again within the cooldown after declining")
-	}
-
-	// Never: the person's choice turns off, and the next survey is not offered either.
-	b, _ := e.person("never", true, e.device.Device.ID)
-	second := e.selfCheckOut(b, e.device)
-	if err := e.svc.DeclineOffered(e.ctx, e.device.Device.ID, second.SurveyOffer.Token, true, nil); err != nil {
-		t.Fatal(err)
-	}
-	if e.count(`SELECT count(*) FROM person_notification_settings WHERE person_id = $1 AND NOT ask_feedback_at_checkout`, b.personID) != 1 ||
-		e.count(`SELECT count(*) FROM audit_events WHERE action = 'survey_offer.never'`) != 1 {
-		t.Fatal("never did not switch the question off")
-	}
-	e.checkIn(b, e.device.Device.ID)
-	if again := e.selfCheckOut(b, e.device); again.SurveyOffer != nil {
-		t.Fatal("asked again after never")
 	}
 }
 
@@ -434,8 +408,7 @@ func TestOfferTokensExpireAndBelongToOneTablet(t *testing.T) {
 		"answer-now": func(d uuid.UUID) error { _, err := e.svc.OfferedSurvey(e.ctx, d, token); return err },
 		"responses":  func(d uuid.UUID) error { return e.svc.SubmitOffered(e.ctx, d, token, nil) },
 		"send-email": func(d uuid.UUID) error { return e.svc.SendOfferedByEmail(e.ctx, d, token, nil) },
-		"decline":    func(d uuid.UUID) error { return e.svc.DeclineOffered(e.ctx, d, token, false, nil) },
-		"never":      func(d uuid.UUID) error { return e.svc.DeclineOffered(e.ctx, d, token, true, nil) },
+		"decline":    func(d uuid.UUID) error { return e.svc.DeclineOffered(e.ctx, d, token) },
 	} {
 		if err := call(other.Device.ID); !errors.Is(err, apperror.NotFound) {
 			t.Fatalf("%s on another tablet: %v", name, err)
@@ -448,8 +421,7 @@ func TestOfferTokensExpireAndBelongToOneTablet(t *testing.T) {
 		"answer-now": func(d uuid.UUID) error { _, err := e.svc.OfferedSurvey(e.ctx, d, token); return err },
 		"responses":  func(d uuid.UUID) error { return e.svc.SubmitOffered(e.ctx, d, token, nil) },
 		"send-email": func(d uuid.UUID) error { return e.svc.SendOfferedByEmail(e.ctx, d, token, nil) },
-		"decline":    func(d uuid.UUID) error { return e.svc.DeclineOffered(e.ctx, d, token, false, nil) },
-		"never":      func(d uuid.UUID) error { return e.svc.DeclineOffered(e.ctx, d, token, true, nil) },
+		"decline":    func(d uuid.UUID) error { return e.svc.DeclineOffered(e.ctx, d, token) },
 	} {
 		if err := call(e.device.Device.ID); !errors.Is(err, apperror.NotFound) {
 			t.Fatalf("%s after expiry: %v", name, err)

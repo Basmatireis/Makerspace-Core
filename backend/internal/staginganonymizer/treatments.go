@@ -421,7 +421,6 @@ var Tables = []Table{
 		"photo_reference":      Cleared,
 		"profile_image_source": Cleared,
 	}},
-	{Name: "person_notification_settings"},
 	{Name: "person_roles"},
 	{Name: "pin_credentials", Emptied: EmptiedCredential},
 	{Name: "pin_login_throttles", Emptied: EmptiedSignInState},

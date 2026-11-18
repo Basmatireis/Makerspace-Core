@@ -973,7 +973,6 @@ export * from './setAccountPinRequest';
 export * from './setBillingPartyPricingGroupRequest';
 export * from './setBillingPartyPricingGroupRequestParty';
 export * from './setBillingPartyPricingGroupRequestPartyKind';
-export * from './setFeedbackAtCheckoutRequest';
 export * from './setMachineJobPriceAdjustmentRequest';
 export * from './setMachineRunSignageVisibilityRequest';
 export * from './setNotificationRulePreferenceRequest';

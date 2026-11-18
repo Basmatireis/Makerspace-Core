@@ -571,30 +571,6 @@ export const terminalSurveyOfferDecline = async (token: string, options?: Parame
 );}
 
 
-export const getTerminalSurveyOfferNeverUrl = (token: string,) => {
-
-
-
-
-  return `/api/v1/terminal/survey-offers/${token}/never`
-}
-
-/**
- * Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit. 404 for an offer made after a tap check-out, since anyone can tap any name.
- * @summary Decline and switch off feedback questions at check-out for this person
- */
-export const terminalSurveyOfferNever = async (token: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
-
-  return apiFetch<void>(getTerminalSurveyOfferNeverUrl(token),
-  {
-    ...options,
-    method: 'POST'
-
-
-  }
-);}
-
-
 export const getSaveTerminalCameraCalibrationUrl = () => {
 
 

@@ -51,7 +51,6 @@ var MergeReferences = []MergeReference{
 	{"organization_members", "person_id", "people", ruleDeduplicated},
 	{"notification_consents", "person_id", "people", ruleNotifyPerson},
 	{"notification_firing_recipients", "person_id", "people", ruleNotifyPerson},
-	{"person_notification_settings", "person_id", "people", ruleNotifyPerson},
 	{"person_roles", "person_id", "people", ruleUnionedRoles},
 	{"scim_users", "person_id", "people", ruleSCIM},
 	{"staffing_excusals", "person_id", "people", ruleDeduplicated},

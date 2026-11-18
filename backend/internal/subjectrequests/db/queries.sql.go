@@ -116,8 +116,7 @@ func (q *Queries) CountMachineJobs(ctx context.Context, subjectPerson uuid.UUID)
 }
 
 const countNotificationConsents = `-- name: CountNotificationConsents :one
-SELECT ((SELECT count(*) FROM notification_consents WHERE person_id = $1::uuid)
-    + (SELECT count(*) FROM person_notification_settings WHERE person_id = $1::uuid))::bigint
+SELECT (SELECT count(*) FROM notification_consents WHERE person_id = $1::uuid)::bigint
 `
 
 func (q *Queries) CountNotificationConsents(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
@@ -557,9 +556,7 @@ SELECT jsonb_build_object(
         'category', c.name, 'granted', n.granted, 'textVersion', n.text_version, 'answeredAt', n.answered_at,
         'place', n.place) ORDER BY c.position, c.id)
         FROM notification_consents n JOIN notification_categories c ON c.id = n.category_id
-        WHERE n.person_id = $1::uuid), '[]'::jsonb),
-    'askFeedbackAtCheckout', (SELECT s.ask_feedback_at_checkout FROM person_notification_settings s
-        WHERE s.person_id = $1::uuid)
+        WHERE n.person_id = $1::uuid), '[]'::jsonb)
 )::jsonb AS document
 `
 

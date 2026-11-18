@@ -2,7 +2,6 @@ import { InlineNotification } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getPersonNotificationSettings,
-  setPersonFeedbackAtCheckout,
   setPersonNotificationRulePreference,
 } from '../../../api/generated/notification-rules/notification-rules';
 import { ApiError } from '../../../api/http-client';
@@ -32,8 +31,8 @@ function failureText(error: unknown): string {
 
 /**
  * What a person allows us to send and how central rules reach them, for staff. Consent answers are the person's own
- * and are only shown; with `notification_settings.manage.all` the channels of each rule and the check-out feedback
- * switch can be changed for them. The backend enforces both permissions.
+ * and are only shown; with `notification_settings.manage.all` the channels of each rule can be changed for them. The
+ * backend enforces both permissions.
  */
 export function PersonNotificationsSection({ personId, canManage }: { personId: string; canManage: boolean }) {
   const queryClient = useQueryClient();
@@ -47,20 +46,14 @@ export function PersonNotificationsSection({ personId, canManage }: { personId: 
     onSuccess: (_result, change) => notify({ kind: 'success', title: 'Saved', subtitle: change.name }),
     onSettled: refresh,
   });
-  const feedback = useMutation({
-    mutationFn: (ask: boolean) => setPersonFeedbackAtCheckout(personId, { ask }),
-    onSuccess: (_result, ask) =>
-      notify({ kind: 'success', title: ask ? 'The tablet may ask at check-out' : 'The tablet will not ask' }),
-    onSettled: refresh,
-  });
-  const failure = preference.error ?? feedback.error;
+  const failure = preference.error;
 
   return (
     <DetailSection
       title="Notifications"
       description={
         canManage
-          ? 'Consent answers are the person’s own. You can change how central rules reach them and the check-out feedback question.'
+          ? 'Consent answers are the person’s own. You can change how central rules reach them.'
           : 'What this person allows and how central rules reach them.'
       }
     >
@@ -82,7 +75,6 @@ export function PersonNotificationsSection({ personId, canManage }: { personId: 
               subtitle={failureText(failure)}
               onCloseButtonClick={() => {
                 preference.reset();
-                feedback.reset();
               }}
             />
           )}
@@ -92,14 +84,10 @@ export function PersonNotificationsSection({ personId, canManage }: { personId: 
               lowContrast
               hideCloseButton
               title="No account"
-              subtitle="This person has no account, so no rules reach them and there are no channel choices. Their consent answers and the check-out question still apply."
+              subtitle="This person has no account, so no rules reach them and there are no channel choices. Their consent answers still apply."
             />
           )}
-          <ConsentCardsView
-            settings={query.data.settings}
-            subject="person"
-            onFeedback={canManage ? (ask) => feedback.mutate(ask) : undefined}
-          />
+          <ConsentCardsView settings={query.data.settings} subject="person" />
           {query.data.hasAccount && (
             <ReachingRulesView
               settings={query.data.settings}

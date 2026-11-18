@@ -1,11 +1,10 @@
-import { Button, InlineNotification, Link, ProgressBar, TextArea } from '@carbon/react';
+import { Button, InlineNotification, ProgressBar, TextArea } from '@carbon/react';
 import { CheckmarkFilled, Email, Star, StarFilled } from '@carbon/icons-react';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   terminalSurveyOfferAnswerNow,
   terminalSurveyOfferDecline,
-  terminalSurveyOfferNever,
   terminalSurveyOfferSendEmail,
   terminalSurveyOfferSubmit,
 } from '../../../api/generated/attendance/attendance';
@@ -36,7 +35,7 @@ export function SurveyOfferScreen({
   offer: TerminalSurveyOffer;
   displayName: string;
   resetSeconds: number;
-  /** "No thanks" and "Don't ask me again": the parent shows the normal check-out result. */
+  /** "No thanks": the parent shows the normal check-out result. */
   onDeclined: () => void;
   onHome: () => void;
 }) {
@@ -97,9 +96,8 @@ function OfferStep({
   const answerNow = useMutation({ mutationFn: () => terminalSurveyOfferAnswerNow(token), onSuccess: onQuestions });
   const sendEmail = useMutation({ mutationFn: () => terminalSurveyOfferSendEmail(token), onSuccess: onMailed });
   const decline = useMutation({ mutationFn: () => terminalSurveyOfferDecline(token), onSuccess: onDeclined });
-  const never = useMutation({ mutationFn: () => terminalSurveyOfferNever(token), onSuccess: onDeclined });
-  const busy = answerNow.isPending || sendEmail.isPending || decline.isPending || never.isPending;
-  const error = answerNow.error ?? sendEmail.error ?? decline.error ?? never.error;
+  const busy = answerNow.isPending || sendEmail.isPending || decline.isPending;
+  const error = answerNow.error ?? sendEmail.error ?? decline.error;
   // With the survey e-mail consent the invitation arrives anyway, so "No thanks" would promise something it cannot.
   const mailedAnyway = offer.mailConsent && offer.canSendByEmail;
   return (
@@ -133,17 +131,6 @@ function OfferStep({
           </Button>
         )}
       </div>
-      {offer.canStopAsking && (
-        <Link
-          href="#never"
-          onClick={(event) => {
-            event.preventDefault();
-            if (!busy) never.mutate();
-          }}
-        >
-          Don&apos;t ask me at check-out again
-        </Link>
-      )}
     </div>
   );
 }
