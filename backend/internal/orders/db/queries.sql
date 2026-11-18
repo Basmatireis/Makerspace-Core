@@ -31,10 +31,23 @@ cancelled_at=CASE WHEN $2::text='cancelled' THEN now() ELSE cancelled_at END,
 reversed_at=CASE WHEN $2::text='reversed' THEN now() ELSE reversed_at END WHERE id=$1;
 -- name: ListOrders :many
 SELECT o.* FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
-WHERE (sqlc.arg(search)::text='' OR o.reference ILIKE '%'||sqlc.arg(search)||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||sqlc.arg(search)||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR o.status=sqlc.arg(status)) ORDER BY o.created_at DESC,o.id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+LEFT JOIN people cp ON cp.id=o.customer_person_id LEFT JOIN organizations cg ON cg.id=o.customer_organization_id
+-- Drafts have no captured name yet, so the current name of their customer is searched instead.
+WHERE (sqlc.arg(search)::text='' OR o.reference ILIKE '%'||sqlc.arg(search)||'%'
+       OR COALESCE(cs.display_name,cp.first_name||' '||cp.last_name,cg.name,'') ILIKE '%'||sqlc.arg(search)||'%'
+       OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||sqlc.arg(search)||'%')
+  AND (sqlc.arg(status)::text='' OR o.status=sqlc.arg(status))
+  AND (sqlc.narg(customer_id)::uuid IS NULL OR o.customer_person_id=sqlc.narg(customer_id) OR o.customer_organization_id=sqlc.narg(customer_id))
+ORDER BY o.created_at DESC,o.id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 -- name: CountOrders :one
 SELECT count(*) FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
-WHERE (sqlc.arg(search)::text='' OR o.reference ILIKE '%'||sqlc.arg(search)||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||sqlc.arg(search)||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR o.status=sqlc.arg(status));
+LEFT JOIN people cp ON cp.id=o.customer_person_id LEFT JOIN organizations cg ON cg.id=o.customer_organization_id
+-- Drafts have no captured name yet, so the current name of their customer is searched instead.
+WHERE (sqlc.arg(search)::text='' OR o.reference ILIKE '%'||sqlc.arg(search)||'%'
+       OR COALESCE(cs.display_name,cp.first_name||' '||cp.last_name,cg.name,'') ILIKE '%'||sqlc.arg(search)||'%'
+       OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||sqlc.arg(search)||'%')
+  AND (sqlc.arg(status)::text='' OR o.status=sqlc.arg(status))
+  AND (sqlc.narg(customer_id)::uuid IS NULL OR o.customer_person_id=sqlc.narg(customer_id) OR o.customer_organization_id=sqlc.narg(customer_id));
 -- name: GetCustomerName :one
 SELECT COALESCE(s.display_name,p.first_name || ' ' || p.last_name,g.name)::text AS display_name
 FROM orders o LEFT JOIN order_customer_snapshots s ON s.order_id=o.id

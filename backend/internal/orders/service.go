@@ -560,6 +560,7 @@ func (s *Service) List(
 	ctx context.Context,
 	p authorization.Principal,
 	search, status string,
+	customerID *uuid.UUID,
 	page, size int,
 ) (OrderPage, error) {
 	if err := require(p, authorization.OrdersRead); err != nil {
@@ -572,13 +573,18 @@ func (s *Service) List(
 	q := db.New(s.pool)
 	rows, err := q.ListOrders(
 		ctx,
-		db.ListOrdersParams{Search: search, Status: status, PageLimit: limit, PageOffset: offset},
+		db.ListOrdersParams{
+			Search: search, Status: status, CustomerID: customerID, PageLimit: limit, PageOffset: offset,
+		},
 	)
 	if err != nil {
 		return OrderPage{}, err
 	}
 	result := OrderPage{Items: []Order{}, Page: int64(page), PageSize: int64(size)}
-	result.Total, err = q.CountOrders(ctx, db.CountOrdersParams{Search: search, Status: status})
+	result.Total, err = q.CountOrders(
+		ctx,
+		db.CountOrdersParams{Search: search, Status: status, CustomerID: customerID},
+	)
 	if err != nil {
 		return result, err
 	}

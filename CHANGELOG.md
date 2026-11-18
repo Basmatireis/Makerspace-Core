@@ -8,6 +8,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 ### Changed
 
 - **Cashbook says what a receipt was for.** Payment lines of the cashbook PDF and CSV name what their order charged after the order reference: the processes of its machine jobs ("FDM 3D printing und Material"), the material types of articles sold from stock and manual items, joined and cut with an ellipsis (48 characters in the CSV; on the Kassabuch sheet up to 64, as much as fits the text column). The Kassabuch sheet no longer shows the customer; the CSV still does. Refunds and corrections describe the order of the receipt they reverse. Shown only with `orders.read`, like the customer. See [docs/orders.md](docs/orders.md).
@@ -31,6 +32,16 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - **Signage notices are chosen on the display.** A notification rule's signage action no longer picks displays; it only sets duration and tone. Each display and display group chooses on its new Notices tab which rules' notices it shows, or all of them; a display shows its own choice and its group's, and a display that joins a group picks up the group's notices at once. The rule editor lists where a rule's notices appear. Existing rules keep their displays: migration 00144 turns their `displayIds` into display choices. API: `NotificationRuleSignageTarget.displayIds` is removed; new `GET /signage/notification-rules`, `GET/PUT /signage/displays/{displayId}/notices`, `GET/PUT /signage/groups/{groupId}/notices`, and `signageShownOn` on `GET /notification-rules/{ruleId}`. See [docs/signage.md](docs/signage.md#notices-of-notification-rules).
 >>>>>>> origin/claude/signage-notice-opt-in-0a0787
+=======
+### Added
+
+- **"Nothing to bill" for jobs.** A job that has ended, is priced completely and has a final price of 0 (also when waived with a fixed price 0 or a 100 % discount) now has nothing to bill: `MachineJob.nothingToBill`, billing state `nothing_to_bill` in the work items, the billing filter and the dashboard's own jobs, shown neutrally as "Nothing to bill" in the jobs table. Such jobs no longer count as unbilled and are not offered on orders. Jobs whose price is not known yet keep Pending / Price incomplete.
+
+### Fixed
+
+- **Jobs worth nothing on orders** (#129). Adding a job with nothing to bill to an order, or refreshing an order line whose job dropped to 0, is refused with `409 nothing_to_bill`; remove such a job from the order instead.
+- **Add to order on a job never offered an existing draft** (#130). The dialog searched drafts by customer name, but drafts have no captured name yet. `GET /orders` gains a `customerId` filter, which the dialog now uses, and `search` matches the current customer name of orders without a captured name. Without a draft of the recipient the dialog says so.
+>>>>>>> origin/claude/job-billing-states-c5e33b
 
 ## [0.19.1] - 2026-11-12
 

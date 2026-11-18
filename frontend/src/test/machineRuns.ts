@@ -192,6 +192,7 @@ export function jobFixture(overrides: Partial<MachineJob> = {}): MachineJob {
     calculatedPrice: '12.50',
     priceAdjustment: null,
     effectivePrice: '12.50',
+    nothingToBill: false,
     hiddenFromSignage: false,
     attention: [],
     version: 3,

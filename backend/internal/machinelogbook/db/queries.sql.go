@@ -6256,6 +6256,9 @@ SELECT j.id, j.display_id,
                 (CASE WHEN oi.source_billing_revision IS NOT NULL AND oi.source_billing_revision <> j.billing_revision THEN 'order_outdated' ELSE 'on_order' END)
              WHEN j.pricing_status = 'pending' THEN 'pending'
              WHEN j.pricing_status = 'incomplete' THEN 'price_incomplete'
+             -- MachineJob.NothingToBill: ended, priced completely, final price zero.
+             WHEN NOT COALESCE(s.running, false) AND (s.job_id IS NOT NULL OR j.artifact_id IS NULL) AND j.effective_price = 0
+                 THEN 'nothing_to_bill'
              ELSE 'not_on_order' END)::text AS billing_state,
        oo.reference AS order_reference
 FROM machine_jobs j
@@ -7347,6 +7350,9 @@ WITH items AS (
                     (CASE WHEN oi.source_billing_revision IS NOT NULL AND oi.source_billing_revision <> j.billing_revision THEN 'order_outdated' ELSE 'on_order' END)
                  WHEN j.pricing_status = 'pending' THEN 'pending'
                  WHEN j.pricing_status = 'incomplete' THEN 'price_incomplete'
+                 -- MachineJob.NothingToBill: ended, priced completely, final price zero.
+                 WHEN NOT COALESCE(s.running, false) AND (s.job_id IS NOT NULL OR j.artifact_id IS NULL) AND j.effective_price = 0
+                 THEN 'nothing_to_bill'
                  ELSE 'not_on_order' END)::text,
            oo.id, oo.reference,
            j.version,

@@ -2,10 +2,12 @@ import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient } from '@tanstack/react-query';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
+import { customerJobsQuery } from './queries';
 import { as, everything, finalized, ids, order, orderList, paid } from './testData';
 
 vi.mock('@carbon/charts-react', () => ({ LineChart: () => <div />, SimpleBarChart: () => <div /> }));
@@ -516,5 +518,20 @@ describe('orders list: row actions', () => {
     renderRoute(<App />, '/orders');
     const row = (await screen.findByText('O-2026-000010')).closest('tr')!;
     expect(row.lastElementChild).toBeEmptyDOMElement();
+  });
+
+  it('offers an order only the jobs billing=not_on_order lists, so a job with nothing to bill drops out', async () => {
+    const requests: URL[] = [];
+    server.use(
+      http.get('*/api/v1/machine-logbook/work-items', ({ request }) => {
+        requests.push(new URL(request.url));
+        return HttpResponse.json({ items: [{ kind: 'job', id: 'j1' }], page: 1, pageSize: 100, total: 1 });
+      }),
+    );
+    const client = new QueryClient();
+    const items = await client.fetchQuery(customerJobsQuery('p1'));
+    expect(items.map((item) => item.id)).toEqual(['j1']);
+    expect(requests[0].searchParams.getAll('billing')).toEqual(['not_on_order']);
+    expect(requests[0].searchParams.get('customerId')).toBe('p1');
   });
 });

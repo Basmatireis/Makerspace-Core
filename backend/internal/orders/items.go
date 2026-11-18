@@ -157,6 +157,14 @@ func (s *Service) insertItem(
 		if input.ExpectedJobVersion < 1 || job.Version != input.ExpectedJobVersion {
 			return db.OrderItem{}, apperror.StaleWrite
 		}
+		// A job without a chargeable amount would only be claimed for nothing; a job item that dropped to zero
+		// cannot be refreshed either and has to be removed from the order.
+		if job.NothingToBill() {
+			return db.OrderItem{}, apperror.Conflicting(
+				"nothing_to_bill",
+				"The job has nothing to bill because its final price is 0; it cannot be charged on an order",
+			)
+		}
 		evidence, err := snapshot(job)
 		if err != nil {
 			return db.OrderItem{}, err

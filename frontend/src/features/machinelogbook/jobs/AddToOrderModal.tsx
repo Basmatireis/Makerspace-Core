@@ -95,7 +95,11 @@ function AddToOrderForm({ job, onClose }: { job: MachineJob; onClose: () => void
             id="add-to-order-existing"
             value="existing"
             disabled={orders.length === 0}
-            labelText={`Draft order of ${recipient}`}
+            labelText={
+              orders.length === 0 && drafts.isSuccess
+                ? `Draft order of ${recipient} (none open)`
+                : `Draft order of ${recipient}`
+            }
           />
           <RadioButton id="add-to-order-new" value="new" labelText="New order" />
         </RadioButtonGroup>
@@ -115,7 +119,9 @@ function AddToOrderForm({ job, onClose }: { job: MachineJob; onClose: () => void
         <p className="mj-secondary">
           {mode === 'existing'
             ? `${orders.length} draft ${orders.length === 1 ? 'order' : 'orders'} of ${recipient}.`
-            : 'A draft order with this job as its first item.'}
+            : orders.length === 0 && !drafts.isPending && !drafts.isError
+              ? `${recipient} has no draft order. A new draft order will be created.`
+              : 'A draft order with this job as its first item.'}
         </p>
       </Stack>
     </Modal>

@@ -222,6 +222,7 @@ describe('Machines & Jobs shared helpers', () => {
       'order_outdated',
       'not_on_order',
       'price_incomplete',
+      'nothing_to_bill',
       'pending',
     ]);
   });

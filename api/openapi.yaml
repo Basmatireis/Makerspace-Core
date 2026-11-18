@@ -10477,10 +10477,16 @@ paths:
         -
           name: "search"
           in: "query"
-          description: "Case-insensitive substring match on the order reference, the customer name captured with the order and the reference of the order it replaces."
+          description: "Case-insensitive substring match on the order reference, the customer name (captured with the order, or the current name while no name is captured) and the reference of the order it replaces."
           schema:
             type: "string"
             maxLength: 200
+        -
+          name: "customerId"
+          in: "query"
+          description: "Only orders of this person or organization."
+          schema:
+            $ref: "#/components/schemas/UUIDv7"
         -
           name: "status"
           in: "query"
@@ -10592,6 +10598,7 @@ paths:
       tags:
         - "Orders"
       operationId: "addOrderItem"
+      description: "Adds an item to a draft order. A machine job whose nothingToBill is true is refused with 409 nothing_to_bill."
       security:
         -
           sessionCookie: []
@@ -21869,7 +21876,7 @@ components:
     MachineJob:
       type: object
       additionalProperties: false
-      required: [id, displayId, machine, runs, measures, durationSeconds, outcome, outcomeOverridden, status, pricingStatus, hiddenFromSignage, attention, version, createdAt, updatedAt]
+      required: [id, displayId, machine, runs, measures, durationSeconds, outcome, outcomeOverridden, status, pricingStatus, nothingToBill, hiddenFromSignage, attention, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
@@ -21900,6 +21907,11 @@ components:
           allOf: [{$ref: "#/components/schemas/Money"}]
           nullable: true
           description: Calculated price with the price adjustment applied, rounded to cents and never below zero.
+        nothingToBill:
+          type: boolean
+          description: >-
+            The job has ended, its price is complete and its effective price is 0 (also when waived by an adjustment).
+            Such a job cannot be put on an order (409 nothing_to_bill) and is not unbilled work.
         hiddenFromSignage: {type: boolean, description: "The job and all its runs are kept off signage (machine status, camera and timelapses)."}
         attention: {type: array, items: {$ref: "#/components/schemas/MachineJobAttention"}, description: What needs someone's attention on this job; empty when nothing does.}
         version: {$ref: "#/components/schemas/Version"}
@@ -22016,8 +22028,9 @@ components:
       type: string
       description: >-
         on_order: on an order whose snapshot matches the job; order_outdated: on an order but the job changed since;
-        not_on_order: priced completely and not on an order; price_incomplete: pricing incomplete; pending: not priced yet.
-      enum: [on_order, order_outdated, not_on_order, price_incomplete, pending]
+        not_on_order: priced completely above 0 and not on an order; nothing_to_bill: ended, priced completely and its effective
+        price is 0, so it never goes on an order; price_incomplete: pricing incomplete; pending: not priced yet.
+      enum: [on_order, order_outdated, not_on_order, nothing_to_bill, price_incomplete, pending]
 
     WorkItemBilling:
       type: object

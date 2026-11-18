@@ -18,6 +18,7 @@ export function jobBilling(job: MachineJob, association: JobOrderAssociation | u
     };
   if (job.pricingStatus === 'pending') return { state: 'pending' };
   if (job.pricingStatus === 'incomplete') return { state: 'price_incomplete' };
+  if (job.nothingToBill) return { state: 'nothing_to_bill' };
   return association ? { state: 'not_on_order' } : undefined;
 }
 

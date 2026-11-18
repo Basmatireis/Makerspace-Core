@@ -156,6 +156,9 @@ export const getAddOrderItemUrl = (orderId: UUIDv7,) => {
   return `/api/v1/orders/${orderId}/items`
 }
 
+/**
+ * Adds an item to a draft order. A machine job whose nothingToBill is true is refused with 409 nothing_to_bill.
+ */
 export const addOrderItem = async (orderId: UUIDv7,
     orderItemInput: OrderItemInput, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 

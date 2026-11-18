@@ -52,6 +52,8 @@ export function PriceBillingTile({
     <span className="mj-secondary">Billable once the job has finished</span>
   ) : job.pricingStatus === 'incomplete' ? (
     <span className="jobs-error-text">Price incomplete</span>
+  ) : job.nothingToBill ? (
+    <span className="mj-secondary">Nothing to bill</span>
   ) : onAddToOrder && order ? (
     <Button kind="ghost" size="sm" renderIcon={Add} className="jobs-price__order" onClick={onAddToOrder}>
       Add to order

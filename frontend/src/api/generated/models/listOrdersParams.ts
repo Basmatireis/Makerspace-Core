@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
 
 export type ListOrdersParams = {
   /**
@@ -31,10 +32,12 @@ export type ListOrdersParams = {
    */
   pageSize?: number;
   /**
-   * Case-insensitive substring match on the order reference, the customer name captured with the order and the reference of the order it replaces.
+   * Case-insensitive substring match on the order reference, the customer name (captured with the order, or the current name while no name is captured) and the reference of the order it replaces.
    * @maxLength 200
    */
   search?: string;
+  /** Only orders of this person or organization. */
+  customerId?: UUIDv7;
   /** @maxLength 200 */
   status?: string;
 };

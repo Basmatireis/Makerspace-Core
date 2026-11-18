@@ -165,6 +165,7 @@ function startJob(
     calculatedPrice: null,
     priceAdjustment: null,
     effectivePrice: null,
+    nothingToBill: false,
     hiddenFromSignage: fields.hiddenFromSignage ?? false,
     attention: [],
     version: 1,

@@ -64,6 +64,7 @@ export const billingFilterOptions: { id: JobBillingState; label: string }[] = [
   { id: 'on_order', label: 'On an order' },
   { id: 'order_outdated', label: 'Order outdated' },
   { id: 'price_incomplete', label: 'Price incomplete' },
+  { id: 'nothing_to_bill', label: 'Nothing to bill' },
 ];
 export const sourceFilterOptions = [
   { id: 'manual', label: 'Manual' },
@@ -87,7 +88,7 @@ export function statusesFor(phase: string, outcome: string): WorkItemStatus[] | 
   return byPhase.includes(wanted) ? [wanted] : null;
 }
 
-/** What the billing column says: nothing while running, else Not billed, the order, Order outdated or Price incomplete. */
+/** What the billing column says: nothing while running, else Not billed, the order, Order outdated, Price incomplete or Nothing to bill. */
 export function BillingText({ status, billing }: { status: JobRowStatus; billing: WorkItemBilling | undefined }) {
   if (jobPhase(status) !== 'finished' || !billing || billing.state === 'pending')
     return <span className="mj-secondary">—</span>;
@@ -95,6 +96,7 @@ export function BillingText({ status, billing }: { status: JobRowStatus; billing
     return <RefLink kind="order" reference={billing.orderReference ?? 'Order'} id={billing.orderId} />;
   if (billing.state === 'order_outdated') return <span className="jobs-error-text">Order outdated</span>;
   if (billing.state === 'price_incomplete') return <span className="jobs-error-text">Price incomplete</span>;
+  if (billing.state === 'nothing_to_bill') return <span className="mj-secondary">Nothing to bill</span>;
   return <span>Not billed</span>;
 }
 

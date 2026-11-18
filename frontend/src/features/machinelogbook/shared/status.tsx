@@ -480,6 +480,7 @@ export const billingStateOptions: { id: JobBillingState; label: string }[] = [
   { id: 'order_outdated', label: 'Order outdated' },
   { id: 'not_on_order', label: 'Not on order' },
   { id: 'price_incomplete', label: 'Price incomplete' },
+  { id: 'nothing_to_bill', label: 'Nothing to bill' },
   { id: 'pending', label: 'Price pending' },
 ];
 
@@ -501,6 +502,12 @@ export function BillingTag({ billing }: { billing: WorkItemBilling | undefined }
     return (
       <Tag type="red" size="sm">
         Price incomplete
+      </Tag>
+    );
+  if (billing.state === 'nothing_to_bill')
+    return (
+      <Tag type="gray" size="sm">
+        Nothing to bill
       </Tag>
     );
   if (billing.state === 'not_on_order')
