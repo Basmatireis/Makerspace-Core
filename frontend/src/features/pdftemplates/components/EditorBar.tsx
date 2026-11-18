@@ -1,5 +1,6 @@
-import { Button, IconButton, Select, SelectItem, Tag } from '@carbon/react';
-import { Keyboard, Redo, Undo, Version } from '../icons';
+import { Button, IconButton, Menu, MenuItemRadioGroup, Select, SelectItem, Tag } from '@carbon/react';
+import { useRef, useState } from 'react';
+import { ChevronDown, Keyboard, Redo, Undo, Version } from '../icons';
 import type { PdfTemplateExport } from '../../../api/generated/models';
 import { EXPORT_KINDS, EXPORT_LABELS } from '../exports';
 import { KEYS } from '../../signage/editor/useEditorKeys';
@@ -28,13 +29,60 @@ export interface EditorBarProps {
   saving: boolean;
 }
 
-/** Document selector, state, undo/redo and the three actions above the three panes. */
+/**
+ * The template name doubles as the document switcher: a borderless button in the heading opens a Carbon menu with the
+ * three documents, so the bar needs no separate select.
+ */
+function DocumentMenu({ name, kind, onKind }: Pick<EditorBarProps, 'name' | 'kind' | 'onKind'>) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [anchor, setAnchor] = useState<{ x: [number, number]; y: [number, number] } | null>(null);
+  const close = () => {
+    setAnchor(null);
+    trigger.current?.focus();
+  };
+  return (
+    <h1 className="pdft-bar__heading">
+      <button
+        ref={trigger}
+        type="button"
+        className="pdft-bar__doc"
+        title={name}
+        aria-haspopup="menu"
+        aria-expanded={anchor !== null}
+        aria-label={`${name}, ${EXPORT_LABELS[kind]}: choose the document`}
+        onClick={() => {
+          if (anchor) return close();
+          const box = trigger.current!.getBoundingClientRect();
+          setAnchor({ x: [box.left, box.right], y: [box.top, box.bottom] });
+        }}
+      >
+        <span className="pdft-bar__doc-name">{name}</span>
+        <ChevronDown size={20} aria-hidden="true" />
+      </button>
+      <Menu label="Document" size="md" open={anchor !== null} x={anchor?.x} y={anchor?.y} onClose={close}>
+        <MenuItemRadioGroup
+          label="Document"
+          items={[...EXPORT_KINDS]}
+          selectedItem={kind}
+          // Carbon types the radio items as unknown; they are the export kinds passed in `items`.
+          itemToString={(item) => EXPORT_LABELS[item as PdfTemplateExport]}
+          onChange={(item) => {
+            close();
+            if (item !== kind) onKind(item as PdfTemplateExport);
+          }}
+        />
+      </Menu>
+    </h1>
+  );
+}
+
+/** Document switcher, state, undo/redo and the three actions above the three panes. */
 export function EditorBar(props: EditorBarProps) {
   const { errors, warnings } = props;
   return (
     <header className="pdft-bar">
       <div className="pdft-bar__title">
-        <h1 title={props.name}>{props.name}</h1>
+        <DocumentMenu name={props.name} kind={props.kind} onKind={props.onKind} />
         <div className="pdft-bar__tags">
           <Tag type={props.status.tone} size="md">
             {props.status.label}
@@ -51,18 +99,6 @@ export function EditorBar(props: EditorBarProps) {
           )}
         </div>
       </div>
-      <Select
-        id="pdft-export"
-        className="pdft-bar__select"
-        labelText="Document"
-        size="md"
-        value={props.kind}
-        onChange={(event) => props.onKind(event.target.value as PdfTemplateExport)}
-      >
-        {EXPORT_KINDS.map((kind) => (
-          <SelectItem key={kind} value={kind} text={EXPORT_LABELS[kind]} />
-        ))}
-      </Select>
       <Select
         id="pdft-data"
         className="pdft-bar__select"

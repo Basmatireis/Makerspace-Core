@@ -36,13 +36,46 @@
   min-inline-size: 0;
   max-inline-size: 100%;
   padding: $spacing-04 $spacing-05;
-  h1 {
-    margin: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    @include type-style('productive-heading-03');
+}
+.pdft-bar__heading {
+  min-inline-size: 0;
+  margin: 0;
+  @include type-style('productive-heading-03');
+}
+// The title is the document switcher: it keeps the heading look and only shows a hover/press state and a chevron.
+.pdft-bar__doc {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+  max-inline-size: 100%;
+  margin-inline-start: -$spacing-03;
+  padding: $spacing-02 $spacing-03;
+  border: 0;
+  background: transparent;
+  color: theme.$text-primary;
+  font: inherit;
+  cursor: pointer;
+  svg {
+    flex: none;
+    fill: theme.$icon-primary;
   }
+  &:hover,
+  &[aria-expanded='true'] {
+    background: theme.$layer-hover-01;
+  }
+  &:active {
+    background: theme.$layer-active-01;
+  }
+  &:focus-visible {
+    outline: 2px solid theme.$focus;
+    outline-offset: -2px;
+  }
+}
+.pdft-bar__doc-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 // Below 80 rem the title gives up width to the selects and actions, so the bar stays on one line down to 66 rem.
 @media (max-width: 80rem) {
