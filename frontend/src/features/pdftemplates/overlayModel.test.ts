@@ -23,6 +23,13 @@ describe('hitTest', () => {
   it('prefers the later box among equals', () => {
     expect(hitTest([box('a', 1, 0, 0, 10, 10), box('b', 1, 0, 0, 10, 10)], 1, 5, 5)?.nodeId).toBe('b');
   });
+  it('never lets a box that covers the page block clicks on the others', () => {
+    const size = { width: 210, height: 297 };
+    const page = [box('letterhead', 1, 0, 0, 210, 297), box('text', 1, 20, 40, 80, 10)];
+    expect(hitTest(page, 1, 30, 45, size)?.nodeId).toBe('text');
+    expect(hitTest(page, 1, 150, 200, size)).toBeNull();
+    expect(hitTest(page, 1, 150, 200)?.nodeId).toBe('letterhead');
+  });
   it('lets a hairline be hit within a little distance', () => {
     const line = [box('rule', 1, 20, 100, 100, 0)];
     expect(hitTest(line, 1, 50, 100.6)?.nodeId).toBe('rule');

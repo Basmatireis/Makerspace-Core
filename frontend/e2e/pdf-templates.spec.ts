@@ -243,3 +243,50 @@ for (const width of [375, 768]) {
     expect(box!.x + box!.width).toBeLessThanOrEqual(width);
   });
 }
+
+test('deletes with Delete, undoes, duplicates with Ctrl+D, pastes, and lists the shortcuts', async ({ page }) => {
+  await open(page, newWorld());
+  await row(page, /Introduction/).click();
+  await page.keyboard.press('Delete');
+  await expect(row(page, /Introduction/)).toHaveCount(0);
+  // The block after it is selected.
+  await expect(page.locator('[role="treeitem"][aria-selected="true"]')).toHaveCount(1);
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(row(page, /Introduction/)).toHaveCount(1);
+
+  await row(page, /Introduction/).click();
+  await page.keyboard.press('ControlOrMeta+d');
+  await expect(row(page, /Introduction/)).toHaveCount(2);
+  await page.keyboard.press('ControlOrMeta+c');
+  await page.keyboard.press('ControlOrMeta+v');
+  await expect(row(page, /Introduction/)).toHaveCount(3);
+
+  await page.keyboard.press('?');
+  const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Save draft');
+  // The first Escape closes the tooltip of the focused close button (Carbon), the second the dialog.
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+
+  await page.keyboard.press('ControlOrMeta+s');
+  await expect(page.getByText('Draft v1', { exact: true })).toBeVisible();
+});
+
+test('inserts a grid and edits a cell', async ({ page }) => {
+  await open(page, newWorld());
+  await page.getByRole('button', { name: 'Choose: Layout' }).click();
+  await page.getByRole('menuitem', { name: /Grid \(fixed table\)/ }).click();
+  await row(page, /Page number/).click({ position: { x: 60, y: 4 } });
+  const grid = row(page, /Grid · 2 rows × 2 columns/);
+  await expect(grid).toBeVisible();
+  await expect(grid).toHaveAttribute('aria-selected', 'true');
+  const cell = page.getByTestId('properties-panel').getByLabel('Row 1, cell 1: text', { exact: true });
+  await cell.fill('Customer');
+  await expect(page.getByTestId('properties-panel').getByLabel('Row 1, cell 1: text', { exact: true })).toHaveValue(
+    'Customer',
+  );
+  await page.getByTestId('properties-panel').getByRole('button', { name: 'Add row' }).click();
+  await expect(row(page, /Grid · 3 rows × 2 columns/)).toBeVisible();
+});

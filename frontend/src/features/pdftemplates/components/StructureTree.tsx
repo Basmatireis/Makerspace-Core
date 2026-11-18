@@ -33,6 +33,8 @@ export interface StructureTreeProps {
   tool: ToolType | null;
   /** Nodes with an error problem get a red dot. */
   errorIds: ReadonlySet<string>;
+  /** Nodes in a branch the data does not reach (condition false, case not taken): they have no box on the page. */
+  inactiveIds?: ReadonlySet<string>;
   onToggle: (key: string, open: boolean) => void;
   onSelect: (id: string | null) => void;
   onHover: (id: string | null) => void;
@@ -52,6 +54,7 @@ type RowAria = HTMLAttributes<HTMLElement> & {
   'aria-owns'?: string;
 };
 
+export const INACTIVE_TEXT = 'Not shown with this data';
 const INDENT = 20;
 const pad = (depth: number, extra = 0) => 8 + depth * INDENT + extra;
 
@@ -65,6 +68,7 @@ export function StructureTree({
   open,
   tool,
   errorIds,
+  inactiveIds,
   onToggle,
   onSelect,
   onHover,
@@ -203,6 +207,8 @@ export function StructureTree({
       return (event.preventDefault(), onSelect('page'));
     if (row.kind !== 'node') return;
     if (event.key === 'F2') return (event.preventDefault(), setRenaming(row.key));
+    // Enter on the selected row renames it (F2 does so on any row); on another row it selects, like Space.
+    if (event.key === 'Enter' && selectedId === row.node.id) return (event.preventDefault(), setRenaming(row.key));
     if (event.key === 'Enter' || event.key === ' ') return (event.preventDefault(), onSelect(row.node.id));
     if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
       event.preventDefault();
@@ -294,6 +300,7 @@ export function StructureTree({
         const Icon = toolInfo(node.type).icon;
         const tone = iconTone(node.type);
         const selected = selectedId === node.id;
+        const inactive = !!inactiveIds?.has(node.id);
         return (
           <div
             {...a}
@@ -302,7 +309,7 @@ export function StructureTree({
             tabIndex={a.tabIndex}
             onKeyDown={a.onKeyDown}
             data-row-key={node.id}
-            className={`pdft-row pdft-row--node${d.compact ? ' pdft-row--compact' : ''}${selected ? ' pdft-row--sel' : ''} ${markers(row)}`}
+            className={`pdft-row pdft-row--node${d.compact ? ' pdft-row--compact' : ''}${selected ? ' pdft-row--sel' : ''}${inactive ? ' pdft-row--inactive' : ''} ${markers(row)}`}
             style={{ paddingInlineStart: pad(row.depth) }}
             onClick={() => onSelect(node.id)}
             onMouseEnter={() => onHover(node.id)}
@@ -338,7 +345,12 @@ export function StructureTree({
                   {d.l1}
                 </span>
               )}
-              {d.l2 && <span className="pdft-l2">{d.l2}</span>}
+              {(d.l2 || inactive) && (
+                <span className="pdft-l2">
+                  {d.l2}
+                  {inactive ? `${d.l2 ? ' · ' : ''}${INACTIVE_TEXT}` : ''}
+                </span>
+              )}
             </span>
             {errorIds.has(node.id) && (
               <span className="pdft-err" role="img" aria-label="Has problems" title="Has problems" />

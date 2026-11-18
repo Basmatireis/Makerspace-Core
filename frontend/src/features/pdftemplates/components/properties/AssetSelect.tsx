@@ -8,7 +8,7 @@ import { SelectField, type Change } from '../fields/Inputs';
 
 const KINDS = {
   picture: { accept: ['image/png', 'image/jpeg'], what: 'PNG or JPEG', none: 'Choose an image' },
-  graphic: { accept: ['image/svg+xml'], what: 'SVG', none: 'Built-in HTU letterhead' },
+  graphic: { accept: ['image/svg+xml'], what: 'SVG', none: 'HTU letterhead (full page)' },
 } as const;
 
 /**
@@ -41,6 +41,14 @@ export function AssetSelect({
   });
   const options = [
     { value: kind === 'graphic' ? 'htu-letterhead' : '', label: info.none },
+    ...(kind === 'graphic'
+      ? [
+          { value: 'htu-logo', label: 'HTU logo' },
+          { value: 'htu-corner-top', label: 'HTU corner, top' },
+          { value: 'htu-corner-bottom', label: 'HTU corner, bottom' },
+          { value: 'htu-footer', label: 'HTU footer' },
+        ]
+      : []),
     ...usable.map((a) => ({
       value: prefix + a.id,
       label: `${a.fileName}${a.width ? ` · ${a.width} × ${a.height} px` : ''}`,

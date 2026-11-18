@@ -82,6 +82,7 @@ const KEY_FIELD: Record<ToolType, RegExp> = {
   if: /Show “Then” when/,
   switch: /Value to compare/,
   columns: /Column 1 width/,
+  grid: /^Column 1 width \(mm\)$/,
   box: /Border colour/,
   image: /^Height \(mm\)/,
   picture: /^File$/,
@@ -111,6 +112,23 @@ describe('PropertiesPanel', () => {
       expect((await panel().findAllByText(KEY_FIELD[type])).length).toBeGreaterThan(0);
     });
   }
+
+  it('edits a grid: a cell text, a new row and a removed column', async () => {
+    const user = userEvent.setup();
+    const { doc, id } = withNode('grid');
+    mount(doc, id);
+    const cell = panel().getByLabelText('Row 1, cell 1: text');
+    await user.clear(cell);
+    await user.type(cell, 'Hello');
+    expect(find(docOf(), id)?.node).toMatchObject({ rows: [{ cells: [{ text: 'Hello' }, { text: 'Value' }] }, {}] });
+    await user.click(panel().getByRole('button', { name: 'Add row' }));
+    const grid = find(docOf(), id)!.node;
+    expect(grid.type === 'grid' && grid.rows).toHaveLength(3);
+    await user.click(panel().getByRole('button', { name: 'Remove column 2' }));
+    const after = find(docOf(), id)!.node;
+    expect(after.type === 'grid' && after.colWidths).toHaveLength(1);
+    expect(after.type === 'grid' && after.rows.every((r) => r.cells.length === 1)).toBe(true);
+  });
 
   it('shows the hint when nothing is selected and the page setup for the page', () => {
     mount(sampleDocument(), null);
@@ -146,9 +164,9 @@ describe('PropertiesPanel', () => {
         .body.map((b) => b.id)
         .slice(0, 3),
     ).toEqual(['title', 'cond', 'intro']);
-    await user.click(panel().getByRole('button', { name: 'Duplicate' }));
+    await user.click(panel().getByRole('button', { name: /^Duplicate/ }));
     expect(docOf().body).toHaveLength(6);
-    await user.click(panel().getByRole('button', { name: 'Delete' }));
+    await user.click(panel().getByRole('button', { name: /^Delete/ }));
     expect(docOf().body).toHaveLength(5);
   });
 

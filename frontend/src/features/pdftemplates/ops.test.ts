@@ -13,6 +13,8 @@ import {
   nudgeNode,
   patchNode,
   removeNode,
+  copyNode,
+  pasteNode,
   renameNode,
 } from './ops';
 import { counter, sampleDocument, sampleSchema } from './testFixtures';
@@ -194,7 +196,27 @@ describe('copies, removal and rename', () => {
     const result = removeNode(sampleDocument(), 'cond')!;
     expect(find(result.doc, 'cond')).toBeNull();
     expect(find(result.doc, 'note')).toBeNull();
-    expect(result.select).toBeNull();
+    // The block after it takes the selection.
+    expect(result.select).toBe(ids(sampleDocument().body)[ids(sampleDocument().body).indexOf('cond') + 1]);
+  });
+
+  it('pastes a copy with new ids after the selection, into a layer, or at the end of the body', () => {
+    const doc = sampleDocument();
+    const clip = copyNode(doc, 'intro')!;
+    const after = pasteNode(doc, clip, 'intro')!;
+    const body = ids(after.doc.body);
+    expect(body).toHaveLength(ids(doc.body).length + 1);
+    expect(body.indexOf(after.select!)).toBe(body.indexOf('intro') + 1);
+    expect(after.select).not.toBe('intro');
+    const end = pasteNode(doc, clip, null)!;
+    expect(end.doc.body.at(-1)?.id).toBe(end.select);
+    const into = pasteNode(doc, clip, 'layer1')!;
+    const layer = find(into.doc, 'layer1')!.node;
+    expect(layer.type === 'layer' && layer.elements.at(-1)?.id).toBe(into.select);
+    expect(find(into.doc, into.select!)!.area).toBe('layer');
+    // A copied layer goes among the layers.
+    const layerCopy = pasteNode(doc, copyNode(doc, 'layer1')!, 'intro')!;
+    expect(layerCopy.doc.layers).toHaveLength(doc.layers.length + 1);
   });
 
   it('renames, clears the title with empty text and ignores no-ops', () => {

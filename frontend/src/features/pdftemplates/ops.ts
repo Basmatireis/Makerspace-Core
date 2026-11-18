@@ -3,6 +3,7 @@ import {
   canDrop,
   find,
   getContainer,
+  innerOf,
   pageSize,
   POSITIONED,
   SIZED,
@@ -223,7 +224,51 @@ export function removeNode(doc: TemplateDocument, id: string): EditResult | null
   if (!src) return null;
   const next = clone(doc);
   removeAt(next, find(next, id)!);
-  return { doc: next, select: null, expand: [] };
+  // The neighbour takes the selection: the block that moved up, else the one before, else the container itself.
+  const left = getContainer(next, src.container) ?? [];
+  const neighbour = left[src.index] ?? left[src.index - 1];
+  const select = neighbour?.id ?? ('node' in src.container ? src.container.node : null);
+  return { doc: next, select, expand: [] };
+}
+
+/** A copy of a node for the editor's clipboard; it holds no ids that matter, `pasteNode` makes new ones. */
+export const copyNode = (doc: TemplateDocument, id: string): TemplateNode | null => {
+  const at = find(doc, id);
+  return at ? clone(at.node) : null;
+};
+
+/**
+ * Pastes a copied node with new ids: into the selected page layer (or an empty container), else right after the
+ * selected node, else at the end of the body (a layer at the end of the layers). Null when it cannot go there.
+ */
+export function pasteNode(
+  doc: TemplateDocument,
+  clip: TemplateNode,
+  selectedId: string | null,
+  newIds?: () => string,
+): EditResult | null {
+  const sel = selectedId && selectedId !== 'page' ? find(doc, selectedId) : null;
+  const copy = cloneWithNewIds(clip, newIds);
+  let dest: Container = { root: copy.type === 'layer' ? 'layers' : 'body' };
+  let index = getContainer(doc, dest)?.length ?? 0;
+  if (sel) {
+    const inner = innerOf(sel.node);
+    const kids = inner ? getContainer(doc, { node: sel.node.id, slot: inner }) : undefined;
+    if (inner && kids && (sel.node.type === 'layer' || !kids.length) && copy.type !== 'layer') {
+      dest = { node: sel.node.id, slot: inner };
+      index = kids.length;
+    } else if (copy.type !== 'layer' || sel.node.type === 'layer') {
+      dest = sel.container;
+      index = sel.index + 1;
+    }
+  }
+  if (!canDrop(doc, { type: copy.type }, dest)) return null;
+  const next = clone(doc);
+  const made = place(next, copy, dest, index);
+  const now = find(next, copy.id)!;
+  if (now.area === 'layer') ensurePos(copy, next.page);
+  else stripPlacement(copy);
+  return { doc: next, select: copy.id, expand: [...(made ? [made.id] : []), ...layersToOpen(next, copy.id)] };
 }
 
 /** Sets or clears (empty text) the editor-only title of a node. */

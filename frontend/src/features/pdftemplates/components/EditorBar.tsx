@@ -1,5 +1,5 @@
 import { Button, IconButton, Select, SelectItem, Tag } from '@carbon/react';
-import { Redo, Undo, Version } from '../icons';
+import { Keyboard, Redo, Undo, Version } from '../icons';
 import type { PdfTemplateExport } from '../../../api/generated/models';
 import { EXPORT_KINDS, EXPORT_LABELS } from '../exports';
 import { KEYS } from '../../signage/editor/useEditorKeys';
@@ -16,6 +16,7 @@ export interface EditorBarProps {
   onUndo: () => void;
   onRedo: () => void;
   onVersions: () => void;
+  onShortcuts: () => void;
   onSave: () => void;
   onPublish: () => void;
   saveDisabled: boolean;
@@ -78,6 +79,9 @@ export function EditorBar(props: EditorBarProps) {
           <Redo />
         </IconButton>
       </div>
+      <IconButton label="Keyboard shortcuts (?)" kind="ghost" size="md" align="bottom" onClick={props.onShortcuts}>
+        <Keyboard />
+      </IconButton>
       <Button kind="ghost" size="md" renderIcon={Version} onClick={props.onVersions}>
         Versions
       </Button>

@@ -64,6 +64,8 @@ export function drawResult(d: DrawState): DrawResult {
 interface Options {
   doc: TemplateDocument;
   boxes: readonly PdfTemplateBox[];
+  /** Sizes (mm) of the pages, to leave out boxes that cover a whole page when hit-testing. */
+  pages?: readonly { width: number; height: number }[];
   scale: number;
   selectedId: string | null;
   tool: ToolType | null;
@@ -140,7 +142,7 @@ export function usePreviewInteraction(options: Options) {
       return;
     }
     const [x, y] = mmAt(event, element);
-    const hit = hitTest(boxes, page, x, y);
+    const hit = hitTest(boxes, page, x, y, options.pages?.[page - 1]);
     if (!hit) {
       options.onSelect(null);
       return;
@@ -157,7 +159,7 @@ export function usePreviewInteraction(options: Options) {
   const onPointerMove = (event: ReactPointerEvent<HTMLElement>, page: number) => {
     if (active || tool) return;
     const [x, y] = mmAt(event, event.currentTarget);
-    const hit = hitTest(boxes, page, x, y);
+    const hit = hitTest(boxes, page, x, y, options.pages?.[page - 1]);
     options.onHover(hit?.nodeId ?? null);
     setOverElement(!!hit && layerElementId(doc, hit.nodeId) !== null);
   };

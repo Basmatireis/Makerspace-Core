@@ -13,6 +13,7 @@ import {
   type TemplateNode,
 } from '../../model';
 import { duplicateNode, moveBy, moveNode, removeNode, type EditResult } from '../../ops';
+import { KEYS } from '../../../signage/editor/useEditorKeys';
 import { toolInfo } from '../../toolbox';
 import type { ChangeKind } from '../../history';
 
@@ -83,11 +84,16 @@ export function NodeHeader({
           />
         ))}
       </OverflowMenu>
-      <IconButton label="Duplicate" kind="ghost" size="sm" onClick={() => apply(duplicateNode(doc, node.id))}>
+      <IconButton
+        label={`Duplicate (${KEYS.mod}D)`}
+        kind="ghost"
+        size="sm"
+        onClick={() => apply(duplicateNode(doc, node.id))}
+      >
         <Copy />
       </IconButton>
       <IconButton
-        label="Delete"
+        label={`Delete (${KEYS.del})`}
         kind="ghost"
         size="sm"
         align="bottom-end"

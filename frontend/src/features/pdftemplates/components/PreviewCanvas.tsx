@@ -106,6 +106,7 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
   const interaction = usePreviewInteraction({
     doc,
     boxes: boxes ?? [],
+    pages,
     scale,
     selectedId,
     tool,
@@ -118,6 +119,14 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
 
   const selectedIds = useMemo(() => outlined(doc, selectedId), [doc, selectedId]);
   const hoverIds = useMemo(() => outlined(doc, hoverId), [doc, hoverId]);
+  // A selection made elsewhere (the structure) brings its first box into view.
+  useEffect(() => {
+    if (!selectedId) return;
+    host.current
+      ?.querySelector('.pdft-outline--selected, .pdft-frame')
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [selectedId, shown]);
+
   const selectedNode = selectedId && selectedId !== 'page' ? (find(doc, selectedId)?.node ?? null) : null;
   const framed = selectedNode && layerElementId(doc, selectedNode.id) === selectedNode.id ? selectedNode : null;
 
@@ -164,13 +173,23 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
                   >
                     {pageBoxes
                       .filter((b) => hoverIds.has(b.nodeId) && !selectedIds.has(b.nodeId))
+                      .sort(bySizeDesc)
                       .map((b, i) => (
-                        <div key={`h${i}`} className="pdft-outline pdft-outline--hover" style={rect(b, k)} />
+                        <div
+                          key={`h${i}`}
+                          className="pdft-outline pdft-outline--hover"
+                          style={rect(b, k, MIN_OUTLINE_PX)}
+                        />
                       ))}
                     {pageBoxes
                       .filter((b) => selectedIds.has(b.nodeId) && !(framed && b.nodeId === framed.id))
+                      .sort(bySizeDesc)
                       .map((b, i) => (
-                        <div key={`s${i}`} className="pdft-outline pdft-outline--selected" style={rect(b, k)} />
+                        <div
+                          key={`s${i}`}
+                          className="pdft-outline pdft-outline--selected"
+                          style={rect(b, k, MIN_OUTLINE_PX)}
+                        />
                       ))}
                     {framed && <Frame node={framed} boxes={pageBoxes} page={number} drag={drag} k={k} />}
                     {drawing?.page === number && <div className="pdft-drawrect" style={drawStyle(drawing, k)} />}
@@ -184,12 +203,15 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
   );
 }
 
-const rect = (g: { x: number; y: number; w: number; h: number }, k: number) => ({
-  left: g.x * k,
-  top: g.y * k,
-  width: Math.max(g.w * k, 1),
-  height: Math.max(g.h * k, 1),
-});
+/** Thinnest outline in px: a line (zero height) or a hairline still shows, centred on where it is. */
+const MIN_OUTLINE_PX = 4;
+const rect = (g: { x: number; y: number; w: number; h: number }, k: number, min = 1) => {
+  const width = Math.max(g.w * k, min);
+  const height = Math.max(g.h * k, min);
+  return { left: g.x * k - (width - g.w * k) / 2, top: g.y * k - (height - g.h * k) / 2, width, height };
+};
+/** Bigger boxes first, so smaller ones are drawn on top of them. */
+const bySizeDesc = (a: PdfTemplateBox, b: PdfTemplateBox) => b.w * b.h - a.w * a.h;
 
 function drawStyle(drawing: Parameters<typeof drawnRect>[0], k: number) {
   const r = drawnRect(drawing);

@@ -1,6 +1,6 @@
 import { InlineNotification, Select, SelectItem, Tab, TabList, TabPanel, TabPanels, Tabs } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createInsertRegistry, InsertContext } from '../insertTarget';
 import type { PdfTemplateDetail, PdfTemplateExport } from '../../../api/generated/models';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
@@ -8,14 +8,18 @@ import { useMediaQuery } from '../../../app/components/useMediaQuery';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import type { Zoom } from '../../signage/editor/zoom';
 import { schemaHints } from '../blocks';
-import { apiDocument, find, type Container, type ToolType } from '../model';
+import { apiDocument, find, type Container, type TemplateNode, type ToolType } from '../model';
 import {
+  copyNode,
+  duplicateNode,
   insertNew,
   layerForDrawing,
   moveBy,
   moveNode,
   nudgeNode,
+  pasteNode,
   patchNode,
+  removeNode,
   renameNode,
   type EditResult,
 } from '../ops';
@@ -25,13 +29,14 @@ import { useDebouncedValue } from '../useDebouncedValue';
 import { usePreviewDocument } from '../usePreviewDocument';
 import type { DrawResult } from '../usePreviewInteraction';
 import { useTemplateEditor } from '../useTemplateEditor';
-import { useEditorShortcuts } from '../useEditorShortcuts';
+import { useEditorShortcuts, type PdfKeyAction } from '../useEditorShortcuts';
 import { EditorBar } from './EditorBar';
 import { InsertToolbar } from './InsertToolbar';
 import { NARROW_QUERY, NarrowPreview } from './NarrowPreview';
 import { PreviewCanvas } from './PreviewCanvas';
 import { PropertiesPanel } from './PropertiesPanel';
 import { PublishModal } from './PublishModal';
+import { ShortcutsModal } from './ShortcutsModal';
 import { Splitter } from './Splitter';
 import { StructureTree } from './StructureTree';
 import { StylesPanel } from './StylesPanel';
@@ -66,7 +71,9 @@ export function TemplateEditor({
   const [zoom, setZoom] = useState<Zoom>('fit');
   const [scale, setScale] = useState(1);
   const [source, setSource] = useState(SAMPLE);
-  const [dialog, setDialog] = useState<'versions' | 'publish' | null>(null);
+  const [dialog, setDialog] = useState<'versions' | 'publish' | 'shortcuts' | null>(null);
+  // The editor's own clipboard for copy, cut and paste of blocks: in memory only, gone with the page.
+  const clipboard = useRef<TemplateNode | null>(null);
 
   // A selection that no longer exists (after an undo, say) counts as no selection.
   const selectedId = pickedId === 'page' || (pickedId && find(doc, pickedId)) ? pickedId : null;
@@ -81,6 +88,11 @@ export function TemplateEditor({
   const problems = useMemo(() => preview.data?.problems ?? [], [preview.data]);
   const errors = problems.filter((p) => p.severity === 'error');
   const warnings = problems.length - errors.length;
+  // Nodes the data does not reach have no box. (`inactive` comes with the preview of the engine that reports it.)
+  const inactive = useMemo(
+    () => new Set((preview.data as { inactive?: string[] } | undefined)?.inactive ?? []),
+    [preview.data],
+  );
   const errorIds = useMemo(() => new Set(errors.map((p) => p.nodeId)), [errors]);
   const stale = debounced !== doc || preview.isPlaceholderData;
 
@@ -114,9 +126,35 @@ export function TemplateEditor({
     if (next) editor.set(next, 'step');
   };
 
+  const onKey = (action: PdfKeyAction): boolean => {
+    const id = selectedId && selectedId !== 'page' ? selectedId : null;
+    switch (action) {
+      case 'save':
+        // Always claimed, so the browser's own "save page" never opens over the editor.
+        if (editor.dirty && !editor.saving) editor.save();
+        return true;
+      case 'help':
+        setDialog('shortcuts');
+        return true;
+      case 'delete':
+        return !!id && apply(removeNode(doc, id));
+      case 'duplicate':
+        return !!id && apply(duplicateNode(doc, id));
+      case 'copy':
+      case 'cut': {
+        const copy = id ? copyNode(doc, id) : null;
+        if (!id || !copy) return false;
+        clipboard.current = copy;
+        return action === 'copy' || apply(removeNode(doc, id));
+      }
+      case 'paste':
+        return !!clipboard.current && apply(pasteNode(doc, clipboard.current, selectedId));
+    }
+  };
   const narrow = useMediaQuery(NARROW_QUERY);
   useEditorShortcuts({
     enabled: !narrow,
+    onKey,
     undo: editor.undo,
     redo: editor.redo,
     onTool: setTool,
@@ -170,6 +208,7 @@ export function TemplateEditor({
           onUndo={editor.undo}
           onRedo={editor.redo}
           onVersions={() => setDialog('versions')}
+          onShortcuts={() => setDialog('shortcuts')}
           onSave={editor.save}
           onPublish={() => setDialog('publish')}
           saveDisabled={!editor.dirty}
@@ -202,6 +241,7 @@ export function TemplateEditor({
                     open={open}
                     tool={tool}
                     errorIds={errorIds}
+                    inactiveIds={inactive}
                     onToggle={(key, value) => setOpen((now) => ({ ...now, [key]: value }))}
                     onSelect={select}
                     onHover={setHoverId}
@@ -248,6 +288,17 @@ export function TemplateEditor({
                   hideCloseButton
                   title="The preview could not be rendered."
                   subtitle={`${preview.error.message}${shown ? ' The last render is still shown.' : ''}`}
+                />
+              </div>
+            )}
+            {selectedId && selectedId !== 'page' && inactive.has(selectedId) && (
+              <div className="pdft-notice">
+                <InlineNotification
+                  kind="info"
+                  lowContrast
+                  hideCloseButton
+                  title="Not shown with this data"
+                  subtitle="This block sits in a branch the sample or record does not reach (a false condition, a case not taken), so it has no place on the page. Pick other data to see it."
                 />
               </div>
             )}
@@ -329,6 +380,7 @@ export function TemplateEditor({
             onDiscardDraft={editor.server.draft ? () => editor.discard(() => setDialog(null)) : null}
           />
         )}
+        {dialog === 'shortcuts' && <ShortcutsModal onClose={() => setDialog(null)} />}
         {dialog === 'publish' && (
           <PublishModal
             kind={detail.export}

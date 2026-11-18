@@ -360,6 +360,35 @@ export interface EllipseBlock extends BlockBase {
   fill?: Color;
 }
 
+export interface GridCell {
+  /** Expression. */
+  text: string;
+  align?: Align;
+  valign?: 'top' | 'middle' | 'bottom';
+  textStyle?: string;
+  size?: Length;
+  weight?: TextWeight;
+  color?: Color;
+  fill?: Color;
+  /** Columns the cell spans; the cells of a row together take the grid's columns. */
+  span?: number;
+}
+export interface GridRow {
+  /** mm. */
+  height: Length;
+  cells: GridCell[];
+}
+/** A table of fixed texts, frames and fills: columns of set widths, rows of set heights (a form head, say). */
+export interface GridBlock extends BlockBase {
+  type: 'grid';
+  /** mm. */
+  colWidths: number[];
+  stroke?: Length;
+  color?: Color;
+  padding?: Length;
+  rows: GridRow[];
+}
+
 export type Block =
   | HeadingBlock
   | TextBlock
@@ -374,6 +403,7 @@ export type Block =
   | SwitchBlock
   | ColumnsBlock
   | BoxBlock
+  | GridBlock
   | ImageBlock
   | PictureBlock
   | GraphicBlock
@@ -469,6 +499,7 @@ export const TYPE_LABELS = {
   switch: 'Switch',
   columns: 'Columns',
   box: 'Box',
+  grid: 'Grid (fixed table)',
   image: 'Logo',
   picture: 'Image',
   graphic: 'Graphic',
@@ -777,6 +808,9 @@ export function describe(n: TemplateNode, styles?: DocumentStyles): Description 
       break;
     case 'box':
       kind = `Box · ${n.blocks.length} blocks`;
+      break;
+    case 'grid':
+      kind = `Grid · ${n.rows.length} rows × ${n.colWidths.length} columns`;
       break;
     case 'layer':
       kind = `Page layer · ${PAGE_LABELS[n.pages]} · ${n.elements.length} elements${n.hidden ? ' · hidden' : ''}`;

@@ -591,6 +591,10 @@ body.pdft-resizing {
     @include type-style('label-01');
   }
 }
+.pdft-row--inactive .pdft-lines,
+.pdft-row--inactive .pdft-ic {
+  opacity: 0.6;
+}
 .pdft-row--sel {
   background: theme.$layer-selected-01;
   border-inline-start-color: theme.$border-interactive;
@@ -1038,5 +1042,21 @@ body.pdft-resizing {
   .pdft-tw svg,
   .pdft-splitter::after {
     transition: none;
+  }
+}
+
+.pdft-kbd {
+  font-family: 'IBM Plex Mono', monospace;
+  @include type-style('code-01');
+}
+
+// A row of a grid: its height field takes the width, the move buttons sit beside it.
+.pdft-gridrow__head {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-01;
+  .pdft-field {
+    flex: 1;
+    min-inline-size: 0;
   }
 }

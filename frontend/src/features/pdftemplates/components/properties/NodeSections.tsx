@@ -1,4 +1,5 @@
 import type { Block, Layer, TemplateNode } from '../../model';
+import { GridSection } from './GridSection';
 import { FieldsSection } from './FieldsSection';
 import { CheckboxSection, InputLineSection, SignaturesSection } from './FormSections';
 import {
@@ -50,6 +51,8 @@ function TypeFields(props: NodeSectionProps) {
       return <ColumnsSection node={node} area={area} set={set} />;
     case 'box':
       return <BoxSection node={node} area={area} set={set} />;
+    case 'grid':
+      return <GridSection node={node} area={area} set={set} />;
     case 'image':
       return <ImageSection node={node} area={area} set={set} />;
     case 'picture':

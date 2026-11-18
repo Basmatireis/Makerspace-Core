@@ -23,7 +23,9 @@ export { default as DecisionTree } from '@carbon/icons-react/es/DecisionTree.js'
 export { default as DistributeVerticalCenter } from '@carbon/icons-react/es/DistributeVerticalCenter.js';
 export { default as Document } from '@carbon/icons-react/es/Document.js';
 export { default as Draggable } from '@carbon/icons-react/es/Draggable.js';
+export { default as Grid } from '@carbon/icons-react/es/Grid.js';
 export { default as Image } from '@carbon/icons-react/es/Image.js';
+export { default as Keyboard } from '@carbon/icons-react/es/Keyboard.js';
 export { default as Layers } from '@carbon/icons-react/es/Layers.js';
 export { default as LineThin } from '@carbon/icons-react/es/LineThin.js';
 export { default as Link } from '@carbon/icons-react/es/Link.js';

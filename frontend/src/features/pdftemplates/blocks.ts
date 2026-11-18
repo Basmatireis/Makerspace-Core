@@ -146,6 +146,18 @@ function build(type: ToolType, hints: SchemaHints, id: () => string): TemplateNo
       };
     case 'box':
       return { id: n, type, padding: 4, stroke: 0.3, color: '#c6c6c6', fill: '#f4f4f4', blocks: [] };
+    case 'grid':
+      return {
+        id: n,
+        type,
+        colWidths: [60, 60],
+        stroke: 0.3,
+        padding: 1.5,
+        rows: [
+          { height: 8, cells: [{ text: 'Label' }, { text: 'Value' }] },
+          { height: 8, cells: [{ text: 'Label' }, { text: 'Value' }] },
+        ],
+      };
     case 'image':
       return { id: n, type, height: 12 };
     case 'picture':
@@ -247,6 +259,9 @@ export function fillDefaults(node: TemplateNode | TemplateNode[], styles: Docume
     case 'box':
       x.color = colour('rule', 'grey') ?? x.color;
       x.fill = colour('fill') ?? x.fill;
+      break;
+    case 'grid':
+      x.color = colour('rule', 'grey') ?? x.color;
       break;
     case 'sheet':
       x.color = colour('ink', 'text') ?? x.color;
