@@ -570,6 +570,12 @@ async function installApi(page: Page, state: ApiState) {
       return;
     }
 
+    if (path === '/api/v1/people/role-options' && request.method() === 'GET') {
+      const roles = state.role ? [state.role, ...(state.extraRoles ?? [])] : [];
+      await json(route, { items: roles.map(({ id, name, systemKey }) => ({ id, name, systemKey })) });
+      return;
+    }
+
     if (path === '/api/v1/people' && request.method() === 'GET') {
       const people = state.people ?? [];
       await json(route, { items: people, page: 1, pageSize: 25, total: people.length });

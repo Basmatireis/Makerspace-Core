@@ -45,7 +45,7 @@ import {
   positiveInteger,
 } from './people/peopleList';
 import { useBatchPeopleActions } from './people/useBatchPeopleActions';
-import { peopleKeys, peopleListOptions } from './queries';
+import { peopleKeys, peopleListOptions, peopleRoleOptions } from './queries';
 
 type Sort = { key: ListPeopleSort; direction: 'ASC' | 'DESC' };
 
@@ -71,6 +71,8 @@ export function UsersPage() {
   const mayCreate = hasPermission(currentUser, PermissionId.peoplecreate);
   const showAccounts = hasPermission(currentUser, PermissionId.accountsread);
   const mayReadRoles = hasPermission(currentUser, PermissionId.rolesread);
+  // Whoever sees the roles in the list may filter by them; the options need only people.read.all.
+  const mayFilterRoles = hasPermission(currentUser, PermissionId.peoplereadall);
   const mayReadLabRules = hasPermission(currentUser, PermissionId.laborordnungconfirmationsread);
   const mayViewSupervisorStaffing = hasPermission(currentUser, PermissionId.supervisor_dashboardread);
   const sortableKeys: string[] = Object.values(ListPeopleSort).filter(
@@ -101,7 +103,7 @@ export function UsersPage() {
       sort: sort.key,
       order: sort.direction === 'DESC' ? 'desc' : 'asc',
       ...(search ? { search } : {}),
-      ...(mayReadRoles && selectedRoleIds.length ? { roleIds: selectedRoleIds } : {}),
+      ...(mayFilterRoles && selectedRoleIds.length ? { roleIds: selectedRoleIds } : {}),
       ...(showAccounts && selectedAccountStatusOptions.length
         ? { accountStatuses: selectedAccountStatusOptions.map((option) => option.value) }
         : {}),
@@ -121,6 +123,7 @@ export function UsersPage() {
   const mayMerge = hasPermission(currentUser, PermissionId.peoplemerge);
   const canBatchManage = mayCreateAccounts || mayAssignRoles || mayDeleteAccounts || mayDeletePeople || mayMerge;
   const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: mayReadRoles });
+  const roleOptionsQuery = useQuery({ ...peopleRoleOptions, enabled: mayFilterRoles });
   const supervisorRoleIds = new Set(
     (rolesQuery.data ?? []).filter((role) => role.systemKey === 'supervisor').map((role) => role.id),
   );
@@ -179,21 +182,21 @@ export function UsersPage() {
       : {}),
   }));
 
-  const canFilter = showAccounts || mayReadRoles || mayReadLabRules;
+  const canFilter = showAccounts || mayFilterRoles || mayReadLabRules;
   const hasActiveFilters =
-    (mayReadRoles && selectedRoleIds.length > 0) ||
+    (mayFilterRoles && selectedRoleIds.length > 0) ||
     (showAccounts && selectedAccountStatusOptions.length > 0) ||
     (mayReadLabRules && selectedLabRulesStatusOptions.length > 0);
   const filterCategories: FilterCategory[] = [
-    ...(mayReadRoles
+    ...(mayFilterRoles
       ? [
           {
             key: 'role',
             label: 'Role',
-            options: (rolesQuery.data ?? []).map((role) => ({ id: role.id, label: role.name })),
-            helperText: rolesQuery.isPending
+            options: (roleOptionsQuery.data ?? []).map((role) => ({ id: role.id, label: role.name })),
+            helperText: roleOptionsQuery.isPending
               ? 'Loading roles…'
-              : rolesQuery.isError
+              : roleOptionsQuery.isError
                 ? 'Roles could not be loaded.'
                 : undefined,
           },

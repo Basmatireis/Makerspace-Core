@@ -4,9 +4,15 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+<<<<<<< HEAD
 ### Changed
 
 - **Cashbook says what a receipt was for.** Payment lines of the cashbook PDF and CSV name what their order charged after the order reference: the processes of its machine jobs ("FDM 3D printing und Material"), the material types of articles sold from stock and manual items, joined and cut with an ellipsis (48 characters in the CSV; on the Kassabuch sheet up to 64, as much as fits the text column). The Kassabuch sheet no longer shows the customer; the CSV still does. Refunds and corrections describe the order of the receipt they reverse. Shown only with `orders.read`, like the customer. See [docs/orders.md](docs/orders.md).
+=======
+### Fixed
+
+- **Role filter on the People page for Supervisors.** Viewers who see people's roles in Directory › People (`people.read.all`) can now filter by role without `roles.read`. The filter options come from the new `GET /people/role-options`, which returns only each role's ID, name and system key; role permissions and settings still need `roles.read`.
+>>>>>>> origin/claude/people-role-filter-supervisors-563dd5
 
 ## [0.19.1] - 2026-11-12
 
