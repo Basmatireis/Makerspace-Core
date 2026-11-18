@@ -224,6 +224,16 @@ type ListFilters struct {
 	RoleIDs              []uuid.UUID
 	AccountStatuses      []string
 	LaborordnungStatuses []string
+	// Sort is name, contact, roles or labRules; empty means name.
+	Sort       string
+	Descending bool
+}
+
+var validSorts = map[string]struct{}{
+	"name":     {},
+	"contact":  {},
+	"roles":    {},
+	"labRules": {},
 }
 
 var validAccountStatuses = map[string]struct{}{
@@ -251,7 +261,15 @@ func (s *Service) List(
 	if len(filters.AccountStatuses) > 0 && !principal.Has(authorization.AccountsRead) {
 		return Page{}, apperror.PermissionDenied
 	}
-	if len(filters.LaborordnungStatuses) > 0 && !principal.Has(authorization.LaborordnungConfirmationsRead) {
+	if filters.Sort == "" {
+		filters.Sort = "name"
+	}
+	if _, ok := validSorts[filters.Sort]; !ok {
+		return Page{}, invalidRequest("invalid sort")
+	}
+	// Ordering by Lab Rules status discloses that status just as the filter does.
+	if (len(filters.LaborordnungStatuses) > 0 || filters.Sort == "labRules") &&
+		!principal.Has(authorization.LaborordnungConfirmationsRead) {
 		return Page{}, apperror.PermissionDenied
 	}
 	if page < 1 || pageSize < 1 || pageSize > 100 || page > math.MaxInt32/pageSize ||
@@ -280,6 +298,7 @@ func (s *Service) List(
 	params := peopledb.ListPeopleParams{
 		Search: filters.Search, IncludeMatriculation: principal.Has(authorization.PeopleReadMatriculation),
 		RoleIds: roleIDs, AccountStatuses: filters.AccountStatuses, LaborordnungStatuses: filters.LaborordnungStatuses,
+		Sort: filters.Sort, Descending: filters.Descending,
 		PageLimit: int32(pageSize), PageOffset: int32((page - 1) * pageSize),
 	}
 	queries := peopledb.New(s.pool)
@@ -306,6 +325,26 @@ func (s *Service) List(
 		return Page{}, err
 	}
 	return Page{Items: items, Page: page, PageSize: pageSize, Total: total}, nil
+}
+
+// RoleOptions lists every role as a People list filter option. It needs only people.read.all because the People
+// list already shows each person's roles; role permissions and settings stay behind roles.read.
+func (s *Service) RoleOptions(ctx context.Context, principal authorization.Principal) ([]RoleSummary, error) {
+	if !principal.Has(authorization.PeopleReadAll) {
+		return nil, apperror.PermissionDenied
+	}
+	rows, err := peopledb.New(s.pool).ListRoleOptions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]RoleSummary, 0, len(rows))
+	for _, row := range rows {
+		items = append(
+			items,
+			RoleSummary{ID: row.ID, Name: row.Name, SystemKey: optional.Convert[authorization.SystemKey](row.SystemKey)},
+		)
+	}
+	return items, nil
 }
 
 func (s *Service) ProfileImageRequirements(

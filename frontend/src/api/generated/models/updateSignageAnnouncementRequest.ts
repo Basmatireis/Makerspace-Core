@@ -36,4 +36,13 @@ export interface UpdateSignageAnnouncementRequest {
   startsAt: string;
   /** @nullable */
   endsAt?: string | null;
+  /** Default false: use the template's colour and image. With true, `color` and `imageAssetId` replace them (null colour = tone colour, null image = no image). With false both must be omitted or null (422). */
+  ownLook?: boolean;
+  /**
+     * `#rrggbb` (case-insensitive; stored lower-case). Answers 422 `signage_color_contrast` when neither white nor #161616 text reaches a 4.5:1 contrast on it.
+     * @nullable
+     */
+  color?: string | null;
+  /** An image asset; answers 422 `validation_failed` when it does not exist or is not an image. */
+  imageAssetId?: UUIDv7 | null;
 }

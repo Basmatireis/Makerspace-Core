@@ -1,4 +1,5 @@
 import type { SignageRichTextFormat, SignageTone } from '../../api/generated/models';
+import type { AnnouncementLook } from './announcementLook';
 import { SceneRenderer, ScreenFrame } from './render/SceneRenderer';
 import { sceneGridSize } from './render/aspect';
 import type { RenderData, RenderScene } from './render/types';
@@ -43,7 +44,13 @@ const SCENE: RenderScene = {
 export function AnnouncementPreview({
   message,
 }: {
-  message: { title: string; body: string; tone: SignageTone; bodyFormat?: SignageRichTextFormat; bodyCss?: string };
+  message: {
+    title: string;
+    body: string;
+    tone: SignageTone;
+    bodyFormat?: SignageRichTextFormat;
+    bodyCss?: string;
+  } & Partial<AnnouncementLook>;
 }) {
   const data: RenderData = {
     now: 0,

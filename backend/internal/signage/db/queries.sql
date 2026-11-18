@@ -100,6 +100,18 @@ LEFT JOIN machine_jobs j ON j.id = r.job_id
 WHERE r.id = sqlc.arg(run_id) AND r.source = 'recorded' AND r.state = 'finished' AND r.deleted_at IS NULL
   AND NOT r.hidden_from_signage AND NOT COALESCE(j.hidden_from_signage, false) AND r.ended_at IS NOT NULL;
 
+-- name: ListSignageAssetDigests :many
+SELECT a.id, a.kind, f.sha256 FROM signage_assets a JOIN files f ON f.id = a.file_id WHERE a.id = ANY(sqlc.arg(ids)::text[]::uuid[]);
+
+-- name: ListTemplatesUsingImage :many
+SELECT id, name FROM signage_announcement_templates WHERE image_asset_id = sqlc.arg(id) ORDER BY lower(name), id;
+
+-- name: ListLiveAnnouncementsUsingImage :many
+-- Active or scheduled announcements with their own look that show the image.
+SELECT a.id, t.name FROM signage_announcements a JOIN signage_announcement_templates t ON t.id = a.template_id
+WHERE a.own_look AND a.image_asset_id = sqlc.arg(id) AND (a.ends_at IS NULL OR a.ends_at > sqlc.arg(now)::timestamptz)
+ORDER BY a.starts_at, a.id;
+
 -- name: ListSignageAssetKinds :many
 SELECT id, kind FROM signage_assets WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) FOR SHARE;
 
@@ -161,8 +173,9 @@ ORDER BY g.name, g.id;
 -- Announcement templates --------------------------------------------------------------------------------------
 
 -- name: CreateSignageTemplate :one
-INSERT INTO signage_announcement_templates (id, name, tone, title, body, body_format, body_css)
-VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(tone), sqlc.arg(title), sqlc.arg(body), sqlc.arg(body_format), sqlc.arg(body_css)) RETURNING *;
+INSERT INTO signage_announcement_templates (id, name, tone, title, body, body_format, body_css, color, image_asset_id)
+VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(tone), sqlc.arg(title), sqlc.arg(body), sqlc.arg(body_format), sqlc.arg(body_css),
+        sqlc.narg(color), sqlc.narg(image_asset_id)) RETURNING *;
 
 -- name: GetSignageTemplate :one
 SELECT * FROM signage_announcement_templates WHERE id = sqlc.arg(id);
@@ -176,7 +189,8 @@ SELECT * FROM signage_announcement_templates ORDER BY lower(name), id;
 -- name: UpdateSignageTemplate :one
 UPDATE signage_announcement_templates
 SET name = sqlc.arg(name), tone = sqlc.arg(tone), title = sqlc.arg(title), body = sqlc.arg(body), body_format = sqlc.arg(body_format),
-    body_css = sqlc.arg(body_css), version = version + 1, updated_at = now()
+    body_css = sqlc.arg(body_css), color = sqlc.narg(color), image_asset_id = sqlc.narg(image_asset_id),
+    version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING *;
 
 -- name: DeleteSignageTemplate :one
@@ -218,8 +232,9 @@ SELECT id, name FROM signage_scenes WHERE position((sqlc.arg(template_id)::uuid)
 -- Announcements -----------------------------------------------------------------------------------------------
 
 -- name: CreateSignageAnnouncement :one
-INSERT INTO signage_announcements (id, template_id, all_displays, starts_at, ends_at, created_by_account_id)
-VALUES (sqlc.arg(id), sqlc.arg(template_id), sqlc.arg(all_displays), sqlc.arg(starts_at), sqlc.narg(ends_at), sqlc.narg(created_by_account_id))
+INSERT INTO signage_announcements (id, template_id, all_displays, starts_at, ends_at, created_by_account_id, own_look, color, image_asset_id)
+VALUES (sqlc.arg(id), sqlc.arg(template_id), sqlc.arg(all_displays), sqlc.arg(starts_at), sqlc.narg(ends_at), sqlc.narg(created_by_account_id),
+        sqlc.arg(own_look), sqlc.narg(color), sqlc.narg(image_asset_id))
 RETURNING *;
 
 -- name: GetSignageAnnouncement :one
@@ -233,7 +248,8 @@ SELECT * FROM signage_announcements WHERE ends_at IS NULL OR ends_at > sqlc.arg(
 
 -- name: UpdateSignageAnnouncement :one
 UPDATE signage_announcements
-SET all_displays = sqlc.arg(all_displays), starts_at = sqlc.arg(starts_at), ends_at = sqlc.narg(ends_at), version = version + 1, updated_at = now()
+SET all_displays = sqlc.arg(all_displays), starts_at = sqlc.arg(starts_at), ends_at = sqlc.narg(ends_at),
+    own_look = sqlc.arg(own_look), color = sqlc.narg(color), image_asset_id = sqlc.narg(image_asset_id), version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING *;
 
 -- name: DeleteSignageAnnouncement :one
@@ -585,10 +601,77 @@ SELECT name FROM signage_announcement_templates;
 
 
 -- name: ListLiveSignageRuleNotices :many
--- Notices a notification rule put on this display that are in force now.
-SELECT id, title, body, tone, starts_at, ends_at FROM signage_rule_notices
-WHERE display_id = sqlc.arg(display_id) AND starts_at <= sqlc.arg(now)::timestamptz AND ends_at > sqlc.arg(now)::timestamptz
-ORDER BY starts_at, id;
+-- Notices of notification rules in force now that this display shows: it or its group opted in to the rule or to all
+-- signage notices.
+SELECT n.id, n.title, n.body, n.tone, n.starts_at, n.ends_at
+FROM signage_rule_notices n
+JOIN notification_rules r ON r.id = n.rule_id AND r.owner_account_id IS NULL
+JOIN signage_displays d ON d.id = sqlc.arg(display_id) AND d.kind = 'device'
+LEFT JOIN signage_display_groups g ON g.id = d.group_id
+WHERE n.starts_at <= sqlc.arg(now)::timestamptz AND n.ends_at > sqlc.arg(now)::timestamptz
+  AND (d.all_rule_notices OR COALESCE(g.all_rule_notices, false)
+       OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o
+                  WHERE o.rule_id = n.rule_id AND (o.display_id = d.id OR o.group_id = d.group_id)))
+ORDER BY n.starts_at, n.id;
+
+-- Notice opt-ins -------------------------------------------------------------------------------------------------
+
+-- name: GetSignageDisplayNoticeChoice :one
+SELECT d.kind, d.all_rule_notices,
+       COALESCE((SELECT array_agg(o.rule_id ORDER BY o.rule_id) FROM signage_notice_opt_ins o WHERE o.display_id = d.id),
+                '{}')::uuid[] AS rule_ids
+FROM signage_displays d WHERE d.id = sqlc.arg(id);
+
+-- name: GetSignageDisplayGroupNoticeChoice :one
+SELECT g.all_rule_notices,
+       COALESCE((SELECT array_agg(o.rule_id ORDER BY o.rule_id) FROM signage_notice_opt_ins o WHERE o.group_id = g.id),
+                '{}')::uuid[] AS rule_ids
+FROM signage_display_groups g WHERE g.id = sqlc.arg(id);
+
+-- name: LockSignageDisplayKind :one
+SELECT kind FROM signage_displays WHERE id = sqlc.arg(id) FOR NO KEY UPDATE;
+
+-- name: LockSignageDisplayGroup :one
+SELECT id FROM signage_display_groups WHERE id = sqlc.arg(id) FOR NO KEY UPDATE;
+
+-- name: SetSignageDisplayAllRuleNotices :exec
+UPDATE signage_displays SET all_rule_notices = sqlc.arg(all_rule_notices) WHERE id = sqlc.arg(id);
+
+-- name: SetSignageDisplayGroupAllRuleNotices :exec
+UPDATE signage_display_groups SET all_rule_notices = sqlc.arg(all_rule_notices) WHERE id = sqlc.arg(id);
+
+-- name: DeleteSignageDisplayNoticeOptIns :exec
+DELETE FROM signage_notice_opt_ins WHERE display_id = sqlc.arg(display_id);
+
+-- name: DeleteSignageDisplayGroupNoticeOptIns :exec
+DELETE FROM signage_notice_opt_ins WHERE group_id = sqlc.arg(group_id);
+
+-- name: InsertSignageNoticeOptIn :exec
+INSERT INTO signage_notice_opt_ins (id, rule_id, display_id, group_id)
+VALUES (sqlc.arg(id), sqlc.arg(rule_id), sqlc.narg(display_id), sqlc.narg(group_id));
+
+-- name: ListChoosableNotificationRuleIDs :many
+-- The given ids a display or group may choose: central rules (personal subscriptions never reach signage) with a
+-- signage action, or that the display or group already chose, so a stale choice can be kept while it is cleaned up.
+SELECT r.id FROM notification_rules r
+WHERE r.id = ANY(sqlc.arg(ids)::text[]::uuid[]) AND r.owner_account_id IS NULL
+  AND (r.definition @? '$.actions[*] ? (@.channel == "signage")'
+       OR r.definition @? '$.escalation.steps[*].action ? (@.channel == "signage")'
+       OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o
+                  WHERE o.rule_id = r.id AND (o.display_id = sqlc.narg(display_id) OR o.group_id = sqlc.narg(group_id))))
+FOR SHARE OF r;
+
+-- name: ListSignageNotificationRules :many
+-- Central rules with a signage action, and every rule a display or group chose even if its signage action is gone.
+SELECT r.id, r.name, r.enabled,
+       (r.definition @? '$.actions[*] ? (@.channel == "signage")'
+        OR r.definition @? '$.escalation.steps[*].action ? (@.channel == "signage")')::boolean AS has_signage_action
+FROM notification_rules r
+WHERE r.owner_account_id IS NULL
+  AND (r.definition @? '$.actions[*] ? (@.channel == "signage")'
+       OR r.definition @? '$.escalation.steps[*].action ? (@.channel == "signage")'
+       OR EXISTS (SELECT 1 FROM signage_notice_opt_ins o WHERE o.rule_id = r.id))
+ORDER BY lower(r.name), r.id;
 
 -- Web embeds --------------------------------------------------------------------------------------------------
 
@@ -639,3 +722,16 @@ WHERE display_id = sqlc.arg(display_id) AND (loads_day IS NULL OR loads_day <= s
 -- Deletes a web embed's display; its embed row, rules, default list, publications and announcement targets cascade.
 DELETE FROM signage_displays WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND kind = 'web_embed'
 RETURNING id;
+
+-- name: ListLiveAnnouncementImageIDsForDisplay :many
+-- Images shown by announcements in force for one display (the same set as ListLiveSignageAnnouncementsForDisplay): an
+-- announcement's own image, or its template's image while it has no own look.
+SELECT DISTINCT CASE WHEN a.own_look THEN a.image_asset_id ELSE t.image_asset_id END::uuid AS asset_id
+FROM signage_announcements a JOIN signage_announcement_templates t ON t.id = a.template_id
+WHERE a.starts_at <= sqlc.arg(now)::timestamptz AND (a.ends_at IS NULL OR a.ends_at > sqlc.arg(now)::timestamptz)
+  AND CASE WHEN a.own_look THEN a.image_asset_id ELSE t.image_asset_id END IS NOT NULL
+  AND ((sqlc.arg(broadcasts)::boolean AND a.all_displays)
+       OR EXISTS (SELECT 1 FROM signage_announcement_displays ad WHERE ad.announcement_id = a.id AND ad.display_id = sqlc.arg(display_id))
+       OR (sqlc.arg(broadcasts)::boolean
+           AND EXISTS (SELECT 1 FROM signage_announcement_groups ag JOIN signage_displays d ON d.group_id = ag.group_id
+                       WHERE ag.announcement_id = a.id AND d.id = sqlc.arg(display_id))));

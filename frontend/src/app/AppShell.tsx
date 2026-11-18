@@ -25,6 +25,7 @@ import { NotificationAlertHost } from '../features/notifications/NotificationAle
 import { PersonAvatar } from '../features/users/PersonAvatar';
 import { BrandMark } from './BrandMark';
 import { setColorScheme, useColorScheme } from './colorScheme';
+import { AppFooter } from './AppFooter';
 import { AppNavigation } from './AppNavigation';
 import { FullPageLoading } from './PageState';
 import { ToastProvider } from './toasts';
@@ -41,7 +42,7 @@ const CalendarSubscriptionDialog = lazy(() => import('../features/profile/Calend
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 /** Pages that use the whole width below the header, without page padding. */
-const FULL_WIDTH_PATHS = /^\/signage\/scenes\/[^/]+\/?$/;
+const FULL_WIDTH_PATHS = /^\/(signage\/scenes\/[^/]+|settings\/pdf-templates)\/?$/;
 
 function currentNarrowState(): boolean {
   return typeof window.matchMedia === 'function' ? window.matchMedia(NARROW_SHELL_QUERY).matches : false;
@@ -63,7 +64,7 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isNarrow, setIsNarrow] = useState(currentNarrowState);
-  // Full-width work pages (the screen editor) keep the header but open the navigation only on request.
+  // Full-width work pages (the signage screen editor, the PDF template editor) keep the header but open the navigation only on request.
   const fullWidth = FULL_WIDTH_PATHS.test(location.pathname);
   const [sideNavExpanded, setSideNavExpanded] = useState(() => !currentNarrowState() && !fullWidth);
   const [profilePanelOpen, setProfilePanelOpen] = useState(false);
@@ -121,6 +122,26 @@ export function AppShell() {
     if (!currentNarrowState()) setSideNavExpanded(!fullWidth);
   }, [fullWidth]);
 
+  // Only one menu is open at a time: the navigation, where it lies over the page, and the header panels exclude each other.
+  const navOverlays = isNarrow || fullWidth;
+  const toggleSideNav = () => {
+    if (!sideNavExpanded) {
+      setProfilePanelOpen(false);
+      setNotificationPanelOpen(false);
+    }
+    setSideNavExpanded(!sideNavExpanded);
+  };
+  const toggleNotificationPanel = () => {
+    if (!notificationPanelOpen && navOverlays) setSideNavExpanded(false);
+    setProfilePanelOpen(false);
+    setNotificationPanelOpen(!notificationPanelOpen);
+  };
+  const toggleProfilePanel = () => {
+    if (!profilePanelOpen && navOverlays) setSideNavExpanded(false);
+    setNotificationPanelOpen(false);
+    setProfilePanelOpen(!profilePanelOpen);
+  };
+
   const handleNavigation = () => {
     if (!isNarrow && !fullWidth) return;
     setSideNavExpanded(false);
@@ -146,7 +167,7 @@ export function AppShell() {
                   aria-label={sideNavExpanded ? 'Close navigation' : 'Open navigation'}
                   isActive={sideNavExpanded}
                   isCollapsible
-                  onClick={() => setSideNavExpanded((expanded) => !expanded)}
+                  onClick={toggleSideNav}
                 />
               )}
               <HeaderName as={Link} to="/dashboard" prefix="" className="app-header__brand">
@@ -171,10 +192,7 @@ export function AppShell() {
                     <NotificationAction
                       expanded={notificationPanelOpen}
                       actionRef={notificationActionRef}
-                      onToggle={() => {
-                        setProfilePanelOpen(false);
-                        setNotificationPanelOpen((open) => !open);
-                      }}
+                      onToggle={toggleNotificationPanel}
                     />
                   </>
                 )}
@@ -184,10 +202,7 @@ export function AppShell() {
                   tooltipAlignment="end"
                   isActive={profilePanelOpen}
                   ref={profileActionRef}
-                  onClick={() => {
-                    setNotificationPanelOpen(false);
-                    setProfilePanelOpen((open) => !open);
-                  }}
+                  onClick={toggleProfilePanel}
                 >
                   {currentUser.person.profileImage ? (
                     <PersonAvatar
@@ -321,6 +336,7 @@ export function AppShell() {
               {consentRequired ? <ConsentGate /> : <Outlet />}
             </Suspense>
           </main>
+          {!consentRequired && !fullWidth && <AppFooter navExpanded={sideNavExpanded && !isNarrow} />}
           {consentRequired ? null : showLabRulesModal ? (
             <Suspense fallback={null}>
               <LabRulesConfirmModal status={labRules} onLater={() => setLabRulesDeferred(true)} />

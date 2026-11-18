@@ -103,6 +103,25 @@ func (s *Server) ChangePersonMembership(
 	return openapi.ChangePersonMembership200JSONResponse(response), nil
 }
 
+func (s *Server) ListPeopleRoleOptions(
+	ctx context.Context,
+	_ openapi.ListPeopleRoleOptionsRequestObject,
+) (openapi.ListPeopleRoleOptionsResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.people.RoleOptions(ctx, principal)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]openapi.RoleSummary, 0, len(items))
+	for _, role := range items {
+		out = append(out, roleSummaryDTO(role))
+	}
+	return openapi.ListPeopleRoleOptions200JSONResponse{Items: out}, nil
+}
+
 func (s *Server) ListPeople(
 	ctx context.Context,
 	request openapi.ListPeopleRequestObject,
@@ -137,8 +156,14 @@ func (s *Server) ListPeople(
 			laborordnungStatuses = append(laborordnungStatuses, string(status))
 		}
 	}
+	sort := ""
+	if request.Params.Sort != nil {
+		sort = string(*request.Params.Sort)
+	}
 	page, err := s.people.List(ctx, principal, pageNumber, pageSize, people.ListFilters{
 		Search: search, RoleIDs: roleIDs, AccountStatuses: accountStatuses, LaborordnungStatuses: laborordnungStatuses,
+		Sort:       sort,
+		Descending: request.Params.Order != nil && *request.Params.Order == openapi.ListPeopleParamsOrderDesc,
 	})
 	if err != nil {
 		return nil, err

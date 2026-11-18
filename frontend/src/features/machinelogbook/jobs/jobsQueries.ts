@@ -85,14 +85,11 @@ export function useAttachRunToJob() {
 }
 
 /** Draft orders of one recipient: the orders a finished job can still be added to. */
-export const draftOrdersQuery = (customer: Pick<BillingParty, 'id' | 'displayName'> | null | undefined) =>
+export const draftOrdersQuery = (customer: Pick<BillingParty, 'id'> | null | undefined) =>
   queryOptions({
     queryKey: [...machineLogbookKeys.all, 'draft-orders', customer?.id ?? ''],
     queryFn: async ({ signal }) => {
-      const page = await listOrders(
-        { status: 'draft', search: customer?.displayName ?? '', page: 1, pageSize: 100 },
-        { signal },
-      );
+      const page = await listOrders({ status: 'draft', customerId: customer?.id, page: 1, pageSize: 100 }, { signal });
       return page.items.filter((order) => order.customer?.id === customer?.id);
     },
     enabled: Boolean(customer),

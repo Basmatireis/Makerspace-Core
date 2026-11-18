@@ -335,7 +335,6 @@ func Parse(r io.ReaderAt, compressedSize int64, limits Limits) (Result, error) {
 		}
 	}
 	result.Previews = deduplicatePreviews(result.Previews)
-	selectPrimaryPreview(result.Previews, collector.previewReferences)
 
 	filamentOptions := make([]GCodeFilament, 0, len(result.Filaments))
 	for _, filament := range result.Filaments {
@@ -349,9 +348,13 @@ func Parse(r io.ReaderAt, compressedSize int64, limits Limits) (Result, error) {
 		value := 1
 		physicalExtruder = &value
 	}
+	var sliced []int
 	for _, f := range files {
 		if f.FileInfo().IsDir() || !strings.HasSuffix(strings.ToLower(f.Name), ".gcode") {
 			continue
+		}
+		if plate := plateNumberFromPath(f.Name); plate != nil {
+			sliced = appendUniqueInt(sliced, *plate)
 		}
 		rc, openErr := f.Open()
 		if openErr != nil {
@@ -372,6 +375,7 @@ func Parse(r io.ReaderAt, compressedSize int64, limits Limits) (Result, error) {
 			GCodeFile{ArchivePath: f.Name, PlateNumber: plateNumberFromPath(f.Name), Estimate: estimate},
 		)
 	}
+	selectPrimaryPreview(result.Previews, collector.previewReferences, sliced)
 	if len(result.Warnings) > 0 {
 		result.Status = StatusPartial
 	}
@@ -517,9 +521,19 @@ func deduplicatePreviews(previews []Preview) []Preview {
 	return result
 }
 
-func selectPrimaryPreview(previews []Preview, references []string) {
+// selectPrimaryPreview marks the preview of the plate that was sliced. A 3MF
+// exported for one plate carries that plate's G-code but the renders of every
+// plate; with exactly one sliced plate its render wins. Otherwise a preview the
+// metadata names wins, and finally the largest plate render.
+func selectPrimaryPreview(previews []Preview, references []string, sliced []int) {
 	if len(previews) == 0 {
 		return
+	}
+	if len(sliced) == 1 {
+		if index := PlatePreview(previews, sliced[0]); index >= 0 {
+			previews[index].Primary = true
+			return
+		}
 	}
 	refSet := make(map[string]struct{}, len(references)*2)
 	for _, ref := range references {
@@ -540,21 +554,55 @@ func selectPrimaryPreview(previews []Preview, references []string) {
 	}
 	best := -1
 	for i := range previews {
-		if best < 0 {
-			best = i
-			continue
-		}
-		bestIsPlate := previews[best].Role == PreviewRolePlate
-		currentIsPlate := previews[i].Role == PreviewRolePlate
-		bestPixels := int64(previews[best].Width) * int64(previews[best].Height)
-		currentPixels := int64(previews[i].Width) * int64(previews[i].Height)
-		if (currentIsPlate && !bestIsPlate) ||
-			(currentIsPlate == bestIsPlate &&
-				(currentPixels > bestPixels || (currentPixels == bestPixels && previews[i].ArchivePath < previews[best].ArchivePath))) {
+		if best < 0 || betterPreview(previews[i], previews[best]) {
 			best = i
 		}
 	}
 	previews[best].Primary = true
+}
+
+// PlatePreview returns the index of the largest plate render of plate, or -1
+// when the previews hold none. Core uses it to show the plate a printer
+// reported for a run when a 3MF carries G-code for several plates.
+func PlatePreview(previews []Preview, plate int) int {
+	best := -1
+	for i := range previews {
+		if previews[i].Role != PreviewRolePlate || previews[i].PlateNumber == nil || *previews[i].PlateNumber != plate {
+			continue
+		}
+		if best < 0 || betterPreview(previews[i], previews[best]) {
+			best = i
+		}
+	}
+	return best
+}
+
+// betterPreview prefers plate renders, then more pixels, then the lower archive path.
+func betterPreview(current, best Preview) bool {
+	bestIsPlate := best.Role == PreviewRolePlate
+	currentIsPlate := current.Role == PreviewRolePlate
+	if currentIsPlate != bestIsPlate {
+		return currentIsPlate
+	}
+	bestPixels := int64(best.Width) * int64(best.Height)
+	currentPixels := int64(current.Width) * int64(current.Height)
+	if currentPixels != bestPixels {
+		return currentPixels > bestPixels
+	}
+	return current.ArchivePath < best.ArchivePath
+}
+
+// PlateFromGCodePath returns the plate of a G-code path inside a 3MF, such as
+// the /data/Metadata/plate_2.gcode a Bambu printer reports for a running print.
+func PlateFromGCodePath(name string) *int {
+	if !strings.HasSuffix(strings.ToLower(strings.TrimSpace(name)), ".gcode") {
+		return nil
+	}
+	plate := plateNumberFromPath(path.Base(strings.ReplaceAll(name, "\\", "/")))
+	if plate == nil || *plate < 1 {
+		return nil
+	}
+	return plate
 }
 
 var platePattern = regexp.MustCompile(`(?i)(?:plate[_ -]?|plate/)(\d+)`)

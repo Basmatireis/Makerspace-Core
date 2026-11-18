@@ -418,14 +418,6 @@ WHERE st.kind = 'visit_checked_out' AND st.enabled AND st.ask_at_tablet
   )
 ORDER BY s.created_at, s.id;
 
--- name: GetPersonAskFeedback :one
-SELECT ask_feedback_at_checkout FROM person_notification_settings WHERE person_id = sqlc.arg(person_id);
-
--- name: DisableAskFeedbackAtCheckout :exec
-INSERT INTO person_notification_settings (person_id, ask_feedback_at_checkout, updated_at)
-VALUES (sqlc.arg(person_id), false, now())
-ON CONFLICT (person_id) DO UPDATE SET ask_feedback_at_checkout = false, updated_at = now();
-
 -- name: UpsertSurveyAsk :exec
 INSERT INTO survey_ask_cooldowns (person_id, survey_id, asked_at)
 VALUES (sqlc.arg(person_id), sqlc.arg(survey_id), now())

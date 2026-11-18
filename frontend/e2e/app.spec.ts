@@ -570,6 +570,12 @@ async function installApi(page: Page, state: ApiState) {
       return;
     }
 
+    if (path === '/api/v1/people/role-options' && request.method() === 'GET') {
+      const roles = state.role ? [state.role, ...(state.extraRoles ?? [])] : [];
+      await json(route, { items: roles.map(({ id, name, systemKey }) => ({ id, name, systemKey })) });
+      return;
+    }
+
     if (path === '/api/v1/people' && request.method() === 'GET') {
       const people = state.people ?? [];
       await json(route, { items: people, page: 1, pageSize: 25, total: people.length });
@@ -1354,6 +1360,23 @@ test('collapses and opens the SideNav at the responsive breakpoint', async ({ pa
   await page.getByRole('link', { name: 'Dashboard' }).click();
   await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
   await expect(page.locator('#main-content')).toBeFocused();
+});
+
+test('keeps only one of the narrow navigation and the header panels open', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installApi(page, { authenticated: true, user: currentUser() });
+
+  await page.goto('/dashboard');
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Open profile menu for Ada Lovelace' }).click();
+  await expect(page.getByRole('button', { name: 'Close profile menu for Ada Lovelace' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await expect(page.getByRole('button', { name: 'Close navigation' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open profile menu for Ada Lovelace' })).toBeVisible();
 });
 
 test('shows an accessible destructive confirmation before deleting a custom role', async ({ page }) => {

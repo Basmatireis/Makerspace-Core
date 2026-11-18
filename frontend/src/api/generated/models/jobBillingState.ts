@@ -20,7 +20,7 @@
  */
 
 /**
- * on_order: on an order whose snapshot matches the job; order_outdated: on an order but the job changed since; not_on_order: priced completely and not on an order; price_incomplete: pricing incomplete; pending: not priced yet.
+ * on_order: on an order whose snapshot matches the job; order_outdated: on an order but the job changed since; not_on_order: priced completely above 0 and not on an order; nothing_to_bill: ended, priced completely and its effective price is 0, so it never goes on an order; price_incomplete: pricing incomplete; pending: not priced yet.
  */
 export type JobBillingState = typeof JobBillingState[keyof typeof JobBillingState];
 
@@ -29,6 +29,7 @@ export const JobBillingState = {
   on_order: 'on_order',
   order_outdated: 'order_outdated',
   not_on_order: 'not_on_order',
+  nothing_to_bill: 'nothing_to_bill',
   price_incomplete: 'price_incomplete',
   pending: 'pending',
 } as const;

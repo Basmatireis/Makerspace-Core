@@ -18,7 +18,7 @@ COPY backend/ ./
 RUN --mount=type=cache,target=/root/.cache/go-build \
     GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w -X github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnector.Version=${VERSION}" -o /out/printer-connector ./cmd/printer-connector
 
-FROM alpine:3.24.3 AS final
+FROM alpine:3.24.4 AS final
 
 # The numeric ids are fixed (they are what `adduser -S` has always assigned): the go2rtc container
 # reads the configuration file this process writes into a shared volume and has to run as the same

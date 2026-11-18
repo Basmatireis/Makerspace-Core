@@ -41,7 +41,7 @@ function AddButtons({
 }
 
 export function ThenStep(props: StepProps) {
-  const { catalog, definition, lookup, edit, personal } = props;
+  const { catalog, definition, lookup, edit, personal, signageShownOn, signageLinks } = props;
   const ctx = contextOf(catalog, definition);
   const acknowledgeStops = definition.escalation?.stopWhen === 'acknowledged';
   return (
@@ -58,6 +58,8 @@ export function ThenStep(props: StepProps) {
             lookup={lookup}
             showDelay
             personal={personal}
+            signageShownOn={signageShownOn}
+            signageLinks={signageLinks}
             acknowledgeStops={acknowledgeStops}
             onChange={(next) =>
               edit((draft) => {
@@ -184,6 +186,8 @@ export function EscalationStep(props: StepProps) {
               definition={definition}
               lookup={lookup}
               showDelay={false}
+              signageShownOn={props.signageShownOn}
+              signageLinks={props.signageLinks}
               acknowledgeStops={escalation.stopWhen === 'acknowledged'}
               onChange={(next) =>
                 edit((draft) => {

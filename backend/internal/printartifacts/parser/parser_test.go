@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -241,6 +242,137 @@ func TestPreviewFallbackChoosesLargestPlateDeterministically(t *testing.T) {
 	if !found {
 		t.Fatal("no primary preview selected")
 	}
+}
+
+func TestPrimaryPreviewIsTheSlicedPlate(t *testing.T) {
+	t.Parallel()
+
+	// Bambu Studio names the thumbnail of every plate in model_settings.config,
+	// plate 1 first, whichever plate was sliced.
+	settings := zipEntry{name: "Metadata/model_settings.config", data: []byte(`<?xml version="1.0"?>
+      <config>
+        <plate><metadata key="plater_id" value="1"/><metadata key="thumbnail_file" value="Metadata/plate_1.png"/></plate>
+        <plate><metadata key="plater_id" value="2"/><metadata key="thumbnail_file" value="Metadata/plate_2.png"/></plate>
+        <plate><metadata key="plater_id" value="3"/><metadata key="thumbnail_file" value="Metadata/plate_3.png"/></plate>
+      </config>`)}
+	gcode := []byte("M82\nG92 E0\nG1 X1 E10\n")
+	plates := func(numbers ...int) []zipEntry {
+		var entries []zipEntry
+		for _, number := range numbers {
+			shade := uint8(40 * number)
+			entries = append(entries,
+				zipEntry{name: fmt.Sprintf("Metadata/plate_%d.png", number), data: pngBytes(t, 64, 64, color.RGBA{R: shade, A: 255})},
+				zipEntry{
+					name: fmt.Sprintf("Metadata/plate_%d_small.png", number),
+					data: pngBytes(t, 16, 16, color.RGBA{G: shade, A: 255}),
+				},
+			)
+		}
+		return entries
+	}
+	tests := map[string]struct {
+		entries []zipEntry
+		primary string
+	}{
+		"single plate": {
+			entries: append(plates(1), zipEntry{name: "Metadata/plate_1.gcode", data: gcode}),
+			primary: "Metadata/plate_1.png",
+		},
+		"several plates, plate 2 sliced": {
+			entries: append(plates(1, 2, 3), zipEntry{name: "Metadata/plate_2.gcode", data: gcode}),
+			primary: "Metadata/plate_2.png",
+		},
+		"several plates sliced keep the named preview": {
+			entries: append(
+				plates(1, 2, 3),
+				zipEntry{name: "Metadata/plate_2.gcode", data: gcode},
+				zipEntry{name: "Metadata/plate_3.gcode", data: gcode},
+			),
+			primary: "Metadata/plate_1.png",
+		},
+		"sliced plate without a render keeps the named preview": {
+			entries: append(plates(1, 2), zipEntry{name: "Metadata/plate_4.gcode", data: gcode}),
+			primary: "Metadata/plate_1.png",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			archive := makeZIP(t, append([]zipEntry{settings}, test.entries...))
+			result, err := Parse(bytes.NewReader(archive), int64(len(archive)), Limits{})
+			if err != nil {
+				t.Fatalf("Parse: %v", err)
+			}
+			if primary := primaryPath(result.Previews); primary != test.primary {
+				t.Fatalf("primary = %q, want %q", primary, test.primary)
+			}
+		})
+	}
+}
+
+func TestPlatePreviewChoosesTheReportedPlate(t *testing.T) {
+	t.Parallel()
+
+	archive := makeZIP(t, []zipEntry{
+		{name: "Metadata/project_settings.config", data: []byte(`{"project_name":"two plates"}`)},
+		{name: "Metadata/plate_1.png", data: pngBytes(t, 64, 64, color.White)},
+		{name: "Metadata/plate_2.png", data: pngBytes(t, 64, 64, color.Black)},
+		{name: "Metadata/plate_2_small.png", data: pngBytes(t, 16, 16, color.Black)},
+		{name: "Metadata/plate_1.gcode", data: []byte("M82\n")},
+		{name: "Metadata/plate_2.gcode", data: []byte("M82\n")},
+	})
+	result, err := Parse(bytes.NewReader(archive), int64(len(archive)), Limits{})
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if primary := primaryPath(result.Previews); primary != "Metadata/plate_1.png" {
+		t.Fatalf("archive primary = %q", primary)
+	}
+	reported := PlateFromGCodePath("/data/Metadata/plate_2.gcode")
+	if reported == nil || *reported != 2 {
+		t.Fatalf("reported plate = %v", reported)
+	}
+	if index := PlatePreview(result.Previews, *reported); index < 0 ||
+		result.Previews[index].ArchivePath != "Metadata/plate_2.png" {
+		t.Fatalf("plate 2 preview index = %d in %+v", index, result.Previews)
+	}
+	if index := PlatePreview(result.Previews, 3); index != -1 {
+		t.Fatalf("plate 3 preview index = %d", index)
+	}
+}
+
+func TestPlateFromGCodePath(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]int{
+		"/data/Metadata/plate_2.gcode": 2,
+		"Metadata/plate_12.gcode":      12,
+		"/cache/plate_1.gcode":         1,
+		"Metadata\\plate_3.gcode":      3,
+		"/sdcard/plate_2.gcode.3mf":    0,
+		"/data/Metadata/plate_0.gcode": 0,
+		"/data/Metadata/print.gcode":   0,
+		"":                             0,
+	}
+	for input, want := range tests {
+		got := PlateFromGCodePath(input)
+		if (want == 0 && got != nil) || (want != 0 && (got == nil || *got != want)) {
+			t.Errorf("PlateFromGCodePath(%q) = %v, want %d", input, got, want)
+		}
+	}
+}
+
+func primaryPath(previews []Preview) string {
+	path := ""
+	for _, preview := range previews {
+		if preview.Primary {
+			if path != "" {
+				return "several"
+			}
+			path = preview.ArchivePath
+		}
+	}
+	return path
 }
 
 type zipEntry struct {

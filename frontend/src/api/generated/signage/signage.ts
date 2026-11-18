@@ -43,6 +43,8 @@ import type {
   SignageDisplayList,
   SignageDisplayPreview,
   SignageMachineList,
+  SignageNoticeSelection,
+  SignageNotificationRuleList,
   SignagePairingPoll,
   SignagePairingStart,
   SignageRuleList,
@@ -63,6 +65,26 @@ import type {
 } from '../models';
 
 import { apiFetch } from '../../http-client';
+
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
 
 export const getListSignageMachinesUrl = () => {
 
@@ -156,25 +178,11 @@ export const getUploadSignageAssetUrl = () => {
  */
 export const uploadSignageAsset = async (uploadSignageAssetBody: Blob, options?: Parameters<typeof apiFetch>[1]): Promise<SignageAsset> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageAsset>(getUploadSignageAssetUrl(),
+  return apiFetch<SignageAsset>(getUploadSignageAssetUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/octet-stream', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/octet-stream' }, options?.headers),
     body: uploadSignageAssetBody
   }
 );}
@@ -211,25 +219,11 @@ export const getRenameSignageAssetUrl = (assetId: string,) => {
 export const renameSignageAsset = async (assetId: string,
     renameSignageAssetRequest: RenameSignageAssetRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageAsset> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageAsset>(getRenameSignageAssetUrl(assetId),
+  return apiFetch<SignageAsset>(getRenameSignageAssetUrl(assetId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(renameSignageAssetRequest)
   }
 );}
@@ -244,7 +238,7 @@ export const getDeleteSignageAssetUrl = (assetId: string,) => {
 }
 
 /**
- * Answers 409 `signage_in_use` with `details.references` while a scene uses the asset as background or in a widget.
+ * Answers 409 `signage_in_use` with `details.references` while a scene uses the asset as background or in a widget (reference kind `scene`), an announcement template uses it as its image (kind `template`) or an active or scheduled announcement with its own look shows it (kind `announcement`). Ended announcements just lose the image.
  * @summary Delete an asset that no draft scene references
  */
 export const deleteSignageAsset = async (assetId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
@@ -355,25 +349,11 @@ export const getCreateSignageSceneUrl = () => {
 
 export const createSignageScene = async (createSignageSceneRequest: CreateSignageSceneRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageScene> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageScene>(getCreateSignageSceneUrl(),
+  return apiFetch<SignageScene>(getCreateSignageSceneUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createSignageSceneRequest)
   }
 );}
@@ -438,25 +418,11 @@ export const getUpdateSignageSceneUrl = (sceneId: string,) => {
 export const updateSignageScene = async (sceneId: string,
     updateSignageSceneRequest: UpdateSignageSceneRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageScene> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageScene>(getUpdateSignageSceneUrl(sceneId),
+  return apiFetch<SignageScene>(getUpdateSignageSceneUrl(sceneId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateSignageSceneRequest)
   }
 );}
@@ -476,25 +442,11 @@ export const getDeleteSignageSceneUrl = (sceneId: string,) => {
 export const deleteSignageScene = async (sceneId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteSignageSceneUrl(sceneId),
+  return apiFetch<void>(getDeleteSignageSceneUrl(sceneId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -530,25 +482,11 @@ export const getCreateSignageAnnouncementTemplateUrl = () => {
 
 export const createSignageAnnouncementTemplate = async (createSignageAnnouncementTemplateRequest: CreateSignageAnnouncementTemplateRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageAnnouncementTemplate> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageAnnouncementTemplate>(getCreateSignageAnnouncementTemplateUrl(),
+  return apiFetch<SignageAnnouncementTemplate>(getCreateSignageAnnouncementTemplateUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createSignageAnnouncementTemplateRequest)
   }
 );}
@@ -613,25 +551,11 @@ export const getUpdateSignageAnnouncementTemplateUrl = (templateId: string,) => 
 export const updateSignageAnnouncementTemplate = async (templateId: string,
     updateSignageAnnouncementTemplateRequest: UpdateSignageAnnouncementTemplateRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageAnnouncementTemplate> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageAnnouncementTemplate>(getUpdateSignageAnnouncementTemplateUrl(templateId),
+  return apiFetch<SignageAnnouncementTemplate>(getUpdateSignageAnnouncementTemplateUrl(templateId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateSignageAnnouncementTemplateRequest)
   }
 );}
@@ -651,25 +575,11 @@ export const getDeleteSignageAnnouncementTemplateUrl = (templateId: string,) => 
 export const deleteSignageAnnouncementTemplate = async (templateId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteSignageAnnouncementTemplateUrl(templateId),
+  return apiFetch<void>(getDeleteSignageAnnouncementTemplateUrl(templateId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -709,25 +619,11 @@ export const getStartSignageAnnouncementUrl = () => {
 
 export const startSignageAnnouncement = async (startSignageAnnouncementRequest: StartSignageAnnouncementRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageAnnouncement> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageAnnouncement>(getStartSignageAnnouncementUrl(),
+  return apiFetch<SignageAnnouncement>(getStartSignageAnnouncementUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(startSignageAnnouncementRequest)
   }
 );}
@@ -767,25 +663,11 @@ export const getUpdateSignageAnnouncementUrl = (announcementId: string,) => {
 export const updateSignageAnnouncement = async (announcementId: string,
     updateSignageAnnouncementRequest: UpdateSignageAnnouncementRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageAnnouncement> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageAnnouncement>(getUpdateSignageAnnouncementUrl(announcementId),
+  return apiFetch<SignageAnnouncement>(getUpdateSignageAnnouncementUrl(announcementId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateSignageAnnouncementRequest)
   }
 );}
@@ -805,25 +687,11 @@ export const getStopSignageAnnouncementUrl = (announcementId: string,) => {
 export const stopSignageAnnouncement = async (announcementId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getStopSignageAnnouncementUrl(announcementId),
+  return apiFetch<void>(getStopSignageAnnouncementUrl(announcementId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -866,25 +734,11 @@ export const getPairSignageDisplayUrl = () => {
  */
 export const pairSignageDisplay = async (pairSignageDisplayRequest: PairSignageDisplayRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageDisplay> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageDisplay>(getPairSignageDisplayUrl(),
+  return apiFetch<SignageDisplay>(getPairSignageDisplayUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(pairSignageDisplayRequest)
   }
 );}
@@ -926,25 +780,11 @@ export const getUpdateSignageDisplayUrl = (displayId: string,) => {
 export const updateSignageDisplay = async (displayId: string,
     updateSignageDisplayRequest: UpdateSignageDisplayRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageDisplay> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageDisplay>(getUpdateSignageDisplayUrl(displayId),
+  return apiFetch<SignageDisplay>(getUpdateSignageDisplayUrl(displayId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateSignageDisplayRequest)
   }
 );}
@@ -965,25 +805,11 @@ export const getDeleteSignageDisplayUrl = (displayId: string,) => {
 export const deleteSignageDisplay = async (displayId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteSignageDisplayUrl(displayId),
+  return apiFetch<void>(getDeleteSignageDisplayUrl(displayId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -1004,25 +830,11 @@ export const getRevokeSignageDisplayUrl = (displayId: string,) => {
 export const revokeSignageDisplay = async (displayId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageDisplay> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageDisplay>(getRevokeSignageDisplayUrl(displayId),
+  return apiFetch<SignageDisplay>(getRevokeSignageDisplayUrl(displayId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -1115,25 +927,11 @@ export const getCreateSignageRuleUrl = (displayId: string,) => {
 export const createSignageRule = async (displayId: string,
     signageRuleRequest: SignageRuleRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageRuleList>(getCreateSignageRuleUrl(displayId),
+  return apiFetch<SignageRuleList>(getCreateSignageRuleUrl(displayId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(signageRuleRequest)
   }
 );}
@@ -1156,25 +954,11 @@ export const updateSignageRule = async (displayId: string,
     ruleId: string,
     signageRuleRequest: SignageRuleRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageRuleList>(getUpdateSignageRuleUrl(displayId,ruleId),
+  return apiFetch<SignageRuleList>(getUpdateSignageRuleUrl(displayId,ruleId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(signageRuleRequest)
   }
 );}
@@ -1197,25 +981,11 @@ export const setSignageRuleEnabled = async (displayId: string,
     ruleId: string,
     setSignageRuleEnabledRequest: SetSignageRuleEnabledRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageRuleList>(getSetSignageRuleEnabledUrl(displayId,ruleId),
+  return apiFetch<SignageRuleList>(getSetSignageRuleEnabledUrl(displayId,ruleId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(setSignageRuleEnabledRequest)
   }
 );}
@@ -1238,25 +1008,11 @@ export const deleteSignageRule = async (displayId: string,
     ruleId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageRuleList>(getDeleteSignageRuleUrl(displayId,ruleId),
+  return apiFetch<SignageRuleList>(getDeleteSignageRuleUrl(displayId,ruleId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -1277,26 +1033,85 @@ export const getReorderSignageRulesUrl = (displayId: string,) => {
 export const reorderSignageRules = async (displayId: string,
     reorderSignageRulesRequest: ReorderSignageRulesRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageRuleList>(getReorderSignageRulesUrl(displayId),
+  return apiFetch<SignageRuleList>(getReorderSignageRulesUrl(displayId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(reorderSignageRulesRequest)
+  }
+);}
+
+
+export const getGetSignageDisplayNoticesUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/notices`
+}
+
+/**
+ * Requires `signage.read`. A display also shows what its group chose; that choice is on the group.
+ * @summary Which notification rules' notices the display shows
+ */
+export const getSignageDisplayNotices = async (displayId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageNoticeSelection> => {
+
+  return apiFetch<SignageNoticeSelection>(getGetSignageDisplayNoticesUrl(displayId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getSetSignageDisplayNoticesUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/notices`
+}
+
+/**
+ * Requires `signage.manage`. Replaces the choice and takes effect at once, without publishing. `ruleIds` must be central notification rules (422 otherwise); a rule without a signage action is kept but shows nothing until it gets one. A web embed never shows notices (422 `signage_web_embed`). Audited as `signage_display.notices_changed`.
+ * @summary Choose which notification rules' notices the display shows
+ */
+export const setSignageDisplayNotices = async (displayId: string,
+    signageNoticeSelection: SignageNoticeSelection, options?: Parameters<typeof apiFetch>[1]): Promise<SignageNoticeSelection> => {
+
+  return apiFetch<SignageNoticeSelection>(getSetSignageDisplayNoticesUrl(displayId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(signageNoticeSelection)
+  }
+);}
+
+
+export const getListSignageNotificationRulesUrl = () => {
+
+
+
+
+  return `/api/v1/signage/notification-rules`
+}
+
+/**
+ * Requires `signage.read`. Central notification rules that have a signage action, with their names only, and every rule a display or group already chose (`hasSignageAction` false once its signage action is gone).
+ * @summary List the notification rules a display or group can show notices of
+ */
+export const listSignageNotificationRules = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignageNotificationRuleList> => {
+
+  return apiFetch<SignageNotificationRuleList>(getListSignageNotificationRulesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 
@@ -1339,25 +1154,11 @@ export const getCreateSignageDisplayGroupUrl = () => {
  */
 export const createSignageDisplayGroup = async (createSignageDisplayGroupRequest: CreateSignageDisplayGroupRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageDisplayGroup> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageDisplayGroup>(getCreateSignageDisplayGroupUrl(),
+  return apiFetch<SignageDisplayGroup>(getCreateSignageDisplayGroupUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createSignageDisplayGroupRequest)
   }
 );}
@@ -1401,25 +1202,11 @@ export const getUpdateSignageDisplayGroupUrl = (groupId: string,) => {
 export const updateSignageDisplayGroup = async (groupId: string,
     updateSignageDisplayGroupRequest: UpdateSignageDisplayGroupRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageDisplayGroup> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageDisplayGroup>(getUpdateSignageDisplayGroupUrl(groupId),
+  return apiFetch<SignageDisplayGroup>(getUpdateSignageDisplayGroupUrl(groupId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateSignageDisplayGroupRequest)
   }
 );}
@@ -1440,25 +1227,11 @@ export const getDeleteSignageDisplayGroupUrl = (groupId: string,) => {
 export const deleteSignageDisplayGroup = async (groupId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteSignageDisplayGroupUrl(groupId),
+  return apiFetch<void>(getDeleteSignageDisplayGroupUrl(groupId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -1551,25 +1324,11 @@ export const getCreateSignageGroupRuleUrl = (groupId: string,) => {
 export const createSignageGroupRule = async (groupId: string,
     signageRuleRequest: SignageRuleRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageRuleList>(getCreateSignageGroupRuleUrl(groupId),
+  return apiFetch<SignageRuleList>(getCreateSignageGroupRuleUrl(groupId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(signageRuleRequest)
   }
 );}
@@ -1592,25 +1351,11 @@ export const updateSignageGroupRule = async (groupId: string,
     ruleId: string,
     signageRuleRequest: SignageRuleRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageRuleList>(getUpdateSignageGroupRuleUrl(groupId,ruleId),
+  return apiFetch<SignageRuleList>(getUpdateSignageGroupRuleUrl(groupId,ruleId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(signageRuleRequest)
   }
 );}
@@ -1633,25 +1378,11 @@ export const setSignageGroupRuleEnabled = async (groupId: string,
     ruleId: string,
     setSignageRuleEnabledRequest: SetSignageRuleEnabledRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageRuleList>(getSetSignageGroupRuleEnabledUrl(groupId,ruleId),
+  return apiFetch<SignageRuleList>(getSetSignageGroupRuleEnabledUrl(groupId,ruleId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(setSignageRuleEnabledRequest)
   }
 );}
@@ -1674,25 +1405,11 @@ export const deleteSignageGroupRule = async (groupId: string,
     ruleId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageRuleList>(getDeleteSignageGroupRuleUrl(groupId,ruleId),
+  return apiFetch<SignageRuleList>(getDeleteSignageGroupRuleUrl(groupId,ruleId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -1713,26 +1430,61 @@ export const getReorderSignageGroupRulesUrl = (groupId: string,) => {
 export const reorderSignageGroupRules = async (groupId: string,
     reorderSignageRulesRequest: ReorderSignageRulesRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageRuleList>(getReorderSignageGroupRulesUrl(groupId),
+  return apiFetch<SignageRuleList>(getReorderSignageGroupRulesUrl(groupId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(reorderSignageRulesRequest)
+  }
+);}
+
+
+export const getGetSignageGroupNoticesUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}/notices`
+}
+
+/**
+ * Requires `signage.read`. Member displays show these notices besides their own choice.
+ * @summary Which notification rules' notices the group shows
+ */
+export const getSignageGroupNotices = async (groupId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageNoticeSelection> => {
+
+  return apiFetch<SignageNoticeSelection>(getGetSignageGroupNoticesUrl(groupId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getSetSignageGroupNoticesUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}/notices`
+}
+
+/**
+ * Requires `signage.manage`. Replaces the choice and takes effect at once, without publishing. `ruleIds` must be central notification rules (422 otherwise); a rule without a signage action is kept but shows nothing until it gets one. Audited as `signage_display_group.notices_changed`.
+ * @summary Choose which notification rules' notices the group shows
+ */
+export const setSignageGroupNotices = async (groupId: string,
+    signageNoticeSelection: SignageNoticeSelection, options?: Parameters<typeof apiFetch>[1]): Promise<SignageNoticeSelection> => {
+
+  return apiFetch<SignageNoticeSelection>(getSetSignageGroupNoticesUrl(groupId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(signageNoticeSelection)
   }
 );}
 
@@ -1775,25 +1527,11 @@ export const getCreateSignageWebEmbedUrl = () => {
  */
 export const createSignageWebEmbed = async (createSignageWebEmbedRequest: CreateSignageWebEmbedRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageWebEmbed>(getCreateSignageWebEmbedUrl(),
+  return apiFetch<SignageWebEmbed>(getCreateSignageWebEmbedUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createSignageWebEmbedRequest)
   }
 );}
@@ -1837,25 +1575,11 @@ export const getUpdateSignageWebEmbedUrl = (embedId: string,) => {
 export const updateSignageWebEmbed = async (embedId: string,
     updateSignageWebEmbedRequest: UpdateSignageWebEmbedRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageWebEmbed>(getUpdateSignageWebEmbedUrl(embedId),
+  return apiFetch<SignageWebEmbed>(getUpdateSignageWebEmbedUrl(embedId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateSignageWebEmbedRequest)
   }
 );}
@@ -1876,25 +1600,11 @@ export const getDeleteSignageWebEmbedUrl = (embedId: string,) => {
 export const deleteSignageWebEmbed = async (embedId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteSignageWebEmbedUrl(embedId),
+  return apiFetch<void>(getDeleteSignageWebEmbedUrl(embedId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -1915,25 +1625,11 @@ export const getRotateSignageWebEmbedKeyUrl = (embedId: string,) => {
 export const rotateSignageWebEmbedKey = async (embedId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageWebEmbed>(getRotateSignageWebEmbedKeyUrl(embedId),
+  return apiFetch<SignageWebEmbed>(getRotateSignageWebEmbedKeyUrl(embedId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}

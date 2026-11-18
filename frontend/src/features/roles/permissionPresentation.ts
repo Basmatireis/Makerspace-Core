@@ -89,6 +89,7 @@ const catalog: Catalog = {
     ['open_days.signup', 'Sign up for Open Days'],
     ['open_days.assign', 'Assign Open Day participants'],
     ['open_days.manage', 'Manage Open Days'],
+    ['open_days.edit_past', 'Correct past Open Days'],
   ],
   Events: [
     ['events.read', 'View events'],
@@ -194,6 +195,7 @@ const catalog: Catalog = {
     ['mail.manage', 'Manage email delivery'],
     ['branding.manage', 'Manage branding'],
     ['invoicing.settings.manage', 'Manage invoicing settings'],
+    ['pdf_templates.manage', 'Edit and publish PDF templates'],
     ['oidc.manage', 'Manage OIDC providers'],
     ['scim.manage', 'Manage SCIM provisioning'],
   ],

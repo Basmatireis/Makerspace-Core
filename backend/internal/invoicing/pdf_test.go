@@ -2,16 +2,16 @@ package invoicing
 
 import (
 	"bytes"
-	"compress/zlib"
-	"image"
-	"image/png"
-	"io"
-	"regexp"
+	"context"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifications"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates/engine"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates/pdftest"
+	pdfread "github.com/ledongthuc/pdf"
 )
 
 func sampleTime() time.Time { return time.Date(2026, 10, 21, 10, 0, 0, 0, time.UTC) }
@@ -36,94 +36,162 @@ func defaultSettings() Settings {
 	}
 }
 
-var streamPattern = regexp.MustCompile(`(?s)stream\r?\n(.*?)\r?\nendstream`)
-
-// pdfText inflates every content stream. fpdf writes literal strings, so the visible text is searchable.
-func pdfText(t *testing.T, data []byte) string {
+// renderPDF renders a document with the built-in wiRef template.
+func renderPDF(t *testing.T, settings Settings, d Document) []byte {
 	t.Helper()
-	var out strings.Builder
-	for _, match := range streamPattern.FindAllSubmatch(data, -1) {
-		reader, err := zlib.NewReader(bytes.NewReader(match[1]))
-		if err != nil {
-			continue
-		}
-		plain, err := io.ReadAll(reader)
-		if err == nil {
-			out.Write(plain)
-		}
-	}
-	return out.String()
-}
-
-func TestRenderPDFProducesAValidDocumentWithTotals(t *testing.T) {
-	data, err := RenderPDF(notifications.Branding{ApplicationName: "Makerspace", PrimaryColor: "#0f62fe"},
-		Mark{}, defaultSettings(), SampleDocument(sampleTime()))
+	data, _, err := pdftemplates.BuiltinRenderer{}.RenderEffective(
+		context.Background(), engine.KindWiRef, d.PDFData(settings), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.HasPrefix(data, []byte("%PDF-1.")) || !bytes.HasSuffix(bytes.TrimSpace(data), []byte("%%EOF")) {
-		t.Fatalf("not a PDF: %q ... %q", data[:8], data[len(data)-8:])
+	return data
+}
+
+// pdfPages extracts the text of every page with the spaces removed, which keeps the assertions independent of how
+// the PDF reader splits runs.
+func pdfPages(t *testing.T, data []byte) []string {
+	t.Helper()
+	reader, err := pdfread.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("read pdf: %v", err)
 	}
-	text := pdfText(t, data)
-	for _, want := range []string{
-		"Invoice request W-2026-000123", "Example University", "PO-2026-0042", "Sam Approver",
-		"Laser cutting", "81.50", "EUR 81.50", "21.10.2026",
-	} {
-		if !strings.Contains(text, want) {
+	var pages []string
+	for i := 1; i <= reader.NumPage(); i++ {
+		var b strings.Builder
+		for _, c := range reader.Page(i).Content().Text {
+			b.WriteString(c.S)
+		}
+		pages = append(pages, strings.ReplaceAll(b.String(), " ", ""))
+	}
+	return pages
+}
+
+func pdfText(t *testing.T, data []byte) string { return strings.Join(pdfPages(t, data), "") }
+
+func requireText(t *testing.T, text string, wants ...string) {
+	t.Helper()
+	for _, want := range wants {
+		if !strings.Contains(text, strings.ReplaceAll(want, " ", "")) {
 			t.Errorf("PDF text lacks %q", want)
 		}
 	}
 }
 
-func TestRenderPDFKeepsUmlautsAndEuroSign(t *testing.T) {
+func TestPDFDataMatchesTheWiRefSchema(t *testing.T) {
+	d := SampleDocument(sampleTime())
+	d.AlreadyPaid = "30.00"
+	pdftest.AssertData(t, engine.KindWiRef, d.PDFData(defaultSettings()))
+}
+
+func TestPDFDataFillsTextsAndSwitches(t *testing.T) {
+	settings := defaultSettings()
+	settings.ShowContactPerson = false
+	data := SampleDocument(sampleTime()).PDFData(settings)
+	texts, show := data["texts"].(map[string]any), data["show"].(map[string]any)
+	if texts["title"] != "Invoice request W-2026-000123" ||
+		texts["intro"] != "Please invoice Example University, Institute of Sample Studies (PO-2026-0042)." ||
+		texts["closing"] != "Approved by Sam Approver on 21.10.2026." {
+		t.Errorf("texts = %+v", texts)
+	}
+	if show["contactPerson"] != "" || show["servicePeriod"] != "true" || show["approver"] != "true" {
+		t.Errorf("show = %+v", show)
+	}
+	period := data["request"].(map[string]any)["servicePeriod"].(map[string]any)
+	if period["from"] != "2026-10-01" || period["to"] != "2026-10-15" {
+		t.Errorf("period = %+v", period)
+	}
+	single := SampleDocument(sampleTime())
+	single.ServiceEndsOn = single.ServiceStartsOn
+	period = single.PDFData(settings)["request"].(map[string]any)["servicePeriod"].(map[string]any)
+	if period["from"] != "2026-10-01" || period["to"] != "" {
+		t.Errorf("single day period = %+v", period)
+	}
+}
+
+func TestPDFDataLeavesOutWhatTheSettingsSwitchOff(t *testing.T) {
+	settings := defaultSettings()
+	settings.ShowApprover, settings.ShowContactPerson, settings.ShowPurchaseOrder = false, false, false
+	settings.ShowServicePeriod, settings.ShowServiceDescription = false, false
+	data := SampleDocument(sampleTime()).PDFData(settings)
+	request, recipient := data["request"].(map[string]any), data["recipient"].(map[string]any)
+	period := request["servicePeriod"].(map[string]any)
+	for name, got := range map[string]any{
+		"request.approver": request["approver"], "request.serviceDescription": request["serviceDescription"],
+		"servicePeriod.from": period["from"], "servicePeriod.to": period["to"],
+		"recipient.contactName": recipient["contactName"], "recipient.contactChannel": recipient["contactChannel"],
+		"recipient.purchaseOrderReference": recipient["purchaseOrderReference"],
+	} {
+		if got != "" {
+			t.Errorf("%s = %v with the switch off, want empty", name, got)
+		}
+	}
+	if recipient["organization"] == "" || request["number"] == "" {
+		t.Error("the fields without a switch must stay")
+	}
+	// With the switches on the same values are present, so the test above checks the gate and not empty sample data.
+	on := SampleDocument(sampleTime()).PDFData(defaultSettings())["recipient"].(map[string]any)
+	if on["contactName"] == "" || on["contactChannel"] == "" || on["purchaseOrderReference"] == "" {
+		t.Errorf("recipient with switches on = %+v", on)
+	}
+}
+
+func TestBuiltinPDFProducesAValidDocumentWithTotals(t *testing.T) {
+	data := renderPDF(t, defaultSettings(), SampleDocument(sampleTime()))
+	if !bytes.HasPrefix(data, []byte("%PDF-1.")) || !bytes.HasSuffix(bytes.TrimSpace(data), []byte("%%EOF")) {
+		t.Fatalf("not a PDF: %q ... %q", data[:8], data[len(data)-8:])
+	}
+	requireText(t, pdfText(t, data),
+		"Invoice request W-2026-000123", "Example University", "PO-2026-0042", "Sam Approver",
+		"Laser cutting", "81.50", "EUR 81.50", "21.10.2026")
+}
+
+func TestBuiltinPDFKeepsUmlautsAndEuroSign(t *testing.T) {
 	d := SampleDocument(sampleTime())
 	d.Organisation = "Universität für Gestaltung Müßig"
 	settings := defaultSettings()
 	settings.PDFIntro = "Preis in € für {{organization}}"
-	data, err := RenderPDF(notifications.Branding{}, Mark{}, settings, d)
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := pdfText(t, data)
-	// cp1252: ä = 0xE4, ü = 0xFC, ß = 0xDF, € = 0x80. fpdf writes these as literal bytes inside strings.
-	for _, want := range []string{"Universit\xe4t f\xfcr Gestaltung M\xfc\xdfig", "Preis in \x80 f\xfcr"} {
-		if !strings.Contains(text, want) {
-			t.Errorf("PDF text lacks %q", want)
-		}
-	}
+	requireText(t, pdfText(t, renderPDF(t, settings, d)), "Universität für Gestaltung Müßig", "Preis in € für")
 }
 
-func TestRenderPDFHidesSwitchedOffFields(t *testing.T) {
+func TestBuiltinPDFHidesSwitchedOffFields(t *testing.T) {
 	settings := defaultSettings()
 	settings.ShowApprover, settings.ShowContactPerson, settings.ShowPurchaseOrder = false, false, false
 	settings.ShowServicePeriod, settings.ShowServiceDescription = false, false
-	data, err := RenderPDF(notifications.Branding{}, Mark{}, settings, SampleDocument(sampleTime()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := pdfText(t, data)
+	text := pdfText(t, renderPDF(t, settings, SampleDocument(sampleTime())))
 	for _, unwanted := range []string{"Sam Approver", "Alex Example", "PO-2026-0042", "Prototype parts", "Service period"} {
-		if strings.Contains(text, unwanted) {
+		if strings.Contains(text, strings.ReplaceAll(unwanted, " ", "")) {
 			t.Errorf("PDF text still contains %q", unwanted)
 		}
 	}
 }
 
-func TestRenderPDFBreaksLongItemListsOverPages(t *testing.T) {
+func TestBuiltinPDFBreaksLongItemListsOverPages(t *testing.T) {
 	d := SampleDocument(sampleTime())
 	for range 80 {
-		d.Items = append(d.Items, Item{Description: strings.Repeat("Long description ", 8), Quantity: "1", Unit: "pc", UnitPrice: "1.00", Amount: "1.00"})
+		d.Items = append(d.Items, Item{
+			Description: strings.Repeat("Long description ", 8), Quantity: "1", Unit: "pc", UnitPrice: "1.00", Amount: "1.00",
+		})
 	}
 	d.Total = "161.50"
-	data, err := RenderPDF(notifications.Branding{}, Mark{}, defaultSettings(), d)
-	if err != nil {
-		t.Fatal(err)
+	pages := pdfPages(t, renderPDF(t, defaultSettings(), d))
+	if len(pages) < 3 {
+		t.Errorf("expected several pages, found %d", len(pages))
 	}
-	if pages := bytes.Count(data, []byte("/Type /Page\n")); pages < 3 {
-		t.Errorf("expected several pages, found %d", pages)
+	requireText(t, strings.Join(pages, ""), "EUR 161.50")
+}
+
+func TestBuiltinPDFListsPaymentsWithTheirIDs(t *testing.T) {
+	d := SampleDocument(sampleTime())
+	d.AlreadyPaid = "30.00"
+	d.Payments = []Payment{
+		{Reference: "P-2026-000011", Method: "Cash", PaidAt: sampleTime(), Amount: "30.00"},
+		{Reference: "P-2026-000012", Method: "wiRef invoice", PaidAt: sampleTime(), Amount: "51.50"},
 	}
-	if !strings.Contains(pdfText(t, data), "EUR 161.50") {
-		t.Error("total missing after page breaks")
+	requireText(t, pdfText(t, renderPDF(t, defaultSettings(), d)),
+		"Payment", "P-2026-000011", "P-2026-000012", "Cash", "wiRef invoice", "51.50")
+	d.Payments = nil
+	if strings.Contains(pdfText(t, renderPDF(t, defaultSettings(), d)), "P-2026-000011") {
+		t.Error("payment drawn without payments")
 	}
 }
 
@@ -139,55 +207,6 @@ func TestMailContentShowsPrepaymentSplit(t *testing.T) {
 		if !strings.Contains(joined.String(), want) {
 			t.Errorf("rows lack %q: %s", want, joined.String())
 		}
-	}
-}
-
-func TestRenderPDFHeaderFollowsTheApplicationHeader(t *testing.T) {
-	logo := &bytes.Buffer{}
-	if err := png.Encode(logo, image.NewRGBA(image.Rect(0, 0, 46, 51))); err != nil {
-		t.Fatal(err)
-	}
-	mark := Mark{OrganizationName: "HTU Graz", DisplayName: "Makerspace", Logo: &Logo{Data: logo.Bytes(), Type: "PNG"}}
-	data, err := RenderPDF(notifications.Branding{ApplicationName: "HTU Graz Makerspace"}, mark, defaultSettings(),
-		SampleDocument(sampleTime()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := pdfText(t, data)
-	for _, want := range []string{"(HTU GRAZ)", "(Makerspace)", "/Subtype /Image"} {
-		if !strings.Contains(text, want) && !bytes.Contains(data, []byte(want)) {
-			t.Errorf("PDF lacks %q", want)
-		}
-	}
-	if strings.Contains(text, "(HTU Graz Makerspace)") {
-		t.Error("header shows the application name instead of the display name")
-	}
-}
-
-func TestRenderPDFListsPaymentsWithTheirIDs(t *testing.T) {
-	d := SampleDocument(sampleTime())
-	d.AlreadyPaid = "30.00"
-	d.Payments = []Payment{
-		{Reference: "P-2026-000011", Method: "Cash", PaidAt: sampleTime(), Amount: "30.00"},
-		{Reference: "P-2026-000012", Method: "wiRef invoice", PaidAt: sampleTime(), Amount: "51.50"},
-	}
-	data, err := RenderPDF(notifications.Branding{}, Mark{}, defaultSettings(), d)
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := pdfText(t, data)
-	for _, want := range []string{"Payment ID", "P-2026-000011", "P-2026-000012", "Cash", "wiRef invoice", "51.50"} {
-		if !strings.Contains(text, want) {
-			t.Errorf("PDF text lacks %q", want)
-		}
-	}
-	d.Payments = nil
-	data, err = RenderPDF(notifications.Branding{}, Mark{}, defaultSettings(), d)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(pdfText(t, data), "Payment ID") {
-		t.Error("payment table drawn without payments")
 	}
 }
 

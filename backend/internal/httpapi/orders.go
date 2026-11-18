@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
@@ -34,6 +35,7 @@ func (s *Server) ListOrders(
 		p,
 		defaultString(r.Params.Search),
 		defaultString(r.Params.Status),
+		r.Params.CustomerId,
 		defaultInt(r.Params.Page, 1),
 		defaultInt(r.Params.PageSize, 25),
 	)
@@ -353,6 +355,32 @@ func (s *Server) CreateReplacementOrder(
 		return nil, err
 	}
 	return openapi.CreateReplacementOrder201JSONResponse(dto), nil
+}
+
+func (s *Server) DiscardReplacementOrder(
+	ctx context.Context,
+	r openapi.DiscardReplacementOrderRequestObject,
+) (openapi.DiscardReplacementOrderResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	input, err := mapFinancialJSON[orders.OrderCommand](r.Body)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.orders.Command(ctx, p, r.OrderId, input, "discard", requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	dto, err := mapFinancialJSON[openapi.Order](result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.DiscardReplacementOrder200JSONResponse(dto), nil
 }
 
 func (s *Server) ReplaceOrder(
@@ -946,4 +974,27 @@ func (s *Server) PayOwnBalance(
 		return nil, err
 	}
 	return openapi.PayOwnBalance201JSONResponse(dto), nil
+}
+
+func (s *Server) GetOrderReceiptPdf(
+	ctx context.Context,
+	r openapi.GetOrderReceiptPdfRequestObject,
+) (openapi.GetOrderReceiptPdfResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	file, err := s.orders.ReceiptPDF(ctx, p, r.OrderId, r.Params.PaymentId)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.GetOrderReceiptPdf200ApplicationpdfResponse{
+		Body:          bytes.NewReader(file.Data),
+		ContentLength: int64(len(file.Data)),
+		Headers: openapi.GetOrderReceiptPdf200ResponseHeaders{
+			CacheControl:        "no-store",
+			ContentDisposition:  attachmentDisposition(file.Filename),
+			XContentTypeOptions: "nosniff",
+		},
+	}, nil
 }

@@ -86,6 +86,7 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   'notification_rules.read',
   'branding.manage',
   'invoicing.settings.manage',
+  'pdf_templates.manage',
   'configuration.export',
   'configuration.import',
   'printer_connectors.read',

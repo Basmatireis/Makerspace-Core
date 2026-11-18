@@ -37,6 +37,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getGetWiRefDeliverySettingsUrl = () => {
 
 
@@ -75,25 +95,11 @@ export const getUpdateWiRefDeliverySettingsUrl = () => {
  */
 export const updateWiRefDeliverySettings = async (updateWiRefDeliverySettingsRequest: UpdateWiRefDeliverySettingsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WiRefDeliverySettings> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<WiRefDeliverySettings>(getUpdateWiRefDeliverySettingsUrl(),
+  return apiFetch<WiRefDeliverySettings>(getUpdateWiRefDeliverySettingsUrl(),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateWiRefDeliverySettingsRequest)
   }
 );}
@@ -113,25 +119,11 @@ export const getPreviewWiRefDeliveryMailUrl = () => {
  */
 export const previewWiRefDeliveryMail = async (wiRefTemplateFields: WiRefTemplateFields, options?: Parameters<typeof apiFetch>[1]): Promise<WiRefMailPreview> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<WiRefMailPreview>(getPreviewWiRefDeliveryMailUrl(),
+  return apiFetch<WiRefMailPreview>(getPreviewWiRefDeliveryMailUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(wiRefTemplateFields)
   }
 );}
@@ -151,25 +143,11 @@ export const getPreviewWiRefDeliveryPdfUrl = () => {
  */
 export const previewWiRefDeliveryPdf = async (wiRefTemplateFields: WiRefTemplateFields, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Blob>(getPreviewWiRefDeliveryPdfUrl(),
+  return apiFetch<Blob>(getPreviewWiRefDeliveryPdfUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(wiRefTemplateFields)
   }
 );}
@@ -210,25 +188,11 @@ export const getCreateExternalInvoiceRequestUrl = (orderId: UUIDv7,) => {
 export const createExternalInvoiceRequest = async (orderId: UUIDv7,
     createInvoiceRequest: CreateInvoiceRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ExternalInvoiceRequest> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ExternalInvoiceRequest>(getCreateExternalInvoiceRequestUrl(orderId),
+  return apiFetch<ExternalInvoiceRequest>(getCreateExternalInvoiceRequestUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createInvoiceRequest)
   }
 );}
@@ -292,25 +256,11 @@ export const getUpdateExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
 export const updateExternalInvoiceRequest = async (requestId: UUIDv7,
     updateInvoiceRequest: UpdateInvoiceRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ExternalInvoiceRequest> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ExternalInvoiceRequest>(getUpdateExternalInvoiceRequestUrl(requestId),
+  return apiFetch<ExternalInvoiceRequest>(getUpdateExternalInvoiceRequestUrl(requestId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateInvoiceRequest)
   }
 );}
@@ -327,25 +277,11 @@ export const getSubmitExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
 export const submitExternalInvoiceRequest = async (requestId: UUIDv7,
     invoiceRequestCommand: InvoiceRequestCommand, options?: Parameters<typeof apiFetch>[1]): Promise<ExternalInvoiceRequest> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ExternalInvoiceRequest>(getSubmitExternalInvoiceRequestUrl(requestId),
+  return apiFetch<ExternalInvoiceRequest>(getSubmitExternalInvoiceRequestUrl(requestId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(invoiceRequestCommand)
   }
 );}
@@ -366,25 +302,11 @@ export const getReturnExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
 export const returnExternalInvoiceRequest = async (requestId: UUIDv7,
     returnInvoiceRequestCommand: ReturnInvoiceRequestCommand, options?: Parameters<typeof apiFetch>[1]): Promise<ExternalInvoiceRequest> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ExternalInvoiceRequest>(getReturnExternalInvoiceRequestUrl(requestId),
+  return apiFetch<ExternalInvoiceRequest>(getReturnExternalInvoiceRequestUrl(requestId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(returnInvoiceRequestCommand)
   }
 );}
@@ -405,25 +327,11 @@ export const getForwardExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
 export const forwardExternalInvoiceRequest = async (requestId: UUIDv7,
     forwardInvoiceRequestCommand: ForwardInvoiceRequestCommand, options?: Parameters<typeof apiFetch>[1]): Promise<ExternalInvoiceRequest> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ExternalInvoiceRequest>(getForwardExternalInvoiceRequestUrl(requestId),
+  return apiFetch<ExternalInvoiceRequest>(getForwardExternalInvoiceRequestUrl(requestId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(forwardInvoiceRequestCommand)
   }
 );}
@@ -464,25 +372,11 @@ export const getRequestExternalInvoiceCancellationUrl = (requestId: UUIDv7,) => 
 export const requestExternalInvoiceCancellation = async (requestId: UUIDv7,
     invoiceRequestCommand: InvoiceRequestCommand, options?: Parameters<typeof apiFetch>[1]): Promise<ExternalInvoiceRequest> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ExternalInvoiceRequest>(getRequestExternalInvoiceCancellationUrl(requestId),
+  return apiFetch<ExternalInvoiceRequest>(getRequestExternalInvoiceCancellationUrl(requestId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(invoiceRequestCommand)
   }
 );}
@@ -499,25 +393,11 @@ export const getConfirmExternalInvoiceCancellationUrl = (requestId: UUIDv7,) => 
 export const confirmExternalInvoiceCancellation = async (requestId: UUIDv7,
     invoiceRequestCommand: InvoiceRequestCommand, options?: Parameters<typeof apiFetch>[1]): Promise<ExternalInvoiceRequest> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ExternalInvoiceRequest>(getConfirmExternalInvoiceCancellationUrl(requestId),
+  return apiFetch<ExternalInvoiceRequest>(getConfirmExternalInvoiceCancellationUrl(requestId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(invoiceRequestCommand)
   }
 );}
@@ -534,25 +414,11 @@ export const getCancelExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
 export const cancelExternalInvoiceRequest = async (requestId: UUIDv7,
     invoiceRequestCommand: InvoiceRequestCommand, options?: Parameters<typeof apiFetch>[1]): Promise<ExternalInvoiceRequest> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ExternalInvoiceRequest>(getCancelExternalInvoiceRequestUrl(requestId),
+  return apiFetch<ExternalInvoiceRequest>(getCancelExternalInvoiceRequestUrl(requestId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(invoiceRequestCommand)
   }
 );}
@@ -569,25 +435,11 @@ export const getCorrectExternalInvoiceReferenceUrl = (requestId: UUIDv7,) => {
 export const correctExternalInvoiceReference = async (requestId: UUIDv7,
     invoiceRequestCommand: InvoiceRequestCommand, options?: Parameters<typeof apiFetch>[1]): Promise<ExternalInvoiceRequest> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ExternalInvoiceRequest>(getCorrectExternalInvoiceReferenceUrl(requestId),
+  return apiFetch<ExternalInvoiceRequest>(getCorrectExternalInvoiceReferenceUrl(requestId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(invoiceRequestCommand)
   }
 );}

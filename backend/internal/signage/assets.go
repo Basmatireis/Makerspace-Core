@@ -444,7 +444,8 @@ func (s *Service) RenameAsset(
 	return asset, tx.Commit(ctx)
 }
 
-// DeleteAsset removes an asset that no scene (background or widget) references.
+// DeleteAsset removes an asset that no scene (background or widget), announcement template or active or scheduled
+// announcement with its own look references. Ended announcements just lose the image.
 func (s *Service) DeleteAsset(
 	ctx context.Context,
 	principal authorization.Principal,
@@ -469,11 +470,28 @@ func (s *Service) DeleteAsset(
 	if err != nil {
 		return err
 	}
-	if len(scenes) > 0 {
-		references := make([]Reference, 0, len(scenes))
-		for _, scene := range scenes {
-			references = append(references, Reference{Kind: ReferenceScene, ID: scene.ID, Name: scene.Name})
-		}
+	var references []Reference
+	for _, scene := range scenes {
+		references = append(references, Reference{Kind: ReferenceScene, ID: scene.ID, Name: scene.Name})
+	}
+	templates, err := q.ListTemplatesUsingImage(ctx, &id)
+	if err != nil {
+		return err
+	}
+	for _, template := range templates {
+		references = append(references, Reference{Kind: ReferenceTemplate, ID: template.ID, Name: template.Name})
+	}
+	announcements, err := q.ListLiveAnnouncementsUsingImage(
+		ctx,
+		signagedb.ListLiveAnnouncementsUsingImageParams{ID: &id, Now: s.now()},
+	)
+	if err != nil {
+		return err
+	}
+	for _, announcement := range announcements {
+		references = append(references, Reference{Kind: ReferenceAnnouncement, ID: announcement.ID, Name: announcement.Name})
+	}
+	if len(references) > 0 {
 		return inUse("Asset", references)
 	}
 	fileID, err := q.DeleteSignageAsset(ctx, id)

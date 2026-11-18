@@ -424,6 +424,24 @@ func signageSceneList(items openapi.SignageSceneListItems) []signage.SceneListIt
 
 // Announcement templates --------------------------------------------------------------------------------------
 
+// signageImageDTO is null without an image; url forms the asset path for the caller.
+func signageImageDTO(
+	image *signage.AnnouncementImage,
+	url func(signage.AnnouncementImage) string,
+) nullable.Nullable[openapi.SignageAnnouncementImage] {
+	if image == nil {
+		return nullable.NewNullNullable[openapi.SignageAnnouncementImage]()
+	}
+	return nullable.NewNullableWithValue(
+		openapi.SignageAnnouncementImage{AssetId: image.AssetID, Sha256: image.SHA256, Url: url(*image)},
+	)
+}
+
+// signageAdminImageURL is the staff asset download of an image, content-addressed like the admin media previews.
+func signageAdminImageURL(image signage.AnnouncementImage) string {
+	return apiBasePath + "/signage/assets/" + image.AssetID.String() + "/content?v=" + image.SHA256
+}
+
 func signageTemplateDTO(template signage.Template) openapi.SignageAnnouncementTemplate {
 	fields := make([]openapi.SignageTemplateField, 0, len(template.Fields))
 	for _, field := range template.Fields {
@@ -440,7 +458,8 @@ func signageTemplateDTO(template signage.Template) openapi.SignageAnnouncementTe
 		Body:       template.Body,
 		BodyFormat: openapi.SignageRichTextFormat(template.BodyFormat),
 		BodyCss:    template.BodyCSS,
-		Fields:     fields, Version: template.Version, CreatedAt: template.CreatedAt, UpdatedAt: template.UpdatedAt,
+		Color:      nullableValue(template.Color), ImageAssetId: nullableUUIDValue(template.ImageAssetID),
+		Fields: fields, Version: template.Version, CreatedAt: template.CreatedAt, UpdatedAt: template.UpdatedAt,
 	}
 }
 
@@ -450,6 +469,8 @@ func signageBodyFormat(format *openapi.SignageRichTextFormat) signage.RichTextFo
 	}
 	return signage.RichTextFormat(*format)
 }
+
+func boolOrFalse(value *bool) bool { return value != nil && *value }
 
 func stringOrEmpty(value *string) string {
 	if value == nil {
@@ -500,13 +521,15 @@ func (s *Server) CreateSignageAnnouncementTemplate(
 		return nil, invalidRequest("request body is required")
 	}
 	template, err := s.signage.CreateTemplate(ctx, p, signage.TemplateInput{
-		Name:       r.Body.Name,
-		Tone:       signage.Tone(r.Body.Tone),
-		Title:      r.Body.Title,
-		Body:       r.Body.Body,
-		BodyFormat: signageBodyFormat(r.Body.BodyFormat),
-		BodyCSS:    stringOrEmpty(r.Body.BodyCss),
-		Fields:     signageTemplateFields(r.Body.Fields),
+		Name:         r.Body.Name,
+		Tone:         signage.Tone(r.Body.Tone),
+		Title:        r.Body.Title,
+		Body:         r.Body.Body,
+		BodyFormat:   signageBodyFormat(r.Body.BodyFormat),
+		BodyCSS:      stringOrEmpty(r.Body.BodyCss),
+		Color:        nullableToPointer(r.Body.Color),
+		ImageAssetID: nullableToPointer(r.Body.ImageAssetId),
+		Fields:       signageTemplateFields(r.Body.Fields),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -541,13 +564,15 @@ func (s *Server) UpdateSignageAnnouncementTemplate(
 		return nil, invalidRequest("request body is required")
 	}
 	template, err := s.signage.UpdateTemplate(ctx, p, r.TemplateId, r.Body.ExpectedVersion, signage.TemplateInput{
-		Name:       r.Body.Name,
-		Tone:       signage.Tone(r.Body.Tone),
-		Title:      r.Body.Title,
-		Body:       r.Body.Body,
-		BodyFormat: signageBodyFormat(r.Body.BodyFormat),
-		BodyCSS:    stringOrEmpty(r.Body.BodyCss),
-		Fields:     signageTemplateFields(r.Body.Fields),
+		Name:         r.Body.Name,
+		Tone:         signage.Tone(r.Body.Tone),
+		Title:        r.Body.Title,
+		Body:         r.Body.Body,
+		BodyFormat:   signageBodyFormat(r.Body.BodyFormat),
+		BodyCSS:      stringOrEmpty(r.Body.BodyCss),
+		Color:        nullableToPointer(r.Body.Color),
+		ImageAssetID: nullableToPointer(r.Body.ImageAssetId),
+		Fields:       signageTemplateFields(r.Body.Fields),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -584,21 +609,27 @@ func signageAnnouncementDTO(item signage.Announcement) openapi.SignageAnnounceme
 	displayIDs := make([]openapi.UUIDv7, 0, len(item.DisplayIDs))
 	displayIDs = append(displayIDs, item.DisplayIDs...)
 	return openapi.SignageAnnouncement{
-		Id:          item.ID,
-		TemplateId:  item.TemplateID,
-		Values:      item.Values,
-		AllDisplays: item.AllDisplays,
-		DisplayIds:  displayIDs,
-		GroupIds:    append([]openapi.UUIDv7{}, item.GroupIDs...),
-		StartsAt:    item.StartsAt,
-		EndsAt:      nullableValue(item.EndsAt),
-		Status:      openapi.SignageAnnouncementStatus(item.Status),
+		Id:           item.ID,
+		TemplateId:   item.TemplateID,
+		Values:       item.Values,
+		AllDisplays:  item.AllDisplays,
+		DisplayIds:   displayIDs,
+		GroupIds:     append([]openapi.UUIDv7{}, item.GroupIDs...),
+		StartsAt:     item.StartsAt,
+		EndsAt:       nullableValue(item.EndsAt),
+		Status:       openapi.SignageAnnouncementStatus(item.Status),
+		OwnLook:      item.OwnLook,
+		Color:        nullableValue(item.Color),
+		ImageAssetId: nullableUUIDValue(item.ImageAssetID),
 		Rendered: openapi.SignageRenderedMessage{
 			Title:      item.Rendered.Title,
 			Body:       item.Rendered.Body,
 			BodyFormat: openapi.SignageRichTextFormat(item.Rendered.BodyFormat),
 			BodyCss:    item.Rendered.BodyCSS,
 			Tone:       openapi.SignageTone(item.Rendered.Tone),
+			Color:      nullableValue(item.Rendered.Color),
+			TextColor:  nullableValue(item.Rendered.TextColor),
+			Image:      signageImageDTO(item.Rendered.Image, signageAdminImageURL),
 		},
 		Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
@@ -643,6 +674,8 @@ func (s *Server) StartSignageAnnouncement(
 		DisplayIDs:  uuidSlice(r.Body.DisplayIds),
 		GroupIDs:    uuidSlice(r.Body.GroupIds),
 		StartsAt:    r.Body.StartsAt, EndsAt: nullableTime(r.Body.EndsAt),
+		OwnLook: boolOrFalse(r.Body.OwnLook), Color: nullableToPointer(r.Body.Color),
+		ImageAssetID: nullableToPointer(r.Body.ImageAssetId),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -689,6 +722,8 @@ func (s *Server) UpdateSignageAnnouncement(
 			GroupIDs:    uuidSlice(r.Body.GroupIds),
 			StartsAt:    &startsAt,
 			EndsAt:      nullableTime(r.Body.EndsAt),
+			OwnLook:     boolOrFalse(r.Body.OwnLook), Color: nullableToPointer(r.Body.Color),
+			ImageAssetID: nullableToPointer(r.Body.ImageAssetId),
 		},
 		requestIDPointer(ctx),
 	)

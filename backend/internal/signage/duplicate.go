@@ -129,19 +129,25 @@ func (s *Service) DuplicateTemplate(
 	if err != nil {
 		return Template{}, err
 	}
+	// Share-locks the image like a write would, so the copy cannot end up with a dangling reference.
+	if err := verifyImage(ctx, q, source.ImageAssetID); err != nil {
+		return Template{}, err
+	}
 	names, err := q.ListSignageTemplateNames(ctx)
 	if err != nil {
 		return Template{}, err
 	}
 	id := ids.New()
 	if _, err := q.CreateSignageTemplate(ctx, signagedb.CreateSignageTemplateParams{
-		ID:         id,
-		Name:       copyName(source.Name, names),
-		Tone:       string(source.Tone),
-		Title:      source.Title,
-		Body:       source.Body,
-		BodyFormat: string(source.BodyFormat),
-		BodyCss:    source.BodyCSS,
+		ID:           id,
+		Name:         copyName(source.Name, names),
+		Tone:         string(source.Tone),
+		Title:        source.Title,
+		Body:         source.Body,
+		BodyFormat:   string(source.BodyFormat),
+		BodyCss:      source.BodyCSS,
+		Color:        source.Color,
+		ImageAssetID: source.ImageAssetID,
 	}); err != nil {
 		return Template{}, databaseError(err)
 	}
@@ -150,7 +156,7 @@ func (s *Service) DuplicateTemplate(
 	}
 	if err := writeAudit(
 		ctx, tx, principal, "signage_announcement_template.created", "signage_announcement_template", id, requestID,
-		[]string{"name", "tone", "title", "body", "bodyFormat", "bodyCss", "fields"},
+		[]string{"name", "tone", "title", "body", "bodyFormat", "bodyCss", "color", "imageAssetId", "fields"},
 	); err != nil {
 		return Template{}, err
 	}

@@ -72,6 +72,7 @@ const (
 	OpenDaysSignup                     Permission = Permission(openapi.OpenDaysSignup)
 	OpenDaysAssign                     Permission = Permission(openapi.OpenDaysAssign)
 	OpenDaysManage                     Permission = Permission(openapi.OpenDaysManage)
+	OpenDaysEditPast                   Permission = Permission(openapi.OpenDaysEditPast)
 	EventsRead                         Permission = Permission(openapi.EventsRead)
 	EventsManage                       Permission = Permission(openapi.EventsManage)
 	EventsStaffingManage               Permission = Permission(openapi.EventsStaffingManage)
@@ -101,6 +102,7 @@ const (
 	MailManage                         Permission = Permission(openapi.MailManage)
 	BrandingManage                     Permission = Permission(openapi.BrandingManage)
 	InvoicingSettingsManage            Permission = Permission(openapi.InvoicingSettingsManage)
+	PDFTemplatesManage                 Permission = Permission(openapi.PdfTemplatesManage)
 	MachinesRead                       Permission = Permission(openapi.MachinesRead)
 	MachinesManage                     Permission = Permission(openapi.MachinesManage)
 	TrainingsManage                    Permission = Permission(openapi.TrainingsManage)
@@ -185,14 +187,14 @@ var registry = []Permission{
 	WebSignIn,
 	PeopleRolesAssign,
 	RolesRead, RolesManage, AuditRead,
-	OpenDaysRead, OpenDaysReadAssignments, OpenDaysSignup, OpenDaysAssign, OpenDaysManage,
+	OpenDaysRead, OpenDaysReadAssignments, OpenDaysSignup, OpenDaysAssign, OpenDaysManage, OpenDaysEditPast,
 	EventsRead, EventsManage, EventsStaffingManage, EventsAssign, EventsSignup, EventsReadAssignments,
 	ManagedDevicesRead, ManagedDevicesManage, SessionPoliciesManage,
 	AttendanceRead, AttendanceAssist, AttendanceCorrect, AttendanceStatisticsRead,
 	SurveysRead, SurveysManage,
 	LaborordnungRead, LaborordnungManage, LaborordnungConfirmationsRead,
 	VisitorEnrollmentManage, SupervisorDashboardRead,
-	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage, InvoicingSettingsManage,
+	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage, InvoicingSettingsManage, PDFTemplatesManage,
 	MachinesRead, MachinesManage,
 	TrainingsManage, TrainingRecordsReadSelf, TrainingRecordsReadAll, TrainingRecordsUpdate,
 	TrainingRecordsUpdateSelf,
@@ -274,6 +276,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	OpenDaysSignup:                     "Sign up for and leave eligible Open Day assignments.",
 	OpenDaysAssign:                     "Assign and remove eligible people on Open Days.",
 	OpenDaysManage:                     "Manage Open Day periods, schedules, calendar context, and lifecycle.",
+	OpenDaysEditPast:                   "Correct Open Days that have ended: their timeslots, details and assignments.",
 	EventsRead:                         "Read confirmed and past Events with their programme, planning data, files, and staffing counts; drafts need an organizer permission.",
 	EventsManage:                       "Create and manage Events including drafts, lifecycle, publication, schedules, planning, and files.",
 	EventsStaffingManage:               "Manage Event shifts, staffing requirements, eligibility, and staffing identities; see drafts.",
@@ -303,6 +306,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	MailManage:                         "Configure transactional SMTP delivery and sender identity.",
 	BrandingManage:                     "Manage public organization identity, branding, and legal notices.",
 	InvoicingSettingsManage:            "Configure the delivery of approved invoice requests to wiRef: recipient, mail and PDF templates.",
+	PDFTemplatesManage:                 "Edit and publish PDF templates and manage their images.",
 	MachinesRead:                       "Read machine types, machines, and their operational metrics.",
 	MachinesManage:                     "Create and update machine types and machines.",
 	TrainingsManage:                    "Create, update and deactivate trainings and the competency categories they feed.",
@@ -343,8 +347,8 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	NotificationsSend:                  "Send in-app messages to roles and see sent messages.",
 	NotificationRulesRead:              "See the central notification rules, the notification categories and what the rules sent.",
 	NotificationRulesManage:            "Create, change and delete central notification rules and categories; run rules and test them.",
-	NotificationSettingsReadAll:        "See any person's notification settings: consents, channel choices and the feedback-at-check-out switch.",
-	NotificationSettingsManageAll:      "Change any person's channel choices and feedback-at-check-out switch. Consents stay the person's own.",
+	NotificationSettingsReadAll:        "See any person's notification settings: consents and channel choices.",
+	NotificationSettingsManageAll:      "Change any person's channel choices. Consents stay the person's own.",
 	PrivacyRead:                        "Read the privacy registry: data categories, their owners, status and the privacy settings.",
 	PrivacySettingsManage:              "Change the installation's privacy settings (controller, contact, automatic retention runs).",
 	PrivacyPoliciesManage:              "Create, approve, activate and retire retention policies and place or release holds.",

@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
 )
 
@@ -201,5 +203,109 @@ func assertPeoplePageIDs(t *testing.T, page people.Page, expected ...uuid.UUID) 
 	}
 	if len(remaining) != 0 {
 		t.Fatalf("people page omitted IDs: %#v", remaining)
+	}
+}
+
+func TestPeopleListSortsWholeResultBeforePaging(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	service := people.NewService(pool, nil)
+	// The tail of a UUIDv7 is random; its head is a timestamp shared by IDs made in the same millisecond.
+	token := ids.New().String()[24:]
+	// Name order is Adams < Baker < Clark; contact, role and Lab Rules orders differ from it.
+	adams, baker, clark := ids.New(), ids.New(), ids.New()
+	for _, person := range []struct {
+		id           uuid.UUID
+		last, email  string
+		phone        any
+		emailMissing bool
+	}{
+		{id: adams, last: "Adams", email: "c-" + token + "@example.test"},
+		{id: baker, last: "Baker", email: "a-" + token + "@example.test"},
+		{id: clark, last: "Clark", phone: "+43 " + token, emailMissing: true},
+	} {
+		var email any = person.email
+		if person.emailMissing {
+			email = nil
+		}
+		if _, err := pool.Exec(
+			ctx,
+			`INSERT INTO people(id,first_name,last_name,email,phone) VALUES($1,'Sort',$2,$3,$4)`,
+			person.id, person.last+token, email, person.phone,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	warningRoleID, plainRoleID := ids.New(), ids.New()
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,$2,'warning'),($3,$4,'not_required')`,
+		warningRoleID, "Zeta sort "+token, plainRoleID, "Alpha sort "+token,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO person_roles(person_id,role_id) VALUES($1,$2),($3,$4)`,
+		adams, warningRoleID, clark, plainRoleID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM people WHERE id = ANY($1)`, []uuid.UUID{adams, baker, clark})
+		_, _ = pool.Exec(context.Background(), `DELETE FROM roles WHERE id = ANY($1)`, []uuid.UUID{warningRoleID, plainRoleID})
+	})
+
+	// Reads every page of one person so the order must hold across pages, not only within one.
+	order := func(principal authorization.Principal, sort string, descending bool) []uuid.UUID {
+		t.Helper()
+		var result []uuid.UUID
+		for pageNumber := 1; pageNumber <= 3; pageNumber++ {
+			page, err := service.List(ctx, principal, pageNumber, 1, people.ListFilters{
+				Search: token, Sort: sort, Descending: descending,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.Total != 3 || len(page.Items) != 1 {
+				t.Fatalf("page %d has total/items %d/%d, want 3/1", pageNumber, page.Total, len(page.Items))
+			}
+			result = append(result, page.Items[0].ID)
+		}
+		return result
+	}
+	master := authorization.Principal{Master: true}
+	for _, test := range []struct {
+		sort       string
+		descending bool
+		want       []uuid.UUID
+	}{
+		{"", false, []uuid.UUID{adams, baker, clark}},
+		{"name", true, []uuid.UUID{clark, baker, adams}},
+		{"contact", false, []uuid.UUID{clark, baker, adams}},
+		{"contact", true, []uuid.UUID{adams, baker, clark}},
+		{"roles", false, []uuid.UUID{baker, clark, adams}},
+		{"roles", true, []uuid.UUID{adams, clark, baker}},
+		{"labRules", false, []uuid.UUID{adams, baker, clark}},
+		{"labRules", true, []uuid.UUID{baker, clark, adams}},
+	} {
+		got := order(master, test.sort, test.descending)
+		if fmt.Sprint(got) != fmt.Sprint(test.want) {
+			t.Errorf("sort %q descending=%v gave %v, want %v", test.sort, test.descending, got, test.want)
+		}
+	}
+
+	if _, err := service.List(ctx, master, 1, 25, people.ListFilters{Sort: "matriculation"}); err == nil {
+		t.Fatal("unknown sort columns must be rejected")
+	}
+	// The reader's own person must not match the search token.
+	reader, _ := principalWithPermissions(t, pool, "people-sort-reader-"+ids.New().String()[24:], "people.read.all")
+	if got := order(reader, "roles", false); fmt.Sprint(got) != fmt.Sprint([]uuid.UUID{baker, clark, adams}) {
+		t.Errorf("roles sort without Lab Rules permission gave %v", got)
+	}
+	if _, err := service.List(ctx, reader, 1, 25, people.ListFilters{Sort: "labRules"}); !errors.Is(
+		err, apperror.PermissionDenied,
+	) {
+		t.Fatalf("sorting by Lab Rules status without its permission returned %v, want permission denied", err)
 	}
 }

@@ -178,11 +178,16 @@ func (s *Service) SaveSchedule(
 		if err := w.rejectOverlaps(ctx); err != nil {
 			return Schedule{}, err
 		}
+		if err := w.authorizePast(); err != nil {
+			return Schedule{}, err
+		}
+		retroactiveOnly := w.touchedPast && !w.touchedFuture
 		if err := w.notifyScheduleChanges(ctx, heldBefore); err != nil {
 			return Schedule{}, err
 		}
 		// A draft is still being prepared and nobody sees it; once people can, a save is news to the staffing people.
-		if PeriodStatus(period.Status) != PeriodDraft {
+		// A correction of days that are over is history and news to nobody.
+		if PeriodStatus(period.Status) != PeriodDraft && !retroactiveOnly {
 			if err := s.inbox.OpenDayPeriodChanged(ctx, tx, periodID, notifyrules.OpenDayPeriodChanged); err != nil {
 				return Schedule{}, err
 			}
@@ -202,6 +207,24 @@ func (s *Service) SaveSchedule(
 	return s.GetSchedule(ctx, principal, periodID)
 }
 
+// see records whether a write concerns a timeslot that has ended (end not after now) or one still to come.
+func (w *scheduleWriter) see(end time.Time) {
+	if end.After(w.now) {
+		w.touchedFuture = true
+	} else {
+		w.touchedPast = true
+	}
+}
+
+// authorizePast asks for open_days.edit_past when the writes created, changed or removed a timeslot that has ended,
+// or moved one into the past: whoever corrects the past needs it on top of open_days.manage.
+func (w *scheduleWriter) authorizePast() error {
+	if w.touchedPast && !w.principal.Has(authorization.OpenDaysEditPast) {
+		return apperror.PermissionDenied
+	}
+	return nil
+}
+
 // scheduleWriter performs the writes of one schedule save inside its transaction, with the period locked.
 type scheduleWriter struct {
 	s         *Service
@@ -211,6 +234,9 @@ type scheduleWriter struct {
 	period    opendaysdb.OpenDayPeriod
 	requestID *uuid.UUID
 	now       time.Time
+	// touchedPast and touchedFuture say whether the writes created, changed or removed timeslots that have ended, or
+	// ones still to come; see authorizePast.
+	touchedPast, touchedFuture bool
 	// removedDays are the days this save cancelled or deleted, deletedDays those that no longer exist; both feed the
 	// notifications to the people who were assigned.
 	removedDays, deletedDays map[uuid.UUID]bool
@@ -263,6 +289,15 @@ func (w *scheduleWriter) slotsOf(ctx context.Context, dayID uuid.UUID) ([]slotSt
 }
 
 func (w *scheduleWriter) removeDay(ctx context.Context, day opendaysdb.OpenDay) error {
+	if DayStatus(day.Status) == DayScheduled || PeriodStatus(w.period.Status) == PeriodDraft {
+		slots, err := w.slotsOf(ctx, day.ID)
+		if err != nil {
+			return err
+		}
+		for _, slot := range slots {
+			w.see(slot.row.EndsAt)
+		}
+	}
 	action := "open_day.cancelled"
 	if PeriodStatus(w.period.Status) == PeriodDraft {
 		action = "open_day.deleted"
@@ -299,6 +334,8 @@ func (w *scheduleWriter) updateDay(ctx context.Context, day opendaysdb.OpenDay, 
 		id := current[0].row.ID
 		inputs[0].ID = &id
 	}
+	// Even a note alone is part of the record of a day that is over.
+	w.see(day.EndsAt)
 	seriesID, detachedID := day.SeriesID, day.DetachedFromSeriesID
 	fields := []string{"internalNote", "timeslots"}
 	var metadata map[string]any
@@ -329,6 +366,21 @@ func (w *scheduleWriter) updateDay(ctx context.Context, day opendaysdb.OpenDay, 
 }
 
 // sameShape reports whether the inputs keep the day's timeslots, times and places exactly.
+// slotChanged says whether the input moves the stored timeslot or changes its places.
+func slotChanged(slot slotState, input TimeslotInput) bool {
+	if !slot.row.StartsAt.Equal(input.StartsAt) || !slot.row.EndsAt.Equal(input.EndsAt) ||
+		len(slot.requirements) != len(input.Requirements) {
+		return true
+	}
+	for _, requirement := range input.Requirements {
+		stored, ok := slot.requirements[requirement.Kind]
+		if !ok || stored.required != requirement.RequiredCount || !sameIDs(stored.roles, requirement.EligibleRoleIDs) {
+			return true
+		}
+	}
+	return false
+}
+
 func sameShape(current []slotState, inputs []TimeslotInput) bool {
 	if len(current) != len(inputs) {
 		return false
@@ -381,6 +433,7 @@ func (w *scheduleWriter) writeSlots(
 	kept := map[uuid.UUID]bool{}
 	for position, input := range inputs {
 		if input.ID == nil {
+			w.see(input.EndsAt)
 			slotID := ids.New()
 			if _, err := w.q.CreateTimeslot(ctx, opendaysdb.CreateTimeslotParams{
 				ID: slotID, OpenDayID: dayID, StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(),
@@ -398,6 +451,10 @@ func (w *scheduleWriter) writeSlots(
 			return apperror.Invalid("timeslot ids must name distinct timeslots of the Open Day")
 		}
 		kept[*input.ID] = true
+		if slotChanged(slot, input) {
+			w.see(slot.row.EndsAt)
+			w.see(input.EndsAt)
+		}
 		if _, err := w.q.UpdateTimeslot(ctx, opendaysdb.UpdateTimeslotParams{
 			StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), Position: int32(position),
 			ID: slot.row.ID, OpenDayID: dayID,
@@ -410,6 +467,7 @@ func (w *scheduleWriter) writeSlots(
 	}
 	for _, slot := range current {
 		if !kept[slot.row.ID] {
+			w.see(slot.row.EndsAt)
 			if err := w.q.DeleteTimeslot(
 				ctx,
 				opendaysdb.DeleteTimeslotParams{ID: slot.row.ID, OpenDayID: dayID},

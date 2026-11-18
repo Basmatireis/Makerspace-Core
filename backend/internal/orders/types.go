@@ -47,6 +47,7 @@ const (
 	OrderActionReverse      OrderAction = "reverse"
 	OrderActionReplacements OrderAction = "replacements"
 	OrderActionReplace      OrderAction = "replace"
+	OrderActionDiscard      OrderAction = "discard"
 )
 
 // PaymentMethod is how a payment was made.

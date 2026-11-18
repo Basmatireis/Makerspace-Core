@@ -373,16 +373,23 @@ func (q *Queries) CountCashMovements(ctx context.Context, arg CountCashMovements
 
 const countOrders = `-- name: CountOrders :one
 SELECT count(*) FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
-WHERE ($1::text='' OR o.reference ILIKE '%'||$1||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||$1||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||$1||'%') AND ($2::text='' OR o.status=$2)
+LEFT JOIN people cp ON cp.id=o.customer_person_id LEFT JOIN organizations cg ON cg.id=o.customer_organization_id
+WHERE ($1::text='' OR o.reference ILIKE '%'||$1||'%'
+       OR COALESCE(cs.display_name,cp.first_name||' '||cp.last_name,cg.name,'') ILIKE '%'||$1||'%'
+       OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||$1||'%')
+  AND ($2::text='' OR o.status=$2)
+  AND ($3::uuid IS NULL OR o.customer_person_id=$3 OR o.customer_organization_id=$3)
 `
 
 type CountOrdersParams struct {
-	Search string
-	Status string
+	Search     string
+	Status     string
+	CustomerID *uuid.UUID
 }
 
+// Drafts have no captured name yet, so the current name of their customer is searched instead.
 func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countOrders, arg.Search, arg.Status)
+	row := q.db.QueryRow(ctx, countOrders, arg.Search, arg.Status, arg.CustomerID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -550,6 +557,18 @@ DELETE FROM cash_movements WHERE id=$1
 func (q *Queries) DeleteCashMovement(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteCashMovement, id)
 	return err
+}
+
+const deleteDraftOrder = `-- name: DeleteDraftOrder :execrows
+DELETE FROM orders WHERE id=$1 AND status='draft'
+`
+
+func (q *Queries) DeleteDraftOrder(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDraftOrder, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getActor = `-- name: GetActor :one
@@ -949,6 +968,18 @@ func (q *Queries) GetPerson(ctx context.Context, id uuid.UUID) (GetPersonRow, er
 	var i GetPersonRow
 	err := row.Scan(&i.ID, &i.DisplayName)
 	return i, err
+}
+
+const getPersonMatriculation = `-- name: GetPersonMatriculation :one
+SELECT COALESCE(matriculation_number, '')::text AS matriculation_number FROM people WHERE id = $1
+`
+
+// Empty when the person has none; only read for a caller who holds people.read.matriculation.
+func (q *Queries) GetPersonMatriculation(ctx context.Context, personID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getPersonMatriculation, personID)
+	var matriculation_number string
+	err := row.Scan(&matriculation_number)
+	return matriculation_number, err
 }
 
 const getRequest = `-- name: GetRequest :one
@@ -1837,7 +1868,7 @@ WITH entries AS (
     WHERE m.occurred_at >= $3::timestamptz AND m.occurred_at < $4::timestamptz
 )
 SELECT e.id, e.source, e.kind, e.method::text AS method, e.occurred_at, e.effect, e.reference,
-    COALESCE(al.order_reference, '')::text AS order_reference,
+    COALESCE(al.order_reference, '')::text AS order_reference, al.order_id,
     COALESCE(cs.display_name, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), ''), og.name, '')::text AS customer_name,
     e.payment_reason::text AS payment_reason, e.movement_reason::text AS movement_reason,
     (CASE WHEN e.count_id IS NULL THEN e.note ELSE COALESCE(c.note, '') END)::text AS note,
@@ -1875,6 +1906,7 @@ type ListCashbookEntriesRow struct {
 	Effect         pgtype.Numeric
 	Reference      string
 	OrderReference string
+	OrderID        *uuid.UUID
 	CustomerName   string
 	PaymentReason  string
 	MovementReason string
@@ -1910,6 +1942,7 @@ func (q *Queries) ListCashbookEntries(ctx context.Context, arg ListCashbookEntri
 			&i.Effect,
 			&i.Reference,
 			&i.OrderReference,
+			&i.OrderID,
 			&i.CustomerName,
 			&i.PaymentReason,
 			&i.MovementReason,
@@ -1917,6 +1950,57 @@ func (q *Queries) ListCashbookEntries(ctx context.Context, arg ListCashbookEntri
 			&i.CountReference,
 			&i.CountReason,
 			&i.RecordedByName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCashbookOrderContents = `-- name: ListCashbookOrderContents :many
+SELECT i.order_id, i.kind,
+    (CASE WHEN i.kind = 'manual' THEN i.description ELSE '' END)::text AS description,
+    COALESCE(i.machine_job_snapshot->>'processName', '')::text AS process_name,
+    COALESCE(jsonb_path_exists(i.machine_job_snapshot, '$.usages[*] ? (@.ownership == "makerspace")'), false)::bool AS used_materials,
+    COALESCE(t.name, '')::text AS article_category
+FROM order_items i
+LEFT JOIN materials m ON m.id = i.source_material_id AND i.kind = 'inventory_item'
+LEFT JOIN material_types t ON t.id = m.material_type_id
+WHERE i.order_id = ANY($1::text[]::uuid[]) AND i.removed_at IS NULL
+ORDER BY i.order_id, i.position, i.id
+`
+
+type ListCashbookOrderContentsRow struct {
+	OrderID         uuid.UUID
+	Kind            string
+	Description     string
+	ProcessName     string
+	UsedMaterials   bool
+	ArticleCategory string
+}
+
+// What the orders of cashbook lines charged, in item order: the process of a machine job and whether it used the
+// makerspace's material, the material type of an article sold from stock, the description of a manual item.
+func (q *Queries) ListCashbookOrderContents(ctx context.Context, orderIds []string) ([]ListCashbookOrderContentsRow, error) {
+	rows, err := q.db.Query(ctx, listCashbookOrderContents, orderIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCashbookOrderContentsRow{}
+	for rows.Next() {
+		var i ListCashbookOrderContentsRow
+		if err := rows.Scan(
+			&i.OrderID,
+			&i.Kind,
+			&i.Description,
+			&i.ProcessName,
+			&i.UsedMaterials,
+			&i.ArticleCategory,
 		); err != nil {
 			return nil, err
 		}
@@ -2000,20 +2084,29 @@ func (q *Queries) ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItems
 
 const listOrders = `-- name: ListOrders :many
 SELECT o.id, o.reference, o.status, o.currency, o.customer_kind, o.customer_person_id, o.customer_organization_id, o.total_amount, o.replaces_order_id, o.replaces_order_reference, o.version, o.created_at, o.updated_at, o.created_by_account_id, o.finalized_at, o.cancelled_at, o.reversed_at FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
-WHERE ($1::text='' OR o.reference ILIKE '%'||$1||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||$1||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||$1||'%') AND ($2::text='' OR o.status=$2) ORDER BY o.created_at DESC,o.id DESC LIMIT $4 OFFSET $3
+LEFT JOIN people cp ON cp.id=o.customer_person_id LEFT JOIN organizations cg ON cg.id=o.customer_organization_id
+WHERE ($1::text='' OR o.reference ILIKE '%'||$1||'%'
+       OR COALESCE(cs.display_name,cp.first_name||' '||cp.last_name,cg.name,'') ILIKE '%'||$1||'%'
+       OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||$1||'%')
+  AND ($2::text='' OR o.status=$2)
+  AND ($3::uuid IS NULL OR o.customer_person_id=$3 OR o.customer_organization_id=$3)
+ORDER BY o.created_at DESC,o.id DESC LIMIT $5 OFFSET $4
 `
 
 type ListOrdersParams struct {
 	Search     string
 	Status     string
+	CustomerID *uuid.UUID
 	PageOffset int32
 	PageLimit  int32
 }
 
+// Drafts have no captured name yet, so the current name of their customer is searched instead.
 func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error) {
 	rows, err := q.db.Query(ctx, listOrders,
 		arg.Search,
 		arg.Status,
+		arg.CustomerID,
 		arg.PageOffset,
 		arg.PageLimit,
 	)
@@ -2159,6 +2252,41 @@ func (q *Queries) ListPayments(ctx context.Context, arg ListPaymentsParams) ([]P
 			&i.ExternalInvoiceRequestID,
 			&i.SplitPart,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReceiptPreviewOrders = `-- name: ListReceiptPreviewOrders :many
+SELECT o.id, o.reference
+FROM orders o
+WHERE o.status = 'finalized'
+  AND (SELECT COALESCE(sum(a.amount), 0) FROM payment_allocations a WHERE a.order_id = o.id) > 0
+ORDER BY o.finalized_at DESC NULLS LAST, o.id DESC
+LIMIT $1
+`
+
+type ListReceiptPreviewOrdersRow struct {
+	ID        uuid.UUID
+	Reference string
+}
+
+// The newest finalized orders that have a receipt (a settled amount above 0), for previews of the receipt template.
+func (q *Queries) ListReceiptPreviewOrders(ctx context.Context, rowLimit int32) ([]ListReceiptPreviewOrdersRow, error) {
+	rows, err := q.db.Query(ctx, listReceiptPreviewOrders, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReceiptPreviewOrdersRow{}
+	for rows.Next() {
+		var i ListReceiptPreviewOrdersRow
+		if err := rows.Scan(&i.ID, &i.Reference); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2460,6 +2588,22 @@ func (q *Queries) NextRequestReference(ctx context.Context) (int64, error) {
 	return column_1, err
 }
 
+const openReplacement = `-- name: OpenReplacement :one
+SELECT id,reference FROM orders WHERE replaces_order_id=$1 AND status='draft'
+`
+
+type OpenReplacementRow struct {
+	ID        uuid.UUID
+	Reference string
+}
+
+func (q *Queries) OpenReplacement(ctx context.Context, replacesOrderID *uuid.UUID) (OpenReplacementRow, error) {
+	row := q.db.QueryRow(ctx, openReplacement, replacesOrderID)
+	var i OpenReplacementRow
+	err := row.Scan(&i.ID, &i.Reference)
+	return i, err
+}
+
 const operationAllocations = `-- name: OperationAllocations :many
 SELECT order_id, order_reference, sum(amount)::numeric AS amount FROM payment_allocations
 WHERE operation_id = $1 AND order_id IS NOT NULL
@@ -2549,6 +2693,48 @@ func (q *Queries) PreviousCashCountTime(ctx context.Context, countedAt time.Time
 	var counted_at time.Time
 	err := row.Scan(&counted_at)
 	return counted_at, err
+}
+
+const receiptPayments = `-- name: ReceiptPayments :many
+SELECT p.id, p.reference, p.method, p.occurred_at, sum(a.amount)::numeric AS amount
+FROM payments p JOIN payment_allocations a ON a.payment_id = p.id
+WHERE a.order_id = $1 AND p.entry_kind = 'receipt'
+GROUP BY p.id HAVING sum(a.amount) > 0 ORDER BY p.occurred_at, p.reference
+`
+
+type ReceiptPaymentsRow struct {
+	ID         uuid.UUID
+	Reference  string
+	Method     string
+	OccurredAt time.Time
+	Amount     pgtype.Numeric
+}
+
+// The receipts that still count towards an order with the amount each contributes to it, oldest first.
+func (q *Queries) ReceiptPayments(ctx context.Context, orderID *uuid.UUID) ([]ReceiptPaymentsRow, error) {
+	rows, err := q.db.Query(ctx, receiptPayments, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReceiptPaymentsRow{}
+	for rows.Next() {
+		var i ReceiptPaymentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Reference,
+			&i.Method,
+			&i.OccurredAt,
+			&i.Amount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const reconciliationTotals = `-- name: ReconciliationTotals :many

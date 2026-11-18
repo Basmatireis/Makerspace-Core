@@ -14,11 +14,12 @@ The **Billing** column of the jobs table says where a job stands:
 - An order number means the job is on that order.
 - **Order outdated** means the job changed after it was added to the order.
 - **Price incomplete** means a rate is missing.
+- **Nothing to bill** means the job has ended and its final price is 0, for example because it was waived. Such a job cannot be put on an order.
 
 Running jobs show nothing yet.
 
 ## Putting a job on an order
 
-Once a job has finished, **Add to order** on the job page adds it to the recipient's draft order, or starts a new draft. The order opens afterwards. Adding jobs to orders needs permission to write orders.
+Once a job has finished and has a price above 0, **Add to order** on the job page adds it to the recipient's draft order, or starts a new draft. The order opens afterwards. Adding jobs to orders needs permission to write orders.
 
 From there, orders and payments take over. They are described in the Sales & payments help articles.

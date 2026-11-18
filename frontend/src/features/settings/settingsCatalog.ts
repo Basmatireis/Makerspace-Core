@@ -1,6 +1,7 @@
 import {
   Devices,
   Document,
+  DocumentPdf,
   Education,
   Email,
   Group,
@@ -31,6 +32,7 @@ export type SettingsPageId =
   | 'notification-center'
   | 'branding-legal'
   | 'invoicing'
+  | 'pdf-templates'
   | 'local-services'
   | 'configuration-transfer'
   | 'privacy';
@@ -68,7 +70,11 @@ export const settingsGroups: readonly SettingsGroup[] = [
     title: 'Communication & appearance',
     description: 'How Core talks to people and how it looks.',
   },
-  { id: 'sales', title: 'Sales & invoicing', description: 'Hand-over of approved invoice requests.' },
+  {
+    id: 'sales',
+    title: 'Sales & invoicing',
+    description: 'Hand-over of approved invoice requests and the PDFs behind it.',
+  },
   {
     id: 'local-services',
     title: 'Local services',
@@ -175,6 +181,15 @@ export const settingsItems: readonly SettingsItem[] = [
     path: '/settings/invoicing',
     icon: Receipt,
     permissions: [PermissionId.invoicingsettingsmanage],
+  },
+  {
+    id: 'pdf-templates',
+    group: 'sales',
+    title: 'PDF templates',
+    description: 'Edit the layout of the wiRef invoice request, the cashbook sheet and order receipts.',
+    path: '/settings/pdf-templates',
+    icon: DocumentPdf,
+    permissions: [PermissionId.pdf_templatesmanage],
   },
   {
     id: 'local-services',

@@ -67,6 +67,8 @@ tags:
     description: "Export the configuration of this makerspace as a versioned JSON file and import it section by section (docs/configuration-transfer.md)."
   - name: Privacy
     description: "The privacy registry: data categories declared by modules, retention and data-subject requests, and the installation's privacy settings (docs/privacy-and-retention.md)."
+  - name: PDF Templates
+    description: "Editable PDF documents (wiRef invoice request, Kassabuch, receipt): versions, assets and server-side preview (docs/pdf-templates.md)."
 
 paths:
   /health/live:
@@ -1061,6 +1063,23 @@ paths:
             maxItems: 5
             items:
               $ref: "#/components/schemas/PeopleLaborordnungStatusFilter"
+        - name: sort
+          in: query
+          description: |
+            Column the whole result set is ordered by before paging: `name` (last name, then first name),
+            `contact` (email, else phone), `roles` (the role names as listed on the person) or `labRules`
+            (Lab Rules status). Ties are broken by name. Sorting by `labRules` requires
+            `laborordnung.confirmations.read`.
+          schema:
+            type: string
+            enum: [name, contact, roles, labRules]
+            default: name
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
       responses:
         "200":
           description: A page of people.
@@ -1112,6 +1131,31 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /people/role-options:
+    get:
+      tags: [People]
+      operationId: listPeopleRoleOptions
+      summary: List roles usable as People list filter options
+      description: |
+        Requires `people.read.all`. Returns only the identifier, name and system key of each role — the
+        same role data the People list already shows — so viewers without `roles.read` can filter by role.
+        Role permissions and settings stay behind `roles.read`.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Roles usable as People list filter options.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeopleRoleOptionList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -3482,6 +3526,10 @@ paths:
       tags: [Open Days]
       operationId: saveOpenDaySchedule
       summary: Atomically save a period schedule delta
+      description: >-
+        Requires `open_days.manage`. Changing, cancelling, removing or rejoining an Open Day that has ended, moving one
+        so that it ends in the past, or creating one that has already ended also requires `open_days.edit_past`. A save
+        that only touches ended days sends no notifications.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SaveOpenDayScheduleRequest"}}}}
       responses:
@@ -3517,6 +3565,7 @@ paths:
       tags: [Open Days]
       operationId: joinOpenDay
       summary: Assign the current Person to one staffing requirement
+      description: Requires `open_days.signup`. A timeslot that has ended answers `409 timeslot_ended`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/JoinOpenDayRequest"}}}}
       responses:
@@ -3531,6 +3580,7 @@ paths:
       tags: [Open Days]
       operationId: leaveOpenDay
       summary: Remove the current Person's assignment in one timeslot
+      description: Requires `open_days.signup`. A timeslot that has ended answers `409 timeslot_ended`.
       security: [{sessionCookie: [], csrfHeader: []}]
       parameters:
         - {name: timeslotId, in: query, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -3539,6 +3589,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -3548,6 +3599,9 @@ paths:
       tags: [Open Days]
       operationId: assignOpenDayPerson
       summary: Administratively assign an eligible Person
+      description: >-
+        Requires `open_days.assign`; a timeslot that has ended also requires `open_days.edit_past`. Such a retroactive
+        correction is audited but sends no notifications.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AssignOpenDayPersonRequest"}}}}
       responses:
@@ -3567,12 +3621,16 @@ paths:
       tags: [Open Days]
       operationId: removeOpenDayAssignment
       summary: Administratively remove an assignment
+      description: >-
+        Requires `open_days.assign`; a timeslot that has ended also requires `open_days.edit_past`. Such a retroactive
+        correction is audited but sends no notifications.
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
         "204": {description: Assignment removed.}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -4867,7 +4925,7 @@ paths:
       x-restricted-session: notification_settings
       description: >-
         Any staff session, including one restricted to notification settings. Lists the categories with the person's consent answers, whether any consent is still pending,
-        the feedback-at-check-out switch and the central rules that reach the person: those whose actions name them
+        and the central rules that reach the person: those whose actions name them
         directly, a role they hold, or a recipient such as "operator of the print" that can point to them.
       security: [{sessionCookie: []}]
       responses:
@@ -4917,24 +4975,6 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /me/notifications/feedback-at-checkout:
-    put:
-      tags: [NotificationRules]
-      operationId: setOwnFeedbackAtCheckout
-      summary: Choose whether the tablet may ask for feedback at check-out
-      x-restricted-session: notification_settings
-      description: >-
-        Any staff session, including one restricted to notification settings. A change is audited as
-        `notification_feedback_at_checkout.changed` and raises the `notification_settings_changed` trigger; the same
-        value again changes nothing.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetFeedbackAtCheckoutRequest"}}}}
-      responses:
-        "204": {description: Choice stored.}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
   /people/{personId}/notification-settings:
     parameters:
       - $ref: "#/components/parameters/PersonId"
@@ -4944,7 +4984,7 @@ paths:
       summary: Get another person's notification settings
       description: >-
         Requires `notification_settings.read.all` or `notification_settings.manage.all`. The same view the person has
-        of their own settings: consent answers (read-only for staff), the feedback-at-check-out switch and the central
+        of their own settings: consent answers (read-only for staff) and the central
         rules that reach the person with their channels. Without `notification_rules.read` (or `.manage`) the rules'
         `description` and `triggerSummary` are empty. Channel choices belong to an account, so a person without an
         account has `hasAccount` false and no rules. Unknown people answer 404.
@@ -4979,27 +5019,6 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /people/{personId}/notification-settings/feedback-at-checkout:
-    parameters:
-      - $ref: "#/components/parameters/PersonId"
-    put:
-      tags: [NotificationRules]
-      operationId: setPersonFeedbackAtCheckout
-      summary: Choose for another person whether the tablet may ask for feedback at check-out
-      description: >-
-        Requires `notification_settings.manage.all`; only a master may change a master's settings (403 otherwise). Works
-        for people without an account too. Unknown people answer 404. A change is audited as `notification_feedback_at_checkout.changed` with the person and raises the
-        `notification_settings_changed` trigger; the same value again changes nothing.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetFeedbackAtCheckoutRequest"}}}}
-      responses:
-        "204": {description: Choice stored.}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -5445,6 +5464,243 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /pdf-templates:
+    get:
+      tags: [PDF Templates]
+      operationId: listPdfTemplates
+      summary: List the editable PDF documents with their published and draft versions
+      description: "Requires pdf_templates.manage. One entry per export; no version means the built-in default is in effect."
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: The three exports.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {type: array, maxItems: 8, items: {$ref: "#/components/schemas/PdfTemplateSummary"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/assets:
+    get:
+      tags: [PDF Templates]
+      operationId: listPdfTemplateAssets
+      summary: List the uploaded images and graphics
+      description: "Requires pdf_templates.manage. Metadata only."
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Uploaded assets, newest first.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {type: array, maxItems: 500, items: {$ref: "#/components/schemas/PdfTemplateAsset"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [PDF Templates]
+      operationId: uploadPdfTemplateAsset
+      summary: Upload a PNG, JPEG or SVG for use in templates
+      description: "Requires pdf_templates.manage. The content type is sniffed from the bytes, not taken from the request. At most 2 MiB; raster images at most 4000 x 4000 px. 413 when larger, 422 `pdf_template_asset_invalid` for an unsupported or unsafe file."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: fileName, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 200}}
+      requestBody:
+        required: true
+        description: PNG, JPEG or SVG bytes.
+        content: {application/octet-stream: {schema: {type: string, format: binary}}}
+      responses:
+        "201": {description: Stored asset., content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplateAsset"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/assets/{assetId}:
+    parameters:
+      - {name: assetId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [PDF Templates]
+      operationId: getPdfTemplateAsset
+      summary: Download an uploaded asset
+      description: "Requires pdf_templates.manage. The stored bytes with their sniffed content type."
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: The asset bytes.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}, Content-Security-Policy: {schema: {type: string}}}
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+            image/svg+xml: {schema: {type: string, format: binary}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [PDF Templates]
+      operationId: deletePdfTemplateAsset
+      summary: Delete an uploaded asset
+      description: "Requires pdf_templates.manage. 409 `pdf_template_asset_in_use` while the draft or the published version references it."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: The asset is deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+    get:
+      tags: [PDF Templates]
+      operationId: getPdfTemplate
+      summary: Read the draft and published template of an export with its built-in default and variable schema
+      description: "Requires pdf_templates.manage. The schema lists the variables and filters the template may use; examples come from sample data only."
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: The template state.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplateDetail"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}/versions:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+    get:
+      tags: [PDF Templates]
+      operationId: listPdfTemplateVersions
+      summary: List the versions of an export, newest first
+      description: "Requires pdf_templates.manage."
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Version metadata without documents.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {type: array, maxItems: 1000, items: {$ref: "#/components/schemas/PdfTemplateVersionMeta"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}/versions/{versionId}:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+      - {name: versionId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [PDF Templates]
+      operationId: getPdfTemplateVersion
+      summary: Read one version with its document
+      description: "Requires pdf_templates.manage."
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: The version.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplateVersion"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}/versions/{versionId}/restore:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+      - {name: versionId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [PDF Templates]
+      operationId: restorePdfTemplateVersion
+      summary: Copy an earlier version into the draft
+      description: "Requires pdf_templates.manage. Replaces the current draft, if any, with the document of the given version."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200":
+          description: The new draft.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplateVersion"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}/draft:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+    put:
+      tags: [PDF Templates]
+      operationId: savePdfTemplateDraft
+      summary: Create or replace the draft
+      description: "Requires pdf_templates.manage. Drafts may be saved with problems (returned in `problems`); a document that violates the structure is refused with 422 `pdf_template_invalid`, one that exceeds the size limits with `pdf_template_too_large`. 409 when `expectedRevision` is stale."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SavePdfTemplateDraftRequest"}}}}
+      responses:
+        "200":
+          description: The saved draft.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplateDraftResult"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [PDF Templates]
+      operationId: discardPdfTemplateDraft
+      summary: Discard the draft
+      description: "Requires pdf_templates.manage."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: The draft is discarded.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}/publish:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+    post:
+      tags: [PDF Templates]
+      operationId: publishPdfTemplateDraft
+      summary: Publish the draft
+      description: "Requires pdf_templates.manage. The previous published version is archived. 409 when `expectedRevision` is stale or there is no draft; 422 `pdf_template_has_problems` while the document has any error."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PublishPdfTemplateRequest"}}}}
+      responses:
+        "200":
+          description: The published version.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplateVersion"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}/preview:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+    post:
+      tags: [PDF Templates]
+      operationId: previewPdfTemplate
+      summary: Render a possibly unsaved document
+      description: "Requires pdf_templates.manage; a `record` source additionally needs the permission of the export (wiref: external_invoice_requests.read and orders.read; cashbook: payments.read and cash_movements.read; receipt: orders.read) and fields the caller may not read are rendered empty and listed in `redacted`. Nothing is stored."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PreviewPdfTemplateRequest"}}}}
+      responses:
+        "200":
+          description: The rendered PDF with the layout of every drawn node.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplatePreview"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /invoicing/wiref-settings:
     get:
       tags: ["External Invoicing"]
@@ -5771,7 +6027,7 @@ paths:
       tags: [Signage]
       operationId: deleteSignageAsset
       summary: Delete an asset that no draft scene references
-      description: Answers 409 `signage_in_use` with `details.references` while a scene uses the asset as background or in a widget.
+      description: Answers 409 `signage_in_use` with `details.references` while a scene uses the asset as background or in a widget (reference kind `scene`), an announcement template uses it as its image (kind `template`) or an active or scheduled announcement with its own look shows it (kind `announcement`). Ended announcements just lose the image.
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
         "204": {description: Asset and stored bytes deleted.}
@@ -6278,6 +6534,54 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /signage/displays/{displayId}/notices:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageDisplayNotices
+      summary: Which notification rules' notices the display shows
+      description: Requires `signage.read`. A display also shows what its group chose; that choice is on the group.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: The display's choice., content: {application/json: {schema: {$ref: "#/components/schemas/SignageNoticeSelection"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Signage]
+      operationId: setSignageDisplayNotices
+      summary: Choose which notification rules' notices the display shows
+      description: >-
+        Requires `signage.manage`. Replaces the choice and takes effect at once, without publishing. `ruleIds` must be
+        central notification rules (422 otherwise); a rule without a signage action is kept but shows nothing until it
+        gets one. A web embed never shows notices (422 `signage_web_embed`). Audited as
+        `signage_display.notices_changed`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SignageNoticeSelection"}}}}
+      responses:
+        "200": {description: The new choice., content: {application/json: {schema: {$ref: "#/components/schemas/SignageNoticeSelection"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/notification-rules:
+    get:
+      tags: [Signage]
+      operationId: listSignageNotificationRules
+      summary: List the notification rules a display or group can show notices of
+      description: >-
+        Requires `signage.read`. Central notification rules that have a signage action, with their names only, and
+        every rule a display or group already chose (`hasSignageAction` false once its signage action is gone).
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Rules., content: {application/json: {schema: {$ref: "#/components/schemas/SignageNotificationRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /signage/groups:
     get:
       tags: [Signage]
@@ -6473,6 +6777,39 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /signage/groups/{groupId}/notices:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayGroupId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageGroupNotices
+      summary: Which notification rules' notices the group shows
+      description: Requires `signage.read`. Member displays show these notices besides their own choice.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: The group's choice., content: {application/json: {schema: {$ref: "#/components/schemas/SignageNoticeSelection"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Signage]
+      operationId: setSignageGroupNotices
+      summary: Choose which notification rules' notices the group shows
+      description: >-
+        Requires `signage.manage`. Replaces the choice and takes effect at once, without publishing. `ruleIds` must be
+        central notification rules (422 otherwise); a rule without a signage action is kept but shows nothing until it
+        gets one. Audited as
+        `signage_display_group.notices_changed`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SignageNoticeSelection"}}}}
+      responses:
+        "200": {description: The new choice., content: {application/json: {schema: {$ref: "#/components/schemas/SignageNoticeSelection"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /signage/web-embeds:
     get:
       tags: [Signage]
@@ -6636,7 +6973,7 @@ paths:
       tags: [Signage Embed]
       operationId: getSignageEmbedAsset
       summary: Asset bytes of the web embed's latest publication
-      description: Public. Like `getSignagePlayerAsset` for the embed's latest publication; 404 for an unknown or switched-off embed. Rate-limited per client address.
+      description: Public. Like `getSignagePlayerAsset` for the embed's latest publication and the images of announcements in force for the embed; 404 for an unknown or switched-off embed. Rate-limited per client address.
       security: []
       responses:
         "200":
@@ -6760,7 +7097,7 @@ paths:
       operationId: getSignagePlayerAsset
       summary: Asset bytes of the display's latest publication
       description: |
-        Device credential of a signage player only. Serves an asset only when the display's latest publication lists it with this checksum. Content-addressed, so responses are immutable (`Cache-Control: private, max-age=31536000, immutable`). HTTP Range requests are supported when the storage backend can seek (local storage); other backends answer the full body with `Accept-Ranges: none`.
+        Device credential of a signage player only. Serves an asset only when the display's latest publication lists it with this checksum, or when it is the effective image of an announcement in force for the display right now (the `image` of its live data). Content-addressed, so responses are immutable (`Cache-Control: private, max-age=31536000, immutable`). HTTP Range requests are supported when the storage backend can seek (local storage); other backends answer the full body with `Accept-Ranges: none`.
       security: [{managedDeviceCookie: []}, {managedDeviceToken: []}]
       responses:
         "200":
@@ -10393,10 +10730,16 @@ paths:
         -
           name: "search"
           in: "query"
-          description: "Case-insensitive substring match on the order reference, the customer name captured with the order and the reference of the order it replaces."
+          description: "Case-insensitive substring match on the order reference, the customer name (captured with the order, or the current name while no name is captured) and the reference of the order it replaces."
           schema:
             type: "string"
             maxLength: 200
+        -
+          name: "customerId"
+          in: "query"
+          description: "Only orders of this person or organization."
+          schema:
+            $ref: "#/components/schemas/UUIDv7"
         -
           name: "status"
           in: "query"
@@ -10503,11 +10846,34 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/UpdateOrderDraftInput"
+  /orders/{orderId}/receipt.pdf:
+    parameters:
+      - {name: orderId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: ["Orders"]
+      operationId: getOrderReceiptPdf
+      summary: Download the receipt of a finalized order as PDF
+      description: "Requires orders.read. Rendered with the effective receipt template (published, else built-in). Only finalized orders with a settled amount; 409 `receipt_not_available` otherwise. `paymentId` limits the receipt to one payment of the order."
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: paymentId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      responses:
+        "200":
+          description: The receipt.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}}
+          content: {application/pdf: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /orders/{orderId}/items:
     post:
       tags:
         - "Orders"
       operationId: "addOrderItem"
+      description: "Adds an item to a draft order. A machine job whose nothingToBill is true is refused with 409 nothing_to_bill."
       security:
         -
           sessionCookie: []
@@ -10835,11 +11201,64 @@ paths:
         required: true
         schema:
           $ref: "#/components/schemas/UUIDv7"
+  /orders/{orderId}/discard:
+    post:
+      tags:
+        - "Orders"
+      operationId: "discardReplacementOrder"
+      summary: "Discard an open replacement draft"
+      description: >-
+        Requires `orders.read` and `orders.write`. Deletes the replacement draft `orderId` with its items; it never had a
+        financial effect, so no cancelled order is left behind. Only drafts created through createReplacementOrder can be
+        discarded (409 `order_not_replacement` otherwise, 409 `order_not_draft` once committed). Answers the original
+        order, audited there as `order.replacement_discarded`.
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "200":
+          description: "Replacement draft deleted; the original order."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCommand"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
   /orders/{orderId}/replacements:
     post:
       tags:
         - "Orders"
       operationId: "createReplacementOrder"
+      summary: "Start a replacement draft for a finalized or reversed order"
+      description: >-
+        Requires `orders.read` and `orders.write`. Creates a draft already linked to the original (`replacesOrderId`) with
+        the original's customer and items. An original has at most one open replacement draft (409
+        `replacement_in_progress`; continue or discard it) and no replacement once one was committed (409
+        `order_already_replaced`). Commit it with replaceOrder, drop it with discardReplacementOrder.
       security:
         -
           sessionCookie: []
@@ -10881,6 +11300,11 @@ paths:
       tags:
         - "Orders"
       operationId: "replaceOrder"
+      summary: "Commit the replacement draft of an order"
+      description: >-
+        Requires `orders.read`, `orders.reverse`, `orders.finalize`, `payments.read` and `payments.record`. In one
+        transaction reverses the original `orderId` (when still finalized), moves its remaining payments over and
+        finalizes `replacementOrderId`, which must be the original's open replacement draft.
       security:
         -
           sessionCookie: []
@@ -11212,13 +11636,13 @@ paths:
         Requires payments.read and cash_movements.read. The whole days `from` through `to` (makerspace time zone), as
         an attachment. `cash_register` covers cash receipts, refunds and corrections, withdrawals, deposits and count
         corrections with the balance carried forward from the opening balance; `all_payments` adds card and external
-        (wiRef) payments and has no balance. PDF: the HTU Kassabuch form (Nr., Datum, Kassierer*in, Text, Einnahme,
-        Ausgabe), 14 rows on the first sheet and 17 on every further one, each sheet opening with the balance carried
-        over and closing with Summe/Bestand, then a final sheet with the totals, the opening and closing balance and
-        three signature fields. CSV: semicolon-separated, decimal comma, UTF-8 with byte order mark, columns
+        (wiRef) payments and has no balance. PDF: rendered with the published cashbook PDF template, else the built-in
+        default, which is the HTU Kassabuch form (14 rows on the first sheet and 17 on every further one, each sheet
+        opening with the balance carried over and closing with Summe/Bestand, then a closing sheet with the totals and
+        three signature fields). CSV: semicolon-separated, decimal comma, UTF-8 with byte order mark, columns
         Date;Reference;Description;In;Out plus Balance for the cash register (whose first row is the opening
-        balance); text that a spreadsheet would read as a formula is prefixed with a single quote. Customer names
-        appear only with orders.read. 422 `cashbook_export_too_large` above 5000 entries.
+        balance); text that a spreadsheet would read as a formula is prefixed with a single quote. Customer names and order
+        summaries appear only with orders.read. 422 `cashbook_export_too_large` above 5000 entries.
       security: [{sessionCookie: []}]
       parameters:
         - {name: from, in: query, required: true, description: "First day, inclusive.", schema: {type: string, format: date}}
@@ -12228,18 +12652,6 @@ paths:
         "204": {description: Offer declined.}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
-  /terminal/survey-offers/{token}/never:
-    parameters: [{name: token, in: path, required: true, schema: {type: string, minLength: 43, maxLength: 43}}]
-    post:
-      tags: [Attendance]
-      operationId: terminalSurveyOfferNever
-      summary: Decline and switch off feedback questions at check-out for this person
-      description: Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit. 404 for an offer made after a tap check-out, since anyone can tap any name.
-      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
-      responses:
-        "204": {description: Offer declined and the question switched off.}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
   /terminal/camera-calibration:
     put:
       tags: [Attendance]
@@ -12740,6 +13152,7 @@ components:
       description: One-assignment management credential stored only as a SHA-256 digest.
 
   parameters:
+    PdfTemplateExport: {name: export, in: path, required: true, schema: {$ref: "#/components/schemas/PdfTemplateExport"}}
     ConfigurationImportMode: {name: mode, in: query, required: true, schema: {$ref: "#/components/schemas/ConfigurationImportMode"}}
     ConfigurationImportSections: {name: sections, in: query, required: true, style: form, explode: true, schema: {type: array, minItems: 1, maxItems: 32, items: {$ref: "#/components/schemas/ConfigurationSection"}}}
     BrandingAssetSlot:
@@ -13106,6 +13519,7 @@ components:
         - open_days.signup
         - open_days.assign
         - open_days.manage
+        - open_days.edit_past
         - events.read
         - events.manage
         - events.staffing.manage
@@ -13134,6 +13548,7 @@ components:
         - scim.manage
         - mail.manage
         - invoicing.settings.manage
+        - pdf_templates.manage
         - branding.manage
         - machines.read
         - machines.manage
@@ -13501,9 +13916,9 @@ components:
     NotificationRuleSignageTarget:
       type: object
       additionalProperties: false
-      required: [displayIds, durationMinutes, tone]
+      description: Where the notice appears is chosen on the signage displays and display groups, not in the rule.
+      required: [durationMinutes, tone]
       properties:
-        displayIds: {type: array, minItems: 1, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
         durationMinutes: {type: integer, minimum: 1, maximum: 1440}
         tone: {type: string, maxLength: 40, description: "One of info, warning, critical."}
 
@@ -13604,9 +14019,55 @@ components:
           description: Only in the list of central rules.
         warnings: {type: array, items: {type: string}, description: Placeholders without a value that stay visible; only on create and update.}
         lastFiredAt: {type: string, format: date-time, nullable: true}
+        signageShownOn:
+          allOf: [{$ref: "#/components/schemas/NotificationRuleSignageShownOn"}]
+          description: Only on getNotificationRule, for a rule with a signage action.
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+
+    NotificationRuleSignageShownOn:
+      type: object
+      additionalProperties: false
+      description: The displays and display groups that show the rule's signage notices, chosen there.
+      required: [displays, groups]
+      properties:
+        displays: {type: array, items: {$ref: "#/components/schemas/SignageNoticeTargetRef"}}
+        groups: {type: array, items: {$ref: "#/components/schemas/SignageNoticeTargetRef"}}
+
+    SignageNoticeTargetRef:
+      type: object
+      additionalProperties: false
+      required: [id, name, allRules]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        allRules: {type: boolean, description: "True when it shows all signage notices rather than this rule by choice."}
+
+    SignageNoticeSelection:
+      type: object
+      additionalProperties: false
+      required: [allRules, ruleIds]
+      properties:
+        allRules: {type: boolean, description: "Show the notices of every rule with a signage action, now and later."}
+        ruleIds: {type: array, maxItems: 200, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Chosen rules; kept when allRules is true."}
+
+    SignageNotificationRule:
+      type: object
+      additionalProperties: false
+      required: [id, name, enabled, hasSignageAction]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        enabled: {type: boolean}
+        hasSignageAction: {type: boolean}
+
+    SignageNotificationRuleList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/SignageNotificationRule"}}
 
     NotificationRuleList:
       type: object
@@ -13933,11 +14394,10 @@ components:
     NotificationSettings:
       type: object
       additionalProperties: false
-      required: [consents, consentPending, askFeedbackAtCheckout, rules]
+      required: [consents, consentPending, rules]
       properties:
         consents: {type: array, items: {$ref: "#/components/schemas/NotificationConsentEntry"}}
         consentPending: {type: boolean}
-        askFeedbackAtCheckout: {type: boolean}
         rules: {type: array, items: {$ref: "#/components/schemas/NotificationReachingRule"}}
 
     ConsentAnswer:
@@ -13967,13 +14427,6 @@ components:
       properties:
         inApp: {type: boolean}
         email: {type: boolean}
-
-    SetFeedbackAtCheckoutRequest:
-      type: object
-      additionalProperties: false
-      required: [ask]
-      properties:
-        ask: {type: boolean}
 
     PersonNotificationSettings:
       type: object
@@ -15971,6 +16424,16 @@ components:
           type: string
           format: date
           description: Requires `people.update.all`. Must not lie in the future; cannot be cleared.
+
+    PeopleRoleOptionList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleSummary"
 
     PersonPage:
       type: object
@@ -18994,8 +19457,9 @@ components:
           type: object
           additionalProperties: true
           description: >-
-            Kind-specific. Keys read by core: operational_state {state, fileName?}; progress {state?, percent 0-100,
-            remainingSeconds?, fileName?}; terminal_outcome {outcome: completed|failed|cancelled};
+            Kind-specific. Keys read by core: operational_state {state, fileName?, plateNumber?}; progress {state?,
+            percent 0-100, remainingSeconds?, fileName?, plateNumber?} where plateNumber 1-1000 is the printed plate of
+            a multi-plate 3MF; terminal_outcome {outcome: completed|failed|cancelled};
             consumption_report accepts legacy {quantityGrams, quantityBasis, slotExternalId?} or itemized {items:[...]};
             printer_error {transition: appeared|cleared, sourceFamily, code, context?}. Unknown vendor fields are ignored.
 
@@ -21690,7 +22154,7 @@ components:
     MachineJob:
       type: object
       additionalProperties: false
-      required: [id, displayId, machine, runs, measures, durationSeconds, outcome, outcomeOverridden, status, pricingStatus, hiddenFromSignage, attention, version, createdAt, updatedAt]
+      required: [id, displayId, machine, runs, measures, durationSeconds, outcome, outcomeOverridden, status, pricingStatus, nothingToBill, hiddenFromSignage, attention, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
@@ -21721,6 +22185,11 @@ components:
           allOf: [{$ref: "#/components/schemas/Money"}]
           nullable: true
           description: Calculated price with the price adjustment applied, rounded to cents and never below zero.
+        nothingToBill:
+          type: boolean
+          description: >-
+            The job has ended, its price is complete and its effective price is 0 (also when waived by an adjustment).
+            Such a job cannot be put on an order (409 nothing_to_bill) and is not unbilled work.
         hiddenFromSignage: {type: boolean, description: "The job and all its runs are kept off signage (machine status, camera and timelapses)."}
         attention: {type: array, items: {$ref: "#/components/schemas/MachineJobAttention"}, description: What needs someone's attention on this job; empty when nothing does.}
         version: {$ref: "#/components/schemas/Version"}
@@ -21735,8 +22204,9 @@ components:
         code:
           type: string
           description: >-
-            run_failed: a run (not replaced) ended failed or cancelled. consumption_unconfirmed: a recorded run's
-            material is missing, partly booked or still pending. no_recipient: the job has no recipient. not_on_order:
+            run_failed: an unassigned run ended failed or cancelled (jobs show it through their outcome).
+            consumption_unconfirmed: a recorded run's material is missing, partly booked or still pending; a print
+            cancelled before its first layer used none and does not count. no_recipient: the job has no recipient. not_on_order:
             the job ended with a price above zero and no order item refers to it. needs_outcome: the runs ended without
             an outcome. price_incomplete: a price rule is missing. order_outdated: the job changed after it was put on
             an order.
@@ -21836,8 +22306,9 @@ components:
       type: string
       description: >-
         on_order: on an order whose snapshot matches the job; order_outdated: on an order but the job changed since;
-        not_on_order: priced completely and not on an order; price_incomplete: pricing incomplete; pending: not priced yet.
-      enum: [on_order, order_outdated, not_on_order, price_incomplete, pending]
+        not_on_order: priced completely above 0 and not on an order; nothing_to_bill: ended, priced completely and its effective
+        price is 0, so it never goes on an order; price_incomplete: pricing incomplete; pending: not priced yet.
+      enum: [on_order, order_outdated, not_on_order, nothing_to_bill, price_incomplete, pending]
 
     WorkItemBilling:
       type: object
@@ -22570,6 +23041,14 @@ components:
           type: "string"
           nullable: true
         replacedByOrderReference:
+          type: "string"
+          nullable: true
+        pendingReplacementOrderId:
+          type: "string"
+          format: "uuid"
+          nullable: true
+          description: "The open replacement draft of this finalized or reversed order (at most one); null when none is in progress."
+        pendingReplacementOrderReference:
           type: "string"
           nullable: true
         createdBy:
@@ -23627,7 +24106,7 @@ components:
     TerminalSurveyOffer:
       type: object
       additionalProperties: false
-      required: [offerToken, surveyName, questionCount, anonymous, canAnswerNow, canSendByEmail, mailConsent, canStopAsking, expiresAt]
+      required: [offerToken, surveyName, questionCount, anonymous, canAnswerNow, canSendByEmail, mailConsent, expiresAt]
       properties:
         offerToken: {type: string, minLength: 43, maxLength: 43, description: "Opaque, single use, valid for 15 minutes, only usable on the tablet that received it."}
         surveyName: {type: string}
@@ -23636,7 +24115,6 @@ components:
         canAnswerNow: {type: boolean}
         canSendByEmail: {type: boolean, description: "The checked-out person has an e-mail address on file; after a tap check-out it is the tapped person's own address. Sending works without their Surveys & feedback consent: it is a one-off request, and one offer sends at most one e-mail."}
         mailConsent: {type: boolean, description: "The person agreed to survey e-mails (Surveys & feedback) and has an address, so this survey's automatic invitation reaches them after the offer anyway unless they answer here. The tablet then offers only answer now and send by e-mail (which sends it right away); without it, it also offers no thanks."}
-        canStopAsking: {type: boolean, description: "The person may switch the question off (`/never`). False after a tap check-out: anyone can tap any name, so nobody's choice is changed there, and the answers are stored without a person whatever the survey says."}
         expiresAt: {type: string, format: date-time}
     VisitList:
       type: object
@@ -24461,7 +24939,7 @@ components:
     SignageAnnouncementTemplate:
       type: object
       additionalProperties: false
-      required: [id, name, tone, title, body, bodyFormat, bodyCss, fields, version, createdAt, updatedAt]
+      required: [id, name, tone, title, body, bodyFormat, bodyCss, color, imageAssetId, fields, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 100}
@@ -24470,6 +24948,8 @@ components:
         body: {type: string, maxLength: 5000}
         bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
         bodyCss: {type: string, maxLength: 20000}
+        color: {type: string, nullable: true, pattern: "^#[0-9a-f]{6}$", description: "Default background colour of the template's announcements as lower-case `#rrggbb`; null means the tone colour."}
+        imageAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Default background image (an image asset); null means no image."}
         fields: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignageTemplateField"}}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
@@ -24490,6 +24970,8 @@ components:
         body: {type: string, maxLength: 5000}
         bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
         bodyCss: {type: string, maxLength: 20000}
+        color: {type: string, nullable: true, description: "`#rrggbb` (case-insensitive; stored lower-case). Omitted or null means the tone colour. Answers 422 `signage_color_contrast` when neither white nor #161616 text reaches a 4.5:1 contrast on it."}
+        imageAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "An image asset; omitted or null means no image. Answers 422 `validation_failed` when the asset does not exist or is not an image."}
         fields: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignageTemplateField"}}
     UpdateSignageAnnouncementTemplateRequest:
       type: object
@@ -24503,18 +24985,35 @@ components:
         body: {type: string, maxLength: 5000}
         bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
         bodyCss: {type: string, maxLength: 20000}
+        color: {type: string, nullable: true, description: "`#rrggbb` (case-insensitive; stored lower-case). Omitted or null means the tone colour. Answers 422 `signage_color_contrast` when neither white nor #161616 text reaches a 4.5:1 contrast on it."}
+        imageAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "An image asset; omitted or null means no image. Answers 422 `validation_failed` when the asset does not exist or is not an image."}
         fields: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignageTemplateField"}}
 
+    SignageAnnouncementImage:
+      type: object
+      description: The background image of an announcement. `url` is content-addressed and served for the caller (staff session, player device or web embed).
+      additionalProperties: false
+      required: [assetId, sha256, url]
+      properties:
+        assetId: {$ref: "#/components/schemas/UUIDv7"}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
+        url: {type: string}
     SignageRenderedMessage:
       type: object
       additionalProperties: false
-      required: [title, body, bodyFormat, bodyCss, tone]
+      required: [title, body, bodyFormat, bodyCss, tone, color, textColor, image]
       properties:
         title: {type: string}
         body: {type: string, description: "Placeholder values are escaped for `bodyFormat`."}
         bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
         bodyCss: {type: string}
         tone: {$ref: "#/components/schemas/SignageTone"}
+        color: {type: string, nullable: true, pattern: "^#[0-9a-f]{6}$", description: "Effective background colour (the announcement's own, else the template's); null means the tone colour."}
+        textColor: {type: string, nullable: true, pattern: "^#[0-9a-f]{6}$", description: "Text colour derived from `color`; null exactly when `color` is null."}
+        image:
+          allOf: [{$ref: "#/components/schemas/SignageAnnouncementImage"}]
+          nullable: true
+          description: Effective background image (the announcement's own, else the template's); null means none. In admin responses `url` is `/api/v1/signage/assets/{assetId}/content?v={sha256}`.
     SignageAnnouncementStatus:
       type: string
       enum: [scheduled, active]
@@ -24527,7 +25026,7 @@ components:
     SignageAnnouncement:
       type: object
       additionalProperties: false
-      required: [id, templateId, values, allDisplays, displayIds, groupIds, startsAt, status, rendered, version, createdAt, updatedAt]
+      required: [id, templateId, values, allDisplays, displayIds, groupIds, startsAt, status, ownLook, color, imageAssetId, rendered, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         templateId: {$ref: "#/components/schemas/UUIDv7"}
@@ -24538,6 +25037,9 @@ components:
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time, nullable: true}
         status: {$ref: "#/components/schemas/SignageAnnouncementStatus"}
+        ownLook: {type: boolean, description: "False means the announcement uses its template's colour and image."}
+        color: {type: string, nullable: true, pattern: "^#[0-9a-f]{6}$", description: "The announcement's own colour; null when `ownLook` is false or the tone colour is used."}
+        imageAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The announcement's own image; null when `ownLook` is false or no image is wanted."}
         rendered:
           allOf: [{$ref: "#/components/schemas/SignageRenderedMessage"}]
           description: Server-rendered preview; `{display}` and `{location}` stay as typed because they depend on the showing display.
@@ -24561,6 +25063,9 @@ components:
         groupIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Display groups; the announcement is in force on their current members."}
         startsAt: {type: string, format: date-time, description: Defaults to now.}
         endsAt: {type: string, format: date-time, nullable: true, description: Omitted or null means until stopped.}
+        ownLook: {type: boolean, description: "Default false: use the template's colour and image. With true, `color` and `imageAssetId` replace them (null colour = tone colour, null image = no image). With false both must be omitted or null (422)."}
+        color: {type: string, nullable: true, description: "`#rrggbb` (case-insensitive; stored lower-case). Answers 422 `signage_color_contrast` when neither white nor #161616 text reaches a 4.5:1 contrast on it."}
+        imageAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "An image asset; answers 422 `validation_failed` when it does not exist or is not an image."}
     UpdateSignageAnnouncementRequest:
       type: object
       additionalProperties: false
@@ -24573,6 +25078,9 @@ components:
         groupIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time, nullable: true}
+        ownLook: {type: boolean, description: "Default false: use the template's colour and image. With true, `color` and `imageAssetId` replace them (null colour = tone colour, null image = no image). With false both must be omitted or null (422)."}
+        color: {type: string, nullable: true, description: "`#rrggbb` (case-insensitive; stored lower-case). Answers 422 `signage_color_contrast` when neither white nor #161616 text reaches a 4.5:1 contrast on it."}
+        imageAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "An image asset; answers 422 `validation_failed` when it does not exist or is not an image."}
 
     SignageDisplayStatus:
       type: string
@@ -25030,7 +25538,7 @@ components:
     SignagePlayerLiveAnnouncement:
       type: object
       additionalProperties: false
-      required: [id, templateId, tone, title, body, bodyFormat, bodyCss, startsAt, endsAt]
+      required: [id, templateId, tone, title, body, bodyFormat, bodyCss, color, textColor, image, startsAt, endsAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         templateId: {$ref: "#/components/schemas/UUIDv7"}
@@ -25039,6 +25547,12 @@ components:
         body: {type: string, description: "Placeholder values are escaped for `bodyFormat`."}
         bodyFormat: {$ref: "#/components/schemas/SignageRichTextFormat"}
         bodyCss: {type: string}
+        color: {type: string, nullable: true, pattern: "^#[0-9a-f]{6}$", description: "Effective background colour; null means the tone colour."}
+        textColor: {type: string, nullable: true, pattern: "^#[0-9a-f]{6}$", description: "Text colour derived from `color`; null exactly when `color` is null."}
+        image:
+          allOf: [{$ref: "#/components/schemas/SignageAnnouncementImage"}]
+          nullable: true
+          description: "Effective background image; `url` is the asset path of the calling player or web embed. It is only served while the announcement is in force for that display or embed."
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time, nullable: true}
     SignagePlayerRuleNotice:
@@ -25183,3 +25697,193 @@ components:
         cacheUsedBytes: {type: integer, format: int64, minimum: 0, nullable: true}
         cacheQuotaBytes: {type: integer, format: int64, minimum: 0, nullable: true}
         errors: {type: array, maxItems: 20, items: {type: string, maxLength: 200}}
+
+    PdfTemplateExport:
+      type: string
+      enum: [wiref, cashbook, receipt]
+      x-enum-varnames: [PdfTemplateExportWiref, PdfTemplateExportCashbook, PdfTemplateExportReceipt]
+    PdfTemplateState:
+      type: string
+      enum: [draft, published, archived]
+    PdfTemplateDocument:
+      type: object
+      additionalProperties: true
+      description: >-
+        The template document (`schemaVersion` 1). Free-form in the contract and validated strictly by the server;
+        unknown properties are rejected with 422 `pdf_template_invalid`. At most 256 KiB.
+    PdfTemplateVersionMeta:
+      type: object
+      additionalProperties: false
+      required: [id, version, state, revision, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        version: {type: integer, minimum: 1}
+        state: {$ref: "#/components/schemas/PdfTemplateState"}
+        revision: {type: integer, minimum: 1, description: Counts saves of a draft; used as `expectedRevision`.}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        publishedAt: {type: string, format: date-time, nullable: true}
+        createdBy: {type: string, nullable: true, maxLength: 200, description: Display name of the author; absent when the account is gone.}
+        publishedBy: {type: string, nullable: true, maxLength: 200}
+    PdfTemplateVersion:
+      type: object
+      additionalProperties: false
+      required: [id, version, state, revision, createdAt, updatedAt, document]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        version: {type: integer, minimum: 1}
+        state: {$ref: "#/components/schemas/PdfTemplateState"}
+        revision: {type: integer, minimum: 1}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        publishedAt: {type: string, format: date-time, nullable: true}
+        createdBy: {type: string, nullable: true, maxLength: 200}
+        publishedBy: {type: string, nullable: true, maxLength: 200}
+        document: {$ref: "#/components/schemas/PdfTemplateDocument"}
+    PdfTemplateProblem:
+      type: object
+      additionalProperties: false
+      required: [nodeId, severity, message]
+      properties:
+        nodeId: {type: string, maxLength: 40, description: Empty for problems of the document itself.}
+        severity: {type: string, enum: [error, warning]}
+        message: {type: string, maxLength: 500}
+    PdfTemplateDraftResult:
+      type: object
+      additionalProperties: false
+      required: [version, problems]
+      properties:
+        version: {$ref: "#/components/schemas/PdfTemplateVersion"}
+        problems: {type: array, maxItems: 1000, items: {$ref: "#/components/schemas/PdfTemplateProblem"}}
+    PdfTemplateSummary:
+      type: object
+      additionalProperties: false
+      required: [export, name, published, draft]
+      properties:
+        export: {$ref: "#/components/schemas/PdfTemplateExport"}
+        name: {type: string, maxLength: 120}
+        published: {allOf: [{$ref: "#/components/schemas/PdfTemplateVersionMeta"}], nullable: true}
+        draft: {allOf: [{$ref: "#/components/schemas/PdfTemplateVersionMeta"}], nullable: true}
+    PdfTemplateSchemaField:
+      type: object
+      additionalProperties: false
+      required: [path, type, description]
+      properties:
+        path: {type: string, maxLength: 200}
+        type: {type: string, enum: [text, date, money, number, list, list<text>, image]}
+        permission: {type: string, maxLength: 100, nullable: true, description: Permission the reader needs; without it the field is empty.}
+        description: {type: string, maxLength: 1000}
+        example: {type: string, maxLength: 500, nullable: true}
+    PdfTemplateSchemaGroup:
+      type: object
+      additionalProperties: false
+      required: [name, fields]
+      properties:
+        name: {type: string, maxLength: 120}
+        list: {type: string, maxLength: 200, nullable: true, description: "Path of the list whose entries the fields describe, if the group is a loop."}
+        description: {type: string, maxLength: 1000, nullable: true}
+        fields: {type: array, maxItems: 200, items: {$ref: "#/components/schemas/PdfTemplateSchemaField"}}
+    PdfTemplateFilter:
+      type: object
+      additionalProperties: false
+      required: [name, description]
+      properties:
+        name: {type: string, maxLength: 100}
+        description: {type: string, maxLength: 1000}
+    PdfTemplateSchema:
+      type: object
+      additionalProperties: false
+      required: [groups, filters]
+      properties:
+        groups: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/PdfTemplateSchemaGroup"}}
+        filters: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/PdfTemplateFilter"}}
+    PdfTemplatePreviewSource:
+      type: object
+      additionalProperties: false
+      required: [id, label]
+      properties:
+        id: {type: string, maxLength: 100}
+        label: {type: string, maxLength: 200}
+    PdfTemplateDetail:
+      type: object
+      additionalProperties: false
+      required: [export, draft, published, builtin, schema, previewSources]
+      properties:
+        export: {$ref: "#/components/schemas/PdfTemplateExport"}
+        draft: {allOf: [{$ref: "#/components/schemas/PdfTemplateVersion"}], nullable: true}
+        published: {allOf: [{$ref: "#/components/schemas/PdfTemplateVersion"}], nullable: true}
+        builtin: {$ref: "#/components/schemas/PdfTemplateDocument"}
+        schema: {$ref: "#/components/schemas/PdfTemplateSchema"}
+        previewSources: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/PdfTemplatePreviewSource"}}
+    SavePdfTemplateDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [document]
+      properties:
+        document: {$ref: "#/components/schemas/PdfTemplateDocument"}
+        expectedRevision: {type: integer, minimum: 1, description: Revision of the draft being replaced; omit when no draft exists yet.}
+    PublishPdfTemplateRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision]
+      properties:
+        expectedRevision: {type: integer, minimum: 1}
+    PdfTemplateSource:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind: {type: string, enum: [sample, record], x-enum-varnames: [PdfTemplateSourceSample, PdfTemplateSourceRecord]}
+        id: {type: string, maxLength: 100, description: "Required for `record`: the id of a source listed in `previewSources`."}
+    PreviewPdfTemplateRequest:
+      type: object
+      additionalProperties: false
+      required: [document, source]
+      properties:
+        document: {$ref: "#/components/schemas/PdfTemplateDocument"}
+        source: {$ref: "#/components/schemas/PdfTemplateSource"}
+    PdfTemplatePage:
+      type: object
+      additionalProperties: false
+      required: [width, height]
+      properties:
+        width: {type: number, description: Millimetres.}
+        height: {type: number, description: Millimetres.}
+    PdfTemplateBox:
+      type: object
+      additionalProperties: false
+      required: [nodeId, page, x, y, w, h]
+      properties:
+        nodeId: {type: string, maxLength: 40}
+        page: {type: integer, minimum: 1}
+        x: {type: number}
+        y: {type: number}
+        w: {type: number}
+        h: {type: number}
+    PdfTemplatePreview:
+      type: object
+      additionalProperties: false
+      required: [pdf, pages, boxes, problems, redacted, inactive]
+      properties:
+        pdf: {type: string, format: byte, description: Base64 PDF.}
+        pages: {type: array, maxItems: 300, items: {$ref: "#/components/schemas/PdfTemplatePage"}}
+        boxes: {type: array, maxItems: 20000, items: {$ref: "#/components/schemas/PdfTemplateBox"}}
+        problems: {type: array, maxItems: 1000, items: {$ref: "#/components/schemas/PdfTemplateProblem"}}
+        redacted: {type: array, maxItems: 200, items: {type: string, maxLength: 200}}
+        inactive:
+          type: array
+          maxItems: 1000
+          description: Ids of the nodes that drew nothing with this data (a branch not taken, a loop without entries, a layer whose pages the document lacks, a text that came out empty), in document order; the editor marks them "not shown with this data". Page breaks and the elements of hidden layers are not listed.
+          items: {type: string, maxLength: 40}
+    PdfTemplateAsset:
+      type: object
+      additionalProperties: false
+      required: [id, fileName, contentType, byteSize, width, height, createdAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        fileName: {type: string, maxLength: 200}
+        contentType: {type: string, enum: [image/png, image/jpeg, image/svg+xml], x-enum-varnames: [PdfTemplateAssetPng, PdfTemplateAssetJpeg, PdfTemplateAssetSvg]}
+        byteSize: {type: integer, minimum: 1, maximum: 2097152}
+        width: {type: integer, minimum: 0}
+        height: {type: integer, minimum: 0}
+        createdAt: {type: string, format: date-time}

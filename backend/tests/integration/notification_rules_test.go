@@ -421,7 +421,7 @@ func TestConsentsPendingFlagAskAgainAndAudit(t *testing.T) {
 		t.Fatalf("a new person has unanswered consents: %v, %v", required, err)
 	}
 	settings, err := e.settings(ctx, alice)
-	if err != nil || !settings.ConsentPending || !settings.AskFeedbackAtCheckout || len(settings.Consents) != 3 {
+	if err != nil || !settings.ConsentPending || len(settings.Consents) != 3 {
 		t.Fatalf("settings = %+v, %v", settings, err)
 	}
 	if _, err := e.rules.AnswerConsents(
@@ -658,16 +658,6 @@ func TestRulePreferencesAndTheRulesThatReachAPerson(t *testing.T) {
 		t.Fatal("another account's choice leaked")
 	}
 
-	if err := e.rules.SetAskFeedbackAtCheckout(ctx, member, false, nil); err != nil {
-		t.Fatal(err)
-	}
-	if settings, _ = e.settings(ctx, member); settings.AskFeedbackAtCheckout {
-		t.Fatal("feedback switch not stored")
-	}
-	if settings, _ = e.settings(ctx, outsider); !settings.AskFeedbackAtCheckout {
-		t.Fatal("feedback switch leaked to another person")
-	}
-
 	// Consent categories gate their rules until the person says yes.
 	staffing := e.person("pref-staffer", e.membershipRole("supervisor").ID)
 	settings, _ = e.settings(ctx, staffing)
@@ -697,9 +687,6 @@ func TestNotificationDataGoesWithPeopleAccountsAndRules(t *testing.T) {
 	if _, err := e.rules.AnswerConsents(ctx, alice, []notifyrules.ConsentAnswer{{CategoryID: e.news, Granted: true}}, notifyrules.PlaceApp, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.rules.SetAskFeedbackAtCheckout(ctx, alice, false, nil); err != nil {
-		t.Fatal(err)
-	}
 	rule := e.central(e.manager(), "lab_rules_published", "need_confirm")
 	firing := uuid.New()
 	e.exec(`INSERT INTO notification_firings(id,rule_id,rule_name,trigger_type) VALUES($1,$2,'r','event')`, firing, rule.ID)
@@ -708,7 +695,6 @@ func TestNotificationDataGoesWithPeopleAccountsAndRules(t *testing.T) {
 	e.exec(`INSERT INTO notification_throttle(rule_id,subject_key,last_at) VALUES($1,'x',now())`, rule.ID)
 	e.exec(`DELETE FROM people WHERE id=$1`, alice.PersonID)
 	assertCount(t, e.pool, `SELECT count(*) FROM notification_consents`, 0)
-	assertCount(t, e.pool, `SELECT count(*) FROM person_notification_settings`, 0)
 	assertCount(t, e.pool, `SELECT count(*) FROM notification_firing_recipients`, 0)
 	e.exec(`DELETE FROM notification_rules WHERE id=$1`, rule.ID)
 	assertCount(t, e.pool, `SELECT count(*) FROM notification_firings`, 0)

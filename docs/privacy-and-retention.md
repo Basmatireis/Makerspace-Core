@@ -66,6 +66,7 @@ The table lists every built-in category. Legacy defaults are the behaviour that 
 | `platform.actor_references` | Actor references | `platform` | account | none |
 | `files.blobs` | Stored files | `platform` | none | none |
 | `configuration.contacts` | Configured contact addresses | `platform` | none | none |
+| `configuration.pdf_templates` | PDF template content | `platform` | none | none |
 
 ### Recommended decisions
 
@@ -89,6 +90,7 @@ Each category except `files.blobs` declares a recommended decision in `backend/i
 | `orders.financial_records`, `machinelogbook.inventory` | legal period end | seven years (§ 132 BAO) | keep with review | no handler |
 | `orders.idempotency` | created | seven years | keep with review | no handler |
 | `organizations.contacts`, `configuration.contacts` | last used | review after three years | keep with review | no handler |
+| `configuration.pdf_templates` | created | none (kept until an administrator deletes archived versions and unused images) | keep with review | no handler |
 | `printing.artifacts` | created | 365 days | delete | yes |
 | `printing.telemetry` | created | 90 days | delete | yes |
 | `runrecordings.timelapses` | created | 90 days | delete | yes; shorten if people are recognizable |

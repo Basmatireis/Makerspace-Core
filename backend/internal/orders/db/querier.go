@@ -31,6 +31,7 @@ type Querier interface {
 	CommittedReplacement(ctx context.Context, replacesOrderID *uuid.UUID) (CommittedReplacementRow, error)
 	CountCashCounts(ctx context.Context, arg CountCashCountsParams) (int64, error)
 	CountCashMovements(ctx context.Context, arg CountCashMovementsParams) (int64, error)
+	// Drafts have no captured name yet, so the current name of their customer is searched instead.
 	CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error)
 	CountPayments(ctx context.Context, arg CountPaymentsParams) (int64, error)
 	CountRequests(ctx context.Context, arg CountRequestsParams) (int64, error)
@@ -39,6 +40,7 @@ type Querier interface {
 	CreateRequestDetails(ctx context.Context, arg CreateRequestDetailsParams) error
 	DeleteCashCount(ctx context.Context, id uuid.UUID) error
 	DeleteCashMovement(ctx context.Context, id uuid.UUID) error
+	DeleteDraftOrder(ctx context.Context, id uuid.UUID) (int64, error)
 	GetActor(ctx context.Context, id uuid.UUID) (GetActorRow, error)
 	GetCashCountByKey(ctx context.Context, operationKey uuid.UUID) (CashCount, error)
 	GetCashCountCorrection(ctx context.Context, cashCountID *uuid.UUID) (CashMovement, error)
@@ -56,6 +58,8 @@ type Querier interface {
 	GetOrganization(ctx context.Context, id uuid.UUID) (GetOrganizationRow, error)
 	GetPayment(ctx context.Context, id uuid.UUID) (Payment, error)
 	GetPerson(ctx context.Context, id uuid.UUID) (GetPersonRow, error)
+	// Empty when the person has none; only read for a caller who holds people.read.matriculation.
+	GetPersonMatriculation(ctx context.Context, personID uuid.UUID) (string, error)
 	GetRequest(ctx context.Context, id uuid.UUID) (ExternalInvoiceRequest, error)
 	GetRequestDetails(ctx context.Context, requestID uuid.UUID) (ExternalInvoiceRequestDetail, error)
 	GetRequestWiRefDelivery(ctx context.Context, requestID uuid.UUID) (GetRequestWiRefDeliveryRow, error)
@@ -86,12 +90,18 @@ type Querier interface {
 	// only cash payments count (the cash register); otherwise card and external payments are included. Counts move no
 	// money and are left out; their corrections are not. A reversal belongs to the order of the receipt it reverses.
 	ListCashbookEntries(ctx context.Context, arg ListCashbookEntriesParams) ([]ListCashbookEntriesRow, error)
+	// What the orders of cashbook lines charged, in item order: the process of a machine job and whether it used the
+	// makerspace's material, the material type of an article sold from stock, the description of a manual item.
+	ListCashbookOrderContents(ctx context.Context, orderIds []string) ([]ListCashbookOrderContentsRow, error)
 	ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItemsRow, error)
+	// Drafts have no captured name yet, so the current name of their customer is searched instead.
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error)
 	// The person's finalized orders with an outstanding amount that no active external invoice request covers.
 	ListOwnPayableOrderIDs(ctx context.Context, personID *uuid.UUID) ([]uuid.UUID, error)
 	ListOwnRecentOrderIDs(ctx context.Context, arg ListOwnRecentOrderIDsParams) ([]uuid.UUID, error)
 	ListPayments(ctx context.Context, arg ListPaymentsParams) ([]Payment, error)
+	// The newest finalized orders that have a receipt (a settled amount above 0), for previews of the receipt template.
+	ListReceiptPreviewOrders(ctx context.Context, rowLimit int32) ([]ListReceiptPreviewOrdersRow, error)
 	ListRequests(ctx context.Context, arg ListRequestsParams) ([]ExternalInvoiceRequest, error)
 	LockCashRegister(ctx context.Context) error
 	LockOperation(ctx context.Context, operationKey string) error
@@ -111,11 +121,14 @@ type Querier interface {
 	NextOrderReference(ctx context.Context) (int64, error)
 	NextPaymentReference(ctx context.Context) (int64, error)
 	NextRequestReference(ctx context.Context) (int64, error)
+	OpenReplacement(ctx context.Context, replacesOrderID *uuid.UUID) (OpenReplacementRow, error)
 	// What one payment operation allocated, per order.
 	OperationAllocations(ctx context.Context, operationID uuid.UUID) ([]OperationAllocationsRow, error)
 	PaymentAllocations(ctx context.Context, paymentID *uuid.UUID) ([]PaymentAllocation, error)
 	PaymentReversalExists(ctx context.Context, reversesPaymentID *uuid.UUID) (bool, error)
 	PreviousCashCountTime(ctx context.Context, countedAt time.Time) (time.Time, error)
+	// The receipts that still count towards an order with the amount each contributes to it, oldest first.
+	ReceiptPayments(ctx context.Context, orderID *uuid.UUID) ([]ReceiptPaymentsRow, error)
 	ReconciliationTotals(ctx context.Context, arg ReconciliationTotalsParams) ([]ReconciliationTotalsRow, error)
 	ReleaseItemClaim(ctx context.Context, orderItemID uuid.UUID) error
 	ReleaseOrderClaims(ctx context.Context, orderID uuid.UUID) error

@@ -597,5 +597,5 @@ func (s *Service) copySeries(
 			return err
 		}
 	}
-	return nil
+	return w.authorizePast()
 }

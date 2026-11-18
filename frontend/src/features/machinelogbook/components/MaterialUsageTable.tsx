@@ -24,15 +24,25 @@ import { FromMachineTag, hasSegments } from '../shared/status';
 const startText = (segment: MachineRunReportedUsageSegment) =>
   segment.startLayer != null ? `from layer ${segment.startLayer}` : `from ${formatTime(segment.startedAt)}`;
 
-/** Parts of reported lines that no spool fed, or whose quantity is unknown: nothing booked them yet. */
+/**
+ * Parts of reported lines whose quantity is unknown, or that neither a spool nor the recipient's own filament fed:
+ * nothing booked them yet. A part that fed nothing needs nothing, and once staff corrected the run's usage by hand
+ * that usage stands for the whole run.
+ */
 const openSegments = (run: MachineRun) =>
-  (run.reportedUsageItems ?? [])
-    .filter(hasSegments)
-    .flatMap((item) =>
-      item.segments
-        .filter((segment) => !segment.spoolId || segment.estimatedQuantityGrams == null)
-        .map((segment) => ({ run, item, segment })),
-    );
+  run.usages.some((usage) => usage.staffCorrected)
+    ? []
+    : (run.reportedUsageItems ?? [])
+        .filter(hasSegments)
+        .flatMap((item) =>
+          item.segments
+            .filter(
+              (segment) =>
+                segment.estimatedQuantityGrams == null ||
+                (Number(segment.estimatedQuantityGrams) > 0 && !segment.spoolId && !segment.customerFilament),
+            )
+            .map((segment) => ({ run, item, segment })),
+        );
 
 /**
  * The material of one or more runs in one table: booked usage and, below it, report lines the machine could not
@@ -169,7 +179,7 @@ export function MaterialUsageTable({
                 {runCell(run)}
                 <TableCell>
                   <Tag type="red" size="sm">
-                    {segment.spoolId ? 'Quantity unknown' : 'No spool'}
+                    {segment.estimatedQuantityGrams == null ? 'Quantity unknown' : 'No spool'}
                   </Tag>
                 </TableCell>
                 <TableCell>

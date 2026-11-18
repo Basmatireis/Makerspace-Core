@@ -45,6 +45,8 @@ type Querier interface {
 	CountPrivacyRequestsSince(ctx context.Context, since time.Time) (int64, error)
 	CountReceiptPaymentsSince(ctx context.Context, since time.Time) (int64, error)
 	CountScheduledOpenDaysBetween(ctx context.Context, arg CountScheduledOpenDaysBetweenParams) (int64, error)
+	// Screens that show the rule's notices now: the display or its group opted in to the rule or to all notices.
+	CountSignageDisplaysShowingRule(ctx context.Context, ruleID uuid.UUID) (int64, error)
 	// Supervisors (system role) with an account that had the application open in a visible tab since the given moment.
 	CountSupervisorsOnline(ctx context.Context, since time.Time) (int64, error)
 	CountSurveyResponsesSince(ctx context.Context, since pgtype.Date) (int64, error)
@@ -86,7 +88,6 @@ type Querier interface {
 	GetOpenDayTimeslotEventFacts(ctx context.Context, id uuid.UUID) (GetOpenDayTimeslotEventFactsRow, error)
 	GetOrderEventFacts(ctx context.Context, id uuid.UUID) (GetOrderEventFactsRow, error)
 	GetPaymentEventFacts(ctx context.Context, id uuid.UUID) (GetPaymentEventFactsRow, error)
-	GetPersonSettings(ctx context.Context, personID uuid.UUID) (PersonNotificationSetting, error)
 	GetPrinterErrorMeaning(ctx context.Context, arg GetPrinterErrorMeaningParams) (string, error)
 	GetPrivacyRequestEventFacts(ctx context.Context, id uuid.UUID) (GetPrivacyRequestEventFactsRow, error)
 	// privileged: the master role, or a role that grants any *.manage permission.
@@ -120,7 +121,8 @@ type Querier interface {
 	InsertRuleNotification(ctx context.Context, arg InsertRuleNotificationParams) error
 	InsertRuleNotificationRecipients(ctx context.Context, arg InsertRuleNotificationRecipientsParams) error
 	// Notices on signage displays and entrance tablets ---------------------------------------------------------------------
-	InsertSignageRuleNotice(ctx context.Context, arg InsertSignageRuleNoticeParams) (int64, error)
+	// One row per delivery; the displays that show it are matched when they ask (ListLiveSignageRuleNotices).
+	InsertSignageRuleNotice(ctx context.Context, arg InsertSignageRuleNoticeParams) error
 	IsPersonMaster(ctx context.Context, personID uuid.UUID) (bool, error)
 	ListActivity(ctx context.Context, arg ListActivityParams) ([]ListActivityRow, error)
 	ListActivityRecipients(ctx context.Context, firingIds []string) ([]ListActivityRecipientsRow, error)
@@ -186,6 +188,9 @@ type Querier interface {
 	ListProcessOptions(ctx context.Context) ([]ListProcessOptionsRow, error)
 	ListRoleIDsOfPeople(ctx context.Context, personIds []string) ([]ListRoleIDsOfPeopleRow, error)
 	ListRoleOptions(ctx context.Context) ([]ListRoleOptionsRow, error)
+	// The displays that chose the rule or all notices themselves; members of a group appear through ListSignageGroupsShowingRule.
+	ListSignageDisplaysShowingRule(ctx context.Context, ruleID uuid.UUID) ([]ListSignageDisplaysShowingRuleRow, error)
+	ListSignageGroupsShowingRule(ctx context.Context, ruleID uuid.UUID) ([]ListSignageGroupsShowingRuleRow, error)
 	// People with an active account who staff open days (supervisor or trainee membership).
 	ListStaffingPeople(ctx context.Context) ([]uuid.UUID, error)
 	// Supervisors who are checked in right now.
@@ -221,7 +226,6 @@ type Querier interface {
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (int64, error)
 	// A changed definition clears next_run_at so the scheduler computes it afresh.
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)
-	UpsertAskFeedbackAtCheckout(ctx context.Context, arg UpsertAskFeedbackAtCheckoutParams) error
 	UpsertConsent(ctx context.Context, arg UpsertConsentParams) error
 	UpsertPreference(ctx context.Context, arg UpsertPreferenceParams) error
 }

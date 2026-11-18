@@ -184,6 +184,11 @@ var recommendations = map[privacy.CategoryID]privacy.Recommendation{
 		Purpose: "Prove how data-subject requests were answered", LegalBasis: "Art. 6(1)(c) GDPR with Art. 5(2) and Art. 12 GDPR: accountability",
 		Reason: "Proof of the answer until claims under § 1489 ABGB are time-barred.",
 	},
+	ConfigurationPDF: {
+		Trigger: privacy.TriggerCreatedAt, PeriodDays: 0, Action: privacy.ActionRetainWithReview,
+		Purpose: "Produce the wiRef, cashbook and receipt PDFs", LegalBasis: basisInterest,
+		Reason: "Archived versions document how past PDFs looked; an administrator deletes them and unused images when they are no longer wanted.",
+	},
 	ConfigurationContacts: {
 		Trigger: privacy.TriggerLastUsedAt, PeriodDays: threeYears, Action: privacy.ActionRetainWithReview,
 		Purpose: "Send mail and invoices", LegalBasis: basisInterest,

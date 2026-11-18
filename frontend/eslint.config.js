@@ -61,6 +61,25 @@ export default tseslint.config(
     },
   },
   {
+    // The PDF template editor imports its icons through ./icons, whose per-icon modules keep them out of the initial
+    // bundle (see the comment there). icons.ts itself is the one file that names the deep paths.
+    files: ['src/features/pdftemplates/**/*.{ts,tsx}'],
+    ignores: ['src/features/pdftemplates/icons.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@carbon/icons-react', '@carbon/icons-react/**'],
+              message: 'Import icons from ./icons (per-icon modules keep them out of the initial bundle).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // A missing await in a Playwright spec is a real bug, so the e2e suite gets the same two rules. tsconfig.e2e.json
     // only supplies the program for linting: it is not referenced by tsconfig.json because the specs still have type
     // errors (13, in mock data) that `tsc -b` would report; fixing those is outside this change.

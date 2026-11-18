@@ -14,13 +14,17 @@ import (
 const ConnectorHeartbeatStale = 90 * time.Second
 
 // runNeedsConsumptionConfirmation says whether a recorded run's material still needs someone: missing or only
-// partly booked, or still pending although the run has ended.
+// partly booked, or still pending although the run has ended. A print cancelled before its first layer used no
+// filament, so there is nothing to book or confirm.
 func runNeedsConsumptionConfirmation(run MachineRun) bool {
 	if run.Source != RunSourceRecorded || run.ConsumptionStatus == nil || run.State == RunStateReplaced {
 		return false
 	}
 	switch run.ConsumptionStatus.State {
-	case ConsumptionMissing, ConsumptionPartial:
+	case ConsumptionMissing:
+		reason := run.ConsumptionStatus.Reason
+		return reason == nil || *reason != ReasonCancelledBeforeFirstLayer
+	case ConsumptionPartial:
 		return true
 	case ConsumptionPending:
 		return run.State != RunStateRunning
@@ -36,12 +40,13 @@ func runFailed(run MachineRun) bool {
 	return *run.Outcome == RunOutcomeFailed || *run.Outcome == RunOutcomeCancelled
 }
 
-// runsAttention lists what the runs of a job (or one unassigned run) need.
-func runsAttention(runs []MachineRun) []Attention {
+// runsAttention lists what the runs of a job or one unassigned run need. A failed run only needs someone while it
+// is unassigned; on a job the outcome already says so and there is nothing left to do about it.
+func runsAttention(runs []MachineRun, flagFailed bool) []Attention {
 	result := []Attention{}
 	failed, unconfirmed := 0, 0
 	for _, run := range runs {
-		if runFailed(run) {
+		if flagFailed && runFailed(run) {
 			failed++
 		}
 		if runNeedsConsumptionConfirmation(run) {
@@ -75,7 +80,7 @@ type jobFacts struct {
 }
 
 func jobAttentionFrom(runs []MachineRun, facts jobFacts) []Attention {
-	result := runsAttention(runs)
+	result := runsAttention(runs, false)
 	if facts.status == JobStatusNeedsOutcome {
 		result = append(result, Attention{Code: AttentionNeedsOutcome, Message: "The outcome is not recorded."})
 	}
@@ -158,7 +163,7 @@ func (s *Service) attachWorkItemAttention(ctx context.Context, q *machinelogbook
 	for i := range items {
 		item := &items[i]
 		if item.Kind != WorkItemJob {
-			item.Attention = runsAttention(runsByItem[item.ID])
+			item.Attention = runsAttention(runsByItem[item.ID], true)
 			continue
 		}
 		row := factsByJob[item.ID]

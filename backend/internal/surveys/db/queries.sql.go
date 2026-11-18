@@ -765,17 +765,6 @@ func (q *Queries) DeleteUnlinkedExpiredInvitations(ctx context.Context, beforeTi
 	return result.RowsAffected(), nil
 }
 
-const disableAskFeedbackAtCheckout = `-- name: DisableAskFeedbackAtCheckout :exec
-INSERT INTO person_notification_settings (person_id, ask_feedback_at_checkout, updated_at)
-VALUES ($1, false, now())
-ON CONFLICT (person_id) DO UPDATE SET ask_feedback_at_checkout = false, updated_at = now()
-`
-
-func (q *Queries) DisableAskFeedbackAtCheckout(ctx context.Context, personID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, disableAskFeedbackAtCheckout, personID)
-	return err
-}
-
 const disableSurveyTriggers = `-- name: DisableSurveyTriggers :exec
 UPDATE survey_triggers SET enabled = false, version = version + 1, updated_at = now()
 WHERE survey_id = $1 AND enabled
@@ -821,17 +810,6 @@ func (q *Queries) GetOfferPerson(ctx context.Context, personID uuid.UUID) (GetOf
 	var i GetOfferPersonRow
 	err := row.Scan(&i.ID, &i.Email)
 	return i, err
-}
-
-const getPersonAskFeedback = `-- name: GetPersonAskFeedback :one
-SELECT ask_feedback_at_checkout FROM person_notification_settings WHERE person_id = $1
-`
-
-func (q *Queries) GetPersonAskFeedback(ctx context.Context, personID uuid.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, getPersonAskFeedback, personID)
-	var ask_feedback_at_checkout bool
-	err := row.Scan(&ask_feedback_at_checkout)
-	return ask_feedback_at_checkout, err
 }
 
 const getPublicSurveyInvitation = `-- name: GetPublicSurveyInvitation :one

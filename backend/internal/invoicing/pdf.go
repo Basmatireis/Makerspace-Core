@@ -1,270 +1,139 @@
 package invoicing
 
 import (
-	"bytes"
-	"fmt"
-	"strconv"
+	"context"
 	"strings"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifications"
-	"github.com/go-pdf/fpdf"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates/engine"
+	"github.com/shopspring/decimal"
 )
 
-// Logo is a raster image shown in the PDF header.
-type Logo struct {
-	Data []byte
-	// Type is "PNG" or "JPG".
-	Type string
+// PDFRenderer renders the effective wiRef template (the published version, or the built-in default). The PDF
+// template service implements it; tests use the built-in default.
+type PDFRenderer interface {
+	RenderEffective(
+		ctx context.Context,
+		kind engine.Kind,
+		data engine.Data,
+		can func(permission string) bool,
+	) (pdf []byte, filename string, err error)
 }
 
-// Mark is the brand at the top of every page, laid out like the application header: the logo on the left, beside
-// it the organization name in small capitals above the display name.
-type Mark struct {
-	OrganizationName string
-	DisplayName      string
-	Logo             *Logo
-}
-
-const (
-	pdfMargin     = 20.0
-	pdfLine       = 5.2
-	pdfLabelWidth = 48.0
-	pdfPageWidth  = 210.0
-	pdfPageHeight = 297.0
-	pdfBottom     = 22.0
-)
-
-// column widths of the item and the payment table; they add up to the 170 mm text width.
-var (
-	pdfColumns        = [4]float64{80, 28, 31, 31}
-	pdfPaymentColumns = [4]float64{42, 30, 67, 31}
-)
-
-// RenderPDF draws the invoice request on A4 pages. It uses the built-in Helvetica font and the cp1252 character set,
-// which covers German umlauts, the sharp s and the euro sign; other characters are replaced by fpdf. Nothing is
-// loaded from disk or the network.
-func RenderPDF(brand notifications.Branding, mark Mark, s Settings, d Document) ([]byte, error) {
-	values := d.values(s)
-	title := singleLine(Substitute(s.PDFTitle, values))
-	pdf := fpdf.New("P", "mm", "A4", "")
-	tr := pdf.UnicodeTranslatorFromDescriptor("")
-	pdf.SetMargins(pdfMargin, pdfMargin, pdfMargin)
-	pdf.SetAutoPageBreak(true, pdfBottom)
-	pdf.SetTitle(title, true)
-	pdf.SetCreator(brand.ApplicationName, true)
-	if !d.ApprovedAt.IsZero() {
-		pdf.SetCreationDate(d.ApprovedAt)
-	}
-	pdf.AliasNbPages("{nb}")
-	red, green, blue := parseHex(brand.PrimaryColor)
-	if mark.DisplayName == "" {
-		mark.DisplayName = brand.ApplicationName
-	}
-	pdf.SetHeaderFunc(func() {
-		pdf.SetFillColor(red, green, blue)
-		pdf.Rect(0, 0, pdfPageWidth, 4, "F")
-		const logoTop, logoHeight = 10.0, 12.0
-		textX := pdfMargin
-		if mark.Logo != nil {
-			name := "logo"
-			options := fpdf.ImageOptions{ImageType: mark.Logo.Type}
-			info := pdf.RegisterImageOptionsReader(name, options, bytes.NewReader(mark.Logo.Data))
-			if info != nil && pdf.Ok() {
-				pdf.ImageOptions(name, pdfMargin, logoTop, 0, logoHeight, false, options, 0, "")
-				textX += logoHeight*info.Width()/info.Height() + 3.5
-			}
-		}
-		nameTop := logoTop + 3
-		if mark.OrganizationName != "" {
-			pdf.SetXY(textX, logoTop+1)
-			pdf.SetFont("Helvetica", "", 8)
-			pdf.SetTextColor(82, 82, 82)
-			pdf.CellFormat(0, 4, tr(strings.ToUpper(mark.OrganizationName)), "", 1, "L", false, 0, "")
-			nameTop = logoTop + 5
-		}
-		pdf.SetXY(textX, nameTop)
-		pdf.SetTextColor(22, 22, 22)
-		pdf.SetFont("Helvetica", "B", 13)
-		pdf.CellFormat(0, 6, tr(mark.DisplayName), "", 1, "L", false, 0, "")
-		pdf.SetY(30)
-	})
-	pdf.SetFooterFunc(func() {
-		pdf.SetY(-15)
-		pdf.SetFont("Helvetica", "", 8)
-		pdf.SetTextColor(111, 111, 111)
-		pdf.CellFormat(0, 5, tr(d.RequestNumber), "", 0, "L", false, 0, "")
-		pdf.SetX(pdfMargin)
-		pdf.CellFormat(0, 5, tr("Page "+strconv.Itoa(pdf.PageNo())+" / {nb}"), "", 0, "R", false, 0, "")
-	})
-	pdf.AddPage()
-
-	pdf.SetTextColor(22, 22, 22)
-	pdf.SetFont("Helvetica", "B", 17)
-	pdf.MultiCell(0, 8, tr(title), "", "L", false)
-	pdf.Ln(3)
-	body := func(text string) {
-		for _, paragraph := range paragraphs(text) {
-			pdf.SetFont("Helvetica", "", 10.5)
-			pdf.SetTextColor(22, 22, 22)
-			pdf.MultiCell(0, 5.6, tr(paragraph), "", "L", false)
-			pdf.Ln(2)
-		}
-	}
-	body(Substitute(s.PDFIntro, values))
-	pdf.Ln(2)
-
-	for _, row := range d.details(s) {
-		pdfRow(pdf, tr, row.Label, row.Value, false)
-	}
-	pdf.Ln(5)
-	pdfItems(pdf, tr, d)
-	for _, row := range d.totals() {
-		pdfTotal(pdf, tr, row)
-	}
-	pdfPayments(pdf, tr, d.Payments)
-	pdf.Ln(6)
-	for _, row := range d.approval(s) {
-		pdfRow(pdf, tr, row.Label, row.Value, false)
-	}
-	pdf.Ln(4)
-	body(Substitute(s.PDFClosing, values))
-
-	if err := pdf.Error(); err != nil {
-		return nil, fmt.Errorf("render invoice pdf: %w", err)
-	}
-	var out bytes.Buffer
-	if err := pdf.Output(&out); err != nil {
-		return nil, fmt.Errorf("write invoice pdf: %w", err)
-	}
-	return out.Bytes(), nil
-}
-
-// ensureRoom starts a new page when fewer than height millimetres remain above the footer.
-func ensureRoom(pdf *fpdf.Fpdf, height float64) bool {
-	if pdf.GetY()+height > pdfPageHeight-pdfBottom {
-		pdf.AddPage()
-		return true
-	}
-	return false
-}
-
-func pdfRow(pdf *fpdf.Fpdf, tr func(string) string, label, value string, bold bool) {
-	pdf.SetFont("Helvetica", "", 10)
-	valueWidth := pdfPageWidth - 2*pdfMargin - pdfLabelWidth
-	lines := splitLines(pdf, tr(value), valueWidth)
-	ensureRoom(pdf, pdfLine*float64(max(len(lines), 1)))
-	x, y := pdfMargin, pdf.GetY()
-	pdf.SetXY(x, y)
-	pdf.SetTextColor(82, 82, 82)
-	pdf.CellFormat(pdfLabelWidth, pdfLine, tr(label), "", 0, "L", false, 0, "")
-	pdf.SetXY(x+pdfLabelWidth, y)
-	pdf.SetTextColor(22, 22, 22)
-	style := ""
-	if bold {
-		style = "B"
-	}
-	pdf.SetFont("Helvetica", style, 10)
-	pdf.MultiCell(valueWidth, pdfLine, tr(value), "", "L", false)
-	pdf.SetX(pdfMargin)
-	pdf.Ln(0.8)
-}
-
-func pdfItemHeader(pdf *fpdf.Fpdf, tr func(string) string) {
-	pdf.SetFont("Helvetica", "B", 9.5)
-	pdf.SetFillColor(244, 244, 244)
-	pdf.SetTextColor(22, 22, 22)
-	pdf.CellFormat(pdfColumns[0], 7, tr("Description"), "B", 0, "L", true, 0, "")
-	pdf.CellFormat(pdfColumns[1], 7, tr("Quantity"), "B", 0, "R", true, 0, "")
-	pdf.CellFormat(pdfColumns[2], 7, tr("Unit price (EUR)"), "B", 0, "R", true, 0, "")
-	pdf.CellFormat(pdfColumns[3], 7, tr("Amount (EUR)"), "B", 1, "R", true, 0, "")
-}
-
-func pdfItems(pdf *fpdf.Fpdf, tr func(string) string, d Document) {
-	ensureRoom(pdf, 20)
-	pdfItemHeader(pdf, tr)
-	pdf.SetFont("Helvetica", "", 10)
-	for _, item := range d.Items {
-		lines := splitLines(pdf, tr(item.Description), pdfColumns[0]-2)
-		height := pdfLine * float64(max(len(lines), 1))
-		if ensureRoom(pdf, height+1) {
-			pdfItemHeader(pdf, tr)
-			pdf.SetFont("Helvetica", "", 10)
-		}
-		x, y := pdfMargin, pdf.GetY()
-		pdf.SetXY(x, y)
-		pdf.MultiCell(pdfColumns[0], pdfLine, tr(item.Description), "B", "L", false)
-		pdf.SetXY(x+pdfColumns[0], y)
-		pdf.CellFormat(pdfColumns[1], height, tr(item.quantityText()), "B", 0, "R", false, 0, "")
-		pdf.CellFormat(pdfColumns[2], height, tr(formatPlain(item.UnitPrice)), "B", 0, "R", false, 0, "")
-		pdf.CellFormat(pdfColumns[3], height, tr(formatPlain(item.Amount)), "B", 1, "R", false, 0, "")
-		pdf.SetXY(pdfMargin, y+height)
-	}
-}
-
-func pdfPaymentHeader(pdf *fpdf.Fpdf, tr func(string) string) {
-	pdf.SetFont("Helvetica", "B", 9.5)
-	pdf.SetFillColor(244, 244, 244)
-	pdf.SetTextColor(22, 22, 22)
-	pdf.CellFormat(pdfPaymentColumns[0], 7, tr("Payment ID"), "B", 0, "L", true, 0, "")
-	pdf.CellFormat(pdfPaymentColumns[1], 7, tr("Date"), "B", 0, "L", true, 0, "")
-	pdf.CellFormat(pdfPaymentColumns[2], 7, tr("Method"), "B", 0, "L", true, 0, "")
-	pdf.CellFormat(pdfPaymentColumns[3], 7, tr("Amount (EUR)"), "B", 1, "R", true, 0, "")
-}
-
-// pdfPayments lists the payments of the order below the totals; nothing is drawn when there are none.
-func pdfPayments(pdf *fpdf.Fpdf, tr func(string) string, payments []Payment) {
-	if len(payments) == 0 {
-		return
-	}
-	pdf.Ln(4)
-	ensureRoom(pdf, 22)
-	pdf.SetFont("Helvetica", "B", 10.5)
-	pdf.SetTextColor(22, 22, 22)
-	pdf.CellFormat(0, 7, tr("Payments"), "", 1, "L", false, 0, "")
-	pdfPaymentHeader(pdf, tr)
-	for _, payment := range payments {
-		if ensureRoom(pdf, pdfLine+2) {
-			pdfPaymentHeader(pdf, tr)
-		}
-		pdf.SetFont("Helvetica", "", 10)
-		pdf.CellFormat(pdfPaymentColumns[0], pdfLine+1, tr(payment.Reference), "B", 0, "L", false, 0, "")
-		pdf.CellFormat(pdfPaymentColumns[1], pdfLine+1, tr(formatDate(payment.PaidAt)), "B", 0, "L", false, 0, "")
-		pdf.CellFormat(pdfPaymentColumns[2], pdfLine+1, tr(payment.Method), "B", 0, "L", false, 0, "")
-		pdf.CellFormat(pdfPaymentColumns[3], pdfLine+1, tr(formatPlain(payment.Amount)), "B", 1, "R", false, 0, "")
-	}
-}
-
-func pdfTotal(pdf *fpdf.Fpdf, tr func(string) string, row detail) {
-	ensureRoom(pdf, 9)
-	last := row.Label == "Amount to invoice"
-	style, size := "", 10.0
-	if last {
-		style, size = "B", 11.5
-	}
-	pdf.SetFont("Helvetica", style, size)
-	pdf.SetTextColor(22, 22, 22)
-	pdf.SetX(pdfMargin)
-	pdf.CellFormat(pdfColumns[0]+pdfColumns[1]+pdfColumns[2], 7.5, tr(row.Label), "", 0, "R", false, 0, "")
-	pdf.CellFormat(pdfColumns[3], 7.5, tr(row.Value), "", 1, "R", false, 0, "")
-}
-
-func parseHex(color string) (int, int, int) {
-	if len(color) != 7 || color[0] != '#' {
-		return 15, 98, 254
-	}
-	value, err := strconv.ParseUint(color[1:], 16, 32)
+// decimalOrZero reads an amount as the order stored it; an unreadable one counts as zero.
+func decimalOrZero(value string) decimal.Decimal {
+	parsed, err := decimal.NewFromString(value)
 	if err != nil {
-		return 15, 98, 254
+		return decimal.Zero
 	}
-	return int(value >> 16 & 0xff), int(value >> 8 & 0xff), int(value & 0xff)
+	return parsed
 }
 
-// splitLines wraps text that was already translated to cp1252. SplitText indexes the font widths by rune, while the
-// translated string holds one byte per character, so each byte is widened to the rune of the same value first.
-func splitLines(pdf *fpdf.Fpdf, translated string, width float64) []string {
-	widened := make([]rune, len(translated))
-	for i := range len(translated) {
-		widened[i] = rune(translated[i])
+// flag is a "show" value of the wiRef schema: "true" for switched on, empty for off, so templates test it with a
+// condition.
+func flag(on bool) string {
+	if on {
+		return "true"
 	}
-	return pdf.SplitText(string(widened), width)
+	return ""
 }
+
+// servicePeriodDays is the first and the last day of the service period as the wiRef schema has them: the last day
+// is empty when the period is a single day or only one day is known.
+func (d Document) servicePeriodDays() (from, to string) {
+	from, to = d.ServiceStartsOn, d.ServiceEndsOn
+	if from == "" {
+		from, to = to, ""
+	}
+	if to == from {
+		to = ""
+	}
+	return from, to
+}
+
+// text keeps the paragraphs of a template text, separated by one blank line each.
+func text(value string) string { return strings.Join(paragraphs(value), "\n\n") }
+
+// PDFData is the data of the wiRef template for a document: the values of the document, the PDF texts of the
+// settings with their placeholders filled in, and which optional parts the settings show. The paths are those of
+// the wiRef schema of the template engine.
+func (d Document) PDFData(s Settings) engine.Data {
+	values := d.values(s)
+	// What the settings switch off stays out of the data, so a custom template cannot print it either.
+	shown := func(on bool, value string) string {
+		if on {
+			return value
+		}
+		return ""
+	}
+	from, to := d.servicePeriodDays()
+	if !s.ShowServicePeriod {
+		from, to = "", ""
+	}
+	var approvedAt any
+	if !d.ApprovedAt.IsZero() {
+		approvedAt = d.ApprovedAt
+	}
+	items := make([]map[string]any, 0, len(d.Items))
+	for _, item := range d.Items {
+		items = append(items, map[string]any{
+			"description": item.Description,
+			"quantity":    decimalOrZero(item.Quantity),
+			"unit":        unitSymbol(item.Unit),
+			"unitPrice":   decimalOrZero(item.UnitPrice),
+			"amount":      decimalOrZero(item.Amount),
+		})
+	}
+	payments := make([]map[string]any, 0, len(d.Payments))
+	for _, payment := range d.Payments {
+		payments = append(payments, map[string]any{
+			"reference": payment.Reference,
+			"method":    payment.Method,
+			"paidAt":    payment.PaidAt,
+			"amount":    decimalOrZero(payment.Amount),
+		})
+	}
+	addressLines := d.AddressLines
+	if addressLines == nil {
+		addressLines = []string{}
+	}
+	return engine.Data{
+		"request": map[string]any{
+			"number":             d.RequestNumber,
+			"orderNumber":        d.OrderNumber,
+			"approvedAt":         approvedAt,
+			"approver":           shown(s.ShowApprover, d.Approver),
+			"servicePeriod":      map[string]any{"from": from, "to": to},
+			"serviceDescription": shown(s.ShowServiceDescription, d.ServiceDescription),
+		},
+		"recipient": map[string]any{
+			"organization":           d.Organisation,
+			"addressLines":           addressLines,
+			"contactName":            shown(s.ShowContactPerson, d.ContactName),
+			"contactChannel":         shown(s.ShowContactPerson, d.ContactChannel),
+			"purchaseOrderReference": shown(s.ShowPurchaseOrder, d.PurchaseOrderReference),
+		},
+		"amounts": map[string]any{
+			"total":       decimalOrZero(d.Total),
+			"alreadyPaid": decimalOrZero(d.AlreadyPaid),
+			"toInvoice":   d.amountToInvoice(),
+		},
+		"texts": map[string]any{
+			"title":   singleLine(Substitute(s.PDFTitle, values)),
+			"intro":   text(Substitute(s.PDFIntro, values)),
+			"closing": text(Substitute(s.PDFClosing, values)),
+		},
+		"show": map[string]any{
+			"contactPerson":      flag(s.ShowContactPerson),
+			"approver":           flag(s.ShowApprover),
+			"purchaseOrder":      flag(s.ShowPurchaseOrder),
+			"servicePeriod":      flag(s.ShowServicePeriod),
+			"serviceDescription": flag(s.ShowServiceDescription),
+		},
+		"items":    items,
+		"payments": payments,
+	}
+}
+
+// UnitSymbol is how a stored unit reads on a document: the codes for squares and pieces become their symbols, every
+// other unit (including a count label such as "sheet") stays as it is.
+func UnitSymbol(unit string) string { return unitSymbol(unit) }

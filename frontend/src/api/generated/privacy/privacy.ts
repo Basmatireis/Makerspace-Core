@@ -47,6 +47,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getGetPrivacyOverviewUrl = () => {
 
 
@@ -133,25 +153,11 @@ export const getUpdatePrivacySettingsUrl = () => {
  */
 export const updatePrivacySettings = async (updatePrivacySettingsRequest: UpdatePrivacySettingsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrivacySettings> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PrivacySettings>(getUpdatePrivacySettingsUrl(),
+  return apiFetch<PrivacySettings>(getUpdatePrivacySettingsUrl(),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updatePrivacySettingsRequest)
   }
 );}
@@ -195,25 +201,11 @@ export const getCreatePrivacyPolicyUrl = () => {
  */
 export const createPrivacyPolicy = async (retentionPolicyInput: RetentionPolicyInput, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionPolicy> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<RetentionPolicy>(getCreatePrivacyPolicyUrl(),
+  return apiFetch<RetentionPolicy>(getCreatePrivacyPolicyUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(retentionPolicyInput)
   }
 );}
@@ -234,25 +226,11 @@ export const getUpdatePrivacyPolicyUrl = (policyId: UUIDv7,) => {
 export const updatePrivacyPolicy = async (policyId: UUIDv7,
     retentionPolicyInput: RetentionPolicyInput, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionPolicy> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<RetentionPolicy>(getUpdatePrivacyPolicyUrl(policyId),
+  return apiFetch<RetentionPolicy>(getUpdatePrivacyPolicyUrl(policyId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(retentionPolicyInput)
   }
 );}
@@ -273,25 +251,11 @@ export const getTransitionPrivacyPolicyUrl = (policyId: UUIDv7,) => {
 export const transitionPrivacyPolicy = async (policyId: UUIDv7,
     retentionPolicyTransition: RetentionPolicyTransition, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionPolicy> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<RetentionPolicy>(getTransitionPrivacyPolicyUrl(policyId),
+  return apiFetch<RetentionPolicy>(getTransitionPrivacyPolicyUrl(policyId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(retentionPolicyTransition)
   }
 );}
@@ -335,25 +299,11 @@ export const getCreatePrivacyHoldUrl = () => {
  */
 export const createPrivacyHold = async (retentionHoldInput: RetentionHoldInput, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionHold> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<RetentionHold>(getCreatePrivacyHoldUrl(),
+  return apiFetch<RetentionHold>(getCreatePrivacyHoldUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(retentionHoldInput)
   }
 );}
@@ -421,25 +371,11 @@ export const getStartRetentionRunUrl = () => {
  */
 export const startRetentionRun = async (startRetentionRunRequest: StartRetentionRunRequest, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionRun> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<RetentionRun>(getStartRetentionRunUrl(),
+  return apiFetch<RetentionRun>(getStartRetentionRunUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(startRetentionRunRequest)
   }
 );}
@@ -507,25 +443,11 @@ export const getCreateProcessingActivityUrl = () => {
  */
 export const createProcessingActivity = async (processingActivityInput: ProcessingActivityInput, options?: Parameters<typeof apiFetch>[1]): Promise<ProcessingActivity> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ProcessingActivity>(getCreateProcessingActivityUrl(),
+  return apiFetch<ProcessingActivity>(getCreateProcessingActivityUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(processingActivityInput)
   }
 );}
@@ -546,25 +468,11 @@ export const getUpdateProcessingActivityUrl = (activityId: UUIDv7,) => {
 export const updateProcessingActivity = async (activityId: UUIDv7,
     processingActivityUpdate: ProcessingActivityUpdate, options?: Parameters<typeof apiFetch>[1]): Promise<ProcessingActivity> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ProcessingActivity>(getUpdateProcessingActivityUrl(activityId),
+  return apiFetch<ProcessingActivity>(getUpdateProcessingActivityUrl(activityId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(processingActivityUpdate)
   }
 );}
@@ -585,25 +493,11 @@ export const getDeleteProcessingActivityUrl = (activityId: UUIDv7,) => {
 export const deleteProcessingActivity = async (activityId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteProcessingActivityUrl(activityId),
+  return apiFetch<void>(getDeleteProcessingActivityUrl(activityId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -647,25 +541,11 @@ export const getCreateSubjectRequestUrl = () => {
  */
 export const createSubjectRequest = async (subjectRequestInput: SubjectRequestInput, options?: Parameters<typeof apiFetch>[1]): Promise<SubjectRequest> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SubjectRequest>(getCreateSubjectRequestUrl(),
+  return apiFetch<SubjectRequest>(getCreateSubjectRequestUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(subjectRequestInput)
   }
 );}
@@ -710,25 +590,11 @@ export const getTransitionSubjectRequestUrl = (requestId: UUIDv7,) => {
 export const transitionSubjectRequest = async (requestId: UUIDv7,
     subjectRequestTransitionInput: SubjectRequestTransitionInput, options?: Parameters<typeof apiFetch>[1]): Promise<SubjectRequest> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SubjectRequest>(getTransitionSubjectRequestUrl(requestId),
+  return apiFetch<SubjectRequest>(getTransitionSubjectRequestUrl(requestId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(subjectRequestTransitionInput)
   }
 );}
@@ -749,25 +615,11 @@ export const getExecuteSubjectRequestUrl = (requestId: UUIDv7,) => {
 export const executeSubjectRequest = async (requestId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SubjectRequest> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SubjectRequest>(getExecuteSubjectRequestUrl(requestId),
+  return apiFetch<SubjectRequest>(getExecuteSubjectRequestUrl(requestId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}

@@ -49,6 +49,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getListMaterialTypesUrl = () => {
 
 
@@ -87,25 +107,11 @@ export const getCreateMaterialTypeUrl = () => {
  */
 export const createMaterialType = async (createMaterialTypeRequest: CreateMaterialTypeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MaterialType> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MaterialType>(getCreateMaterialTypeUrl(),
+  return apiFetch<MaterialType>(getCreateMaterialTypeUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createMaterialTypeRequest)
   }
 );}
@@ -150,25 +156,11 @@ export const getUpdateMaterialTypeUrl = (materialTypeId: UUIDv7,) => {
 export const updateMaterialType = async (materialTypeId: UUIDv7,
     updateMaterialTypeRequest: UpdateMaterialTypeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MaterialType> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MaterialType>(getUpdateMaterialTypeUrl(materialTypeId),
+  return apiFetch<MaterialType>(getUpdateMaterialTypeUrl(materialTypeId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateMaterialTypeRequest)
   }
 );}
@@ -189,25 +181,11 @@ export const getDeleteMaterialTypeUrl = (materialTypeId: UUIDv7,) => {
 export const deleteMaterialType = async (materialTypeId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteMaterialTypeUrl(materialTypeId),
+  return apiFetch<void>(getDeleteMaterialTypeUrl(materialTypeId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -228,25 +206,11 @@ export const getCreateMaterialTypeVariantUrl = (materialTypeId: UUIDv7,) => {
 export const createMaterialTypeVariant = async (materialTypeId: UUIDv7,
     materialTypeVariantRequest: MaterialTypeVariantRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MaterialTypeVariant> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MaterialTypeVariant>(getCreateMaterialTypeVariantUrl(materialTypeId),
+  return apiFetch<MaterialTypeVariant>(getCreateMaterialTypeVariantUrl(materialTypeId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(materialTypeVariantRequest)
   }
 );}
@@ -269,25 +233,11 @@ export const updateMaterialTypeVariant = async (materialTypeId: UUIDv7,
     variantId: UUIDv7,
     materialTypeVariantRequest: MaterialTypeVariantRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MaterialTypeVariant> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MaterialTypeVariant>(getUpdateMaterialTypeVariantUrl(materialTypeId,variantId),
+  return apiFetch<MaterialTypeVariant>(getUpdateMaterialTypeVariantUrl(materialTypeId,variantId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(materialTypeVariantRequest)
   }
 );}
@@ -364,25 +314,11 @@ export const getCreateMaterialUrl = () => {
  */
 export const createMaterial = async (createMaterialRequest: CreateMaterialRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Material> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Material>(getCreateMaterialUrl(),
+  return apiFetch<Material>(getCreateMaterialUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createMaterialRequest)
   }
 );}
@@ -425,25 +361,11 @@ export const getUpdateMaterialUrl = (materialId: UUIDv7,) => {
 export const updateMaterial = async (materialId: UUIDv7,
     updateMaterialRequest: UpdateMaterialRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Material> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Material>(getUpdateMaterialUrl(materialId),
+  return apiFetch<Material>(getUpdateMaterialUrl(materialId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateMaterialRequest)
   }
 );}
@@ -464,25 +386,11 @@ export const getDeleteMaterialUrl = (materialId: UUIDv7,) => {
 export const deleteMaterial = async (materialId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteMaterialUrl(materialId),
+  return apiFetch<void>(getDeleteMaterialUrl(materialId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -534,25 +442,11 @@ export const getAddMaterialPurchaseUrl = (materialId: UUIDv7,) => {
 export const addMaterialPurchase = async (materialId: UUIDv7,
     addMaterialPurchaseRequest: AddMaterialPurchaseRequest, options?: Parameters<typeof apiFetch>[1]): Promise<InventoryMutationResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<InventoryMutationResult>(getAddMaterialPurchaseUrl(materialId),
+  return apiFetch<InventoryMutationResult>(getAddMaterialPurchaseUrl(materialId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(addMaterialPurchaseRequest)
   }
 );}
@@ -572,25 +466,11 @@ export const getReceiveInventoryStockUrl = () => {
  */
 export const receiveInventoryStock = async (receiveInventoryStockRequest: ReceiveInventoryStockRequest, options?: Parameters<typeof apiFetch>[1]): Promise<InventoryReceiptResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<InventoryReceiptResult>(getReceiveInventoryStockUrl(),
+  return apiFetch<InventoryReceiptResult>(getReceiveInventoryStockUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(receiveInventoryStockRequest)
   }
 );}
@@ -641,25 +521,11 @@ export const getRecordMaterialConsumptionUrl = (materialId: UUIDv7,) => {
 export const recordMaterialConsumption = async (materialId: UUIDv7,
     recordMaterialConsumptionRequest: RecordMaterialConsumptionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<InventoryMutationResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<InventoryMutationResult>(getRecordMaterialConsumptionUrl(materialId),
+  return apiFetch<InventoryMutationResult>(getRecordMaterialConsumptionUrl(materialId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(recordMaterialConsumptionRequest)
   }
 );}
@@ -679,25 +545,11 @@ export const getCorrectMaterialStockUrl = (materialId: UUIDv7,) => {
 export const correctMaterialStock = async (materialId: UUIDv7,
     correctMaterialStockRequest: CorrectMaterialStockRequest, options?: Parameters<typeof apiFetch>[1]): Promise<InventoryMutationResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<InventoryMutationResult>(getCorrectMaterialStockUrl(materialId),
+  return apiFetch<InventoryMutationResult>(getCorrectMaterialStockUrl(materialId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(correctMaterialStockRequest)
   }
 );}
@@ -717,25 +569,11 @@ export const getMarkMaterialEmptyUrl = (materialId: UUIDv7,) => {
 export const markMaterialEmpty = async (materialId: UUIDv7,
     markMaterialEmptyRequest: MarkMaterialEmptyRequest, options?: Parameters<typeof apiFetch>[1]): Promise<InventoryMutationResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<InventoryMutationResult>(getMarkMaterialEmptyUrl(materialId),
+  return apiFetch<InventoryMutationResult>(getMarkMaterialEmptyUrl(materialId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(markMaterialEmptyRequest)
   }
 );}
@@ -756,25 +594,11 @@ export const getDeleteInventoryTransactionUrl = (transactionId: UUIDv7,) => {
 export const deleteInventoryTransaction = async (transactionId: UUIDv7,
     deleteInventoryTransactionRequest: DeleteInventoryTransactionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteInventoryTransactionUrl(transactionId),
+  return apiFetch<void>(getDeleteInventoryTransactionUrl(transactionId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(deleteInventoryTransactionRequest)
   }
 );}
@@ -819,25 +643,11 @@ export const getRestoreMaterialUrl = (materialId: UUIDv7,) => {
 export const restoreMaterial = async (materialId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Material> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Material>(getRestoreMaterialUrl(materialId),
+  return apiFetch<Material>(getRestoreMaterialUrl(materialId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -858,25 +668,11 @@ export const getPurgeMaterialUrl = (materialId: UUIDv7,) => {
 export const purgeMaterial = async (materialId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getPurgeMaterialUrl(materialId),
+  return apiFetch<void>(getPurgeMaterialUrl(materialId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}

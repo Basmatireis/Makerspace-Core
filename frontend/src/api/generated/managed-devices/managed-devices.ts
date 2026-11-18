@@ -48,6 +48,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getListManagedDeviceTypesUrl = () => {
 
 
@@ -84,25 +104,11 @@ export const getCreateManagedDeviceTypeUrl = () => {
  */
 export const createManagedDeviceType = async (createManagedDeviceTypeRequest: CreateManagedDeviceTypeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDeviceType> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ManagedDeviceType>(getCreateManagedDeviceTypeUrl(),
+  return apiFetch<ManagedDeviceType>(getCreateManagedDeviceTypeUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createManagedDeviceTypeRequest)
   }
 );}
@@ -145,25 +151,11 @@ export const getUpdateManagedDeviceTypeUrl = (deviceTypeId: string,) => {
 export const updateManagedDeviceType = async (deviceTypeId: string,
     updateManagedDeviceTypeRequest: UpdateManagedDeviceTypeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDeviceType> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ManagedDeviceType>(getUpdateManagedDeviceTypeUrl(deviceTypeId),
+  return apiFetch<ManagedDeviceType>(getUpdateManagedDeviceTypeUrl(deviceTypeId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateManagedDeviceTypeRequest)
   }
 );}
@@ -183,25 +175,11 @@ export const getDeleteManagedDeviceTypeUrl = (deviceTypeId: string,) => {
 export const deleteManagedDeviceType = async (deviceTypeId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteManagedDeviceTypeUrl(deviceTypeId),
+  return apiFetch<void>(getDeleteManagedDeviceTypeUrl(deviceTypeId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -250,25 +228,11 @@ export const getCreateManagedDeviceUrl = () => {
  */
 export const createManagedDevice = async (createManagedDeviceRequest: CreateManagedDeviceRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDeviceProvisioning> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ManagedDeviceProvisioning>(getCreateManagedDeviceUrl(),
+  return apiFetch<ManagedDeviceProvisioning>(getCreateManagedDeviceUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createManagedDeviceRequest)
   }
 );}
@@ -288,25 +252,11 @@ export const getPairManagedDeviceUrl = () => {
  */
 export const pairManagedDevice = async (pairManagedDeviceRequest: PairManagedDeviceRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDevice> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ManagedDevice>(getPairManagedDeviceUrl(),
+  return apiFetch<ManagedDevice>(getPairManagedDeviceUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(pairManagedDeviceRequest)
   }
 );}
@@ -349,25 +299,11 @@ export const getReportOwnManagedDeviceHardwareUrl = () => {
  */
 export const reportOwnManagedDeviceHardware = async (deviceHardwareReport: DeviceHardwareReport, options?: Parameters<typeof apiFetch>[1]): Promise<DeviceHardwareContext> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<DeviceHardwareContext>(getReportOwnManagedDeviceHardwareUrl(),
+  return apiFetch<DeviceHardwareContext>(getReportOwnManagedDeviceHardwareUrl(),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(deviceHardwareReport)
   }
 );}
@@ -410,25 +346,11 @@ export const getUpdateManagedDeviceUrl = (managedDeviceId: string,) => {
 export const updateManagedDevice = async (managedDeviceId: string,
     updateManagedDeviceRequest: UpdateManagedDeviceRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDevice> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ManagedDevice>(getUpdateManagedDeviceUrl(managedDeviceId),
+  return apiFetch<ManagedDevice>(getUpdateManagedDeviceUrl(managedDeviceId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateManagedDeviceRequest)
   }
 );}
@@ -448,25 +370,11 @@ export const getDeleteManagedDeviceUrl = (managedDeviceId: string,) => {
 export const deleteManagedDevice = async (managedDeviceId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteManagedDeviceUrl(managedDeviceId),
+  return apiFetch<void>(getDeleteManagedDeviceUrl(managedDeviceId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -536,25 +444,11 @@ export const getUpdateManagedDeviceCameraUrl = (managedDeviceId: string,) => {
 export const updateManagedDeviceCamera = async (managedDeviceId: string,
     kioskCameraSettings: KioskCameraSettings, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDeviceCamera> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ManagedDeviceCamera>(getUpdateManagedDeviceCameraUrl(managedDeviceId),
+  return apiFetch<ManagedDeviceCamera>(getUpdateManagedDeviceCameraUrl(managedDeviceId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(kioskCameraSettings)
   }
 );}
@@ -624,25 +518,11 @@ export const getRevokeManagedDeviceUrl = (managedDeviceId: string,) => {
 export const revokeManagedDevice = async (managedDeviceId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDevice> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ManagedDevice>(getRevokeManagedDeviceUrl(managedDeviceId),
+  return apiFetch<ManagedDevice>(getRevokeManagedDeviceUrl(managedDeviceId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -662,25 +542,11 @@ export const getRotateManagedDeviceTokenUrl = (managedDeviceId: string,) => {
 export const rotateManagedDeviceToken = async (managedDeviceId: string,
     rotateManagedDeviceTokenRequest: RotateManagedDeviceTokenRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDeviceProvisioning> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ManagedDeviceProvisioning>(getRotateManagedDeviceTokenUrl(managedDeviceId),
+  return apiFetch<ManagedDeviceProvisioning>(getRotateManagedDeviceTokenUrl(managedDeviceId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(rotateManagedDeviceTokenRequest)
   }
 );}
@@ -700,25 +566,11 @@ export const getStartManagedDevicePairingUrl = () => {
  */
 export const startManagedDevicePairing = async (startManagedDevicePairingRequest: StartManagedDevicePairingRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDevicePairingStart> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<ManagedDevicePairingStart>(getStartManagedDevicePairingUrl(),
+  return apiFetch<ManagedDevicePairingStart>(getStartManagedDevicePairingUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(startManagedDevicePairingRequest)
   }
 );}
@@ -778,25 +630,11 @@ export const getCreateSessionPolicyUrl = () => {
 
 export const createSessionPolicy = async (sessionPolicyInput: SessionPolicyInput, options?: Parameters<typeof apiFetch>[1]): Promise<SessionPolicy> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SessionPolicy>(getCreateSessionPolicyUrl(),
+  return apiFetch<SessionPolicy>(getCreateSessionPolicyUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(sessionPolicyInput)
   }
 );}
@@ -813,25 +651,11 @@ export const getUpdateSessionPolicyUrl = (sessionPolicyId: UUIDv7,) => {
 export const updateSessionPolicy = async (sessionPolicyId: UUIDv7,
     updateSessionPolicyRequest: UpdateSessionPolicyRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SessionPolicy> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SessionPolicy>(getUpdateSessionPolicyUrl(sessionPolicyId),
+  return apiFetch<SessionPolicy>(getUpdateSessionPolicyUrl(sessionPolicyId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateSessionPolicyRequest)
   }
 );}

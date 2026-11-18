@@ -85,7 +85,7 @@ func newEnv(t *testing.T) *env {
 		LabRules:        labRules,
 		Surveys:         surveys.NewService(pool, cfg, nil),
 		Mail:            mailer,
-		Invoicing:       invoicing.NewService(pool, nil, nil),
+		Invoicing:       invoicing.NewService(pool, nil),
 		Trainings:       trainings.NewService(pool),
 		Privacy:         privacyService,
 		SubjectRequests: subjectrequests.NewService(pool, privacyService, people.NewService(pool, fileService), fileService),

@@ -259,9 +259,11 @@ const (
 type BillingState string
 
 const (
-	BillingOnOrder         BillingState = "on_order"
-	BillingOrderOutdated   BillingState = "order_outdated"
-	BillingNotOnOrder      BillingState = "not_on_order"
+	BillingOnOrder       BillingState = "on_order"
+	BillingOrderOutdated BillingState = "order_outdated"
+	BillingNotOnOrder    BillingState = "not_on_order"
+	// BillingNothingToBill is an ended, completely priced job whose final price is zero; see MachineJob.NothingToBill.
+	BillingNothingToBill   BillingState = "nothing_to_bill"
 	BillingPriceIncomplete BillingState = "price_incomplete"
 	BillingPending         BillingState = "pending"
 )

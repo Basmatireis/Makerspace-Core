@@ -25,8 +25,9 @@ func TestJobsCarryWhatNeedsAttention(t *testing.T) {
 	if codes := attentionCodes(done.Attention); !slices.Equal(codes, []AttentionCode{AttentionNotOnOrder}) {
 		t.Fatalf("finished priced job = %v", codes)
 	}
+	// The outcome of a job says that a run failed; there is nothing left to do about it.
 	failed := f.create(t, f.input(-3*time.Hour, time.Hour, JobOutcomeFailed))
-	if codes := attentionCodes(failed.Attention); !slices.Contains(codes, AttentionRunFailed) {
+	if codes := attentionCodes(failed.Attention); slices.Contains(codes, AttentionRunFailed) {
 		t.Fatalf("failed job = %v", codes)
 	}
 	open := f.create(t, f.input(-3*time.Hour, time.Hour, JobOutcomeUnknown))
@@ -49,8 +50,32 @@ func TestJobsCarryWhatNeedsAttention(t *testing.T) {
 		byID[item.ID.String()] = attentionCodes(item.Attention)
 	}
 	if !slices.Equal(byID[done.ID.String()], attentionCodes(done.Attention)) ||
-		!slices.Contains(byID[failed.ID.String()], AttentionRunFailed) {
+		!slices.Equal(byID[failed.ID.String()], attentionCodes(failed.Attention)) {
 		t.Fatalf("work items = %v", byID)
+	}
+}
+
+func TestRunsAttentionFlagsOnlyWhatSomeoneCanResolve(t *testing.T) {
+	failedOutcome, cancelledEarly, notReported := RunOutcomeFailed, ReasonCancelledBeforeFirstLayer, ReasonConsumptionNotReported
+	recorded := func(reason ConsumptionReason) MachineRun {
+		return MachineRun{
+			Source:            RunSourceRecorded,
+			State:             RunStateFailed,
+			Outcome:           &failedOutcome,
+			ConsumptionStatus: &ConsumptionStatus{State: ConsumptionMissing, Reason: &reason},
+		}
+	}
+	// Cancelled before the first layer: no filament was used, so nothing is unconfirmed.
+	early := []MachineRun{recorded(cancelledEarly)}
+	if codes := attentionCodes(runsAttention(early, false)); len(codes) != 0 {
+		t.Fatalf("job run cancelled before the first layer = %v", codes)
+	}
+	if codes := attentionCodes(runsAttention(early, true)); !slices.Equal(codes, []AttentionCode{AttentionRunFailed}) {
+		t.Fatalf("unassigned run cancelled before the first layer = %v", codes)
+	}
+	missing := []MachineRun{recorded(notReported)}
+	if codes := attentionCodes(runsAttention(missing, false)); !slices.Equal(codes, []AttentionCode{AttentionConsumptionUnconfirmed}) {
+		t.Fatalf("job run without consumption report = %v", codes)
 	}
 }
 

@@ -138,7 +138,8 @@ type PlayerAssetFile struct {
 }
 
 // OpenPlayerAsset opens an asset's bytes, but only when the display's latest publication lists the
-// asset with exactly this checksum; everything else is 404.
+// asset with exactly this checksum, or when it is the effective image of an announcement in force for the
+// display right now (the set the live data shows) with exactly this checksum; everything else is 404.
 func (s *Service) OpenPlayerAsset(
 	ctx context.Context,
 	display PlayerDisplay,
@@ -146,12 +147,9 @@ func (s *Service) OpenPlayerAsset(
 	sha256 string,
 ) (PlayerAssetFile, error) {
 	q := signagedb.New(s.pool)
-	manifest, ok, err := s.latestManifest(ctx, q, display.ID)
+	manifest, _, err := s.latestManifest(ctx, q, display.ID)
 	if err != nil {
 		return PlayerAssetFile{}, err
-	}
-	if !ok {
-		return PlayerAssetFile{}, apperror.NotFound
 	}
 	var listed *ManifestAsset
 	for index := range manifest.Assets {
@@ -160,7 +158,15 @@ func (s *Service) OpenPlayerAsset(
 		}
 	}
 	if listed == nil {
-		return PlayerAssetFile{}, apperror.NotFound
+		shown, err := q.ListLiveAnnouncementImageIDsForDisplay(ctx, signagedb.ListLiveAnnouncementImageIDsForDisplayParams{
+			Now: s.now(), DisplayID: display.ID, Broadcasts: display.embed == nil,
+		})
+		if err != nil {
+			return PlayerAssetFile{}, err
+		}
+		if !contains(shown, assetID) {
+			return PlayerAssetFile{}, apperror.NotFound
+		}
 	}
 	row, err := q.GetSignageAsset(ctx, assetID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -189,6 +195,12 @@ func (s *Service) OpenPlayerAsset(
 	if err != nil {
 		return PlayerAssetFile{}, err
 	}
+	if listed == nil {
+		listed = &ManifestAsset{
+			ID: row.ID, Kind: AssetKind(row.Kind), Name: row.Name, ContentType: row.ContentType, SHA256: sha256,
+			SizeBytes: row.SizeBytes, Width: intPointer(row.Width), Height: intPointer(row.Height),
+		}
+	}
 	return PlayerAssetFile{Asset: *listed, Reader: reader}, nil
 }
 
@@ -211,8 +223,11 @@ type LiveAnnouncement struct {
 	Title, Body    string
 	BodyFormat     RichTextFormat
 	BodyCSS        string
-	StartsAt       time.Time
-	EndsAt         *time.Time
+	// Color, TextColor and Image are the effective look; see Rendered.
+	Color, TextColor *string
+	Image            *AnnouncementImage
+	StartsAt         time.Time
+	EndsAt           *time.Time
 }
 
 // LiveRuleNotice is a notice a notification rule put on the display: plain text for a limited time, shown above the
@@ -397,8 +412,10 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 			Body:       announcement.Rendered.Body,
 			BodyFormat: announcement.Rendered.BodyFormat,
 			BodyCSS:    announcement.Rendered.BodyCSS,
-			StartsAt:   announcement.StartsAt,
-			EndsAt:     announcement.EndsAt,
+			Color:      announcement.Rendered.Color, TextColor: announcement.Rendered.TextColor,
+			Image:    announcement.Rendered.Image,
+			StartsAt: announcement.StartsAt,
+			EndsAt:   announcement.EndsAt,
 		})
 	}
 	// Notices of notification rules are for the makerspace's own screens; a web embed shows public data only.

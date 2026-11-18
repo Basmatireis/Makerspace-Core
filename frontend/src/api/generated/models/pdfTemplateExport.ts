@@ -19,6 +19,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SetFeedbackAtCheckoutRequest {
-  ask: boolean;
-}
+export type PdfTemplateExport = typeof PdfTemplateExport[keyof typeof PdfTemplateExport];
+
+
+export const PdfTemplateExport = {
+  PdfTemplateExportWiref: 'wiref',
+  PdfTemplateExportCashbook: 'cashbook',
+  PdfTemplateExportReceipt: 'receipt',
+} as const;

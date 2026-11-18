@@ -58,6 +58,10 @@ type Rendered struct {
 	Title, Body, Tone string
 	BodyFormat        RichTextFormat
 	BodyCSS           string
+	// Color, TextColor and Image are the effective look (the announcement's own or its template's); the renderer
+	// leaves them to the caller. TextColor is nil exactly when Color is nil.
+	Color, TextColor *string
+	Image            *AnnouncementImage
 }
 
 var (

@@ -4,16 +4,16 @@ import { FuzzySelectField } from '../../../app/components/FuzzyComboBox';
 import { DateTimeInput } from '../../../app/DateInput';
 import { isZonedDateTimeValue } from '../../../app/dateTime';
 import { formatDateTime } from '../shared/format';
-import { runOutcomeChoices, useRunPreview, type RunValues } from './runFormHelpers';
+import { keepEndedByNow, runOutcomeChoices, useRunPreview, type RunValues } from './runFormHelpers';
 import '../styles/jobs.scss';
 import '../jobs/jobs.scss';
 
 /** "Starts now" or "Already done"; a run that is already done asks for its start and outcome. */
 export function RunWhenField({ idPrefix }: { idPrefix: string }) {
-  const { control } = useFormContext<RunValues>();
+  const form = useFormContext<RunValues>();
   return (
     <Controller
-      control={control}
+      control={form.control}
       name="when"
       render={({ field }) => (
         <RadioButtonGroup
@@ -21,7 +21,10 @@ export function RunWhenField({ idPrefix }: { idPrefix: string }) {
           legendText="When"
           orientation="horizontal"
           valueSelected={field.value}
-          onChange={(value) => field.onChange(value)}
+          onChange={(value) => {
+            field.onChange(value);
+            keepEndedByNow(form);
+          }}
         >
           <RadioButton id={`${idPrefix}-when-now`} value="now" labelText="Starts now" />
           <RadioButton id={`${idPrefix}-when-past`} value="past" labelText="Already done" />
@@ -66,10 +69,15 @@ export function RunTimingFields({
   withWhen?: boolean;
   outcomeHelperText?: string;
 }) {
-  const { control, formState } = useFormContext<RunValues>();
+  const form = useFormContext<RunValues>();
+  const { control, formState } = form;
   const when = useWatch({ control, name: 'when' });
-  const { end, inFuture } = useRunPreview();
+  // A new run that is already done ends by now at the latest; a longer runtime moves its start back.
+  const { end, inFuture, movedStart } = useRunPreview(withWhen);
   const past = !withWhen || when === 'past';
+  const runtimeChanged = () => {
+    if (withWhen) keepEndedByNow(form);
+  };
   return (
     <div className="jobs-run">
       {withWhen && <RunWhenField idPrefix={idPrefix} />}
@@ -106,7 +114,10 @@ export function RunTimingFields({
               value={field.value}
               invalid={!!formState.errors.runtimeHours}
               invalidText="Duration must be longer than zero."
-              onChange={(_event, { value }) => field.onChange(Number(value) || 0)}
+              onChange={(_event, { value }) => {
+                field.onChange(Number(value) || 0);
+                runtimeChanged();
+              }}
             />
           )}
         />
@@ -121,7 +132,10 @@ export function RunTimingFields({
               max={59}
               step={1}
               value={field.value}
-              onChange={(_event, { value }) => field.onChange(Number(value) || 0)}
+              onChange={(_event, { value }) => {
+                field.onChange(Number(value) || 0);
+                runtimeChanged();
+              }}
             />
           )}
         />
@@ -131,7 +145,9 @@ export function RunTimingFields({
         {end
           ? inFuture
             ? `Runs until ${formatDateTime(end)}; the outcome is recorded once it has ended, and it can be cancelled early.`
-            : `Ended ${formatDateTime(end)}.`
+            : movedStart
+              ? `Already done, so it ends now: saved as ${formatDateTime(movedStart)} – ${formatDateTime(end)}.`
+              : `Ended ${formatDateTime(end)}.`
           : 'Enter a start and a duration.'}
       </p>
     </div>

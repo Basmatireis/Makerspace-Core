@@ -31,6 +31,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getGetVisitorEnrollmentConfigurationUrl = () => {
 
 
@@ -67,25 +87,11 @@ export const getUpdateVisitorEnrollmentConfigurationUrl = () => {
  */
 export const updateVisitorEnrollmentConfiguration = async (updateVisitorEnrollmentConfigurationRequest: UpdateVisitorEnrollmentConfigurationRequest, options?: Parameters<typeof apiFetch>[1]): Promise<VisitorEnrollmentConfiguration> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<VisitorEnrollmentConfiguration>(getUpdateVisitorEnrollmentConfigurationUrl(),
+  return apiFetch<VisitorEnrollmentConfiguration>(getUpdateVisitorEnrollmentConfigurationUrl(),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateVisitorEnrollmentConfigurationRequest)
   }
 );}
@@ -181,25 +187,11 @@ export const getSendVisitorEnrollmentEmailCodeUrl = () => {
  */
 export const sendVisitorEnrollmentEmailCode = async (visitorEnrollmentEmailRequest: VisitorEnrollmentEmailRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getSendVisitorEnrollmentEmailCodeUrl(),
+  return apiFetch<void>(getSendVisitorEnrollmentEmailCodeUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(visitorEnrollmentEmailRequest)
   }
 );}
@@ -220,25 +212,11 @@ export const getConfirmVisitorEnrollmentEmailUrl = () => {
  */
 export const confirmVisitorEnrollmentEmail = async (visitorEnrollmentEmailConfirmation: VisitorEnrollmentEmailConfirmation, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getConfirmVisitorEnrollmentEmailUrl(),
+  return apiFetch<void>(getConfirmVisitorEnrollmentEmailUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(visitorEnrollmentEmailConfirmation)
   }
 );}
@@ -268,25 +246,11 @@ export const getSubmitVisitorEnrollmentUrl = () => {
  */
 export const submitVisitorEnrollment = async (visitorEnrollmentSubmission: VisitorEnrollmentSubmission, options?: Parameters<typeof apiFetch>[1]): Promise<VisitorEnrollmentResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<VisitorEnrollmentResult>(getSubmitVisitorEnrollmentUrl(),
+  return apiFetch<VisitorEnrollmentResult>(getSubmitVisitorEnrollmentUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(visitorEnrollmentSubmission)
   }
 );}

@@ -31,10 +31,23 @@ cancelled_at=CASE WHEN $2::text='cancelled' THEN now() ELSE cancelled_at END,
 reversed_at=CASE WHEN $2::text='reversed' THEN now() ELSE reversed_at END WHERE id=$1;
 -- name: ListOrders :many
 SELECT o.* FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
-WHERE (sqlc.arg(search)::text='' OR o.reference ILIKE '%'||sqlc.arg(search)||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||sqlc.arg(search)||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR o.status=sqlc.arg(status)) ORDER BY o.created_at DESC,o.id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+LEFT JOIN people cp ON cp.id=o.customer_person_id LEFT JOIN organizations cg ON cg.id=o.customer_organization_id
+-- Drafts have no captured name yet, so the current name of their customer is searched instead.
+WHERE (sqlc.arg(search)::text='' OR o.reference ILIKE '%'||sqlc.arg(search)||'%'
+       OR COALESCE(cs.display_name,cp.first_name||' '||cp.last_name,cg.name,'') ILIKE '%'||sqlc.arg(search)||'%'
+       OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||sqlc.arg(search)||'%')
+  AND (sqlc.arg(status)::text='' OR o.status=sqlc.arg(status))
+  AND (sqlc.narg(customer_id)::uuid IS NULL OR o.customer_person_id=sqlc.narg(customer_id) OR o.customer_organization_id=sqlc.narg(customer_id))
+ORDER BY o.created_at DESC,o.id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 -- name: CountOrders :one
 SELECT count(*) FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
-WHERE (sqlc.arg(search)::text='' OR o.reference ILIKE '%'||sqlc.arg(search)||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||sqlc.arg(search)||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR o.status=sqlc.arg(status));
+LEFT JOIN people cp ON cp.id=o.customer_person_id LEFT JOIN organizations cg ON cg.id=o.customer_organization_id
+-- Drafts have no captured name yet, so the current name of their customer is searched instead.
+WHERE (sqlc.arg(search)::text='' OR o.reference ILIKE '%'||sqlc.arg(search)||'%'
+       OR COALESCE(cs.display_name,cp.first_name||' '||cp.last_name,cg.name,'') ILIKE '%'||sqlc.arg(search)||'%'
+       OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||sqlc.arg(search)||'%')
+  AND (sqlc.arg(status)::text='' OR o.status=sqlc.arg(status))
+  AND (sqlc.narg(customer_id)::uuid IS NULL OR o.customer_person_id=sqlc.narg(customer_id) OR o.customer_organization_id=sqlc.narg(customer_id));
 -- name: GetCustomerName :one
 SELECT COALESCE(s.display_name,p.first_name || ' ' || p.last_name,g.name)::text AS display_name
 FROM orders o LEFT JOIN order_customer_snapshots s ON s.order_id=o.id
@@ -139,6 +152,12 @@ SELECT id FROM organizations WHERE id=$1 FOR UPDATE;
 
 -- name: CommittedReplacement :one
 SELECT id,reference FROM orders WHERE replaces_order_id=$1 AND status IN ('finalized','reversed');
+
+-- name: OpenReplacement :one
+SELECT id,reference FROM orders WHERE replaces_order_id=$1 AND status='draft';
+
+-- name: DeleteDraftOrder :execrows
+DELETE FROM orders WHERE id=$1 AND status='draft';
 
 -- name: GetActor :one
 SELECT pe.id,btrim(pe.first_name||' '||pe.last_name)::text AS display_name FROM accounts a JOIN people pe ON pe.id=a.person_id WHERE a.id=$1;
@@ -374,7 +393,7 @@ WITH entries AS (
     WHERE m.occurred_at >= sqlc.arg(from_time)::timestamptz AND m.occurred_at < sqlc.arg(to_time)::timestamptz
 )
 SELECT e.id, e.source, e.kind, e.method::text AS method, e.occurred_at, e.effect, e.reference,
-    COALESCE(al.order_reference, '')::text AS order_reference,
+    COALESCE(al.order_reference, '')::text AS order_reference, al.order_id,
     COALESCE(cs.display_name, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), ''), og.name, '')::text AS customer_name,
     e.payment_reason::text AS payment_reason, e.movement_reason::text AS movement_reason,
     (CASE WHEN e.count_id IS NULL THEN e.note ELSE COALESCE(c.note, '') END)::text AS note,
@@ -394,3 +413,37 @@ LEFT JOIN accounts pa ON pa.id = e.actor_account_id
 LEFT JOIN people rb ON rb.id = COALESCE(pa.person_id, e.person_id)
 ORDER BY e.occurred_at, e.sort_rank, e.id
 LIMIT sqlc.arg(row_limit);
+
+-- name: ListCashbookOrderContents :many
+-- What the orders of cashbook lines charged, in item order: the process of a machine job and whether it used the
+-- makerspace's material, the material type of an article sold from stock, the description of a manual item.
+SELECT i.order_id, i.kind,
+    (CASE WHEN i.kind = 'manual' THEN i.description ELSE '' END)::text AS description,
+    COALESCE(i.machine_job_snapshot->>'processName', '')::text AS process_name,
+    COALESCE(jsonb_path_exists(i.machine_job_snapshot, '$.usages[*] ? (@.ownership == "makerspace")'), false)::bool AS used_materials,
+    COALESCE(t.name, '')::text AS article_category
+FROM order_items i
+LEFT JOIN materials m ON m.id = i.source_material_id AND i.kind = 'inventory_item'
+LEFT JOIN material_types t ON t.id = m.material_type_id
+WHERE i.order_id = ANY(sqlc.arg(order_ids)::text[]::uuid[]) AND i.removed_at IS NULL
+ORDER BY i.order_id, i.position, i.id;
+
+-- name: GetPersonMatriculation :one
+-- Empty when the person has none; only read for a caller who holds people.read.matriculation.
+SELECT COALESCE(matriculation_number, '')::text AS matriculation_number FROM people WHERE id = sqlc.arg(person_id);
+
+-- name: ListReceiptPreviewOrders :many
+-- The newest finalized orders that have a receipt (a settled amount above 0), for previews of the receipt template.
+SELECT o.id, o.reference
+FROM orders o
+WHERE o.status = 'finalized'
+  AND (SELECT COALESCE(sum(a.amount), 0) FROM payment_allocations a WHERE a.order_id = o.id) > 0
+ORDER BY o.finalized_at DESC NULLS LAST, o.id DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: ReceiptPayments :many
+-- The receipts that still count towards an order with the amount each contributes to it, oldest first.
+SELECT p.id, p.reference, p.method, p.occurred_at, sum(a.amount)::numeric AS amount
+FROM payments p JOIN payment_allocations a ON a.payment_id = p.id
+WHERE a.order_id = sqlc.arg(order_id) AND p.entry_kind = 'receipt'
+GROUP BY p.id HAVING sum(a.amount) > 0 ORDER BY p.occurred_at, p.reference;

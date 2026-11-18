@@ -31,13 +31,16 @@ import {
   createSignageAnnouncementTemplate,
   updateSignageAnnouncementTemplate,
 } from '../../api/generated/signage/signage';
+import { apiErrorCode } from '../../api/http-client';
+import { AnnouncementLookFields } from './AnnouncementLookFields';
 import { AnnouncementPreview } from './AnnouncementPreview';
+import { announcementTextColor, lookOf } from './announcementLook';
 import { BUILT_IN_VARIABLES, fieldKeyFor, placeholdersIn, unknownPlaceholders } from './engine/announcements';
 import { errorMessage, isStaleWrite, pluralize } from './helpers';
 import { CodeArea, FormatSelect } from './RichTextFields';
 import { LIMITS } from './widgets';
-import { announcementsQuery, signageKeys } from './queries';
-import { renderSample, useMachineOptions, useMakerspaceTimeZone } from './preview';
+import { announcementsQuery, assetsQuery, signageKeys } from './queries';
+import { assetContentUrl, renderSample, useMachineOptions, useMakerspaceTimeZone } from './preview';
 
 const FIELD_TYPES: { id: SignageFieldType; label: string }[] = [
   { id: 'text', label: 'Text' },
@@ -73,6 +76,8 @@ type Values = {
   body: string;
   bodyFormat: SignageRichTextFormat;
   bodyCss: string;
+  color: string | null;
+  imageAssetId: string | null;
   fields: FieldValues[];
 };
 
@@ -104,6 +109,8 @@ export function AnnouncementTemplateModal({
       body: template?.body ?? '',
       bodyFormat: template?.bodyFormat ?? 'plain',
       bodyCss: template?.bodyCss ?? '',
+      color: template?.color ?? null,
+      imageAssetId: template?.imageAssetId ?? null,
       fields: toFieldValues(template),
     },
   });
@@ -136,6 +143,11 @@ export function AnnouncementTemplateModal({
     now,
     timeZone,
   );
+  const color = watched.color ?? null;
+  const imageAssetId = watched.imageAssetId ?? null;
+  const assets = useQuery(assetsQuery()).data?.items;
+  const image = imageAssetId ? assets?.find((asset) => asset.id === imageAssetId) : undefined;
+  const look = lookOf(color, imageAssetId ? assetContentUrl(imageAssetId, image?.sha256) : null);
   const inUse = template
     ? (announcements.data?.items ?? []).filter((item) => item.templateId === template.id).length
     : 0;
@@ -149,6 +161,8 @@ export function AnnouncementTemplateModal({
         body: values.body,
         bodyFormat: values.bodyFormat,
         bodyCss: values.bodyCss,
+        color: values.color,
+        imageAssetId: values.imageAssetId,
         fields: values.fields.map((field) => ({
           key: field.key,
           label: field.label.trim(),
@@ -171,6 +185,11 @@ export function AnnouncementTemplateModal({
       if (isStaleWrite(error)) void queryClient.invalidateQueries({ queryKey: signageKeys.templates() });
     },
   });
+
+  const colorServerError =
+    mutation.isError && apiErrorCode(mutation.error) === 'signage_color_contrast'
+      ? errorMessage(mutation.error)
+      : undefined;
 
   const rename = (index: number, label: string) => {
     const field = form.getValues(`fields.${index}`);
@@ -248,7 +267,13 @@ export function AnnouncementTemplateModal({
       onRequestClose={() => {
         if (!mutation.isPending) onClose();
       }}
-      onRequestSubmit={() => void form.handleSubmit((values) => mutation.mutate(values))()}
+      onRequestSubmit={() =>
+        void form.handleSubmit((values) => {
+          // The server refuses an unreadable colour too; not sending it saves the round trip.
+          if (values.color && announcementTextColor(values.color) === null) return;
+          mutation.mutate(values);
+        })()
+      }
     >
       <div className="sg-template-modal">
         <Stack gap={5}>
@@ -493,11 +518,30 @@ export function AnnouncementTemplateModal({
           </div>
 
           <div>
+            <h3 className="sg-section-title">Look</h3>
+            <p className="sg-secondary">
+              The default for announcements started from this template; each announcement may use its own.
+            </p>
+            <AnnouncementLookFields
+              idPrefix="tpl"
+              tone={watched.tone ?? 'info'}
+              color={color}
+              imageAssetId={imageAssetId}
+              serverError={colorServerError}
+              onColorChange={(next) => {
+                if (colorServerError) mutation.reset();
+                form.setValue('color', next, { shouldDirty: true });
+              }}
+              onImageChange={(next) => form.setValue('imageAssetId', next, { shouldDirty: true })}
+            />
+          </div>
+
+          <div>
             <h3 className="sg-section-title">Preview</h3>
             <p className="sg-secondary">With sample values, ending in two hours.</p>
-            <AnnouncementPreview message={preview} />
+            <AnnouncementPreview message={{ ...preview, ...look }} />
           </div>
-          {mutation.isError && (
+          {mutation.isError && !colorServerError && (
             <InlineNotification
               kind="error"
               lowContrast

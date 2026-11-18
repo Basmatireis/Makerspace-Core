@@ -50,10 +50,14 @@ type Template struct {
 	Title, Body string
 	BodyFormat  RichTextFormat
 	BodyCSS     string
-	Fields      []TemplateField
-	Version     int64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// Color is the default background colour of the template's announcements (#rrggbb); nil means the tone colour.
+	Color *string
+	// ImageAssetID is the default background image; nil means none.
+	ImageAssetID *uuid.UUID
+	Fields       []TemplateField
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // TemplateInput is the writable part of a template; Fields replace the stored fields.
@@ -62,9 +66,11 @@ type TemplateInput struct {
 	Tone        Tone
 	Title, Body string
 	// BodyFormat empty means plain.
-	BodyFormat RichTextFormat
-	BodyCSS    string
-	Fields     []TemplateField
+	BodyFormat   RichTextFormat
+	BodyCSS      string
+	Color        *string
+	ImageAssetID *uuid.UUID
+	Fields       []TemplateField
 }
 
 func templateFrom(row signagedb.SignageAnnouncementTemplate, fields []TemplateField) Template {
@@ -79,10 +85,11 @@ func templateFrom(row signagedb.SignageAnnouncementTemplate, fields []TemplateFi
 		Body:       row.Body,
 		BodyFormat: RichTextFormat(row.BodyFormat),
 		BodyCSS:    row.BodyCss,
-		Fields:     fields,
-		Version:    row.Version,
-		CreatedAt:  row.CreatedAt.UTC(),
-		UpdatedAt:  row.UpdatedAt.UTC(),
+		Color:      row.Color, ImageAssetID: row.ImageAssetID,
+		Fields:    fields,
+		Version:   row.Version,
+		CreatedAt: row.CreatedAt.UTC(),
+		UpdatedAt: row.UpdatedAt.UTC(),
 	}
 }
 
@@ -196,6 +203,10 @@ func validateTemplateInput(input TemplateInput) (TemplateInput, error) {
 	if !multilineText(input.BodyCSS, maxRichCSSRunes) {
 		return TemplateInput{}, validation("bodyCss must be text of at most %d characters", maxRichCSSRunes)
 	}
+	color, err := checkColor(input.Color)
+	if err != nil {
+		return TemplateInput{}, err
+	}
 	if len(input.Fields) > maxTemplateFields {
 		return TemplateInput{}, validation("a template has at most %d fields", maxTemplateFields)
 	}
@@ -279,7 +290,8 @@ func validateTemplateInput(input TemplateInput) (TemplateInput, error) {
 		Body:       input.Body,
 		BodyFormat: bodyFormat,
 		BodyCSS:    input.BodyCSS,
-		Fields:     fields,
+		Color:      color, ImageAssetID: input.ImageAssetID,
+		Fields: fields,
 	}, nil
 }
 
@@ -372,17 +384,22 @@ func (s *Service) CreateTemplate(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
+	if err := verifyImage(ctx, q, checked.ImageAssetID); err != nil {
+		return Template{}, err
+	}
 	id := ids.New()
 	if _, err := q.CreateSignageTemplate(
 		ctx,
 		signagedb.CreateSignageTemplateParams{
-			ID:         id,
-			Name:       checked.Name,
-			Tone:       string(checked.Tone),
-			Title:      checked.Title,
-			Body:       checked.Body,
-			BodyFormat: string(checked.BodyFormat),
-			BodyCss:    checked.BodyCSS,
+			ID:           id,
+			Name:         checked.Name,
+			Tone:         string(checked.Tone),
+			Title:        checked.Title,
+			Body:         checked.Body,
+			BodyFormat:   string(checked.BodyFormat),
+			BodyCss:      checked.BodyCSS,
+			Color:        checked.Color,
+			ImageAssetID: checked.ImageAssetID,
 		},
 	); err != nil {
 		return Template{}, databaseError(err)
@@ -398,7 +415,7 @@ func (s *Service) CreateTemplate(
 		"signage_announcement_template",
 		id,
 		requestID,
-		[]string{"name", "tone", "title", "body", "bodyFormat", "bodyCss", "fields"},
+		[]string{"name", "tone", "title", "body", "bodyFormat", "bodyCss", "color", "imageAssetId", "fields"},
 	); err != nil {
 		return Template{}, err
 	}
@@ -445,6 +462,9 @@ func (s *Service) UpdateTemplate(
 	if current.Version != expected {
 		return Template{}, apperror.StaleWrite
 	}
+	if err := verifyImage(ctx, q, checked.ImageAssetID); err != nil {
+		return Template{}, err
+	}
 	if _, err := q.UpdateSignageTemplate(
 		ctx,
 		signagedb.UpdateSignageTemplateParams{
@@ -454,6 +474,8 @@ func (s *Service) UpdateTemplate(
 			Body:            checked.Body,
 			BodyFormat:      string(checked.BodyFormat),
 			BodyCss:         checked.BodyCSS,
+			Color:           checked.Color,
+			ImageAssetID:    checked.ImageAssetID,
 			ID:              id,
 			ExpectedVersion: expected,
 		},
@@ -486,7 +508,7 @@ func (s *Service) UpdateTemplate(
 		"signage_announcement_template",
 		id,
 		requestID,
-		[]string{"name", "tone", "title", "body", "bodyFormat", "bodyCss", "fields"},
+		[]string{"name", "tone", "title", "body", "bodyFormat", "bodyCss", "color", "imageAssetId", "fields"},
 	); err != nil {
 		return Template{}, err
 	}

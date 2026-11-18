@@ -137,7 +137,7 @@ describe('People page', () => {
           ]),
         ),
       ),
-      http.get('*/api/v1/roles', () => HttpResponse.json({ items: [roleFixture(), secondRole], nextCursor: null })),
+      http.get('*/api/v1/people/role-options', () => HttpResponse.json({ items: [roleFixture(), secondRole] })),
       http.get('*/api/v1/people', ({ request }) => {
         const params = new URL(request.url).searchParams;
         requestedRoleIds = params.getAll('roleIds');
@@ -165,6 +165,52 @@ describe('People page', () => {
     await waitFor(() => expect(router.state.location.search).toBe('?page=1'));
   });
 
+  it('sorts the whole list on the server and returns to the first page', async () => {
+    const requests: { sort: string | null; order: string | null; page: string | null }[] = [];
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.peoplereadall]))),
+      http.get('*/api/v1/people', ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        requests.push({ sort: params.get('sort'), order: params.get('order'), page: params.get('page') });
+        // The server's order is kept as is, even where it differs from a client-side sort of the page.
+        return HttpResponse.json({
+          ...peoplePage([
+            personFixture({ id: otherPersonId, firstName: 'Zoe', lastName: 'Zuse' }),
+            personFixture({ id: '0192f6f8-743e-7c77-a349-cd07c3e8a9ff', firstName: 'Ada', lastName: 'Lovelace' }),
+          ]),
+          page: Number(params.get('page')),
+          total: 60,
+        });
+      }),
+    );
+
+    const { router } = renderRoute(<App />, '/people?page=2&sort=labRules:DESC');
+    const user = userEvent.setup();
+
+    expect(await screen.findByText('Zoe Zuse')).toBeInTheDocument();
+    // Lab Rules sorting needs its permission, so the default name order applies.
+    expect(requests.at(-1)).toEqual({ sort: 'name', order: 'asc', page: '2' });
+    const names = () =>
+      screen
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => within(row).queryByText(/Zoe Zuse|Ada Lovelace/)?.textContent);
+    expect(names()).toEqual(['Zoe Zuse', 'Ada Lovelace']);
+
+    await user.click(screen.getByRole('button', { name: /Roles/ }));
+    await waitFor(() => expect(requests.at(-1)).toEqual({ sort: 'roles', order: 'asc', page: '1' }));
+    expect(router.state.location.search).toBe('?page=1&sort=roles%3AASC');
+    expect(names()).toEqual(['Zoe Zuse', 'Ada Lovelace']);
+
+    await user.click(screen.getByRole('button', { name: /Roles/ }));
+    await waitFor(() => expect(requests.at(-1)).toEqual({ sort: 'roles', order: 'desc', page: '1' }));
+    expect(screen.getByRole('columnheader', { name: /Roles/ })).toHaveAttribute('aria-sort', 'descending');
+
+    await user.click(screen.getByRole('button', { name: /Name/ }));
+    await waitFor(() => expect(requests.at(-1)).toEqual({ sort: 'name', order: 'asc', page: '1' }));
+    expect(screen.queryByRole('button', { name: /Profile/ })).not.toBeInTheDocument();
+  });
+
   it('keeps Person roles visible while omitting sensitive and Account columns', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.peoplereadall]))),
@@ -188,7 +234,42 @@ describe('People page', () => {
     expect(screen.getByRole('columnheader', { name: /Roles/ })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Lab Rules/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add person' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Filters' })).not.toBeInTheDocument();
+  });
+
+  it('lets a viewer without roles.read filter by the roles shown in the list', async () => {
+    const trainees = roleFixture({ id: '0192f6f8-743e-7c77-a349-cd07c3e8a921', name: 'Trainee', systemKey: 'trainee' });
+    let requestedRoleIds: string[] = [];
+    let roleCatalogRequested = false;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.peoplereadall]))),
+      http.get('*/api/v1/roles', () => {
+        roleCatalogRequested = true;
+        return HttpResponse.json({ items: [], nextCursor: null });
+      }),
+      http.get('*/api/v1/people/role-options', () =>
+        HttpResponse.json({ items: [{ id: trainees.id, name: trainees.name, systemKey: 'trainee' }] }),
+      ),
+      http.get('*/api/v1/people', ({ request }) => {
+        requestedRoleIds = new URL(request.url).searchParams.getAll('roleIds');
+        return HttpResponse.json(peoplePage([personFixture({ roles: [trainees], account: undefined })]));
+      }),
+    );
+    const user = userEvent.setup();
+
+    const { router } = renderRoute(<App />, '/people');
+
+    expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    const filters = screen.getByRole('group', { name: 'People filters' });
+    const roleGroup = within(filters).getByRole('group', { name: 'Role' });
+    expect(within(filters).queryByRole('group', { name: 'Status' })).not.toBeInTheDocument();
+    expect(within(filters).queryByRole('group', { name: 'Lab Rules' })).not.toBeInTheDocument();
+    await user.click(await within(roleGroup).findByRole('checkbox', { name: 'Trainee' }));
+    await user.click(within(filters).getByRole('button', { name: /Apply/ }));
+
+    await waitFor(() => expect(router.state.location.search).toContain(`role=${trainees.id}`));
+    await waitFor(() => expect(requestedRoleIds).toEqual([trainees.id]));
+    expect(roleCatalogRequested).toBe(false);
   });
 
   it('creates selected member accounts with the persons own email as login email', async () => {

@@ -22,5 +22,5 @@ export function ConsumptionTooltip({ status }: { status: MachineRunConsumptionSt
   const notice = consumptionNotice(status);
   if (!notice) return null;
   const message = isOnInternalStorage(status) ? internalStorageShortMessage : notice.message;
-  return <HintTooltip kind="warning" text={`${notice.title}. ${message}`} />;
+  return <HintTooltip kind={notice.kind} text={`${notice.title}. ${message}`} />;
 }

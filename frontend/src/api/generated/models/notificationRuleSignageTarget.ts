@@ -18,14 +18,11 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
 
+/**
+ * Where the notice appears is chosen on the signage displays and display groups, not in the rule.
+ */
 export interface NotificationRuleSignageTarget {
-  /**
-     * @minItems 1
-     * @maxItems 20
-     */
-  displayIds: UUIDv7[];
   /**
      * @minimum 1
      * @maximum 1440

@@ -50,6 +50,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getListMachineRunsUrl = (params?: ListMachineRunsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -102,25 +122,11 @@ export const getBulkCreateMachineJobsFromRunsUrl = () => {
  */
 export const bulkCreateMachineJobsFromRuns = async (bulkCreateMachineJobsRequest: BulkCreateMachineJobsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<BulkCreatedMachineJobs> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<BulkCreatedMachineJobs>(getBulkCreateMachineJobsFromRunsUrl(),
+  return apiFetch<BulkCreatedMachineJobs>(getBulkCreateMachineJobsFromRunsUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(bulkCreateMachineJobsRequest)
   }
 );}
@@ -140,25 +146,11 @@ export const getBulkCombineMachineRunsUrl = () => {
  */
 export const bulkCombineMachineRuns = async (bulkCombineMachineRunsRequest: BulkCombineMachineRunsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineJob> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineJob>(getBulkCombineMachineRunsUrl(),
+  return apiFetch<MachineJob>(getBulkCombineMachineRunsUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(bulkCombineMachineRunsRequest)
   }
 );}
@@ -201,25 +193,11 @@ export const getUpdateMachineRunUrl = (runId: UUIDv7,) => {
 export const updateMachineRun = async (runId: UUIDv7,
     updateMachineRunRequest: UpdateMachineRunRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRunUpdateResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineRunUpdateResult>(getUpdateMachineRunUrl(runId),
+  return apiFetch<MachineRunUpdateResult>(getUpdateMachineRunUrl(runId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateMachineRunRequest)
   }
 );}
@@ -240,25 +218,11 @@ export const getDeleteMachineRunUrl = (runId: UUIDv7,) => {
 export const deleteMachineRun = async (runId: UUIDv7,
     deleteMachineRunRequest: DeleteMachineRunRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteMachineRunUrl(runId),
+  return apiFetch<void>(getDeleteMachineRunUrl(runId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(deleteMachineRunRequest)
   }
 );}
@@ -278,25 +242,11 @@ export const getReplaceMachineRunUsagesUrl = (runId: UUIDv7,) => {
 export const replaceMachineRunUsages = async (runId: UUIDv7,
     replaceMachineRunUsagesRequest: ReplaceMachineRunUsagesRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRunUpdateResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineRunUpdateResult>(getReplaceMachineRunUsagesUrl(runId),
+  return apiFetch<MachineRunUpdateResult>(getReplaceMachineRunUsagesUrl(runId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(replaceMachineRunUsagesRequest)
   }
 );}
@@ -319,25 +269,11 @@ export const switchMachineRunUsageToCustomerMaterial = async (runId: UUIDv7,
     usageId: UUIDv7,
     switchUsageToCustomerMaterialRequest: SwitchUsageToCustomerMaterialRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRunUpdateResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineRunUpdateResult>(getSwitchMachineRunUsageToCustomerMaterialUrl(runId,usageId),
+  return apiFetch<MachineRunUpdateResult>(getSwitchMachineRunUsageToCustomerMaterialUrl(runId,usageId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(switchUsageToCustomerMaterialRequest)
   }
 );}
@@ -358,25 +294,11 @@ export const getSetMachineRunSignageVisibilityUrl = (runId: UUIDv7,) => {
 export const setMachineRunSignageVisibility = async (runId: UUIDv7,
     setMachineRunSignageVisibilityRequest: SetMachineRunSignageVisibilityRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRun> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineRun>(getSetMachineRunSignageVisibilityUrl(runId),
+  return apiFetch<MachineRun>(getSetMachineRunSignageVisibilityUrl(runId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(setMachineRunSignageVisibilityRequest)
   }
 );}
@@ -396,25 +318,11 @@ export const getCancelMachineRunUrl = (runId: UUIDv7,) => {
 export const cancelMachineRun = async (runId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineJob> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineJob>(getCancelMachineRunUrl(runId),
+  return apiFetch<MachineJob>(getCancelMachineRunUrl(runId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -435,25 +343,11 @@ export const getCreateMachineJobFromRunUrl = (runId: UUIDv7,) => {
 export const createMachineJobFromRun = async (runId: UUIDv7,
     createMachineJobFromRunRequest: CreateMachineJobFromRunRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineJob> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineJob>(getCreateMachineJobFromRunUrl(runId),
+  return apiFetch<MachineJob>(getCreateMachineJobFromRunUrl(runId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createMachineJobFromRunRequest)
   }
 );}
@@ -474,25 +368,11 @@ export const getAttachMachineRunUrl = (runId: UUIDv7,) => {
 export const attachMachineRun = async (runId: UUIDv7,
     attachMachineRunRequest: AttachMachineRunRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineJob> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineJob>(getAttachMachineRunUrl(runId),
+  return apiFetch<MachineJob>(getAttachMachineRunUrl(runId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(attachMachineRunRequest)
   }
 );}
@@ -513,25 +393,11 @@ export const getDetachMachineRunUrl = (runId: UUIDv7,) => {
 export const detachMachineRun = async (runId: UUIDv7,
     detachMachineRunRequest: DetachMachineRunRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineJob> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineJob>(getDetachMachineRunUrl(runId),
+  return apiFetch<MachineJob>(getDetachMachineRunUrl(runId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(detachMachineRunRequest)
   }
 );}
@@ -600,25 +466,11 @@ export const getUploadMachineRunArtifactUrl = (runId: UUIDv7,) => {
 export const uploadMachineRunArtifact = async (runId: UUIDv7,
     uploadMachineRunArtifactBody: Blob, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRunArtifactUploadResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineRunArtifactUploadResult>(getUploadMachineRunArtifactUrl(runId),
+  return apiFetch<MachineRunArtifactUploadResult>(getUploadMachineRunArtifactUrl(runId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/octet-stream', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/octet-stream' }, options?.headers),
     body: uploadMachineRunArtifactBody
   }
 );}
@@ -760,25 +612,11 @@ export const getUpdateRunRecordingSettingsUrl = () => {
  */
 export const updateRunRecordingSettings = async (updateRunRecordingSettingsRequest: UpdateRunRecordingSettingsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<RunRecordingSettings> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<RunRecordingSettings>(getUpdateRunRecordingSettingsUrl(),
+  return apiFetch<RunRecordingSettings>(getUpdateRunRecordingSettingsUrl(),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateRunRecordingSettingsRequest)
   }
 );}
@@ -799,25 +637,11 @@ export const getBulkAttachMachineRunsUrl = (machineJobId: UUIDv7,) => {
 export const bulkAttachMachineRuns = async (machineJobId: UUIDv7,
     bulkAttachMachineRunsRequest: BulkAttachMachineRunsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineJob> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineJob>(getBulkAttachMachineRunsUrl(machineJobId),
+  return apiFetch<MachineJob>(getBulkAttachMachineRunsUrl(machineJobId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(bulkAttachMachineRunsRequest)
   }
 );}
@@ -837,25 +661,11 @@ export const getAddManualMachineRunUrl = (machineJobId: UUIDv7,) => {
 export const addManualMachineRun = async (machineJobId: UUIDv7,
     addManualMachineRunRequest: AddManualMachineRunRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineJob> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineJob>(getAddManualMachineRunUrl(machineJobId),
+  return apiFetch<MachineJob>(getAddManualMachineRunUrl(machineJobId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(addManualMachineRunRequest)
   }
 );}
@@ -900,25 +710,11 @@ export const getPurgeMachineJobUrl = (machineJobId: UUIDv7,) => {
 export const purgeMachineJob = async (machineJobId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getPurgeMachineJobUrl(machineJobId),
+  return apiFetch<void>(getPurgeMachineJobUrl(machineJobId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -939,25 +735,11 @@ export const getRestoreMachineJobUrl = (machineJobId: UUIDv7,) => {
 export const restoreMachineJob = async (machineJobId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineJob> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineJob>(getRestoreMachineJobUrl(machineJobId),
+  return apiFetch<MachineJob>(getRestoreMachineJobUrl(machineJobId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -978,25 +760,11 @@ export const getPurgeMachineRunUrl = (runId: UUIDv7,) => {
 export const purgeMachineRun = async (runId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getPurgeMachineRunUrl(runId),
+  return apiFetch<void>(getPurgeMachineRunUrl(runId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -1017,25 +785,11 @@ export const getRestoreMachineRunUrl = (runId: UUIDv7,) => {
 export const restoreMachineRun = async (runId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRun> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<MachineRun>(getRestoreMachineRunUrl(runId),
+  return apiFetch<MachineRun>(getRestoreMachineRunUrl(runId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}

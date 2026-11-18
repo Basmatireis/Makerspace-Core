@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts/parser"
 
 	"github.com/google/uuid"
 )
@@ -569,6 +570,18 @@ func bambuArtifactPath(state map[string]any) string {
 	return candidate
 }
 
+// bambuPlateNumber is the plate of the 3MF the printer runs, from the G-code
+// path it reports inside the archive (/data/Metadata/plate_2.gcode). Core uses
+// it to show that plate's preview of a multi-plate 3MF.
+func bambuPlateNumber(state map[string]any) *int {
+	for _, key := range []string{"gcode_file", "file", "filename"} {
+		if plate := parser.PlateFromGCodePath(scalarString(state[key])); plate != nil {
+			return plate
+		}
+	}
+	return nil
+}
+
 // bambuExplicitArchivePath is an archive name the printer reported itself, as
 // opposed to the name derived from subtask_name.
 func bambuExplicitArchivePath(state map[string]any) string {
@@ -648,6 +661,9 @@ func bambuOperationalState(
 	}
 	if artifactPath := bambuArtifactPath(state); artifactPath != "" && !internalStorage {
 		result["artifactPath"] = artifactPath
+	}
+	if plate := bambuPlateNumber(state); plate != nil {
+		result["plateNumber"] = *plate
 	}
 	return mustJSON(result)
 }
@@ -1049,6 +1065,9 @@ func bambuProgress(state map[string]any, observedAt time.Time, internalStorage b
 	}
 	if artifactPath := bambuArtifactPath(state); artifactPath != "" && !internalStorage {
 		result["artifactPath"] = artifactPath
+	}
+	if plate := bambuPlateNumber(state); plate != nil {
+		result["plateNumber"] = *plate
 	}
 	if percent, ok := boundedInt(state["mc_percent"], 0, 100); ok {
 		result["percent"] = percent

@@ -688,6 +688,7 @@ type MachineRun struct {
 	HiddenFromSignage     bool
 	ArtifactManual        bool
 	FormerJobID           *uuid.UUID
+	PlateNumber           *int32
 }
 
 type MachineRunCommand struct {
@@ -1378,6 +1379,33 @@ type PaymentAllocation struct {
 	CreatedAt            time.Time
 }
 
+type PdfTemplateAsset struct {
+	ID                 uuid.UUID
+	FileName           string
+	ContentType        string
+	ByteSize           int32
+	Sha256             []byte
+	Data               []byte
+	Width              int32
+	Height             int32
+	CreatedByAccountID *uuid.UUID
+	CreatedAt          time.Time
+}
+
+type PdfTemplateVersion struct {
+	ID                   uuid.UUID
+	ExportKind           string
+	Version              int32
+	State                string
+	Document             []byte
+	Revision             int32
+	CreatedByAccountID   *uuid.UUID
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	PublishedAt          pgtype.Timestamptz
+	PublishedByAccountID *uuid.UUID
+}
+
 type PendingLogin struct {
 	ID              uuid.UUID
 	TokenDigest     []byte
@@ -1406,12 +1434,6 @@ type Person struct {
 	ProfileImageSource  *string
 	MemberSince         pgtype.Date
 	LastVisitOn         pgtype.Date
-}
-
-type PersonNotificationSetting struct {
-	PersonID              uuid.UUID
-	AskFeedbackAtCheckout bool
-	UpdatedAt             time.Time
 }
 
 type PersonRole struct {
@@ -2031,6 +2053,9 @@ type SignageAnnouncement struct {
 	Version            int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	OwnLook            bool
+	Color              *string
+	ImageAssetID       *uuid.UUID
 }
 
 type SignageAnnouncementDisplay struct {
@@ -2044,16 +2069,18 @@ type SignageAnnouncementGroup struct {
 }
 
 type SignageAnnouncementTemplate struct {
-	ID         uuid.UUID
-	Name       string
-	Tone       string
-	Title      string
-	Body       string
-	Version    int64
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	BodyFormat string
-	BodyCss    string
+	ID           uuid.UUID
+	Name         string
+	Tone         string
+	Title        string
+	Body         string
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	BodyFormat   string
+	BodyCss      string
+	Color        *string
+	ImageAssetID *uuid.UUID
 }
 
 type SignageAnnouncementTemplateField struct {
@@ -2110,16 +2137,18 @@ type SignageDisplay struct {
 	AspectHeight       int16
 	GroupID            *uuid.UUID
 	Kind               string
+	AllRuleNotices     bool
 }
 
 type SignageDisplayGroup struct {
-	ID           uuid.UUID
-	Name         string
-	AspectWidth  int16
-	AspectHeight int16
-	Version      int64
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID             uuid.UUID
+	Name           string
+	AspectWidth    int16
+	AspectHeight   int16
+	Version        int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	AllRuleNotices bool
 }
 
 type SignageDisplayState struct {
@@ -2132,6 +2161,13 @@ type SignageDisplayState struct {
 	CacheUsedBytes      *int64
 	CacheQuotaBytes     *int64
 	Errors              []byte
+}
+
+type SignageNoticeOptIn struct {
+	ID        uuid.UUID
+	RuleID    uuid.UUID
+	DisplayID *uuid.UUID
+	GroupID   *uuid.UUID
 }
 
 type SignagePairingRequest struct {
@@ -2174,14 +2210,14 @@ type SignageRule struct {
 }
 
 type SignageRuleNotice struct {
-	ID        uuid.UUID
-	FiringID  *uuid.UUID
-	DisplayID uuid.UUID
-	Title     string
-	Body      string
-	Tone      string
-	StartsAt  time.Time
-	EndsAt    time.Time
+	ID       uuid.UUID
+	FiringID *uuid.UUID
+	Title    string
+	Body     string
+	Tone     string
+	StartsAt time.Time
+	EndsAt   time.Time
+	RuleID   uuid.UUID
 }
 
 type SignageRuleScene struct {

@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  GetOrderReceiptPdfParams,
   JobOrderAssociation,
   ListOrdersParams,
   Order,
@@ -31,6 +32,26 @@ import type {
 } from '../models';
 
 import { apiFetch } from '../../http-client';
+
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
 
 export const getListOrdersUrl = (params?: ListOrdersParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -69,25 +90,11 @@ export const getCreateOrderUrl = () => {
 
 export const createOrder = async (orderDraftInput: OrderDraftInput, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getCreateOrderUrl(),
+  return apiFetch<Order>(getCreateOrderUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderDraftInput)
   }
 );}
@@ -124,26 +131,45 @@ export const getUpdateOrderUrl = (orderId: UUIDv7,) => {
 export const updateOrder = async (orderId: UUIDv7,
     updateOrderDraftInput: UpdateOrderDraftInput, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getUpdateOrderUrl(orderId),
+  return apiFetch<Order>(getUpdateOrderUrl(orderId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateOrderDraftInput)
+  }
+);}
+
+
+export const getGetOrderReceiptPdfUrl = (orderId: UUIDv7,
+    params?: GetOrderReceiptPdfParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/orders/${orderId}/receipt.pdf?${stringifiedParams}` : `/api/v1/orders/${orderId}/receipt.pdf`
+}
+
+/**
+ * Requires orders.read. Rendered with the effective receipt template (published, else built-in). Only finalized orders with a settled amount; 409 `receipt_not_available` otherwise. `paymentId` limits the receipt to one payment of the order.
+ * @summary Download the receipt of a finalized order as PDF
+ */
+export const getOrderReceiptPdf = async (orderId: UUIDv7,
+    params?: GetOrderReceiptPdfParams, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getGetOrderReceiptPdfUrl(orderId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 
@@ -156,28 +182,17 @@ export const getAddOrderItemUrl = (orderId: UUIDv7,) => {
   return `/api/v1/orders/${orderId}/items`
 }
 
+/**
+ * Adds an item to a draft order. A machine job whose nothingToBill is true is refused with 409 nothing_to_bill.
+ */
 export const addOrderItem = async (orderId: UUIDv7,
     orderItemInput: OrderItemInput, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getAddOrderItemUrl(orderId),
+  return apiFetch<Order>(getAddOrderItemUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderItemInput)
   }
 );}
@@ -196,25 +211,11 @@ export const updateOrderItem = async (orderId: UUIDv7,
     itemId: UUIDv7,
     orderItemInput: OrderItemInput, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getUpdateOrderItemUrl(orderId,itemId),
+  return apiFetch<Order>(getUpdateOrderItemUrl(orderId,itemId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderItemInput)
   }
 );}
@@ -233,25 +234,11 @@ export const removeOrderItem = async (orderId: UUIDv7,
     itemId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getRemoveOrderItemUrl(orderId,itemId),
+  return apiFetch<Order>(getRemoveOrderItemUrl(orderId,itemId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -270,25 +257,11 @@ export const refreshOrderItem = async (orderId: UUIDv7,
     itemId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getRefreshOrderItemUrl(orderId,itemId),
+  return apiFetch<Order>(getRefreshOrderItemUrl(orderId,itemId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -305,25 +278,11 @@ export const getFinalizeOrderUrl = (orderId: UUIDv7,) => {
 export const finalizeOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getFinalizeOrderUrl(orderId),
+  return apiFetch<Order>(getFinalizeOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -340,25 +299,11 @@ export const getCheckoutOrderUrl = (orderId: UUIDv7,) => {
 export const checkoutOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getCheckoutOrderUrl(orderId),
+  return apiFetch<Order>(getCheckoutOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -375,25 +320,11 @@ export const getCancelOrderUrl = (orderId: UUIDv7,) => {
 export const cancelOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getCancelOrderUrl(orderId),
+  return apiFetch<Order>(getCancelOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -410,25 +341,36 @@ export const getReverseOrderUrl = (orderId: UUIDv7,) => {
 export const reverseOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getReverseOrderUrl(orderId),
+  return apiFetch<Order>(getReverseOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(orderCommand)
+  }
+);}
+
+
+export const getDiscardReplacementOrderUrl = (orderId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/orders/${orderId}/discard`
+}
+
+/**
+ * Requires `orders.read` and `orders.write`. Deletes the replacement draft `orderId` with its items; it never had a financial effect, so no cancelled order is left behind. Only drafts created through createReplacementOrder can be discarded (409 `order_not_replacement` otherwise, 409 `order_not_draft` once committed). Answers the original order, audited there as `order.replacement_discarded`.
+ * @summary Discard an open replacement draft
+ */
+export const discardReplacementOrder = async (orderId: UUIDv7,
+    orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
+
+  return apiFetch<Order>(getDiscardReplacementOrderUrl(orderId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -442,28 +384,18 @@ export const getCreateReplacementOrderUrl = (orderId: UUIDv7,) => {
   return `/api/v1/orders/${orderId}/replacements`
 }
 
+/**
+ * Requires `orders.read` and `orders.write`. Creates a draft already linked to the original (`replacesOrderId`) with the original's customer and items. An original has at most one open replacement draft (409 `replacement_in_progress`; continue or discard it) and no replacement once one was committed (409 `order_already_replaced`). Commit it with replaceOrder, drop it with discardReplacementOrder.
+ * @summary Start a replacement draft for a finalized or reversed order
+ */
 export const createReplacementOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getCreateReplacementOrderUrl(orderId),
+  return apiFetch<Order>(getCreateReplacementOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}
@@ -477,28 +409,18 @@ export const getReplaceOrderUrl = (orderId: UUIDv7,) => {
   return `/api/v1/orders/${orderId}/replace`
 }
 
+/**
+ * Requires `orders.read`, `orders.reverse`, `orders.finalize`, `payments.read` and `payments.record`. In one transaction reverses the original `orderId` (when still finalized), moves its remaining payments over and finalizes `replacementOrderId`, which must be the original's open replacement draft.
+ * @summary Commit the replacement draft of an order
+ */
 export const replaceOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getReplaceOrderUrl(orderId),
+  return apiFetch<Order>(getReplaceOrderUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(orderCommand)
   }
 );}

@@ -50,6 +50,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getPayOwnBalanceUrl = () => {
 
 
@@ -74,25 +94,11 @@ export const getPayOwnBalanceUrl = () => {
  */
 export const payOwnBalance = async (ownPaymentRequest: OwnPaymentRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OwnPaymentResult> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OwnPaymentResult>(getPayOwnBalanceUrl(),
+  return apiFetch<OwnPaymentResult>(getPayOwnBalanceUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(ownPaymentRequest)
   }
 );}
@@ -156,25 +162,11 @@ export const getRecordOrderPaymentUrl = (orderId: UUIDv7,) => {
 export const recordOrderPayment = async (orderId: UUIDv7,
     recordOrderPaymentBody: RecordOrderPayment, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getRecordOrderPaymentUrl(orderId),
+  return apiFetch<Order>(getRecordOrderPaymentUrl(orderId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(recordOrderPaymentBody)
   }
 );}
@@ -191,25 +183,11 @@ export const getReverseOrderPaymentUrl = (paymentId: UUIDv7,) => {
 export const reverseOrderPayment = async (paymentId: UUIDv7,
     reversePaymentCommand: ReversePaymentCommand, options?: Parameters<typeof apiFetch>[1]): Promise<Order> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<Order>(getReverseOrderPaymentUrl(paymentId),
+  return apiFetch<Order>(getReverseOrderPaymentUrl(paymentId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(reversePaymentCommand)
   }
 );}
@@ -328,7 +306,7 @@ export const getExportCashbookUrl = (params: ExportCashbookParams,) => {
 }
 
 /**
- * Requires payments.read and cash_movements.read. The whole days `from` through `to` (makerspace time zone), as an attachment. `cash_register` covers cash receipts, refunds and corrections, withdrawals, deposits and count corrections with the balance carried forward from the opening balance; `all_payments` adds card and external (wiRef) payments and has no balance. PDF: the HTU Kassabuch form (Nr., Datum, Kassierer*in, Text, Einnahme, Ausgabe), 14 rows on the first sheet and 17 on every further one, each sheet opening with the balance carried over and closing with Summe/Bestand, then a final sheet with the totals, the opening and closing balance and three signature fields. CSV: semicolon-separated, decimal comma, UTF-8 with byte order mark, columns Date;Reference;Description;In;Out plus Balance for the cash register (whose first row is the opening balance); text that a spreadsheet would read as a formula is prefixed with a single quote. Customer names appear only with orders.read. 422 `cashbook_export_too_large` above 5000 entries.
+ * Requires payments.read and cash_movements.read. The whole days `from` through `to` (makerspace time zone), as an attachment. `cash_register` covers cash receipts, refunds and corrections, withdrawals, deposits and count corrections with the balance carried forward from the opening balance; `all_payments` adds card and external (wiRef) payments and has no balance. PDF: rendered with the published cashbook PDF template, else the built-in default, which is the HTU Kassabuch form (14 rows on the first sheet and 17 on every further one, each sheet opening with the balance carried over and closing with Summe/Bestand, then a closing sheet with the totals and three signature fields). CSV: semicolon-separated, decimal comma, UTF-8 with byte order mark, columns Date;Reference;Description;In;Out plus Balance for the cash register (whose first row is the opening balance); text that a spreadsheet would read as a formula is prefixed with a single quote. Customer names and order summaries appear only with orders.read. 422 `cashbook_export_too_large` above 5000 entries.
  * @summary Download the cashbook
  */
 export const exportCashbook = async (params: ExportCashbookParams, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
@@ -388,25 +366,11 @@ export const getRecordCashCountUrl = () => {
  */
 export const recordCashCount = async (createCashCountRequest: CreateCashCountRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CashCount> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<CashCount>(getRecordCashCountUrl(),
+  return apiFetch<CashCount>(getRecordCashCountUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createCashCountRequest)
   }
 );}
@@ -427,25 +391,11 @@ export const getUpdateCashCountUrl = (countId: UUIDv7,) => {
 export const updateCashCount = async (countId: UUIDv7,
     updateCashCountRequest: UpdateCashCountRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CashCount> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<CashCount>(getUpdateCashCountUrl(countId),
+  return apiFetch<CashCount>(getUpdateCashCountUrl(countId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateCashCountRequest)
   }
 );}
@@ -466,25 +416,11 @@ export const getDeleteCashCountUrl = (countId: UUIDv7,) => {
 export const deleteCashCount = async (countId: UUIDv7,
     deleteCashEntryRequest: DeleteCashEntryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteCashCountUrl(countId),
+  return apiFetch<void>(getDeleteCashCountUrl(countId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(deleteCashEntryRequest)
   }
 );}
@@ -535,25 +471,11 @@ export const getCreateCashMovementUrl = () => {
  */
 export const createCashMovement = async (createCashMovementRequest: CreateCashMovementRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CashMovement> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<CashMovement>(getCreateCashMovementUrl(),
+  return apiFetch<CashMovement>(getCreateCashMovementUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createCashMovementRequest)
   }
 );}
@@ -574,25 +496,11 @@ export const getUpdateCashMovementUrl = (movementId: UUIDv7,) => {
 export const updateCashMovement = async (movementId: UUIDv7,
     updateCashMovementRequest: UpdateCashMovementRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CashMovement> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<CashMovement>(getUpdateCashMovementUrl(movementId),
+  return apiFetch<CashMovement>(getUpdateCashMovementUrl(movementId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateCashMovementRequest)
   }
 );}
@@ -613,25 +521,11 @@ export const getDeleteCashMovementUrl = (movementId: UUIDv7,) => {
 export const deleteCashMovement = async (movementId: UUIDv7,
     deleteCashEntryRequest: DeleteCashEntryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteCashMovementUrl(movementId),
+  return apiFetch<void>(getDeleteCashMovementUrl(movementId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(deleteCashEntryRequest)
   }
 );}

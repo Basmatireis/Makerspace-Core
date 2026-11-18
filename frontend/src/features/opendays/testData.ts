@@ -97,6 +97,7 @@ export const supervisorViewer: Viewer = {
   canSignUp: true,
   canAssign: false,
   canManage: false,
+  canEditPast: false,
   canSeePeople: true,
 };
 export const managerViewer: Viewer = { ...supervisorViewer, canAssign: true, canManage: true };

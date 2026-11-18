@@ -72,6 +72,13 @@ export interface Order {
   activeExternalRequestState?: string | null;
   /** @nullable */
   replacedByOrderReference?: string | null;
+  /**
+     * The open replacement draft of this finalized or reversed order (at most one); null when none is in progress.
+     * @nullable
+     */
+  pendingReplacementOrderId?: string | null;
+  /** @nullable */
+  pendingReplacementOrderReference?: string | null;
   /** Display name of the person who created the order; null once that person was deleted. */
   createdBy: ActorReference | null;
   /** What needs someone's attention on this order; empty when nothing does. */

@@ -757,3 +757,56 @@ describe('calendar widget', () => {
     expect(container.querySelectorAll('.sg-cal__day')).toHaveLength(35);
   });
 });
+
+describe('announcement look', () => {
+  const renderLook = (look: Record<string, string | null>, style: 'banner' | 'card' | 'full' = 'card') => {
+    const { container } = render(
+      <SceneRenderer
+        scene={scene({
+          main: {
+            type: 'announcement',
+            templateIds: [],
+            style,
+            whenNone: 'empty',
+            fallbackText: '',
+            whenMany: 'stack',
+            rotateSeconds: 10,
+          },
+        })}
+        data={data({
+          announcements: [
+            { id: 'a', templateId: 't', tone: 'warning', title: 'Closed', body: '', startsAt: NOW, ...look },
+          ],
+        })}
+      />,
+    );
+    return container.querySelector<HTMLElement>('.sg-ann')!;
+  };
+
+  it('keeps the tone colour without a look', () => {
+    const element = renderLook({});
+    expect(element.style.getPropertyValue('--sg-ann-bg')).toBe('');
+    expect(element.style.color).toBe('');
+    expect(element).not.toHaveClass('sg-ann--image');
+  });
+
+  it('applies the colour and its text colour', () => {
+    const element = renderLook({ color: '#0f62fe', textColor: '#ffffff' });
+    expect(element.style.getPropertyValue('--sg-ann-bg')).toBe('#0f62fe');
+    expect(element.style.color).toBe('rgb(255, 255, 255)');
+    expect(element).not.toHaveClass('sg-ann--image');
+  });
+
+  it.each(['banner', 'card', 'full'] as const)('puts the image behind the %s with the colour as tint', (style) => {
+    const element = renderLook({ color: '#da1e28', textColor: '#ffffff', imageUrl: '/media/a.png' }, style);
+    expect(element).toHaveClass('sg-ann--image');
+    expect(element.style.getPropertyValue('--sg-ann-image')).toBe('url("/media/a.png")');
+    expect(element.style.getPropertyValue('--sg-ann-bg')).toBe('#da1e28');
+  });
+
+  it('tints an image with the tone colour when there is no own colour', () => {
+    const element = renderLook({ imageUrl: '/media/a.png' });
+    expect(element).toHaveClass('sg-ann--image', 'sg-ann--warning');
+    expect(element.style.getPropertyValue('--sg-ann-bg')).toBe('');
+  });
+});

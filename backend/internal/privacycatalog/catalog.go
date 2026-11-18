@@ -51,6 +51,7 @@ const (
 	ActorReferences        privacy.CategoryID = "platform.actor_references"
 	FileBlobs              privacy.CategoryID = "files.blobs"
 	ConfigurationContacts  privacy.CategoryID = "configuration.contacts"
+	ConfigurationPDF       privacy.CategoryID = "configuration.pdf_templates"
 	PrivacyRecords         privacy.CategoryID = "privacy.records"
 )
 
@@ -442,10 +443,10 @@ func declarations() []privacy.Definition {
 		},
 		{
 			ID: NotificationConsents, Owner: Platform, Name: "Notification consents",
-			Description:    "A person's answers to the notification categories that need consent, and whether the tablet may ask for feedback at check-out.",
-			Contains:       "The answer (yes or no) to each consent category, the version of its text, the time and place of the answer, and the feedback-at-check-out switch, per person",
+			Description:    "A person's answers to the notification categories that need consent.",
+			Contains:       "The answer (yes or no) to each consent category, the version of its text, and the time and place of the answer, per person",
 			ErasureOutcome: privacy.ErasureErased,
-			Fields:         []string{"notification_consents.*", "person_notification_settings.*"},
+			Fields:         []string{"notification_consents.*"},
 			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt, privacy.TriggerEndedAt},
 			Actions:        []privacy.Action{privacy.ActionDelete},
 			Subject:        privacy.SubjectPerson,
@@ -510,7 +511,8 @@ func declarations() []privacy.Definition {
 				"privacy_retention_runs.actor_account_id", "privacy_processing_activities.updated_by_account_id",
 				"privacy_subject_requests.identity_verified_by_account_id", "privacy_subject_requests.approved_by_account_id",
 				"privacy_subject_requests.executed_by_account_id", "privacy_subject_requests.created_by_account_id",
-				"privacy_subject_request_steps.actor_account_id",
+				"privacy_subject_request_steps.actor_account_id", "pdf_template_versions.created_by_account_id",
+				"pdf_template_versions.published_by_account_id", "pdf_template_assets.created_by_account_id",
 			},
 			Triggers: []privacy.Trigger{privacy.TriggerAccountClosedAt},
 			Actions:  []privacy.Action{privacy.ActionUnlink},
@@ -553,6 +555,19 @@ func declarations() []privacy.Definition {
 			Triggers: []privacy.Trigger{privacy.TriggerLastUsedAt},
 			Actions:  []privacy.Action{privacy.ActionRetainWithReview},
 			Subject:  privacy.SubjectNone,
+		},
+		{
+			ID: ConfigurationPDF, Owner: Platform, Name: "PDF template content",
+			Description: "Template documents of the wiRef, cashbook and receipt PDFs with their archived versions, and the images and graphics uploaded for them.",
+			Contains:    "Template texts and layout, uploaded images and graphics, their file names",
+			Fields: []string{
+				"pdf_template_versions.document", "pdf_template_assets.data", "pdf_template_assets.file_name",
+			},
+			Triggers: []privacy.Trigger{privacy.TriggerCreatedAt},
+			Actions:  []privacy.Action{privacy.ActionRetainWithReview},
+			Subject:  privacy.SubjectNone,
+			RetentionNote: "Archived versions and unused images are kept until an administrator deletes them (an image only while no " +
+				"draft or published template uses it); there is no automatic deletion. Image metadata is stripped at upload.",
 		},
 	}
 }

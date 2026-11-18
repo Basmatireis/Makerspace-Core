@@ -1,6 +1,6 @@
 import { Tile } from '@carbon/react';
 import type { ComponentType, ReactNode } from 'react';
-import type { NotificationCatalog } from '../../../api/generated/models';
+import type { NotificationCatalog, NotificationRuleSignageShownOn } from '../../../api/generated/models';
 import type { Definition } from '../ruleModel';
 import type { NameLookup } from '../ruleText';
 
@@ -13,6 +13,10 @@ export type StepProps = {
   personal?: boolean;
   /** "Selected machines" chosen in the When step, for the event named; empty selection is invalid, not "all". */
   machineScope?: { choosingFor?: string; setChoosingFor: (event?: string) => void; invalid: boolean };
+  /** Where the saved rule's signage notices show; absent for a rule that is not saved yet. */
+  signageShownOn?: NotificationRuleSignageShownOn;
+  /** Whether the "Shown on" names link to the signage pages (the viewer can read signage). */
+  signageLinks?: boolean;
   edit: (recipe: (draft: Definition) => void, options?: { prune?: boolean }) => void;
 };
 

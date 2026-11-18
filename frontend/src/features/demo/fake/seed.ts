@@ -637,6 +637,7 @@ export function createStore(user: CurrentUser, now: Date = new Date()): DemoStor
       calculatedPrice: null,
       priceAdjustment: null,
       effectivePrice: null,
+      nothingToBill: false,
       hiddenFromSignage: false,
       attention: [],
       version: 1,

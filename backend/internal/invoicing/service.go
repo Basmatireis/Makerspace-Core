@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"regexp"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
 	mailservice "github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifications"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates/engine"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -51,25 +51,25 @@ type Notifier interface {
 		attachments ...mailservice.Attachment,
 	) error
 	RenderBranded(ctx context.Context, content notifications.Content) (text, htmlBody string)
-	Branding(ctx context.Context) notifications.Branding
-}
-
-// MarkSource returns the brand shown at the top of the PDF.
-type MarkSource interface {
-	DocumentMark(ctx context.Context) branding.DocumentMark
 }
 
 // Service owns the wiRef delivery settings and sends the mail.
 type Service struct {
 	pool     *pgxpool.Pool
 	notifier Notifier
-	marks    MarkSource
+	pdf      PDFRenderer
 }
 
-// NewService returns the delivery service. marks may be nil; the PDF header then shows the application and
-// organization names of the mail branding without a logo.
-func NewService(pool *pgxpool.Pool, notifier Notifier, marks MarkSource) *Service {
-	return &Service{pool: pool, notifier: notifier, marks: marks}
+// NewService returns the delivery service. Until WithPDFTemplates is called the PDF is rendered with the built-in
+// default template, without logo.
+func NewService(pool *pgxpool.Pool, notifier Notifier) *Service {
+	return &Service{pool: pool, notifier: notifier, pdf: pdftemplates.BuiltinRenderer{}}
+}
+
+// WithPDFTemplates makes the PDF follow the published wiRef template and show the branding logo.
+func (s *Service) WithPDFTemplates(renderer PDFRenderer) *Service {
+	s.pdf = renderer
+	return s
 }
 
 // Deliver renders and sends the document with the saved settings. It never returns an error: the caller records the
@@ -87,7 +87,7 @@ func (s *Service) Deliver(ctx context.Context, d Document) Outcome {
 
 func (s *Service) send(ctx context.Context, settings Settings, d Document, subjectPrefix string) Outcome {
 	subject, content := settings.MailContent(d)
-	pdf, err := s.pdf(ctx, settings, d)
+	pdf, filename, err := s.render(ctx, settings, d)
 	if err != nil {
 		return failed(ctx, FailureRenderFailed)
 	}
@@ -98,7 +98,7 @@ func (s *Service) send(ctx context.Context, settings Settings, d Document, subje
 		settings.ReplyToEmail,
 		subjectPrefix+subject,
 		content,
-		mailservice.Attachment{Name: pdfFilename(d.RequestNumber), ContentType: "application/pdf", Data: pdf},
+		mailservice.Attachment{Name: filename, ContentType: "application/pdf", Data: pdf},
 	)
 	switch {
 	case err == nil:
@@ -116,30 +116,20 @@ func failed(ctx context.Context, code string) Outcome {
 	return Outcome{Status: DeliveryFailed, FailureCode: code}
 }
 
-func (s *Service) pdf(ctx context.Context, settings Settings, d Document) ([]byte, error) {
-	brand := s.notifier.Branding(ctx)
-	mark := Mark{OrganizationName: brand.OrganizationName, DisplayName: brand.ApplicationName}
-	if s.marks != nil {
-		source := s.marks.DocumentMark(ctx)
-		mark = Mark{OrganizationName: source.OrganizationName, DisplayName: source.DisplayName}
-		switch source.LogoType {
-		case "image/png":
-			mark.Logo = &Logo{Data: source.Logo, Type: "PNG"}
-		case "image/jpeg":
-			mark.Logo = &Logo{Data: source.Logo, Type: "JPG"}
-		}
-	}
-	return RenderPDF(brand, mark, settings, d)
+// render draws the document with the effective wiRef template. The rendering carries no sensitive fields, so it
+// needs no reader permissions.
+func (s *Service) render(ctx context.Context, settings Settings, d Document) (pdf []byte, filename string, err error) {
+	return s.pdf.RenderEffective(ctx, engine.KindWiRef, d.PDFData(settings), nil)
 }
 
-var unsafeFilename = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
-
-func pdfFilename(requestNumber string) string {
-	name := unsafeFilename.ReplaceAllString(requestNumber, "-")
-	if name == "" {
-		name = "request"
+// PDFData is the wiRef template data of a document with the saved settings; the PDF template previews use it for
+// real invoice requests.
+func (s *Service) PDFData(ctx context.Context, d Document) (engine.Data, error) {
+	settings, err := s.loadSettings(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return "invoice-request-" + name + ".pdf"
+	return d.PDFData(settings), nil
 }
 
 // MailPreview is a rendered sample mail.
@@ -190,7 +180,8 @@ func (s *Service) PreviewPDF(
 	if err != nil {
 		return nil, err
 	}
-	return s.pdf(ctx, settings, SampleDocument(time.Now()))
+	pdf, _, err := s.render(ctx, settings, SampleDocument(time.Now()))
+	return pdf, err
 }
 
 // SendTestMail sends the saved templates with fictitious data to the saved recipient. It works while sending is

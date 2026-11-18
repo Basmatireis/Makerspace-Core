@@ -1,0 +1,475 @@
+{
+ "schemaVersion": 1,
+ "name": "Order receipt",
+ "export": "receipt",
+ "page": {
+  "size": "A4",
+  "orientation": "portrait",
+  "margins": [
+   30,
+   20,
+   22,
+   20
+  ],
+  "font": "IBM Plex Sans",
+  "baseSize": 10,
+  "accent": "$c:accent",
+  "locale": "en",
+  "accentBar": true,
+  "filename": "receipt-{{order.number}}.pdf"
+ },
+ "styles": {
+  "colors": [
+   {
+    "id": "text",
+    "name": "Text",
+    "value": "#161616"
+   },
+   {
+    "id": "muted",
+    "name": "Muted",
+    "value": "#525252"
+   },
+   {
+    "id": "subtle",
+    "name": "Subtle",
+    "value": "#6f6f6f"
+   },
+   {
+    "id": "accent",
+    "name": "Accent",
+    "value": "#0f62fe"
+   },
+   {
+    "id": "rule",
+    "name": "Rule",
+    "value": "#c6c6c6"
+   },
+   {
+    "id": "fill",
+    "name": "Fill",
+    "value": "#f4f4f4"
+   }
+  ],
+  "text": [
+   {
+    "id": "title",
+    "name": "Title",
+    "font": "IBM Plex Sans",
+    "size": 17,
+    "weight": 600,
+    "lineHeight": 1.3,
+    "color": "$c:text"
+   },
+   {
+    "id": "section",
+    "name": "Section",
+    "font": "IBM Plex Sans",
+    "size": 10.5,
+    "weight": 600,
+    "lineHeight": 1.35,
+    "color": "$c:text"
+   },
+   {
+    "id": "body",
+    "name": "Body",
+    "font": "IBM Plex Sans",
+    "size": 10,
+    "weight": 400,
+    "lineHeight": 1.4,
+    "color": "$c:text"
+   },
+   {
+    "id": "label",
+    "name": "Label",
+    "font": "IBM Plex Sans",
+    "size": 10,
+    "weight": 400,
+    "lineHeight": 1.4,
+    "color": "$c:muted"
+   },
+   {
+    "id": "small",
+    "name": "Small",
+    "font": "IBM Plex Sans",
+    "size": 8,
+    "weight": 400,
+    "lineHeight": 1.35,
+    "color": "$c:subtle"
+   },
+   {
+    "id": "tableHead",
+    "name": "Table header",
+    "font": "IBM Plex Sans",
+    "size": 9.5,
+    "weight": 600,
+    "lineHeight": 1.9,
+    "color": "$c:text"
+   },
+   {
+    "id": "cell",
+    "name": "Table cell",
+    "font": "IBM Plex Sans",
+    "size": 10,
+    "weight": 400,
+    "lineHeight": 1.6,
+    "color": "$c:text"
+   },
+   {
+    "id": "totals",
+    "name": "Totals",
+    "font": "IBM Plex Sans",
+    "size": 10,
+    "weight": 400,
+    "lineHeight": 1.9,
+    "color": "$c:text"
+   },
+   {
+    "id": "brandSmall",
+    "name": "Brand organization",
+    "font": "IBM Plex Sans",
+    "size": 8,
+    "weight": 400,
+    "lineHeight": 1.4173,
+    "color": "$c:muted"
+   },
+   {
+    "id": "brand",
+    "name": "Brand name",
+    "font": "IBM Plex Sans",
+    "size": 13,
+    "weight": 600,
+    "lineHeight": 1.3083,
+    "color": "$c:text"
+   },
+   {
+    "id": "footer",
+    "name": "Footer",
+    "font": "IBM Plex Sans",
+    "size": 8,
+    "weight": 400,
+    "lineHeight": 1.7717,
+    "color": "$c:subtle"
+   }
+  ],
+  "sizes": [
+   {
+    "id": "gapS",
+    "name": "Gap S",
+    "value": 4,
+    "unit": "mm"
+   },
+   {
+    "id": "gapM",
+    "name": "Gap M",
+    "value": 6,
+    "unit": "mm"
+   },
+   {
+    "id": "gapL",
+    "name": "Gap L",
+    "value": 8,
+    "unit": "mm"
+   }
+  ]
+ },
+ "layers": [],
+ "header": [
+  {
+   "id": "brand",
+   "type": "columns",
+   "title": "Logo and names",
+   "gap": 3.5,
+   "columns": [
+    {
+     "width": 0,
+     "blocks": [
+      {
+       "id": "logo",
+       "type": "image",
+       "title": "Logo",
+       "height": 12
+      }
+     ]
+    },
+    {
+     "width": 1,
+     "blocks": [
+      {
+       "id": "brand-space",
+       "type": "spacer",
+       "title": "Space above the name",
+       "height": 1
+      },
+      {
+       "id": "brand-name",
+       "type": "value",
+       "title": "Organization and application name",
+       "label": "{{makerspace.name | upper}}",
+       "value": "{{makerspace.displayName}}",
+       "labelStyle": "brandSmall",
+       "textStyle": "brand"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "body": [
+  {
+   "id": "title-row",
+   "type": "columns",
+   "title": "Title, date and customer",
+   "gap": 8,
+   "columns": [
+    {
+     "width": 1,
+     "blocks": [
+      {
+       "id": "title",
+       "type": "heading",
+       "title": "Document title",
+       "text": "Receipt",
+       "textStyle": "title"
+      },
+      {
+       "id": "order-number",
+       "type": "text",
+       "title": "Order number",
+       "text": "Order {{order.number}}",
+       "textStyle": "label"
+      }
+     ]
+    },
+    {
+     "width": 1,
+     "blocks": [
+      {
+       "id": "order-facts",
+       "type": "fields",
+       "title": "Date and customer",
+       "labelWidth": 30,
+       "labelStyle": "label",
+       "valueStyle": "body",
+       "rows": [
+        {
+         "label": "Date",
+         "value": "{{order.createdAt | date}}"
+        },
+        {
+         "label": "Customer",
+         "value": "{{order.customer.name}}",
+         "when": {
+          "path": "order.customer.name",
+          "op": "exists"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "single-payment",
+   "type": "if",
+   "title": "Receipt of one payment, when it is one",
+   "when": {
+    "path": "payment.reference",
+    "op": "exists"
+   },
+   "then": [
+    {
+     "id": "single-payment-note",
+     "type": "text",
+     "title": "Payment of this receipt",
+     "text": "Receipt for payment {{payment.reference}} of {{payment.amount | currency}} on {{payment.paidAt | date}} ({{payment.method}}).",
+     "textStyle": "body"
+    }
+   ],
+   "else": []
+  },
+  {
+   "id": "items-space",
+   "type": "spacer",
+   "title": "Space before the items",
+   "height": "$s:gapM"
+  },
+  {
+   "id": "items",
+   "type": "table",
+   "title": "Items and totals",
+   "source": "items",
+   "as": "item",
+   "repeatHeader": true,
+   "headerStyle": "tableHead",
+   "bodyStyle": "cell",
+   "totalsStyle": "totals",
+   "subStyle": "small",
+   "headerFill": "$c:fill",
+   "headerRule": "$c:text",
+   "rowRule": "$c:rule",
+   "columns": [
+    {
+     "header": "Item",
+     "value": "{{item.description}}",
+     "sub": "{{item.detail}}",
+     "width": 86,
+     "align": "left"
+    },
+    {
+     "header": "Quantity",
+     "value": "{{item.quantity}}{{item.unit | prefix(\" \")}}",
+     "width": 26,
+     "align": "right"
+    },
+    {
+     "header": "Unit price",
+     "value": "{{item.unitPrice | currency}}",
+     "width": 28,
+     "align": "right"
+    },
+    {
+     "header": "Amount",
+     "value": "{{item.amount | currency}}",
+     "width": 30,
+     "align": "right"
+    }
+   ],
+   "totals": [
+    {
+     "label": "Total",
+     "value": "{{order.total | currency}}",
+     "bold": true
+    },
+    {
+     "label": "Paid",
+     "value": "{{order.paid | currency}}"
+    },
+    {
+     "label": "Open",
+     "value": "{{order.open | currency}}",
+     "when": {
+      "path": "order.open",
+      "op": "gt",
+      "value": "0"
+     }
+    }
+   ]
+  },
+  {
+   "id": "payments-section",
+   "type": "if",
+   "title": "Payments, when there are any",
+   "when": {
+    "path": "payments",
+    "op": "exists"
+   },
+   "then": [
+    {
+     "id": "payments-space",
+     "type": "spacer",
+     "title": "Space before the payments",
+     "height": "$s:gapS"
+    },
+    {
+     "id": "payments-heading",
+     "type": "heading",
+     "title": "Payments heading",
+     "text": "Payments",
+     "textStyle": "section"
+    },
+    {
+     "id": "payments",
+     "type": "table",
+     "title": "Payments",
+     "source": "payments",
+     "as": "payment",
+     "repeatHeader": true,
+     "headerStyle": "tableHead",
+     "bodyStyle": "cell",
+     "totalsStyle": "totals",
+     "subStyle": "small",
+     "headerFill": "transparent",
+     "headerRule": "$c:text",
+     "rowRule": "$c:rule",
+     "columns": [
+      {
+       "header": "Payment",
+       "value": "{{payment.reference}}",
+       "width": 50,
+       "align": "left"
+      },
+      {
+       "header": "Date",
+       "value": "{{payment.paidAt | date}}",
+       "width": 40,
+       "align": "left"
+      },
+      {
+       "header": "Method",
+       "value": "{{payment.method}}",
+       "width": 50,
+       "align": "left"
+      },
+      {
+       "header": "Amount",
+       "value": "{{payment.amount | currency}}",
+       "width": 30,
+       "align": "right"
+      }
+     ]
+    }
+   ],
+   "else": []
+  },
+  {
+   "id": "note-space",
+   "type": "spacer",
+   "title": "Space before the note",
+   "height": "$s:gapL"
+  },
+  {
+   "id": "note",
+   "type": "text",
+   "title": "Not-an-invoice note",
+   "text": "This receipt confirms the payments listed above. It is not an invoice.",
+   "textStyle": "small"
+  }
+ ],
+ "footer": [
+  {
+   "id": "footer-line",
+   "type": "columns",
+   "title": "Footer line",
+   "gap": 0,
+   "columns": [
+    {
+     "width": 1,
+     "blocks": [
+      {
+       "id": "footer-reference",
+       "type": "text",
+       "title": "Makerspace name and address",
+       "text": "{{makerspace.name}}{{makerspace.address | prefix(\" · \")}}",
+       "textStyle": "footer"
+      }
+     ]
+    },
+    {
+     "width": 0,
+     "blocks": [
+      {
+       "id": "footer-page",
+       "type": "text",
+       "title": "Page number",
+       "text": "Page {{page}} / {{pages}}",
+       "textStyle": "footer",
+       "align": "right"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

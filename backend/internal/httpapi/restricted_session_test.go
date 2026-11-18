@@ -32,7 +32,6 @@ func TestNotificationSettingsSessionsReachOnlyTheirOperations(t *testing.T) {
 		routeKey(http.MethodPost, "/auth/activity"),
 		routeKey(http.MethodPost, "/auth/logout"),
 		routeKey(http.MethodPut, "/me/notifications/consents"),
-		routeKey(http.MethodPut, "/me/notifications/feedback-at-checkout"),
 		routeKey(http.MethodPut, "/me/notifications/rules/{ruleId}/preference"),
 	}
 	slices.Sort(want)

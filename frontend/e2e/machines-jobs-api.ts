@@ -354,6 +354,7 @@ export function jobFixture(overrides: JobInit): MachineJob {
     calculatedPrice: '12.50',
     priceAdjustment: null,
     effectivePrice: '12.50',
+    nothingToBill: false,
     hiddenFromSignage: false,
     attention: [],
     version: 3,
@@ -757,6 +758,8 @@ export function createWorld(permissions: string[] = staffPermissions) {
     permissions,
     /** `notification_settings` serves /auth/me as a restricted session opened from a mailed link. */
     restriction: null as null | 'notification_settings',
+    /** The person still has to answer the notification consent question shown in place of the application. */
+    consentRequired: false,
     notificationSettings: notificationSettings(),
     machines,
     materials,
@@ -958,7 +961,6 @@ function notificationSettings() {
   return {
     consents: [consent(951, 'Service & safety', 'required', null), consent(952, 'News & events', 'consent', true)],
     consentPending: false,
-    askFeedbackAtCheckout: true,
     rules: [
       {
         ruleId: id(961),
@@ -977,7 +979,7 @@ function notificationSettings() {
   };
 }
 
-function currentUser(permissions: string[], restriction: string | null = null) {
+function currentUser(permissions: string[], restriction: string | null = null, consentRequired = false) {
   const personId = id(1);
   const accountId = id(2);
   const account = {
@@ -1034,7 +1036,7 @@ function currentUser(permissions: string[], restriction: string | null = null) {
       deviceTypeIds: [],
       minimumAssurance: 'low',
     })),
-    notificationConsentRequired: false,
+    notificationConsentRequired: consentRequired,
     laborordnungStatus: {
       mode: 'not_required',
       state: 'not_required',
@@ -1185,7 +1187,10 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
 
     // Session, branding
     if (path === '/api/v1/auth/me')
-      return ok(route, currentUser(world.restriction ? [] : world.permissions, world.restriction));
+      return ok(
+        route,
+        currentUser(world.restriction ? [] : world.permissions, world.restriction, world.consentRequired),
+      );
     // The dashboard is where redirects land; it asks for these three once it renders.
     if (path === '/api/v1/me/dashboard') return ok(route, { person: { firstName: 'Ada', memberSince: '2025-01-01' } });
     if (path === '/api/v1/laborordnung/status/me') return ok(route, currentUser(world.permissions).laborordnungStatus);
@@ -1674,10 +1679,6 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
     // Notification settings: the standalone page behind every mail's link, and the staff view of a person.
     if (path === '/api/v1/me/notifications/settings') return ok(route, world.notificationSettings);
     if (path === '/api/v1/me/notifications/consents' && method === 'PUT') return ok(route, world.notificationSettings);
-    if (path === '/api/v1/me/notifications/feedback-at-checkout' && method === 'PUT') {
-      world.notificationSettings.askFeedbackAtCheckout = Boolean(body?.ask);
-      return route.fulfill({ status: 204 });
-    }
     if ((match = path.match(/^\/api\/v1\/me\/notifications\/rules\/([^/]+)\/preference$/)) && method === 'PUT') {
       const rule = world.notificationSettings.rules.find((item) => item.ruleId === match?.[1]);
       if (!rule) return notFound(route);

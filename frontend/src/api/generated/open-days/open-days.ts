@@ -48,6 +48,26 @@ import type {
 
 import { apiFetch } from '../../http-client';
 
+const getHeaders = (...sources: (RequestInit['headers'] | Record<string, string | undefined>)[]) => {
+  const seen = new Set<string>();
+  const layers: [string, string | readonly string[]][][] = [];
+  for (const source of sources.reverse()) {
+    if (!source) continue;
+    const entries = source instanceof Headers
+      ? source.entries()
+      : Symbol.iterator in source
+        ? Array.from(source as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string])
+        : Object.entries<string | readonly string[] | undefined>(source);
+    const layer: [string, string | readonly string[]][] = [];
+    for (const [name, value] of entries) {
+      if (value !== undefined && !seen.has(name.toLowerCase())) layer.push([name, value]);
+    }
+    for (const [name] of layer) seen.add(name.toLowerCase());
+    layers.push(layer);
+  }
+  return Object.fromEntries(layers.reverse().flat()) as Extract<RequestInit['headers'], Record<string, unknown>>;
+};
+
 export const getListOpenDayPeriodsUrl = () => {
 
 
@@ -84,25 +104,11 @@ export const getCreateOpenDayPeriodUrl = () => {
  */
 export const createOpenDayPeriod = async (createOpenDayPeriodRequest: CreateOpenDayPeriodRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDayPeriod> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDayPeriod>(getCreateOpenDayPeriodUrl(),
+  return apiFetch<OpenDayPeriod>(getCreateOpenDayPeriodUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createOpenDayPeriodRequest)
   }
 );}
@@ -145,25 +151,11 @@ export const getUpdateOpenDayPeriodUrl = (periodId: string,) => {
 export const updateOpenDayPeriod = async (periodId: string,
     updateOpenDayPeriodRequest: UpdateOpenDayPeriodRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDayPeriod> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDayPeriod>(getUpdateOpenDayPeriodUrl(periodId),
+  return apiFetch<OpenDayPeriod>(getUpdateOpenDayPeriodUrl(periodId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateOpenDayPeriodRequest)
   }
 );}
@@ -183,25 +175,11 @@ export const getDeleteOpenDayPeriodUrl = (periodId: string,) => {
 export const deleteOpenDayPeriod = async (periodId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteOpenDayPeriodUrl(periodId),
+  return apiFetch<void>(getDeleteOpenDayPeriodUrl(periodId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -221,25 +199,11 @@ export const getOpenOpenDayPeriodForStaffingUrl = (periodId: string,) => {
 export const openOpenDayPeriodForStaffing = async (periodId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDayPeriod> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDayPeriod>(getOpenOpenDayPeriodForStaffingUrl(periodId),
+  return apiFetch<OpenDayPeriod>(getOpenOpenDayPeriodForStaffingUrl(periodId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -259,25 +223,11 @@ export const getReturnOpenDayPeriodToDraftUrl = (periodId: string,) => {
 export const returnOpenDayPeriodToDraft = async (periodId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDayPeriod> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDayPeriod>(getReturnOpenDayPeriodToDraftUrl(periodId),
+  return apiFetch<OpenDayPeriod>(getReturnOpenDayPeriodToDraftUrl(periodId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -297,25 +247,11 @@ export const getPublishOpenDayPeriodUrl = (periodId: string,) => {
 export const publishOpenDayPeriod = async (periodId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDayPeriod> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDayPeriod>(getPublishOpenDayPeriodUrl(periodId),
+  return apiFetch<OpenDayPeriod>(getPublishOpenDayPeriodUrl(periodId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -335,25 +271,11 @@ export const getReturnOpenDayPeriodToStaffingUrl = (periodId: string,) => {
 export const returnOpenDayPeriodToStaffing = async (periodId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDayPeriod> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDayPeriod>(getReturnOpenDayPeriodToStaffingUrl(periodId),
+  return apiFetch<OpenDayPeriod>(getReturnOpenDayPeriodToStaffingUrl(periodId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -373,25 +295,11 @@ export const getArchiveOpenDayPeriodUrl = (periodId: string,) => {
 export const archiveOpenDayPeriod = async (periodId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDayPeriod> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDayPeriod>(getArchiveOpenDayPeriodUrl(periodId),
+  return apiFetch<OpenDayPeriod>(getArchiveOpenDayPeriodUrl(periodId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -434,25 +342,11 @@ export const getCreateOpenDayUrl = (periodId: string,) => {
 export const createOpenDay = async (periodId: string,
     createOpenDayRequest: CreateOpenDayRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDay> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDay>(getCreateOpenDayUrl(periodId),
+  return apiFetch<OpenDay>(getCreateOpenDayUrl(periodId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createOpenDayRequest)
   }
 );}
@@ -495,25 +389,11 @@ export const getUpdateOpenDayUrl = (openDayId: string,) => {
 export const updateOpenDay = async (openDayId: string,
     updateOpenDayRequest: UpdateOpenDayRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDay> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDay>(getUpdateOpenDayUrl(openDayId),
+  return apiFetch<OpenDay>(getUpdateOpenDayUrl(openDayId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateOpenDayRequest)
   }
 );}
@@ -533,25 +413,11 @@ export const getDeleteOpenDayUrl = (openDayId: string,) => {
 export const deleteOpenDay = async (openDayId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteOpenDayUrl(openDayId),
+  return apiFetch<void>(getDeleteOpenDayUrl(openDayId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -571,25 +437,11 @@ export const getCancelOpenDayUrl = (openDayId: string,) => {
 export const cancelOpenDay = async (openDayId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDay> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDay>(getCancelOpenDayUrl(openDayId),
+  return apiFetch<OpenDay>(getCancelOpenDayUrl(openDayId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}
@@ -604,30 +456,17 @@ export const getSaveOpenDayScheduleUrl = (periodId: string,) => {
 }
 
 /**
+ * Requires `open_days.manage`. Changing, cancelling, removing or rejoining an Open Day that has ended, moving one so that it ends in the past, or creating one that has already ended also requires `open_days.edit_past`. A save that only touches ended days sends no notifications.
  * @summary Atomically save a period schedule delta
  */
 export const saveOpenDaySchedule = async (periodId: string,
     saveOpenDayScheduleRequest: SaveOpenDayScheduleRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDaySchedule> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDaySchedule>(getSaveOpenDayScheduleUrl(periodId),
+  return apiFetch<OpenDaySchedule>(getSaveOpenDayScheduleUrl(periodId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(saveOpenDayScheduleRequest)
   }
 );}
@@ -647,25 +486,11 @@ export const getPreviewOpenDayRecurrenceUrl = (periodId: string,) => {
 export const previewOpenDayRecurrence = async (periodId: string,
     recurrencePreviewRequest: RecurrencePreviewRequest, options?: Parameters<typeof apiFetch>[1]): Promise<RecurrencePreview> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<RecurrencePreview>(getPreviewOpenDayRecurrenceUrl(periodId),
+  return apiFetch<RecurrencePreview>(getPreviewOpenDayRecurrenceUrl(periodId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(recurrencePreviewRequest)
   }
 );}
@@ -680,30 +505,17 @@ export const getJoinOpenDayUrl = (openDayId: string,) => {
 }
 
 /**
+ * Requires `open_days.signup`. A timeslot that has ended answers `409 timeslot_ended`.
  * @summary Assign the current Person to one staffing requirement
  */
 export const joinOpenDay = async (openDayId: string,
     joinOpenDayRequest: JoinOpenDayRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDayAssignment> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDayAssignment>(getJoinOpenDayUrl(openDayId),
+  return apiFetch<OpenDayAssignment>(getJoinOpenDayUrl(openDayId),
   {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(joinOpenDayRequest)
   }
 );}
@@ -726,6 +538,7 @@ export const getLeaveOpenDayUrl = (openDayId: string,
 }
 
 /**
+ * Requires `open_days.signup`. A timeslot that has ended answers `409 timeslot_ended`.
  * @summary Remove the current Person's assignment in one timeslot
  */
 export const leaveOpenDay = async (openDayId: string,
@@ -750,30 +563,17 @@ export const getAssignOpenDayPersonUrl = (openDayId: string,) => {
 }
 
 /**
+ * Requires `open_days.assign`; a timeslot that has ended also requires `open_days.edit_past`. Such a retroactive correction is audited but sends no notifications.
  * @summary Administratively assign an eligible Person
  */
 export const assignOpenDayPerson = async (openDayId: string,
     assignOpenDayPersonRequest: AssignOpenDayPersonRequest, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDayAssignment> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<OpenDayAssignment>(getAssignOpenDayPersonUrl(openDayId),
+  return apiFetch<OpenDayAssignment>(getAssignOpenDayPersonUrl(openDayId),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(assignOpenDayPersonRequest)
   }
 );}
@@ -789,6 +589,7 @@ export const getRemoveOpenDayAssignmentUrl = (openDayId: string,
 }
 
 /**
+ * Requires `open_days.assign`; a timeslot that has ended also requires `open_days.edit_past`. Such a retroactive correction is audited but sends no notifications.
  * @summary Administratively remove an assignment
  */
 export const removeOpenDayAssignment = async (openDayId: string,
@@ -969,25 +770,11 @@ export const getCreateOpenDayAcademicBreakUrl = () => {
  */
 export const createOpenDayAcademicBreak = async (createAcademicBreakRequest: CreateAcademicBreakRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AcademicBreak> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<AcademicBreak>(getCreateOpenDayAcademicBreakUrl(),
+  return apiFetch<AcademicBreak>(getCreateOpenDayAcademicBreakUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(createAcademicBreakRequest)
   }
 );}
@@ -1007,25 +794,11 @@ export const getUpdateOpenDayAcademicBreakUrl = (academicBreakId: string,) => {
 export const updateOpenDayAcademicBreak = async (academicBreakId: string,
     updateAcademicBreakRequest: UpdateAcademicBreakRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AcademicBreak> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<AcademicBreak>(getUpdateOpenDayAcademicBreakUrl(academicBreakId),
+  return apiFetch<AcademicBreak>(getUpdateOpenDayAcademicBreakUrl(academicBreakId),
   {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateAcademicBreakRequest)
   }
 );}
@@ -1045,25 +818,11 @@ export const getDeleteOpenDayAcademicBreakUrl = (academicBreakId: string,) => {
 export const deleteOpenDayAcademicBreak = async (academicBreakId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteOpenDayAcademicBreakUrl(academicBreakId),
+  return apiFetch<void>(getDeleteOpenDayAcademicBreakUrl(academicBreakId),
   {
     ...options,
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(versionRequest)
   }
 );}

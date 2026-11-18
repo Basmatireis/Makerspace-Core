@@ -102,10 +102,31 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 			}
 			continue
 		}
+		if key == "retroactive" {
+			// A correction of something that is already over is flagged, nothing else.
+			if text, ok := value.(string); !ok || text != "true" {
+				return fmt.Errorf("invalid audit %s metadata", key)
+			}
+			continue
+		}
 		if key == "fromMembership" || key == "toMembership" {
 			// Membership changes name the system role keys, never role names.
 			text, ok := value.(string)
 			if !ok || (text != "" && text != "supervisor" && text != "trainee" && text != "visitor") {
+				return fmt.Errorf("invalid audit %s metadata", key)
+			}
+			continue
+		}
+		if key == "exportKind" {
+			// A PDF template change names the export it concerns, one of a fixed set, never template content.
+			if text, ok := value.(string); !ok || (text != "wiref" && text != "cashbook" && text != "receipt") {
+				return fmt.Errorf("invalid audit %s metadata", key)
+			}
+			continue
+		}
+		if key == "templateVersion" {
+			text, ok := value.(string)
+			if _, err := strconv.ParseUint(text, 10, 31); !ok || err != nil {
 				return fmt.Errorf("invalid audit %s metadata", key)
 			}
 			continue
@@ -138,7 +159,8 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 			key != "artifactId" &&
 			key != "commandId" &&
 			key != "trainingId" &&
-			key != "variantId" {
+			key != "variantId" &&
+			key != "assetId" {
 			return fmt.Errorf("audit metadata key %q is not allowlisted", key)
 		}
 		text, ok := value.(string)

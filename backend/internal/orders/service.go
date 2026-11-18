@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -35,6 +36,8 @@ type Service struct {
 	// location is the makerspace time zone: the cash journal and the cashbook work in its whole days.
 	location *time.Location
 	notices  NotificationEmitter
+	// pdf renders the cashbook and receipt PDFs.
+	pdf PDFRenderer
 }
 
 // NotificationEmitter is the part of the notification event source this package uses. It writes inside the caller's
@@ -54,7 +57,7 @@ func (s *Service) WithNotifications(notices NotificationEmitter) *Service {
 }
 
 func NewService(pool *pgxpool.Pool, jobs *machinelogbook.Service) *Service {
-	return &Service{pool: pool, jobs: jobs, location: time.UTC}
+	return &Service{pool: pool, jobs: jobs, location: time.UTC, pdf: pdftemplates.BuiltinRenderer{}}
 }
 
 // WithLocation sets the makerspace time zone for day-based cash reports. Without it they use UTC days.
@@ -463,6 +466,13 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 	} else if !errors.Is(e, pgx.ErrNoRows) {
 		return v, e
 	}
+	pending, e := q.OpenReplacement(ctx, &id)
+	if e == nil {
+		v.PendingReplacementOrderID = &pending.ID
+		v.PendingReplacementOrderReference = &pending.Reference
+	} else if !errors.Is(e, pgx.ErrNoRows) {
+		return v, e
+	}
 	items, e := q.ListItems(ctx, id)
 	if e != nil {
 		return v, e
@@ -553,6 +563,7 @@ func (s *Service) List(
 	ctx context.Context,
 	p authorization.Principal,
 	search, status string,
+	customerID *uuid.UUID,
 	page, size int,
 ) (OrderPage, error) {
 	if err := require(p, authorization.OrdersRead); err != nil {
@@ -565,13 +576,18 @@ func (s *Service) List(
 	q := db.New(s.pool)
 	rows, err := q.ListOrders(
 		ctx,
-		db.ListOrdersParams{Search: search, Status: status, PageLimit: limit, PageOffset: offset},
+		db.ListOrdersParams{
+			Search: search, Status: status, CustomerID: customerID, PageLimit: limit, PageOffset: offset,
+		},
 	)
 	if err != nil {
 		return OrderPage{}, err
 	}
 	result := OrderPage{Items: []Order{}, Page: int64(page), PageSize: int64(size)}
-	result.Total, err = q.CountOrders(ctx, db.CountOrdersParams{Search: search, Status: status})
+	result.Total, err = q.CountOrders(
+		ctx,
+		db.CountOrdersParams{Search: search, Status: status, CustomerID: customerID},
+	)
 	if err != nil {
 		return result, err
 	}
