@@ -73,11 +73,21 @@ export function LegalDocumentLink({
   );
 }
 
-export function LegalLinks({ className = '' }: { className?: string }) {
+/** The imprint and privacy policy links; `children` adds further links to the same group, `label` names the landmark. */
+export function LegalLinks({
+  className = '',
+  label = 'Legal information',
+  children,
+}: {
+  className?: string;
+  label?: string;
+  children?: ReactNode;
+}) {
   return (
-    <nav className={['legal-links', className].filter(Boolean).join(' ')} aria-label="Legal information">
+    <nav className={['legal-links', className].filter(Boolean).join(' ')} aria-label={label}>
       <LegalDocumentLink kind="imprint">Imprint</LegalDocumentLink>
       <LegalDocumentLink kind="privacy">Privacy policy</LegalDocumentLink>
+      {children}
     </nav>
   );
 }

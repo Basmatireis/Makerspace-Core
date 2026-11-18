@@ -25,6 +25,7 @@ import { NotificationAlertHost } from '../features/notifications/NotificationAle
 import { PersonAvatar } from '../features/users/PersonAvatar';
 import { BrandMark } from './BrandMark';
 import { setColorScheme, useColorScheme } from './colorScheme';
+import { AppFooter } from './AppFooter';
 import { AppNavigation } from './AppNavigation';
 import { FullPageLoading } from './PageState';
 import { ToastProvider } from './toasts';
@@ -321,6 +322,7 @@ export function AppShell() {
               {consentRequired ? <ConsentGate /> : <Outlet />}
             </Suspense>
           </main>
+          {!consentRequired && !fullWidth && <AppFooter navExpanded={sideNavExpanded && !isNarrow} />}
           {consentRequired ? null : showLabRulesModal ? (
             <Suspense fallback={null}>
               <LabRulesConfirmModal status={labRules} onLater={() => setLabRulesDeferred(true)} />
