@@ -43,6 +43,8 @@ import type {
   SignageDisplayList,
   SignageDisplayPreview,
   SignageMachineList,
+  SignageNoticeSelection,
+  SignageNotificationRuleList,
   SignagePairingPoll,
   SignagePairingStart,
   SignageRuleList,
@@ -1301,6 +1303,93 @@ return apiFetch<SignageRuleList>(getReorderSignageRulesUrl(displayId),
 );}
 
 
+export const getGetSignageDisplayNoticesUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/notices`
+}
+
+/**
+ * Requires `signage.read`. A display also shows what its group chose; that choice is on the group.
+ * @summary Which notification rules' notices the display shows
+ */
+export const getSignageDisplayNotices = async (displayId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageNoticeSelection> => {
+
+  return apiFetch<SignageNoticeSelection>(getGetSignageDisplayNoticesUrl(displayId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getSetSignageDisplayNoticesUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/notices`
+}
+
+/**
+ * Requires `signage.manage`. Replaces the choice and takes effect at once, without publishing. `ruleIds` must be central notification rules (422 otherwise); a rule without a signage action is kept but shows nothing until it gets one. A web embed never shows notices (422 `signage_web_embed`). Audited as `signage_display.notices_changed`.
+ * @summary Choose which notification rules' notices the display shows
+ */
+export const setSignageDisplayNotices = async (displayId: string,
+    signageNoticeSelection: SignageNoticeSelection, options?: Parameters<typeof apiFetch>[1]): Promise<SignageNoticeSelection> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageNoticeSelection>(getSetSignageDisplayNoticesUrl(displayId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(signageNoticeSelection)
+  }
+);}
+
+
+export const getListSignageNotificationRulesUrl = () => {
+
+
+
+
+  return `/api/v1/signage/notification-rules`
+}
+
+/**
+ * Requires `signage.read`. Central notification rules that have a signage action, with their names only, and every rule a display or group already chose (`hasSignageAction` false once its signage action is gone).
+ * @summary List the notification rules a display or group can show notices of
+ */
+export const listSignageNotificationRules = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignageNotificationRuleList> => {
+
+  return apiFetch<SignageNotificationRuleList>(getListSignageNotificationRulesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
 export const getListSignageDisplayGroupsUrl = () => {
 
 
@@ -1733,6 +1822,69 @@ return apiFetch<SignageRuleList>(getReorderSignageGroupRulesUrl(groupId),
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(reorderSignageRulesRequest)
+  }
+);}
+
+
+export const getGetSignageGroupNoticesUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}/notices`
+}
+
+/**
+ * Requires `signage.read`. Member displays show these notices besides their own choice.
+ * @summary Which notification rules' notices the group shows
+ */
+export const getSignageGroupNotices = async (groupId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageNoticeSelection> => {
+
+  return apiFetch<SignageNoticeSelection>(getGetSignageGroupNoticesUrl(groupId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getSetSignageGroupNoticesUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}/notices`
+}
+
+/**
+ * Requires `signage.manage`. Replaces the choice and takes effect at once, without publishing. `ruleIds` must be central notification rules (422 otherwise); a rule without a signage action is kept but shows nothing until it gets one. Audited as `signage_display_group.notices_changed`.
+ * @summary Choose which notification rules' notices the group shows
+ */
+export const setSignageGroupNotices = async (groupId: string,
+    signageNoticeSelection: SignageNoticeSelection, options?: Parameters<typeof apiFetch>[1]): Promise<SignageNoticeSelection> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageNoticeSelection>(getSetSignageGroupNoticesUrl(groupId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(signageNoticeSelection)
   }
 );}
 

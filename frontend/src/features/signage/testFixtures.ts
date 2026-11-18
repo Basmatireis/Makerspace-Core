@@ -9,6 +9,8 @@ import type {
   SignageDisplayGroup,
   SignageDisplayPreview,
   SignageMachine,
+  SignageNoticeSelection,
+  SignageNotificationRule,
   SignageBlock,
   SignageBlockStyle,
   SignageRule,
@@ -284,6 +286,9 @@ type Content = {
   announcements?: SignageAnnouncement[];
   machines?: SignageMachine[];
   calendar?: SignageCalendar;
+  /** Rules a display or group can choose to show, and the choice per display or group id (nothing by default). */
+  noticeRules?: SignageNotificationRule[];
+  notices?: Record<string, SignageNoticeSelection>;
 };
 
 /** Signed-in user plus read endpoints for the content screens. Individual tests add writes with `server.use`. */
@@ -301,7 +306,11 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
     groupRules = [],
     preview = previewFixture(),
     calendar = { openDays: [], events: [], calendar: null },
+    noticeRules = [],
+    notices = {},
   } = content;
+  const noticesOf = ({ params }: { params: Record<string, unknown> }) =>
+    HttpResponse.json(notices[String(params.id)] ?? { allRules: false, ruleIds: [] });
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
     http.get('*/api/v1/signage/scenes', () => HttpResponse.json({ items: scenes })),
@@ -348,6 +357,9 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
         ownerVersion: groups.find((item) => item.id === params.id)?.version ?? 1,
       }),
     ),
+    http.get('*/api/v1/signage/notification-rules', () => HttpResponse.json({ items: noticeRules })),
+    http.get('*/api/v1/signage/displays/:id/notices', noticesOf),
+    http.get('*/api/v1/signage/groups/:id/notices', noticesOf),
     http.get('*/api/v1/signage/groups/:id/preview', () => HttpResponse.json(preview)),
     http.get('*/api/v1/signage/displays/:id/preview', () => HttpResponse.json(preview)),
     http.get('*/api/v1/signage/assets', () => HttpResponse.json({ items: assets })),

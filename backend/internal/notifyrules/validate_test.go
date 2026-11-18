@@ -171,9 +171,9 @@ func TestValidationRejections(t *testing.T) {
 		"options on the wrong channel": {func(d *Definition) {
 			d.Escalation.Steps[0].Action.InApp = &InAppOptions{Appearance: AppearanceBell, Level: LevelInfo}
 		}, central(), "only in-app"},
-		"signage without displays": {func(d *Definition) {
-			d.Actions[0] = Action{Channel: ChannelSignage, Title: "x", Signage: &SignageTarget{DurationMinutes: 5, Tone: ToneInfo}}
-		}, central(), "displayIds"},
+		"signage without duration": {func(d *Definition) {
+			d.Actions[0] = Action{Channel: ChannelSignage, Title: "x", Signage: &SignageTarget{Tone: ToneInfo}}
+		}, central(), "durationMinutes"},
 		"unknown escalation stop": {func(d *Definition) { d.Escalation.StopWhen = "tuesday" }, central(), "stopWhen"},
 		"escalation order": {func(d *Definition) {
 			d.Escalation.Steps = append(d.Escalation.Steps, d.Escalation.Steps[0])
@@ -193,7 +193,7 @@ func TestValidationRejections(t *testing.T) {
 		"personal others":     {func(d *Definition) { d.Escalation = nil; d.Actions[0].Recipients = []string{"operator"} }, personal(), `exactly "me"`},
 		"personal signage": {func(d *Definition) {
 			d.Escalation = nil
-			d.Actions[0] = Action{Channel: ChannelSignage, Title: "x", Signage: &SignageTarget{DisplayIDs: []uuid.UUID{knownPerson}, DurationMinutes: 5, Tone: ToneInfo}}
+			d.Actions[0] = Action{Channel: ChannelSignage, Title: "x", Signage: &SignageTarget{DurationMinutes: 5, Tone: ToneInfo}}
 		}, personal(), "channel"},
 		"personal manual": {func(d *Definition) {
 			d.Trigger = TriggerDef{Type: TriggerManual}

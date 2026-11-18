@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { NotificationRuleDefinition } from './notificationRuleDefinition';
+import type { NotificationRuleSignageShownOn } from './notificationRuleSignageShownOn';
 import type { NotificationRuleStats } from './notificationRuleStats';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
@@ -44,6 +45,8 @@ export interface NotificationRule {
   warnings: string[];
   /** @nullable */
   lastFiredAt: string | null;
+  /** Only on getNotificationRule, for a rule with a signage action. */
+  signageShownOn?: NotificationRuleSignageShownOn;
   version: Version;
   createdAt: string;
   updatedAt: string;

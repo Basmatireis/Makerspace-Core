@@ -7,6 +7,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 ### Changed
 
 - **Cashbook says what a receipt was for.** Payment lines of the cashbook PDF and CSV name what their order charged after the order reference: the processes of its machine jobs ("FDM 3D printing und Material"), the material types of articles sold from stock and manual items, joined and cut with an ellipsis (48 characters in the CSV; on the Kassabuch sheet up to 64, as much as fits the text column). The Kassabuch sheet no longer shows the customer; the CSV still does. Refunds and corrections describe the order of the receipt they reverse. Shown only with `orders.read`, like the customer. See [docs/orders.md](docs/orders.md).
@@ -25,6 +26,11 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - **Signage announcement colour and image (backend).** Announcement templates set a default colour and background image; an announcement may use its own look. The text colour is derived and unreadable colours are refused (`signage_color_contrast`). Live announcements carry the effective colour, text colour and image, players and web embeds may fetch the images of announcements in force, and image assets in use are protected from deletion. Migration 00141.
 >>>>>>> origin/claude/announcement-colours-images-9aae26
+=======
+### Changed
+
+- **Signage notices are chosen on the display.** A notification rule's signage action no longer picks displays; it only sets duration and tone. Each display and display group chooses on its new Notices tab which rules' notices it shows, or all of them; a display shows its own choice and its group's, and a display that joins a group picks up the group's notices at once. The rule editor lists where a rule's notices appear. Existing rules keep their displays: migration 00144 turns their `displayIds` into display choices. API: `NotificationRuleSignageTarget.displayIds` is removed; new `GET /signage/notification-rules`, `GET/PUT /signage/displays/{displayId}/notices`, `GET/PUT /signage/groups/{groupId}/notices`, and `signageShownOn` on `GET /notification-rules/{ruleId}`. See [docs/signage.md](docs/signage.md#notices-of-notification-rules).
+>>>>>>> origin/claude/signage-notice-opt-in-0a0787
 
 ## [0.19.1] - 2026-11-12
 

@@ -158,8 +158,7 @@ function actionText(catalog: NotificationCatalog, definition: Definition, action
   }
   if (action.channel === 'email') return `e-mail ${who}${when}`;
   if (action.channel === 'signage') {
-    const count = action.signage?.displayIds.length ?? 0;
-    return `show a ${action.signage?.tone ?? 'info'} notice on ${count ? `${count} display${count === 1 ? '' : 's'}` : 'no display'} for ${action.signage?.durationMinutes ?? 0} min${when}`;
+    return `show a ${action.signage?.tone ?? 'info'} notice on signage for ${action.signage?.durationMinutes ?? 0} min${when}`;
   }
   const devices = action.tablet?.deviceIds.length ?? 0;
   const mode = action.tablet?.mode;

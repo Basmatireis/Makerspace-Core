@@ -59,7 +59,21 @@ func notificationRuleDTO(rule notifyrules.Rule) (openapi.NotificationRule, error
 			Fired30: rule.Stats.Fired30, LastFiredAt: optionalNullable(rule.Stats.LastFiredAt), Sparkline: rule.Stats.Sparkline,
 		})
 	}
+	if rule.SignageShownOn != nil {
+		dto.SignageShownOn = &openapi.NotificationRuleSignageShownOn{
+			Displays: signageNoticeTargetRefs(rule.SignageShownOn.Displays),
+			Groups:   signageNoticeTargetRefs(rule.SignageShownOn.Groups),
+		}
+	}
 	return dto, nil
+}
+
+func signageNoticeTargetRefs(targets []notifyrules.SignageNoticeTarget) []openapi.SignageNoticeTargetRef {
+	refs := make([]openapi.SignageNoticeTargetRef, 0, len(targets))
+	for _, target := range targets {
+		refs = append(refs, openapi.SignageNoticeTargetRef{Id: target.ID, Name: target.Name, AllRules: target.AllRules})
+	}
+	return refs
 }
 
 func notificationRuleList(rules []notifyrules.Rule) (openapi.NotificationRuleList, error) {
