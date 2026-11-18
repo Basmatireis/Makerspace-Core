@@ -1061,6 +1061,23 @@ paths:
             maxItems: 5
             items:
               $ref: "#/components/schemas/PeopleLaborordnungStatusFilter"
+        - name: sort
+          in: query
+          description: |
+            Column the whole result set is ordered by before paging: `name` (last name, then first name),
+            `contact` (email, else phone), `roles` (the role names as listed on the person) or `labRules`
+            (Lab Rules status). Ties are broken by name. Sorting by `labRules` requires
+            `laborordnung.confirmations.read`.
+          schema:
+            type: string
+            enum: [name, contact, roles, labRules]
+            default: name
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
       responses:
         "200":
           description: A page of people.

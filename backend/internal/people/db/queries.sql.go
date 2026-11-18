@@ -1202,6 +1202,20 @@ LEFT JOIN LATERAL (
     ORDER BY confirmed_at DESC, id DESC
     LIMIT 1
 ) latest_confirmation ON true
+LEFT JOIN LATERAL (
+    SELECT lower(string_agg(r.name, ', ' ORDER BY r.system_key DESC NULLS LAST, lower(r.name), r.id)) AS names
+    FROM person_roles pr
+    JOIN roles r ON r.id = pr.role_id
+    WHERE pr.person_id = p.id
+) role_names ON true
+LEFT JOIN LATERAL (
+    SELECT CASE
+        WHEN laborordnung_mode.mode = 'not_required' THEN 'not_required'
+        WHEN current_laborordnung.id IS NULL THEN 'no_published_version'
+        WHEN latest_confirmation.version_id = current_laborordnung.id THEN 'current'
+        ELSE 'outdated'
+    END::text AS status
+) laborordnung_status ON true
 WHERE (
        $1::text = ''
        OR p.first_name ILIKE '%' || $1::text || '%'
@@ -1226,15 +1240,22 @@ WHERE (
    )
   AND (
        COALESCE(cardinality($5::text[]), 0) = 0
-       OR (CASE
-           WHEN laborordnung_mode.mode = 'not_required' THEN 'not_required'
-           WHEN current_laborordnung.id IS NULL THEN 'no_published_version'
-           WHEN latest_confirmation.version_id = current_laborordnung.id THEN 'current'
-           ELSE 'outdated'
-       END) = ANY($5::text[])
+       OR laborordnung_status.status = ANY($5::text[])
    )
-ORDER BY lower(p.last_name), lower(p.first_name), p.id
-LIMIT $7 OFFSET $6
+ORDER BY
+  CASE WHEN $6::text = 'contact' AND NOT $7::boolean THEN lower(COALESCE(p.email, p.phone)) END ASC,
+  CASE WHEN $6::text = 'contact' AND $7::boolean THEN lower(COALESCE(p.email, p.phone)) END DESC,
+  CASE WHEN $6::text = 'roles' AND NOT $7::boolean THEN role_names.names END ASC NULLS FIRST,
+  CASE WHEN $6::text = 'roles' AND $7::boolean THEN role_names.names END DESC NULLS LAST,
+  CASE WHEN $6::text = 'labRules' AND NOT $7::boolean THEN
+      array_position(ARRAY['outdated', 'current', 'no_published_version', 'not_required'], laborordnung_status.status) END ASC,
+  CASE WHEN $6::text = 'labRules' AND $7::boolean THEN
+      array_position(ARRAY['outdated', 'current', 'no_published_version', 'not_required'], laborordnung_status.status) END DESC,
+  CASE WHEN $6::text = 'name' AND $7::boolean THEN lower(p.last_name) END DESC,
+  CASE WHEN $6::text = 'name' AND $7::boolean THEN lower(p.first_name) END DESC,
+  CASE WHEN $6::text = 'name' AND $7::boolean THEN p.id END DESC,
+  lower(p.last_name), lower(p.first_name), p.id
+LIMIT $9 OFFSET $8
 `
 
 type ListPeopleParams struct {
@@ -1243,10 +1264,14 @@ type ListPeopleParams struct {
 	RoleIds              []string
 	AccountStatuses      []string
 	LaborordnungStatuses []string
+	Sort                 string
+	Descending           bool
 	PageOffset           int32
 	PageLimit            int32
 }
 
+// The sort column is chosen by a whitelisted argument; the Lab Rules rank follows the alphabetical order of
+// the labels the People table shows (Acknowledgement outdated, Current, No published version, Not required).
 func (q *Queries) ListPeople(ctx context.Context, arg ListPeopleParams) ([]Person, error) {
 	rows, err := q.db.Query(ctx, listPeople,
 		arg.Search,
@@ -1254,6 +1279,8 @@ func (q *Queries) ListPeople(ctx context.Context, arg ListPeopleParams) ([]Perso
 		arg.RoleIds,
 		arg.AccountStatuses,
 		arg.LaborordnungStatuses,
+		arg.Sort,
+		arg.Descending,
 		arg.PageOffset,
 		arg.PageLimit,
 	)

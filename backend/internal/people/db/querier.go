@@ -67,6 +67,8 @@ type Querier interface {
 	// timeslot.
 	ListMergeOpenDayConflicts(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListMergePersonFacts(ctx context.Context, ids []string) ([]ListMergePersonFactsRow, error)
+	// The sort column is chosen by a whitelisted argument; the Lab Rules rank follows the alphabetical order of
+	// the labels the People table shows (Acknowledgement outdated, Current, No published version, Not required).
 	ListPeople(ctx context.Context, arg ListPeopleParams) ([]Person, error)
 	ListPeopleForMerge(ctx context.Context, ids []string) ([]Person, error)
 	ListPersonRoles(ctx context.Context, personID uuid.UUID) ([]Role, error)

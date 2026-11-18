@@ -44,6 +44,20 @@ LEFT JOIN LATERAL (
     ORDER BY confirmed_at DESC, id DESC
     LIMIT 1
 ) latest_confirmation ON true
+LEFT JOIN LATERAL (
+    SELECT lower(string_agg(r.name, ', ' ORDER BY r.system_key DESC NULLS LAST, lower(r.name), r.id)) AS names
+    FROM person_roles pr
+    JOIN roles r ON r.id = pr.role_id
+    WHERE pr.person_id = p.id
+) role_names ON true
+LEFT JOIN LATERAL (
+    SELECT CASE
+        WHEN laborordnung_mode.mode = 'not_required' THEN 'not_required'
+        WHEN current_laborordnung.id IS NULL THEN 'no_published_version'
+        WHEN latest_confirmation.version_id = current_laborordnung.id THEN 'current'
+        ELSE 'outdated'
+    END::text AS status
+) laborordnung_status ON true
 WHERE (
        sqlc.arg(search)::text = ''
        OR p.first_name ILIKE '%' || sqlc.arg(search)::text || '%'
@@ -68,14 +82,23 @@ WHERE (
    )
   AND (
        COALESCE(cardinality(sqlc.arg(laborordnung_statuses)::text[]), 0) = 0
-       OR (CASE
-           WHEN laborordnung_mode.mode = 'not_required' THEN 'not_required'
-           WHEN current_laborordnung.id IS NULL THEN 'no_published_version'
-           WHEN latest_confirmation.version_id = current_laborordnung.id THEN 'current'
-           ELSE 'outdated'
-       END) = ANY(sqlc.arg(laborordnung_statuses)::text[])
+       OR laborordnung_status.status = ANY(sqlc.arg(laborordnung_statuses)::text[])
    )
-ORDER BY lower(p.last_name), lower(p.first_name), p.id
+-- The sort column is chosen by a whitelisted argument; the Lab Rules rank follows the alphabetical order of
+-- the labels the People table shows (Acknowledgement outdated, Current, No published version, Not required).
+ORDER BY
+  CASE WHEN sqlc.arg(sort)::text = 'contact' AND NOT sqlc.arg(descending)::boolean THEN lower(COALESCE(p.email, p.phone)) END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'contact' AND sqlc.arg(descending)::boolean THEN lower(COALESCE(p.email, p.phone)) END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'roles' AND NOT sqlc.arg(descending)::boolean THEN role_names.names END ASC NULLS FIRST,
+  CASE WHEN sqlc.arg(sort)::text = 'roles' AND sqlc.arg(descending)::boolean THEN role_names.names END DESC NULLS LAST,
+  CASE WHEN sqlc.arg(sort)::text = 'labRules' AND NOT sqlc.arg(descending)::boolean THEN
+      array_position(ARRAY['outdated', 'current', 'no_published_version', 'not_required'], laborordnung_status.status) END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'labRules' AND sqlc.arg(descending)::boolean THEN
+      array_position(ARRAY['outdated', 'current', 'no_published_version', 'not_required'], laborordnung_status.status) END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'name' AND sqlc.arg(descending)::boolean THEN lower(p.last_name) END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'name' AND sqlc.arg(descending)::boolean THEN lower(p.first_name) END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'name' AND sqlc.arg(descending)::boolean THEN p.id END DESC,
+  lower(p.last_name), lower(p.first_name), p.id
 LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 
 -- name: CountPeople :one

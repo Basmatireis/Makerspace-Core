@@ -18,6 +18,8 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ListPeopleOrder } from './listPeopleOrder';
+import type { ListPeopleSort } from './listPeopleSort';
 import type { PageParameter } from './pageParameter';
 import type { PageSizeParameter } from './pageSizeParameter';
 import type { PeopleAccountStatusFilter } from './peopleAccountStatusFilter';
@@ -59,4 +61,12 @@ export type ListPeopleParams = {
    * @maxItems 5
    */
   laborordnungStatuses?: PeopleLaborordnungStatusFilter[];
+  /**
+   * Column the whole result set is ordered by before paging: `name` (last name, then first name),
+   * `contact` (email, else phone), `roles` (the role names as listed on the person) or `labRules`
+   * (Lab Rules status). Ties are broken by name. Sorting by `labRules` requires
+   * `laborordnung.confirmations.read`.
+   */
+  sort?: ListPeopleSort;
+  order?: ListPeopleOrder;
 };
