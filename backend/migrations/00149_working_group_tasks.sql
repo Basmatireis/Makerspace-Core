@@ -54,7 +54,6 @@ CREATE INDEX working_group_tickets_group_idx ON working_group_tickets (group_id,
 CREATE INDEX working_group_tickets_created_idx ON working_group_tickets (created_at DESC, id DESC);
 CREATE INDEX working_group_tickets_author_idx ON working_group_tickets (author_person_id) WHERE author_person_id IS NOT NULL;
 CREATE INDEX working_group_tickets_assignee_idx ON working_group_tickets (assignee_person_id) WHERE assignee_person_id IS NOT NULL;
-CREATE INDEX working_group_tickets_due_idx ON working_group_tickets (due_on) WHERE due_on IS NOT NULL;
 CREATE INDEX working_group_tickets_column_idx ON working_group_tickets (column_id) WHERE column_id IS NOT NULL;
 CREATE INDEX working_group_tickets_machine_idx ON working_group_tickets (machine_id) WHERE machine_id IS NOT NULL;
 
@@ -106,6 +105,7 @@ CREATE INDEX working_group_comments_todo_idx ON working_group_comments (todo_id,
 CREATE INDEX working_group_comments_author_idx ON working_group_comments (author_person_id) WHERE author_person_id IS NOT NULL;
 
 -- +goose Down
+-- Deletes all tickets, to-dos, comments, followers and columns of every working group.
 DROP TABLE working_group_comments;
 DROP TABLE working_group_todos;
 DROP TABLE working_group_ticket_followers;

@@ -2,6 +2,7 @@ package workinggroups
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -82,8 +83,11 @@ func (s *Service) CreateTodo(
 			column = *input.ColumnID
 		} else {
 			columns, err := q.ListWorkingGroupColumns(ctx, input.GroupID)
-			if err != nil || len(columns) == 0 {
+			if err != nil {
 				return err
+			}
+			if len(columns) == 0 {
+				return apperror.New(http.StatusUnprocessableEntity, "working_group_column_required", "The group has no column")
 			}
 			column = columns[0].ID
 		}
@@ -201,7 +205,17 @@ func (s *Service) MarkTodoDone(
 			return err
 		}
 		fields := []string{"doneAt"}
+		successor := false
 		if core.RepeatEveryDays != nil {
+			exists, existsErr := q.OpenWorkingGroupTodoSuccessorExists(ctx, workinggroupsdb.OpenWorkingGroupTodoSuccessorExistsParams{
+				GroupID: core.GroupID, Title: core.Title, RepeatEveryDays: *core.RepeatEveryDays, ID: id,
+			})
+			if existsErr != nil {
+				return existsErr
+			}
+			successor = exists
+		}
+		if core.RepeatEveryDays != nil && !successor {
 			assignee := core.AssigneePersonID
 			if assignee != nil {
 				member, err := q.IsWorkingGroupMember(ctx, workinggroupsdb.IsWorkingGroupMemberParams{
@@ -214,7 +228,8 @@ func (s *Service) MarkTodoDone(
 					assignee = nil
 				}
 			}
-			due := time.Now().UTC().AddDate(0, 0, int(*core.RepeatEveryDays))
+			now := time.Now().In(s.location)
+			due := time.Date(now.Year(), now.Month(), now.Day()+int(*core.RepeatEveryDays), 0, 0, 0, 0, time.UTC)
 			nextID := ids.New()
 			creator := p.PersonID
 			if err := q.CreateWorkingGroupTodo(ctx, workinggroupsdb.CreateWorkingGroupTodoParams{
@@ -263,6 +278,29 @@ func (s *Service) DeleteTodo(ctx context.Context, p authorization.Principal, id 
 		return writeTaskAudit(ctx, tx, p, "working_group_todo.deleted", "working_group_todo", id, requestID, nil)
 	})
 	return err
+}
+
+// DeleteTodoComment removes one comment of a to-do for good. Only working_groups.manage may; people outside the group
+// get 404 like for every to-do operation.
+func (s *Service) DeleteTodoComment(
+	ctx context.Context,
+	p authorization.Principal,
+	id, commentID uuid.UUID,
+	requestID *uuid.UUID,
+) (TodoDetail, error) {
+	return s.changeTodo(ctx, p, id, func(q *workinggroupsdb.Queries, tx pgx.Tx, _ workinggroupsdb.GetWorkingGroupTodoCoreRow) error {
+		if !p.Has(authorization.WorkingGroupsManage) {
+			return apperror.PermissionDenied
+		}
+		removed, err := q.DeleteWorkingGroupTodoComment(ctx, workinggroupsdb.DeleteWorkingGroupTodoCommentParams{ID: commentID, TodoID: &id})
+		if err != nil {
+			return err
+		}
+		if removed == 0 {
+			return apperror.NotFound
+		}
+		return writeTaskAudit(ctx, tx, p, "working_group_comment.deleted", "working_group_comment", commentID, requestID, nil)
+	})
 }
 
 // AddTodoComment adds a comment to a to-do; to-do comments are only ever seen inside the group.

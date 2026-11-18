@@ -35,11 +35,20 @@ const (
 
 // Service owns working groups, their members, machines and places.
 type Service struct {
-	pool *pgxpool.Pool
+	pool     *pgxpool.Pool
+	location *time.Location
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool}
+	return &Service{pool: pool, location: time.UTC}
+}
+
+// WithLocation sets the makerspace time zone that decides what "today" is for repeating to-dos. The default is UTC.
+func (s *Service) WithLocation(location *time.Location) *Service {
+	if location != nil {
+		s.location = location
+	}
+	return s
 }
 
 // requireRead is the first check of every operation: nobody without working_groups.read sees or changes anything.

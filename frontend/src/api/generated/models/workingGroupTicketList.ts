@@ -22,4 +22,6 @@ import type { WorkingGroupTicket } from './workingGroupTicket';
 
 export interface WorkingGroupTicketList {
   items: WorkingGroupTicket[];
+  /** True when more tickets matched than the 500 returned. Open tickets come first, then the newest closed ones. */
+  truncated?: boolean;
 }

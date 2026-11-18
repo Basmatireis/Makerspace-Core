@@ -77,7 +77,7 @@ type Querier interface {
 	ExportTrainingRecords(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportVisits(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportWorkingGroupMemberships(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
-	// The subject's own tickets, assignments, to-dos and comments. Follows name only the group and the time: the ticket text
+	// The subject's own tickets (text only when they wrote them), assignments, to-dos and comments. Follows name only the group and the time: the ticket text
 	// belongs to its author.
 	ExportWorkingGroupTasks(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	GetProcessingActivity(ctx context.Context, id uuid.UUID) (PrivacyProcessingActivity, error)

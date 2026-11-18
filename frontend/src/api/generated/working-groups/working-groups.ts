@@ -437,7 +437,7 @@ export const getListWorkingGroupTicketsUrl = (params?: ListWorkingGroupTicketsPa
 }
 
 /**
- * Requires `working_groups.read`. Everybody with read sees every ticket of every group. Newest first, at most 500; `inside` per item says whether the caller may also work on it.
+ * Requires `working_groups.read`. Everybody with read sees every ticket of every group. Open tickets (new, planned) first, then the newest closed ones, at most 500 (`truncated` tells when more matched); `inside` per item says whether the caller may also work on it.
  * @summary List tickets
  */
 export const listWorkingGroupTickets = async (params?: ListWorkingGroupTicketsParams, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketList> => {
@@ -521,6 +521,30 @@ export const updateWorkingGroupTicket = async (ticketId: string,
     method: 'PATCH',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(updateWorkingGroupTicketRequest)
+  }
+);}
+
+
+export const getDeleteWorkingGroupTicketUrl = (ticketId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-tickets/${ticketId}`
+}
+
+/**
+ * Requires `working_groups.manage`. Removes the ticket with its followers and comments for good, for example when it holds personal data.
+ * @summary Delete a ticket
+ */
+export const deleteWorkingGroupTicket = async (ticketId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteWorkingGroupTicketUrl(ticketId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
   }
 );}
 
@@ -668,6 +692,58 @@ export const addWorkingGroupTicketComment = async (ticketId: string,
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(workingGroupCommentRequest)
+  }
+);}
+
+
+export const getDeleteWorkingGroupTicketCommentUrl = (ticketId: string,
+    commentId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-tickets/${ticketId}/comments/${commentId}`
+}
+
+/**
+ * Requires `working_groups.manage`. Removes the comment for good.
+ * @summary Delete a ticket comment
+ */
+export const deleteWorkingGroupTicketComment = async (ticketId: string,
+    commentId: string, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketDetail> => {
+
+  return apiFetch<WorkingGroupTicketDetail>(getDeleteWorkingGroupTicketCommentUrl(ticketId,commentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getDeleteWorkingGroupTodoCommentUrl = (todoId: string,
+    commentId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-todos/${todoId}/comments/${commentId}`
+}
+
+/**
+ * Requires `working_groups.manage` (404 for people outside the group).
+ * @summary Delete a to-do comment
+ */
+export const deleteWorkingGroupTodoComment = async (todoId: string,
+    commentId: string, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTodoDetail> => {
+
+  return apiFetch<WorkingGroupTodoDetail>(getDeleteWorkingGroupTodoCommentUrl(todoId,commentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
   }
 );}
 

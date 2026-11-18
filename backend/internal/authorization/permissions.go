@@ -317,7 +317,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	TrainingRecordsReadAll:             "Read every person's training records, including internal notes.",
 	TrainingRecordsUpdate:              "Set another person's training status and read every person's records.",
 	TrainingRecordsUpdateSelf:          "Set the own training status and read the own records including internal notes.",
-	WorkingGroupsRead:                  "See the working groups, who leads them and who their members are (names only).",
+	WorkingGroupsRead:                  "See the working groups, their members' names, all tickets with their public comments; write tickets, follow them and comment. Members of a group (and managers) also plan and close its tickets, write internal comments and use its to-dos.",
 	WorkingGroupsManage:                "Create, rename and delete working groups, choose their lead and edit any group.",
 	MachineJobsRead:                    "Read machine jobs and their pricing and usage details.",
 	MachineJobsCreate:                  "Create manual jobs and ingest automatically detected jobs.",

@@ -235,8 +235,25 @@ LEFT JOIN people assignee ON assignee.id = t.assignee_person_id
 WHERE (sqlc.narg(id)::uuid IS NULL OR t.id = sqlc.narg(id)::uuid)
   AND (sqlc.narg(group_id)::uuid IS NULL OR t.group_id = sqlc.narg(group_id)::uuid)
   AND (sqlc.narg(status)::text IS NULL OR t.status = sqlc.narg(status)::text)
-ORDER BY t.created_at DESC, t.id DESC
+ORDER BY (t.status IN ('done', 'declined')), t.created_at DESC, t.id DESC
 LIMIT sqlc.arg(row_limit);
+
+-- name: DeleteWorkingGroupTicket :execrows
+DELETE FROM working_group_tickets WHERE id = sqlc.arg(id);
+
+-- name: DeleteWorkingGroupTicketComment :execrows
+DELETE FROM working_group_comments WHERE id = sqlc.arg(id) AND ticket_id = sqlc.arg(ticket_id);
+
+-- name: DeleteWorkingGroupTodoComment :execrows
+DELETE FROM working_group_comments WHERE id = sqlc.arg(id) AND todo_id = sqlc.arg(todo_id);
+
+-- name: OpenWorkingGroupTodoSuccessorExists :one
+-- Whether an open to-do with the same group, title and repeat interval exists besides the one just done.
+SELECT EXISTS (
+    SELECT 1 FROM working_group_todos
+    WHERE group_id = sqlc.arg(group_id) AND title = sqlc.arg(title) AND repeat_every_days = sqlc.arg(repeat_every_days)::integer
+      AND done_at IS NULL AND id <> sqlc.arg(id)
+);
 
 -- name: ListWorkingGroupTicketFollowers :many
 SELECT f.person_id, COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS display_name

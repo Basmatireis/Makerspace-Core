@@ -294,6 +294,35 @@ func (q *Queries) DeleteWorkingGroupPlace(ctx context.Context, arg DeleteWorking
 	return result.RowsAffected(), nil
 }
 
+const deleteWorkingGroupTicket = `-- name: DeleteWorkingGroupTicket :execrows
+DELETE FROM working_group_tickets WHERE id = $1
+`
+
+func (q *Queries) DeleteWorkingGroupTicket(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWorkingGroupTicket, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteWorkingGroupTicketComment = `-- name: DeleteWorkingGroupTicketComment :execrows
+DELETE FROM working_group_comments WHERE id = $1 AND ticket_id = $2
+`
+
+type DeleteWorkingGroupTicketCommentParams struct {
+	ID       uuid.UUID
+	TicketID *uuid.UUID
+}
+
+func (q *Queries) DeleteWorkingGroupTicketComment(ctx context.Context, arg DeleteWorkingGroupTicketCommentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWorkingGroupTicketComment, arg.ID, arg.TicketID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteWorkingGroupTicketFollower = `-- name: DeleteWorkingGroupTicketFollower :execrows
 DELETE FROM working_group_ticket_followers WHERE ticket_id = $1 AND person_id = $2
 `
@@ -317,6 +346,23 @@ DELETE FROM working_group_todos WHERE id = $1
 
 func (q *Queries) DeleteWorkingGroupTodo(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteWorkingGroupTodo, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteWorkingGroupTodoComment = `-- name: DeleteWorkingGroupTodoComment :execrows
+DELETE FROM working_group_comments WHERE id = $1 AND todo_id = $2
+`
+
+type DeleteWorkingGroupTodoCommentParams struct {
+	ID     uuid.UUID
+	TodoID *uuid.UUID
+}
+
+func (q *Queries) DeleteWorkingGroupTodoComment(ctx context.Context, arg DeleteWorkingGroupTodoCommentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWorkingGroupTodoComment, arg.ID, arg.TodoID)
 	if err != nil {
 		return 0, err
 	}
@@ -930,7 +976,7 @@ LEFT JOIN people assignee ON assignee.id = t.assignee_person_id
 WHERE ($3::uuid IS NULL OR t.id = $3::uuid)
   AND ($4::uuid IS NULL OR t.group_id = $4::uuid)
   AND ($5::text IS NULL OR t.status = $5::text)
-ORDER BY t.created_at DESC, t.id DESC
+ORDER BY (t.status IN ('done', 'declined')), t.created_at DESC, t.id DESC
 LIMIT $6
 `
 
@@ -1312,6 +1358,34 @@ type MoveWorkingGroupTodosToColumnParams struct {
 func (q *Queries) MoveWorkingGroupTodosToColumn(ctx context.Context, arg MoveWorkingGroupTodosToColumnParams) error {
 	_, err := q.db.Exec(ctx, moveWorkingGroupTodosToColumn, arg.ToColumnID, arg.GroupID, arg.FromColumnID)
 	return err
+}
+
+const openWorkingGroupTodoSuccessorExists = `-- name: OpenWorkingGroupTodoSuccessorExists :one
+SELECT EXISTS (
+    SELECT 1 FROM working_group_todos
+    WHERE group_id = $1 AND title = $2 AND repeat_every_days = $3::integer
+      AND done_at IS NULL AND id <> $4
+)
+`
+
+type OpenWorkingGroupTodoSuccessorExistsParams struct {
+	GroupID         uuid.UUID
+	Title           string
+	RepeatEveryDays int32
+	ID              uuid.UUID
+}
+
+// Whether an open to-do with the same group, title and repeat interval exists besides the one just done.
+func (q *Queries) OpenWorkingGroupTodoSuccessorExists(ctx context.Context, arg OpenWorkingGroupTodoSuccessorExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, openWorkingGroupTodoSuccessorExists,
+		arg.GroupID,
+		arg.Title,
+		arg.RepeatEveryDays,
+		arg.ID,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const parkWorkingGroupColumnName = `-- name: ParkWorkingGroupColumnName :exec

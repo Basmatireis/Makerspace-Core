@@ -95,7 +95,7 @@ func TestWorkingGroupTasksRequireReadPermissionEverywhere(t *testing.T) {
 			_ = operation
 			_ = name
 		}
-		_, err := service.ListTickets(ctx, p, workinggroups.TicketFilter{})
+		_, _, err := service.ListTickets(ctx, p, workinggroups.TicketFilter{})
 		check("list tickets", err)
 		_, err = service.GetTicket(ctx, p, id)
 		check("get ticket", err)
@@ -132,6 +132,11 @@ func TestWorkingGroupTasksRequireReadPermissionEverywhere(t *testing.T) {
 		check("todo comment", err)
 		_, err = service.SetColumns(ctx, p, group, []workinggroups.ColumnInput{{Name: "x"}}, nil)
 		check("set columns", err)
+		check("delete ticket", service.DeleteTicket(ctx, p, id, nil))
+		_, err = service.DeleteTicketComment(ctx, p, id, id, nil)
+		check("delete ticket comment", err)
+		_, err = service.DeleteTodoComment(ctx, p, id, id, nil)
+		check("delete todo comment", err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM working_group_tickets`, 0)
 }
@@ -149,12 +154,12 @@ func TestWorkingGroupTicketsOutsidersWriteReadAndFollowButNeverWorkOnThem(t *tes
 	}
 
 	// Every reader sees every ticket of every group; the member is inside.
-	listed, err := f.service.ListTickets(ctx, f.member, workinggroups.TicketFilter{})
+	listed, _, err := f.service.ListTickets(ctx, f.member, workinggroups.TicketFilter{})
 	if err != nil || len(listed) != 1 || !listed[0].Inside || listed[0].IsMine {
 		t.Fatalf("member list = %+v, %v", listed, err)
 	}
 	other, _ := groupPrincipal(t, pool, "wgt-outside-other", "working_groups.read")
-	listed, err = f.service.ListTickets(ctx, other, workinggroups.TicketFilter{})
+	listed, _, err = f.service.ListTickets(ctx, other, workinggroups.TicketFilter{})
 	if err != nil || len(listed) != 1 || listed[0].Inside {
 		t.Fatalf("other outsider list = %+v, %v", listed, err)
 	}
@@ -381,17 +386,17 @@ func TestWorkingGroupTicketPlanningPatchCloseAndReopen(t *testing.T) {
 	}
 
 	// Filters: by group and status.
-	filtered, err := f.service.ListTickets(ctx, f.outsider, workinggroups.TicketFilter{GroupID: &otherGroup.ID})
+	filtered, _, err := f.service.ListTickets(ctx, f.outsider, workinggroups.TicketFilter{GroupID: &otherGroup.ID})
 	if err != nil || len(filtered) != 0 {
 		t.Fatalf("other group tickets = %+v, %v", filtered, err)
 	}
 	status := workinggroups.StatusNew
-	filtered, err = f.service.ListTickets(ctx, f.outsider, workinggroups.TicketFilter{GroupID: &f.group.ID, Status: &status})
+	filtered, _, err = f.service.ListTickets(ctx, f.outsider, workinggroups.TicketFilter{GroupID: &f.group.ID, Status: &status})
 	if err != nil || len(filtered) != 1 {
 		t.Fatalf("new tickets = %+v, %v", filtered, err)
 	}
 	bad := workinggroups.TicketStatus("open")
-	_, err = f.service.ListTickets(ctx, f.outsider, workinggroups.TicketFilter{Status: &bad})
+	_, _, err = f.service.ListTickets(ctx, f.outsider, workinggroups.TicketFilter{Status: &bad})
 	requireAppError(t, err, http.StatusUnprocessableEntity, "")
 
 	// Audit events carry ids and field names, never the ticket's text.
@@ -731,5 +736,260 @@ func TestSubjectRequestWorkingGroupTasksExport(t *testing.T) {
 	memberCount, err := queries.CountWorkingGroupTasks(ctx, f.memberID)
 	if err != nil || memberCount != 2 { // ticket + created to-do
 		t.Fatalf("member count = %d, %v", memberCount, err)
+	}
+}
+
+// otherGroup is a second group B with its own lead and member, who are strangers to the fixture's group A.
+func (f taskFixture) otherGroup(t *testing.T, tag string) (workinggroups.Group, authorization.Principal, authorization.Principal) {
+	t.Helper()
+	ctx := testContext(t)
+	leadB, leadSeed := groupPrincipal(t, f.pool, tag+"-leadb", "working_groups.read")
+	memberB, memberSeed := groupPrincipal(t, f.pool, tag+"-memberb", "working_groups.read")
+	group, err := f.service.Create(ctx, f.manager, workinggroups.CreateInput{Name: "Group B " + tag, LeadPersonID: leadSeed.personID}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.AddMember(ctx, f.manager, group.ID, memberSeed.personID, nil); err != nil {
+		t.Fatal(err)
+	}
+	return group, leadB, memberB
+}
+
+func TestWorkingGroupRemovedMemberLosesInsideRightsAtOnce(t *testing.T) {
+	pool := statementPool(t)
+	ctx := testContext(t)
+	f := newTaskFixture(t, pool, "wgt-removed")
+	ticket := f.newTicket(t, f.outsider, "Check rights")
+	if _, err := f.service.AddTicketComment(ctx, f.member, ticket.Ticket.ID, workinggroups.CommentInput{Text: "Internal", Internal: true}, nil); err != nil {
+		t.Fatal(err)
+	}
+	todo, err := f.service.CreateTodo(ctx, f.member, workinggroups.CreateTodoInput{GroupID: f.group.ID, Title: "T", DueOn: day(2027, 1, 1)}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.RemoveMember(ctx, f.manager, f.group.ID, f.memberID, nil); err != nil {
+		t.Fatal(err)
+	}
+	view, err := f.service.GetTicket(ctx, f.member, ticket.Ticket.ID)
+	if err != nil || view.Ticket.Inside || len(view.Comments) != 0 {
+		t.Fatalf("former member view = %+v, %v", view, err)
+	}
+	_, err = f.service.PlanTicket(ctx, f.member, ticket.Ticket.ID, workinggroups.PlanTicketInput{ColumnID: f.columnTodo}, nil)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	_, err = f.service.AddTicketComment(ctx, f.member, ticket.Ticket.ID, workinggroups.CommentInput{Text: "x", Internal: true}, nil)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	_, err = f.service.GetTodo(ctx, f.member, todo.Todo.ID)
+	requireAppError(t, err, http.StatusNotFound, "")
+}
+
+func TestWorkingGroupReferencesToOtherGroupsAreRefused(t *testing.T) {
+	pool := statementPool(t)
+	ctx := testContext(t)
+	f := newTaskFixture(t, pool, "wgt-cross")
+	groupB, leadB, memberB := f.otherGroup(t, "wgt-cross")
+	columnB := groupB.Columns[0].ID
+	personB := memberB.PersonID
+	due := day(2027, 1, 1)
+
+	ticket := f.newTicket(t, f.outsider, "In A")
+	planned, err := f.service.PlanTicket(ctx, f.member, ticket.Ticket.ID, workinggroups.PlanTicketInput{ColumnID: f.columnTodo}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.service.UpdateTicket(ctx, f.member, ticket.Ticket.ID, workinggroups.UpdateTicketInput{ExpectedVersion: planned.Ticket.Version, ColumnID: &columnB}, nil)
+	requireAppError(t, err, http.StatusUnprocessableEntity, "working_group_column_not_found")
+	_, err = f.service.UpdateTicket(ctx, f.member, ticket.Ticket.ID, workinggroups.UpdateTicketInput{
+		ExpectedVersion: planned.Ticket.Version, Assignee: workinggroups.OptionalID{Set: true, Value: &personB},
+	}, nil)
+	requireAppError(t, err, http.StatusUnprocessableEntity, "assignee_not_in_group")
+	_, err = f.service.CreateTodo(ctx, f.member, workinggroups.CreateTodoInput{GroupID: f.group.ID, Title: "x", DueOn: due, ColumnID: &columnB}, nil)
+	requireAppError(t, err, http.StatusUnprocessableEntity, "working_group_column_not_found")
+	_, err = f.service.CreateTodo(ctx, f.member, workinggroups.CreateTodoInput{GroupID: f.group.ID, Title: "x", DueOn: due, AssigneePersonID: &personB}, nil)
+	requireAppError(t, err, http.StatusUnprocessableEntity, "assignee_not_in_group")
+	todo, err := f.service.CreateTodo(ctx, f.member, workinggroups.CreateTodoInput{GroupID: f.group.ID, Title: "In A", DueOn: due}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.service.UpdateTodo(ctx, f.member, todo.Todo.ID, workinggroups.UpdateTodoInput{ExpectedVersion: 1, ColumnID: &columnB}, nil)
+	requireAppError(t, err, http.StatusUnprocessableEntity, "working_group_column_not_found")
+	_, err = f.service.UpdateTodo(ctx, f.member, todo.Todo.ID, workinggroups.UpdateTodoInput{
+		ExpectedVersion: 1, Assignee: workinggroups.OptionalID{Set: true, Value: &personB},
+	}, nil)
+	requireAppError(t, err, http.StatusUnprocessableEntity, "assignee_not_in_group")
+
+	// The lead and the member of B have no rights in A.
+	_, err = f.service.SetColumns(ctx, leadB, f.group.ID, []workinggroups.ColumnInput{{Name: "x"}}, nil)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	_, err = f.service.PlanTicket(ctx, memberB, ticket.Ticket.ID, workinggroups.PlanTicketInput{ColumnID: f.columnTodo}, nil)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	_, err = f.service.AddTicketComment(ctx, memberB, ticket.Ticket.ID, workinggroups.CommentInput{Text: "x", Internal: true}, nil)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	_, err = f.service.AddTodoComment(ctx, memberB, todo.Todo.ID, workinggroups.CommentInput{Text: "x"}, nil)
+	requireAppError(t, err, http.StatusNotFound, "")
+}
+
+func TestWorkingGroupTicketListCountsOnlyVisibleComments(t *testing.T) {
+	pool := statementPool(t)
+	ctx := testContext(t)
+	f := newTaskFixture(t, pool, "wgt-count")
+	ticket := f.newTicket(t, f.outsider, "Count me")
+	if _, err := f.service.AddTicketComment(ctx, f.outsider, ticket.Ticket.ID, workinggroups.CommentInput{Text: "Public"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.AddTicketComment(ctx, f.member, ticket.Ticket.ID, workinggroups.CommentInput{Text: "Internal", Internal: true}, nil); err != nil {
+		t.Fatal(err)
+	}
+	for p, want := range map[string]int64{"outsider": 1, "member": 2, "manager": 2} {
+		caller := map[string]authorization.Principal{"outsider": f.outsider, "member": f.member, "manager": f.manager}[p]
+		items, _, err := f.service.ListTickets(ctx, caller, workinggroups.TicketFilter{})
+		if err != nil || len(items) != 1 || items[0].CommentCount != want {
+			t.Fatalf("%s list = %+v, %v (want %d)", p, items, err, want)
+		}
+	}
+}
+
+func TestWorkingGroupDeletesAreForManagement(t *testing.T) {
+	pool := statementPool(t)
+	ctx := testContext(t)
+	f := newTaskFixture(t, pool, "wgt-delete")
+	ticket := f.newTicket(t, f.outsider, "Holds a name")
+	if _, err := f.service.FollowTicket(ctx, f.member, ticket.Ticket.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	withComments, err := f.service.AddTicketComment(ctx, f.outsider, ticket.Ticket.ID, workinggroups.CommentInput{Text: "Personal"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commentID := withComments.Comments[0].ID
+	todo, err := f.service.CreateTodo(ctx, f.member, workinggroups.CreateTodoInput{GroupID: f.group.ID, Title: "T", DueOn: day(2027, 1, 1)}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	todoWith, err := f.service.AddTodoComment(ctx, f.member, todo.Todo.ID, workinggroups.CommentInput{Text: "Note"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	todoComment := todoWith.Comments[0].ID
+
+	for name, p := range map[string]authorization.Principal{"member": f.member, "lead": f.lead, "outsider": f.outsider} {
+		requireAppError(t, f.service.DeleteTicket(ctx, p, ticket.Ticket.ID, nil), http.StatusForbidden, "permission_denied")
+		_, err := f.service.DeleteTicketComment(ctx, p, ticket.Ticket.ID, commentID, nil)
+		requireAppError(t, err, http.StatusForbidden, "permission_denied")
+		if name != "outsider" {
+			_, err = f.service.DeleteTodoComment(ctx, p, todo.Todo.ID, todoComment, nil)
+			requireAppError(t, err, http.StatusForbidden, "permission_denied")
+		} else {
+			_, err = f.service.DeleteTodoComment(ctx, p, todo.Todo.ID, todoComment, nil)
+			requireAppError(t, err, http.StatusNotFound, "")
+		}
+	}
+	assertCount(t, pool, `SELECT count(*) FROM working_group_comments`, 2)
+
+	after, err := f.service.DeleteTicketComment(ctx, f.manager, ticket.Ticket.ID, commentID, nil)
+	if err != nil || len(after.Comments) != 0 {
+		t.Fatalf("after comment delete = %+v, %v", after, err)
+	}
+	_, err = f.service.DeleteTicketComment(ctx, f.manager, ticket.Ticket.ID, commentID, nil)
+	requireAppError(t, err, http.StatusNotFound, "")
+	todoAfter, err := f.service.DeleteTodoComment(ctx, f.manager, todo.Todo.ID, todoComment, nil)
+	if err != nil || len(todoAfter.Comments) != 0 {
+		t.Fatalf("after todo comment delete = %+v, %v", todoAfter, err)
+	}
+	if err := f.service.DeleteTicket(ctx, f.manager, ticket.Ticket.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	requireAppError(t, f.service.DeleteTicket(ctx, f.manager, ticket.Ticket.ID, nil), http.StatusNotFound, "")
+	assertCount(t, pool, `SELECT count(*) FROM working_group_tickets`, 0)
+	assertCount(t, pool, `SELECT count(*) FROM working_group_ticket_followers`, 0)
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'working_group_ticket.deleted' AND resource_id = $1`, 1, ticket.Ticket.ID)
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'working_group_comment.deleted'`, 2)
+}
+
+func TestWorkingGroupTicketListShowsOpenTicketsFirstAndSaysWhenTruncated(t *testing.T) {
+	pool := statementPool(t)
+	ctx := testContext(t)
+	f := newTaskFixture(t, pool, "wgt-cap")
+	if _, err := pool.Exec(ctx, `INSERT INTO working_group_tickets(id, group_id, kind, subject, status, closed_at, created_at)
+		SELECT uuidv7(), $1, 'problem', 'old ' || n, 'done', now(), now() - interval '1 day' - n * interval '1 minute'
+		FROM generate_series(1, 501) AS n`, f.group.ID); err != nil {
+		t.Fatal(err)
+	}
+	open := f.newTicket(t, f.outsider, "Fresh but ancient by order")
+	// Make the open ticket the oldest of all: open tickets still come first.
+	if _, err := pool.Exec(ctx, `UPDATE working_group_tickets SET created_at = now() - interval '10 years' WHERE id = $1`, open.Ticket.ID); err != nil {
+		t.Fatal(err)
+	}
+	items, truncated, err := f.service.ListTickets(ctx, f.outsider, workinggroups.TicketFilter{})
+	if err != nil || len(items) != workinggroups.MaxTicketListRows || !truncated || items[0].ID != open.Ticket.ID {
+		t.Fatalf("list = %d items, truncated %v, first %v, %v", len(items), truncated, items[0].ID, err)
+	}
+	status := workinggroups.StatusDone
+	items, truncated, err = f.service.ListTickets(ctx, f.outsider, workinggroups.TicketFilter{Status: &status})
+	if err != nil || len(items) != workinggroups.MaxTicketListRows || !truncated {
+		t.Fatalf("done list = %d, %v, %v", len(items), truncated, err)
+	}
+	status = workinggroups.StatusNew
+	items, truncated, err = f.service.ListTickets(ctx, f.outsider, workinggroups.TicketFilter{Status: &status})
+	if err != nil || len(items) != 1 || truncated {
+		t.Fatalf("new list = %d, %v, %v", len(items), truncated, err)
+	}
+}
+
+func TestWorkingGroupRepeatingTodoCreatesNoSecondSuccessor(t *testing.T) {
+	pool := statementPool(t)
+	ctx := testContext(t)
+	f := newTaskFixture(t, pool, "wgt-successor")
+	seven := 7
+	todo, err := f.service.CreateTodo(ctx, f.member, workinggroups.CreateTodoInput{
+		GroupID: f.group.ID, Title: "Weekly", DueOn: day(2027, 1, 1), RepeatEveryDays: &seven,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := f.service.MarkTodoDone(ctx, f.member, todo.Todo.ID, nil)
+	if err != nil || first.NextTodoID == nil {
+		t.Fatalf("first done = %+v, %v", first, err)
+	}
+	if _, err := f.service.ReopenTodo(ctx, f.member, todo.Todo.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	second, err := f.service.MarkTodoDone(ctx, f.member, todo.Todo.ID, nil)
+	if err != nil || second.NextTodoID != nil || !second.Todo.Done {
+		t.Fatalf("second done = %+v, %v", second, err)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM working_group_todos WHERE done_at IS NULL`, 1)
+	assertCount(t, pool, `SELECT count(*) FROM working_group_todos`, 2)
+}
+
+func TestSubjectRequestExportHidesTextOfTicketsOnlyAssignedToTheSubject(t *testing.T) {
+	pool := statementPool(t)
+	ctx := testContext(t)
+	f := newTaskFixture(t, pool, "wgt-assigned")
+	ticket := f.newTicket(t, f.outsider, "Written by somebody else")
+	if _, err := f.service.PlanTicket(ctx, f.lead, ticket.Ticket.ID, workinggroups.PlanTicketInput{AssigneePersonID: &f.memberID, ColumnID: f.columnTodo}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.AddTicketComment(ctx, f.member, ticket.Ticket.ID, workinggroups.CommentInput{Text: "On it", Internal: true}, nil); err != nil {
+		t.Fatal(err)
+	}
+	document, err := requestsdb.New(pool).ExportWorkingGroupTasks(ctx, f.memberID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var export map[string][]map[string]any
+	if err := json.Unmarshal(document, &export); err != nil {
+		t.Fatal(err)
+	}
+	if len(export["tickets"]) != 1 || export["tickets"][0]["assigned"] != true || export["tickets"][0]["group"] == nil ||
+		export["tickets"][0]["kind"] != "problem" || export["tickets"][0]["status"] != "planned" {
+		t.Fatalf("export = %s", document)
+	}
+	for _, leaked := range []string{"subject", "body", "blocksUse"} {
+		if _, ok := export["tickets"][0][leaked]; ok {
+			t.Fatalf("export holds %s of somebody else's ticket: %s", leaked, document)
+		}
+	}
+	if len(export["comments"]) != 1 || export["comments"][0]["group"] == nil {
+		t.Fatalf("comments = %s", document)
 	}
 }

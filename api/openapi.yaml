@@ -8544,7 +8544,7 @@ paths:
       operationId: listWorkingGroupTickets
       summary: List tickets
       description: >-
-        Requires `working_groups.read`. Everybody with read sees every ticket of every group. Newest first, at most 500;
+        Requires `working_groups.read`. Everybody with read sees every ticket of every group. Open tickets (new, planned) first, then the newest closed ones, at most 500 (`truncated` tells when more matched);
         `inside` per item says whether the caller may also work on it.
       security: [{sessionCookie: []}]
       parameters:
@@ -8600,6 +8600,18 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupTicket
+      summary: Delete a ticket
+      description: Requires `working_groups.manage`. Removes the ticket with its followers and comments for good, for example when it holds personal data.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Ticket deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /working-group-tickets/{ticketId}/plan:
@@ -8702,6 +8714,40 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/comments/{commentId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+      - {$ref: "#/components/parameters/WorkingGroupCommentId"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupTicketComment
+      summary: Delete a ticket comment
+      description: Requires `working_groups.manage`. Removes the comment for good.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Ticket without the comment., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos/{todoId}/comments/{commentId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTodoId"}
+      - {$ref: "#/components/parameters/WorkingGroupCommentId"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupTodoComment
+      summary: Delete a to-do comment
+      description: Requires `working_groups.manage` (404 for people outside the group).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: To-do without the comment., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /working-group-todos:
@@ -13686,6 +13732,7 @@ components:
   parameters:
     WorkingGroupId: {name: groupId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
     WorkingGroupTicketId: {name: ticketId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    WorkingGroupCommentId: {name: commentId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
     WorkingGroupTodoId: {name: todoId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
     PdfTemplateExport: {name: export, in: path, required: true, schema: {$ref: "#/components/schemas/PdfTemplateExport"}}
     ConfigurationImportMode: {name: mode, in: query, required: true, schema: {$ref: "#/components/schemas/ConfigurationImportMode"}}
@@ -20562,6 +20609,7 @@ components:
       required: [items]
       properties:
         items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupTicket"}}
+        truncated: {type: boolean, description: "True when more tickets matched than the 500 returned. Open tickets come first, then the newest closed ones."}
 
     WorkingGroupComment:
       type: object

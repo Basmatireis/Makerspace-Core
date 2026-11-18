@@ -14,16 +14,17 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// ListTickets lists the tickets of every group, newest first, optionally of one group or one status. Everybody with
+// ListTickets lists the tickets of every group, open ones first and then the newest closed ones up to the cap (the
+// second result says whether more matched), optionally of one group or one status. Everybody with
 // working_groups.read sees every ticket; Inside says whether the caller may also work on it.
-func (s *Service) ListTickets(ctx context.Context, p authorization.Principal, filter TicketFilter) ([]Ticket, error) {
+func (s *Service) ListTickets(ctx context.Context, p authorization.Principal, filter TicketFilter) ([]Ticket, bool, error) {
 	if err := requireRead(p); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	var status *string
 	if filter.Status != nil {
 		if !validStatus(*filter.Status) {
-			return nil, apperror.InvalidField("status")
+			return nil, false, apperror.InvalidField("status")
 		}
 		value := string(*filter.Status)
 		status = &value
@@ -33,16 +34,20 @@ func (s *Service) ListTickets(ctx context.Context, p authorization.Principal, fi
 		CallerManage:   p.Has(authorization.WorkingGroupsManage),
 		GroupID:        filter.GroupID,
 		Status:         status,
-		RowLimit:       MaxTicketListRows,
+		RowLimit:       MaxTicketListRows + 1,
 	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	truncated := len(rows) > MaxTicketListRows
+	if truncated {
+		rows = rows[:MaxTicketListRows]
 	}
 	items := make([]Ticket, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, ticketFromRow(row))
 	}
-	return items, nil
+	return items, truncated, nil
 }
 
 // GetTicket returns one ticket with its followers and the comments the caller may see.
@@ -327,6 +332,42 @@ func (s *Service) AddTicketComment(
 	})
 }
 
+// DeleteTicket removes a ticket with its followers and comments for good. Only working_groups.manage may.
+func (s *Service) DeleteTicket(ctx context.Context, p authorization.Principal, id uuid.UUID, requestID *uuid.UUID) error {
+	_, err := s.changeTicket(ctx, p, id, func(q *workinggroupsdb.Queries, tx pgx.Tx, _ workinggroupsdb.GetWorkingGroupTicketCoreRow) error {
+		if !p.Has(authorization.WorkingGroupsManage) {
+			return apperror.PermissionDenied
+		}
+		if _, err := q.DeleteWorkingGroupTicket(ctx, id); err != nil {
+			return err
+		}
+		return writeTaskAudit(ctx, tx, p, "working_group_ticket.deleted", "working_group_ticket", id, requestID, nil)
+	})
+	return err
+}
+
+// DeleteTicketComment removes one comment of a ticket for good. Only working_groups.manage may.
+func (s *Service) DeleteTicketComment(
+	ctx context.Context,
+	p authorization.Principal,
+	id, commentID uuid.UUID,
+	requestID *uuid.UUID,
+) (TicketDetail, error) {
+	return s.changeTicket(ctx, p, id, func(q *workinggroupsdb.Queries, tx pgx.Tx, _ workinggroupsdb.GetWorkingGroupTicketCoreRow) error {
+		if !p.Has(authorization.WorkingGroupsManage) {
+			return apperror.PermissionDenied
+		}
+		removed, err := q.DeleteWorkingGroupTicketComment(ctx, workinggroupsdb.DeleteWorkingGroupTicketCommentParams{ID: commentID, TicketID: &id})
+		if err != nil {
+			return err
+		}
+		if removed == 0 {
+			return apperror.NotFound
+		}
+		return writeTaskAudit(ctx, tx, p, "working_group_comment.deleted", "working_group_comment", commentID, requestID, nil)
+	})
+}
+
 // changeTicket runs one change of a ticket: read permission, ticket lookup (404), the group lock, the ticket read
 // again under the lock, the change with its audit event, and the reloaded ticket for the caller.
 func (s *Service) changeTicket(
@@ -355,6 +396,10 @@ func (s *Service) changeTicket(
 			return err
 		}
 		result, err = loadTicketDetail(ctx, q, p, id)
+		if apperror.IsCode(err, "not_found") {
+			// Deleted by this very change.
+			return nil
+		}
 		return err
 	})
 	return result, err

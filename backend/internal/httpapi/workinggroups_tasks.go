@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/workinggroups"
 	"github.com/google/uuid"
 	"github.com/oapi-codegen/nullable"
@@ -46,7 +47,7 @@ func (s *Server) ListWorkingGroupTickets(
 		status := workinggroups.TicketStatus(*r.Params.Status)
 		filter.Status = &status
 	}
-	items, err := s.workingGroups.ListTickets(ctx, p, filter)
+	items, truncated, err := s.workingGroups.ListTickets(ctx, p, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +55,7 @@ func (s *Server) ListWorkingGroupTickets(
 	for _, item := range items {
 		out = append(out, workingGroupTicketDTO(item))
 	}
-	return openapi.ListWorkingGroupTickets200JSONResponse{Items: out}, nil
+	return openapi.ListWorkingGroupTickets200JSONResponse{Items: out, Truncated: &truncated}, nil
 }
 
 func (s *Server) CreateWorkingGroupTicket(
@@ -232,6 +233,50 @@ func (s *Server) AddWorkingGroupTicketComment(
 		return nil, err
 	}
 	return openapi.AddWorkingGroupTicketComment200JSONResponse(workingGroupTicketDetailDTO(detail)), nil
+}
+
+func (s *Server) DeleteWorkingGroupTicket(
+	ctx context.Context,
+	r openapi.DeleteWorkingGroupTicketRequestObject,
+) (openapi.DeleteWorkingGroupTicketResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.workingGroups.DeleteTicket(ctx, p, r.TicketId, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteWorkingGroupTicket204Response{}, nil
+}
+
+func (s *Server) DeleteWorkingGroupTicketComment(
+	ctx context.Context,
+	r openapi.DeleteWorkingGroupTicketCommentRequestObject,
+) (openapi.DeleteWorkingGroupTicketCommentResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	detail, err := s.workingGroups.DeleteTicketComment(ctx, p, r.TicketId, r.CommentId, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.DeleteWorkingGroupTicketComment200JSONResponse(workingGroupTicketDetailDTO(detail)), nil
+}
+
+func (s *Server) DeleteWorkingGroupTodoComment(
+	ctx context.Context,
+	r openapi.DeleteWorkingGroupTodoCommentRequestObject,
+) (openapi.DeleteWorkingGroupTodoCommentResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	detail, err := s.workingGroups.DeleteTodoComment(ctx, p, r.TodoId, r.CommentId, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.DeleteWorkingGroupTodoComment200JSONResponse(workingGroupTodoDetailDTO(detail)), nil
 }
 
 func (s *Server) ListWorkingGroupTodos(
@@ -513,4 +558,18 @@ func workingGroupTodoDetailDTO(detail workinggroups.TodoDetail) openapi.WorkingG
 		Comments:   workingGroupCommentsDTO(detail.Comments),
 		NextTodoId: detail.NextTodoID,
 	}
+}
+
+// makerspaceLocation is the configured makerspace time zone, Europe/Vienna by default like the open days; UTC when it
+// cannot be loaded.
+func makerspaceLocation(cfg config.Config) *time.Location {
+	name := cfg.MakerspaceTimeZone
+	if name == "" {
+		name = "Europe/Vienna"
+	}
+	location, err := time.LoadLocation(name)
+	if err != nil {
+		return time.UTC
+	}
+	return location
 }

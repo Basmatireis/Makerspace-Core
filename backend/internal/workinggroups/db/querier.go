@@ -28,8 +28,11 @@ type Querier interface {
 	DeleteWorkingGroupMachines(ctx context.Context, groupID uuid.UUID) error
 	DeleteWorkingGroupMember(ctx context.Context, arg DeleteWorkingGroupMemberParams) (int64, error)
 	DeleteWorkingGroupPlace(ctx context.Context, arg DeleteWorkingGroupPlaceParams) (int64, error)
+	DeleteWorkingGroupTicket(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteWorkingGroupTicketComment(ctx context.Context, arg DeleteWorkingGroupTicketCommentParams) (int64, error)
 	DeleteWorkingGroupTicketFollower(ctx context.Context, arg DeleteWorkingGroupTicketFollowerParams) (int64, error)
 	DeleteWorkingGroupTodo(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteWorkingGroupTodoComment(ctx context.Context, arg DeleteWorkingGroupTodoCommentParams) (int64, error)
 	FindWorkingGroupPeople(ctx context.Context, arg FindWorkingGroupPeopleParams) ([]FindWorkingGroupPeopleRow, error)
 	GetWorkingGroup(ctx context.Context, arg GetWorkingGroupParams) (GetWorkingGroupRow, error)
 	GetWorkingGroupMember(ctx context.Context, arg GetWorkingGroupMemberParams) (GetWorkingGroupMemberRow, error)
@@ -61,6 +64,8 @@ type Querier interface {
 	MarkWorkingGroupLead(ctx context.Context, arg MarkWorkingGroupLeadParams) error
 	MoveWorkingGroupTicketsToColumn(ctx context.Context, arg MoveWorkingGroupTicketsToColumnParams) error
 	MoveWorkingGroupTodosToColumn(ctx context.Context, arg MoveWorkingGroupTodosToColumnParams) error
+	// Whether an open to-do with the same group, title and repeat interval exists besides the one just done.
+	OpenWorkingGroupTodoSuccessorExists(ctx context.Context, arg OpenWorkingGroupTodoSuccessorExistsParams) (bool, error)
 	// Gives a column a name nobody else can want, so renames and swaps never meet the unique name index halfway.
 	ParkWorkingGroupColumnName(ctx context.Context, arg ParkWorkingGroupColumnNameParams) error
 	PersonExists(ctx context.Context, id uuid.UUID) (bool, error)
