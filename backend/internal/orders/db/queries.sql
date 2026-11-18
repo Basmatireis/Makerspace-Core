@@ -406,5 +406,5 @@ SELECT i.order_id, i.kind,
 FROM order_items i
 LEFT JOIN materials m ON m.id = i.source_material_id AND i.kind = 'inventory_item'
 LEFT JOIN material_types t ON t.id = m.material_type_id
-WHERE i.order_id = ANY(sqlc.arg(order_ids)::uuid[]) AND i.removed_at IS NULL
+WHERE i.order_id = ANY(sqlc.arg(order_ids)::text[]::uuid[]) AND i.removed_at IS NULL
 ORDER BY i.order_id, i.position, i.id;

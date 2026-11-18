@@ -390,7 +390,7 @@ func TestCashbookOrderContentsFromTheItems(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	rows, e := db.New(f.pool).ListCashbookOrderContents(ctx, []uuid.UUID{o.ID, removed.ID})
+	rows, e := db.New(f.pool).ListCashbookOrderContents(ctx, []string{o.ID.String(), removed.ID.String()})
 	if e != nil {
 		t.Fatal(e)
 	}

@@ -190,10 +190,11 @@ func (s *Service) ExportCashbook(
 		}
 		contents := map[uuid.UUID]orderContents{}
 		if withOrders {
-			orderIDs := []uuid.UUID{}
+			// Text, so that the simple protocol can send the list too.
+			orderIDs := []string{}
 			for _, row := range rows {
 				if row.OrderID != nil {
-					orderIDs = append(orderIDs, *row.OrderID)
+					orderIDs = append(orderIDs, row.OrderID.String())
 				}
 			}
 			items, e := q.ListCashbookOrderContents(ctx, orderIDs)

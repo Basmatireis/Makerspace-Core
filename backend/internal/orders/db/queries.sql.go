@@ -1939,7 +1939,7 @@ SELECT i.order_id, i.kind,
 FROM order_items i
 LEFT JOIN materials m ON m.id = i.source_material_id AND i.kind = 'inventory_item'
 LEFT JOIN material_types t ON t.id = m.material_type_id
-WHERE i.order_id = ANY($1::uuid[]) AND i.removed_at IS NULL
+WHERE i.order_id = ANY($1::text[]::uuid[]) AND i.removed_at IS NULL
 ORDER BY i.order_id, i.position, i.id
 `
 
@@ -1954,7 +1954,7 @@ type ListCashbookOrderContentsRow struct {
 
 // What the orders of cashbook lines charged, in item order: the process of a machine job and whether it used the
 // makerspace's material, the material type of an article sold from stock, the description of a manual item.
-func (q *Queries) ListCashbookOrderContents(ctx context.Context, orderIds []uuid.UUID) ([]ListCashbookOrderContentsRow, error) {
+func (q *Queries) ListCashbookOrderContents(ctx context.Context, orderIds []string) ([]ListCashbookOrderContentsRow, error) {
 	rows, err := q.db.Query(ctx, listCashbookOrderContents, orderIds)
 	if err != nil {
 		return nil, err
