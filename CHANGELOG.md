@@ -4,6 +4,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-19
+
 ### Added
 
 - **Editable PDF templates.** The wiRef invoice request, the cashbook (Kassabuch) and a new order receipt are rendered from templates with a draft, published versions, history and restore, uploaded images and previews with sample data or real records (`/pdf-templates`, permission `pdf_templates.manage`, migration 00146). Built-in defaults reproduce the previous PDFs. The receipt page has a "Download PDF" button (`GET /orders/{orderId}/receipt.pdf`). Sensitive fields are redacted per reader permission; wiRef record previews also need `orders.read`, uploaded PNG and JPEG images are re-encoded (no EXIF or GPS data is stored) and `pdf_templates.manage` is a high-trust permission. See [docs/pdf-templates.md](docs/pdf-templates.md).
@@ -1000,6 +1002,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[Unreleased]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.19.1...v0.20.0
 [0.19.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.18.2...v0.19.0
 [0.18.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.18.1...v0.18.2
