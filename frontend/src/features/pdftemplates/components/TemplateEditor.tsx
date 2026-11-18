@@ -4,6 +4,7 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { createInsertRegistry, InsertContext } from '../insertTarget';
 import type { PdfTemplateDetail, PdfTemplateExport } from '../../../api/generated/models';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
+import { useMediaQuery } from '../../../app/components/useMediaQuery';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import type { Zoom } from '../../signage/editor/zoom';
 import { schemaHints } from '../blocks';
@@ -27,6 +28,7 @@ import { useTemplateEditor } from '../useTemplateEditor';
 import { useEditorShortcuts } from '../useEditorShortcuts';
 import { EditorBar } from './EditorBar';
 import { InsertToolbar } from './InsertToolbar';
+import { NARROW_QUERY, NarrowPreview } from './NarrowPreview';
 import { PreviewCanvas } from './PreviewCanvas';
 import { PropertiesPanel } from './PropertiesPanel';
 import { PublishModal } from './PublishModal';
@@ -112,8 +114,9 @@ export function TemplateEditor({
     if (next) editor.set(next, 'step');
   };
 
+  const narrow = useMediaQuery(NARROW_QUERY);
   useEditorShortcuts({
-    enabled: true,
+    enabled: !narrow,
     undo: editor.undo,
     redo: editor.redo,
     onTool: setTool,
@@ -137,6 +140,20 @@ export function TemplateEditor({
     '--pdft-left': `${sizes.left}px`,
     '--pdft-right': `${sizes.right}px`,
   } as CSSProperties;
+
+  if (narrow)
+    return (
+      <>
+        <NarrowPreview
+          kind={detail.export}
+          doc={doc}
+          status={editor.status}
+          shown={shown}
+          onKind={(next) => guard.requestDiscard(() => onKind(next))}
+        />
+        <UnsavedChangesDialog guard={guard} message="Your edits to this template have not been saved as a draft." />
+      </>
+    );
 
   return (
     <InsertContext.Provider value={insertRegistry}>
@@ -283,7 +300,12 @@ export function TemplateEditor({
               </TabList>
               <TabPanels>
                 <TabPanel className="pdft-tabpanel">
-                  <PropertiesPanel {...panelProps} problems={problems} redacted={preview.data?.redacted ?? []} />
+                  <PropertiesPanel
+                    {...panelProps}
+                    problems={problems}
+                    redacted={preview.data?.redacted ?? []}
+                    onExpand={expand}
+                  />
                 </TabPanel>
                 <TabPanel className="pdft-tabpanel">
                   <StylesPanel {...panelProps} />

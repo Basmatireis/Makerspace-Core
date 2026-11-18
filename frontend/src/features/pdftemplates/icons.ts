@@ -32,6 +32,7 @@ export { default as Locked } from '@carbon/icons-react/es/Locked.js';
 export { default as Loop } from '@carbon/icons-react/es/Loop.js';
 export { default as PageBreak } from '@carbon/icons-react/es/PageBreak.js';
 export { default as PageNumber } from '@carbon/icons-react/es/PageNumber.js';
+export { default as Move } from '@carbon/icons-react/es/Move.js';
 export { default as Pen } from '@carbon/icons-react/es/Pen.js';
 export { default as QrCode } from '@carbon/icons-react/es/QrCode.js';
 export { default as Redo } from '@carbon/icons-react/es/Redo.js';

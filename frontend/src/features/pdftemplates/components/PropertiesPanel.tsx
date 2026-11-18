@@ -21,7 +21,7 @@ function NodePanel({ node, area, props }: { node: TemplateNode; area: Area; prop
   const misplaced = area !== 'body' && (node.type === 'sheet' || node.type === 'pagebreak');
   return (
     <div className="pdft-props">
-      <NodeHeader doc={doc} node={node} onChange={props.onChange} onSelect={props.onSelect} />
+      <NodeHeader doc={doc} node={node} onChange={props.onChange} onSelect={props.onSelect} onExpand={props.onExpand} />
       <Hint>{toolInfo(node.type).description}</Hint>
       <NodeNotices doc={doc} node={node} problems={props.problems} redacted={props.redacted} />
       <TextField

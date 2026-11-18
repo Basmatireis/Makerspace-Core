@@ -61,7 +61,10 @@ export function ColorPicker({ value, allowNone, editing, onPick, onSave, onEditS
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      // Only the picker closes: not the modal, popover or editor selection behind it.
       event.stopPropagation();
+      event.stopImmediatePropagation();
+      event.preventDefault();
       onClose();
     };
     window.addEventListener('keydown', onKey, true);

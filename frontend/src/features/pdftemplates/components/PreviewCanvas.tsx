@@ -26,6 +26,8 @@ export interface PreviewCanvasProps {
   onHover: (id: string | null) => void;
   onGeometry: (id: string, patch: Record<string, number>) => void;
   onDraw: (result: DrawResult) => void;
+  /** Only look: no overlay for hover, selection, move or drawing, and the region is a plain scrollable one. */
+  readOnly?: boolean;
 }
 
 const MARGIN_PX = 24;
@@ -123,12 +125,13 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
     <div
       ref={host}
       className={`pdft-pages${tool ? ' pdft-pages--tool' : ''}${interaction.overElement ? ' pdft-pages--element' : ''}`}
-      role="application"
-      aria-roledescription="page preview"
-      // The region takes the arrow keys that nudge the selected page element, so it must be focusable.
+      role={props.readOnly ? 'region' : 'application'}
+      aria-roledescription={props.readOnly ? undefined : 'page preview'}
+      // The region takes the arrow keys that nudge the selected page element, and a scrollable region must be
+      // reachable by keyboard, so it is focusable.
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
       tabIndex={0}
-      data-canvas-region
+      data-canvas-region={props.readOnly ? undefined : true}
       aria-label="Page preview"
     >
       {!shown && <InlineLoading description="Rendering the preview…" />}
@@ -151,26 +154,28 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
                     label={`Page ${number} of ${pages.length}`}
                   />
                 )}
-                <div
-                  className="pdft-overlay"
-                  data-page={number}
-                  onPointerDown={(event) => interaction.onPointerDown(event, number)}
-                  onPointerMove={(event) => interaction.onPointerMove(event, number)}
-                  onPointerLeave={() => props.onHover(null)}
-                >
-                  {pageBoxes
-                    .filter((b) => hoverIds.has(b.nodeId) && !selectedIds.has(b.nodeId))
-                    .map((b, i) => (
-                      <div key={`h${i}`} className="pdft-outline pdft-outline--hover" style={rect(b, k)} />
-                    ))}
-                  {pageBoxes
-                    .filter((b) => selectedIds.has(b.nodeId) && !(framed && b.nodeId === framed.id))
-                    .map((b, i) => (
-                      <div key={`s${i}`} className="pdft-outline pdft-outline--selected" style={rect(b, k)} />
-                    ))}
-                  {framed && <Frame node={framed} boxes={pageBoxes} page={number} drag={drag} k={k} />}
-                  {drawing?.page === number && <div className="pdft-drawrect" style={drawStyle(drawing, k)} />}
-                </div>
+                {!props.readOnly && (
+                  <div
+                    className="pdft-overlay"
+                    data-page={number}
+                    onPointerDown={(event) => interaction.onPointerDown(event, number)}
+                    onPointerMove={(event) => interaction.onPointerMove(event, number)}
+                    onPointerLeave={() => props.onHover(null)}
+                  >
+                    {pageBoxes
+                      .filter((b) => hoverIds.has(b.nodeId) && !selectedIds.has(b.nodeId))
+                      .map((b, i) => (
+                        <div key={`h${i}`} className="pdft-outline pdft-outline--hover" style={rect(b, k)} />
+                      ))}
+                    {pageBoxes
+                      .filter((b) => selectedIds.has(b.nodeId) && !(framed && b.nodeId === framed.id))
+                      .map((b, i) => (
+                        <div key={`s${i}`} className="pdft-outline pdft-outline--selected" style={rect(b, k)} />
+                      ))}
+                    {framed && <Frame node={framed} boxes={pageBoxes} page={number} drag={drag} k={k} />}
+                    {drawing?.page === number && <div className="pdft-drawrect" style={drawStyle(drawing, k)} />}
+                  </div>
+                )}
               </div>
             </div>
           );

@@ -31,6 +31,8 @@ export interface PropertiesPanelProps extends EditorPanelProps {
   problems: readonly PdfTemplateProblem[];
   /** Paths that stayed empty in the preview because the reader lacks a permission. */
   redacted: readonly string[];
+  /** Opens these structure rows, for a block moved into a container that is collapsed in the tree. */
+  onExpand?: (ids: string[]) => void;
 }
 
 /** Styles tab of the right pane: colour, text and size styles of the document. */

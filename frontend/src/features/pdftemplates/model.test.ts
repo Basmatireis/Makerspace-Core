@@ -120,6 +120,17 @@ suite('titles and descriptions', () => {
     expect(describe(find(doc, 'title')!.node)).toMatchObject({ strong: true, l2: 'Heading · 17 pt' });
     expect(describe(find(doc, 'layer1')!.node).l2).toBe('Page layer · Every page · 1 elements');
   });
+  it('shows the name and value of a size style instead of its token', () => {
+    const doc = sampleDocument();
+    doc.styles.sizes.push({ id: 'gapXS', name: 'Gap XS', value: 2, unit: 'mm' });
+    doc.body.push({ id: 'sp1', type: 'spacer', height: '$s:gapXS' }, { id: 'sp2', type: 'spacer', height: '$s:gone' });
+    expect(describe(find(doc, 'sp1')!.node, doc.styles).l1).toBe('Space · Gap XS (2 mm)');
+    expect(describe(find(doc, 'sp2')!.node, doc.styles).l1).toBe('Space · missing size style');
+    expect(describe(find(doc, 'sp1')!.node).l1).toBe('Space · $s:gapXS');
+    const heading = find(doc, 'title')!.node;
+    if (heading.type === 'heading') heading.size = '$s:gapXS';
+    expect(describe(heading, doc.styles).l2).toBe('Heading · Gap XS (2 mm)');
+  });
   it('shows spacers and dividers on a slim line', () => {
     const doc = sampleDocument();
     doc.body.push({ id: 'sp', type: 'spacer', height: 4 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRows, dropSpot, isOpen } from './treeRows';
+import { buildRows, dropSpot, isOpen, nestRows, type TreeItem } from './treeRows';
 import { sampleDocument } from './testFixtures';
 
 describe('buildRows', () => {
@@ -67,5 +67,40 @@ describe('dropSpot', () => {
       container: { node: 'cond', slot: 'else' },
     });
     expect(dropSpot(doc, row('page'), 0.5)).toBeNull();
+  });
+});
+
+describe('nestRows', () => {
+  const doc = sampleDocument();
+  const rows = buildRows(doc, { layer1: true });
+  const top = nestRows(rows);
+  const keysOf = (items: TreeItem[]) => items.map((i) => i.row.key);
+
+  it('puts page setup and the sections at the top, without children for the page', () => {
+    expect(keysOf(top)).toEqual(['page', 'sec:layers', 'sec:header', 'sec:body', 'sec:footer']);
+    expect(top[0].children).toEqual([]);
+  });
+
+  it('nests blocks under their section and elements under their layer', () => {
+    const layers = top[1];
+    expect(keysOf(layers.children)).toEqual(['layer1']);
+    expect(keysOf(layers.children[0].children)).toContain('stamp');
+  });
+
+  it('keeps every row exactly once', () => {
+    const count = (items: TreeItem[]): number => items.reduce((n, i) => n + 1 + count(i.children), 0);
+    expect(count(top)).toBe(rows.length);
+  });
+
+  it('nests slot labels and the blocks under them inside their container block', () => {
+    const cond = rows.find((r) => r.kind === 'node' && r.node.type === 'if');
+    expect(cond).toBeTruthy();
+    const find = (items: TreeItem[]): TreeItem | undefined =>
+      items.reduce<TreeItem | undefined>(
+        (hit, i) => hit ?? (i.row.key === cond!.key ? i : find(i.children)),
+        undefined,
+      );
+    const item = find(top)!;
+    expect(item.children.some((c) => c.row.kind === 'branch')).toBe(true);
   });
 });

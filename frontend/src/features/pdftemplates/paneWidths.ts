@@ -5,7 +5,8 @@ export const PANES: Record<PaneSide, { def: number; min: number; max: number; cs
   left: { def: 300, min: 220, max: 560, css: '--pdft-left' },
   right: { def: 320, min: 260, max: 600, css: '--pdft-right' },
 };
-const STORAGE_KEY = 'pdfTemplateEditorWidths';
+// A layout preference of this browser (pane widths), not application data; it holds no template content.
+const STORAGE_KEY = 'pdfTemplateEditor.paneWidths';
 
 const clamp = (side: PaneSide, px: number) => Math.round(Math.min(PANES[side].max, Math.max(PANES[side].min, px)));
 

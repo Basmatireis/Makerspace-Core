@@ -129,6 +129,9 @@ test('keeps the editor usable when the preview fails and restores an older versi
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('Version 2')).toBeVisible();
   await dialog.getByRole('button', { name: 'Restore as draft' }).click();
+  // Restoring replaces the draft, so it asks first.
+  await expect(dialog.getByRole('heading', { name: 'Restore version 1 as the draft?' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Restore as draft' }).click();
   await expect(page.getByText('Draft v3', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Old layout', level: 1 })).toBeVisible();
   expectNoUnexpectedRequests(world);
@@ -193,3 +196,50 @@ test('has no accessibility violations in the editor', async ({ page }) => {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   expect(results.violations.map((v) => ({ rule: v.id, targets: v.nodes.map((n) => n.target.join(' ')) }))).toEqual([]);
 });
+
+test('moves a block into another container with Move to… and keeps one tab stop in the structure', async ({ page }) => {
+  await open(page, newWorld());
+  // Roving tab stop: exactly one row of the tree is in the tab order.
+  await expect(page.locator('[role="treeitem"][tabindex="0"]')).toHaveCount(1);
+  await row(page, /Introduction/).click();
+  await expect(page.locator('[role="treeitem"][tabindex="0"]')).toHaveCount(1);
+
+  const bodyCount = page.getByRole('treeitem', { name: /^Body/ }).locator('.pdft-count');
+  const footerCount = page.getByRole('treeitem', { name: /^Footer/ }).locator('.pdft-count');
+  await expect(bodyCount).toHaveText('3');
+  const properties = page.getByTestId('properties-panel');
+  await properties.getByRole('button', { name: 'Move to…' }).click();
+  const places = page.getByRole('menuitem');
+  await expect(places.filter({ hasText: /^Header$/ })).toBeVisible();
+  await expect(places.filter({ hasText: /^New page layer$/ })).toBeVisible();
+  await places.filter({ hasText: /^Footer$/ }).click();
+  await expect(bodyCount).toHaveText('2');
+  await expect(footerCount).toHaveText('2');
+  await expect(row(page, /Introduction/)).toHaveAttribute('aria-selected', 'true');
+});
+
+for (const width of [375, 768]) {
+  test(`shows a notice and a read-only preview at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await installPdfTemplatesApi(page, newWorld());
+    await page.goto('/settings/pdf-templates');
+    await expect(
+      page.getByText('The template editor needs a screen at least 1056 px wide. You can still look at the preview.'),
+    ).toBeVisible();
+    await expect(page.locator('.pdft-page__canvas').first()).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Document' })).toBeVisible();
+    // No panes, no toolbar, no editing on the page.
+    await expect(page.getByRole('tree')).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: 'Properties' })).toHaveCount(0);
+    await expect(page.locator('.pdft-insertbar')).toHaveCount(0);
+    await expect(page.locator('.pdft-overlay')).toHaveCount(0);
+    // The preview fits the screen: no sideways scrolling.
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    const box = await page.locator('.pdft-pagewrap').first().boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+  });
+}

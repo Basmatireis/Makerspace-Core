@@ -152,6 +152,23 @@ describe('PropertiesPanel', () => {
     expect(docOf().body).toHaveLength(5);
   });
 
+  it('moves a block into another container with Move to…', async () => {
+    const user = userEvent.setup();
+    mount(sampleDocument(), 'intro');
+    await user.click(panel().getByRole('button', { name: 'Move to…' }));
+    // jsdom never positions the floating menu, so its items count as hidden.
+    const items = await screen.findAllByRole('menuitem', { hidden: true });
+    const choices = items.map((item) => item.textContent);
+    expect(choices).toContain('Body');
+    expect(choices.some((c) => c?.startsWith('Body › ') && c.endsWith('Then'))).toBe(true);
+    expect(choices.some((c) => c?.startsWith('Layer “'))).toBe(true);
+    expect(choices).toContain('Header');
+    await user.click(items.find((item) => item.textContent === 'Footer')!);
+    const doc = docOf();
+    expect(doc.body.map((b) => b.id)).not.toContain('intro');
+    expect(doc.footer.at(-1)?.id).toBe('intro');
+  });
+
   it('shows errors, warnings and redacted fields of the node', () => {
     const doc = sampleDocument();
     render(

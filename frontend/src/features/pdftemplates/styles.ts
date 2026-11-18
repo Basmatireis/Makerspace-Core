@@ -43,6 +43,24 @@ export function resolveLength(value: unknown, styles: DocumentStyles): number {
   return Number(value) || 0;
 }
 
+/**
+ * A length or colour for people to read: `$s:`/`$c:` references show the style's name and value ("Gap XS (2 mm)"), a
+ * number its unit, anything else as it is. Without the document's styles a reference stays as written.
+ */
+export function styleLabel(value: unknown, styles: DocumentStyles | undefined, unit: 'mm' | 'pt' = 'mm'): string {
+  if (typeof value === 'number') return `${value} ${unit}`;
+  if (typeof value !== 'string') return '';
+  if (value.startsWith('$s:') && styles) {
+    const size = sizeRef(value, styles);
+    return size ? `${size.name} (${size.value} ${size.unit})` : 'missing size style';
+  }
+  if (value.startsWith('$c:') && styles) {
+    const color = colorRef(value, styles);
+    return color ? `${color.name} (${color.value.toUpperCase()})` : 'missing colour style';
+  }
+  return value;
+}
+
 const countIn = (x: unknown, test: (key: string, value: unknown) => boolean, key = ''): number => {
   if (Array.isArray(x)) return x.reduce<number>((n, y) => n + countIn(y, test, key), 0);
   if (x && typeof x === 'object') return Object.entries(x).reduce((n, [k, v]) => n + countIn(v, test, k), 0);

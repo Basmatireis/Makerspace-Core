@@ -1,4 +1,5 @@
 import type { PdfTemplateDocument } from '../../api/generated/models';
+import { styleLabel } from './styles';
 
 /**
  * TypeScript model of the PDF template document (`schemaVersion: 1`, stored as jsonb). The backend validates the
@@ -730,10 +731,10 @@ function conditionText(c: Condition | undefined): string {
   return `${c.path || '…'} ${op}${c.op === 'exists' || c.op === 'empty' ? '' : ' ' + (c.value ?? '')}`;
 }
 
-export function describe(n: TemplateNode): Description {
+export function describe(n: TemplateNode, styles?: DocumentStyles): Description {
   const type = TYPE_LABELS[n.type];
   const pos = n.type !== 'layer' && n.x != null ? ` · x ${n.x} y ${n.y} mm` : '';
-  if (n.type === 'spacer') return { l1: n.title || `Space · ${n.height} mm`, compact: true };
+  if (n.type === 'spacer') return { l1: n.title || `Space · ${styleLabel(n.height, styles)}`, compact: true };
   if (n.type === 'divider' || n.type === 'pagebreak') return { l1: n.title || type, compact: true };
   let kind: string;
   switch (n.type) {
@@ -742,7 +743,7 @@ export function describe(n: TemplateNode): Description {
         l1: titleOf(n),
         strong: true,
         untitled: !n.title,
-        l2: `Heading${typeof n.size === 'number' ? ` · ${n.size} pt` : ''}${pos}`,
+        l2: `Heading${n.size != null ? ` · ${styleLabel(n.size, styles, 'pt')}` : ''}${pos}`,
       };
     case 'fields':
       kind = `Label & value list · ${n.rows.length} rows`;
@@ -763,7 +764,7 @@ export function describe(n: TemplateNode): Description {
       kind = 'Columns';
       break;
     case 'image':
-      kind = `Logo · ${n.height} mm high`;
+      kind = `Logo · ${styleLabel(n.height, styles)} high`;
       break;
     case 'signatures':
       kind = `Signature fields · ${n.labels.length}`;

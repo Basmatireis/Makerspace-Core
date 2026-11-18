@@ -89,13 +89,16 @@ function ColorRow({ style }: { style: ColorStyle }) {
         }
       />
       <TextField
-        label="Name"
+        label={`Name of colour ${style.name}`}
+        hideLabel
         value={style.name}
         maxLength={60}
         onChange={(name, kind) => edit((d) => updateColor(d, style.id, { name }), kind)}
       />
-      <code className="pdft-mono">{style.value.toUpperCase()}</code>
-      <span className="pdft-use">{usage(countUsage(doc, colorToken(style.id)))}</span>
+      <span className="pdft-stylemeta">
+        <code className="pdft-mono">{style.value.toUpperCase()}</code>
+        <span className="pdft-use">{usage(countUsage(doc, colorToken(style.id)))}</span>
+      </span>
       <DeleteButton
         label={`Delete ${style.name} (uses keep the colour)`}
         onClick={() => edit((d) => removeColor(d, style.id))}
@@ -122,7 +125,13 @@ function TextStyleCard({ style }: { style: TextStyle }) {
         >
           Ag
         </span>
-        <TextField label="Name" value={style.name} maxLength={60} onChange={(name, kind) => patch({ name }, kind)} />
+        <TextField
+          label={`Name of text style ${style.name}`}
+          hideLabel
+          value={style.name}
+          maxLength={60}
+          onChange={(name, kind) => patch({ name }, kind)}
+        />
         <span className="pdft-use">{usage(countTextStyleUsage(doc, style.id))}</span>
         <DeleteButton
           label={`Delete ${style.name} (uses keep its look)`}
@@ -169,23 +178,38 @@ function SizeRow({ style }: { style: SizeStyle }) {
   const patch = (props: Partial<SizeStyle>, kind: 'typing' | 'step') =>
     edit((d) => updateSize(d, style.id, props), kind);
   return (
-    <div className="pdft-stylerow pdft-stylerow--size">
-      <TextField label="Name" value={style.name} maxLength={60} onChange={(name, kind) => patch({ name }, kind)} />
-      <NumField label="Value" value={style.value} step={0.01} onChange={(v, kind) => patch({ value: v ?? 0 }, kind)} />
-      <SelectField
-        label="Unit"
-        value={style.unit}
-        options={[
-          { value: 'mm', label: 'mm' },
-          { value: 'pt', label: 'pt' },
-        ]}
-        onChange={(unit, kind) => patch({ unit: unit as SizeStyle['unit'] }, kind)}
-      />
-      <span className="pdft-use">{usage(countUsage(doc, sizeToken(style.id)))}</span>
-      <DeleteButton
-        label={`Delete ${style.name} (uses keep the value)`}
-        onClick={() => edit((d) => removeSize(d, style.id))}
-      />
+    <div className="pdft-sizestyle">
+      <div className="pdft-stylerow">
+        <TextField
+          label={`Name of size ${style.name}`}
+          hideLabel
+          value={style.name}
+          maxLength={60}
+          onChange={(name, kind) => patch({ name }, kind)}
+        />
+        <span className="pdft-use">{usage(countUsage(doc, sizeToken(style.id)))}</span>
+        <DeleteButton
+          label={`Delete ${style.name} (uses keep the value)`}
+          onClick={() => edit((d) => removeSize(d, style.id))}
+        />
+      </div>
+      <div className="pdft-row2">
+        <NumField
+          label="Value"
+          value={style.value}
+          step={0.01}
+          onChange={(v, kind) => patch({ value: v ?? 0 }, kind)}
+        />
+        <SelectField
+          label="Unit"
+          value={style.unit}
+          options={[
+            { value: 'mm', label: 'mm' },
+            { value: 'pt', label: 'pt' },
+          ]}
+          onChange={(unit, kind) => patch({ unit: unit as SizeStyle['unit'] }, kind)}
+        />
+      </div>
     </div>
   );
 }

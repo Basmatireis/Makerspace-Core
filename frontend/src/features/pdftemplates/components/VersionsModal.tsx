@@ -10,6 +10,7 @@ import {
   Tag,
 } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import type { PdfTemplateExport, PdfTemplateState, PdfTemplateVersionMeta } from '../../../api/generated/models';
 import { formatDateTime } from '../../../app/dateTime';
 import { pdfTemplateVersionsQuery } from '../queries';
@@ -40,7 +41,30 @@ export interface VersionsModalProps {
   error: string | null;
 }
 
-/** The versions of a template: restore one as the new draft, return to the built-in default, or drop the draft. */
+type Confirm = { kind: 'restore'; version: PdfTemplateVersionMeta } | { kind: 'reset' } | { kind: 'discard' };
+
+const CONFIRM_TEXT = {
+  restore: (v: PdfTemplateVersionMeta | undefined) => ({
+    heading: `Restore version ${v?.version ?? ''} as the draft?`,
+    body: 'The version becomes a new draft and replaces the current draft and any unsaved edits in the editor. The published version stays as it is.',
+    primary: 'Restore as draft',
+  }),
+  reset: () => ({
+    heading: 'Reset to the built-in default?',
+    body: 'The editor shows the built-in layout instead of your edits. Nothing is saved until you save the draft, and Undo brings your edits back until then.',
+    primary: 'Reset to default',
+  }),
+  discard: () => ({
+    heading: 'Discard the saved draft?',
+    body: 'The draft is deleted and the published version is shown again. Edits that are only in the draft are lost, and this cannot be undone.',
+    primary: 'Discard draft',
+  }),
+};
+
+/**
+ * The versions of a template: restore one as the new draft, return to the built-in default, or drop the draft. Each of
+ * these replaces or deletes work, so each asks first.
+ */
 export function VersionsModal({
   kind,
   templateName,
@@ -52,6 +76,35 @@ export function VersionsModal({
   error,
 }: VersionsModalProps) {
   const versions = useQuery(pdfTemplateVersionsQuery(kind, true));
+  const [confirm, setConfirm] = useState<Confirm | null>(null);
+  if (confirm) {
+    const text = confirm.kind === 'restore' ? CONFIRM_TEXT.restore(confirm.version) : CONFIRM_TEXT[confirm.kind]();
+    const run = () => {
+      if (confirm.kind === 'restore') onRestore(confirm.version);
+      else if (confirm.kind === 'reset') onReset();
+      else onDiscardDraft?.();
+    };
+    return (
+      <Modal
+        open
+        size="sm"
+        danger={confirm.kind === 'discard'}
+        modalLabel={templateName}
+        modalHeading={text.heading}
+        primaryButtonText={text.primary}
+        secondaryButtonText="Cancel"
+        primaryButtonDisabled={busy}
+        onRequestClose={() => setConfirm(null)}
+        onRequestSubmit={run}
+      >
+        <p>{text.body}</p>
+        {error && (
+          <InlineNotification kind="error" lowContrast hideCloseButton title="That did not work." subtitle={error} />
+        )}
+        {busy && <InlineLoading description="Working…" />}
+      </Modal>
+    );
+  }
   return (
     <Modal open passiveModal modalHeading="Versions" modalLabel={templateName} onRequestClose={onClose} size="md">
       {versions.isPending && <InlineLoading description="Loading versions…" />}
@@ -91,7 +144,7 @@ export function VersionsModal({
                       kind="ghost"
                       size="sm"
                       disabled={busy || version.state !== 'archived'}
-                      onClick={() => onRestore(version)}
+                      onClick={() => setConfirm({ kind: 'restore', version })}
                     >
                       {version.state === 'published'
                         ? 'In use'
@@ -107,11 +160,11 @@ export function VersionsModal({
         </StructuredListWrapper>
       )}
       <div className="pdft-versions__footer">
-        <Button kind="tertiary" size="sm" disabled={busy} onClick={onReset}>
+        <Button kind="tertiary" size="sm" disabled={busy} onClick={() => setConfirm({ kind: 'reset' })}>
           Reset to the built-in default
         </Button>
         {onDiscardDraft && (
-          <Button kind="danger--ghost" size="sm" disabled={busy} onClick={onDiscardDraft}>
+          <Button kind="danger--ghost" size="sm" disabled={busy} onClick={() => setConfirm({ kind: 'discard' })}>
             Discard the saved draft
           </Button>
         )}

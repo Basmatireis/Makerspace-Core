@@ -140,3 +140,30 @@ export function dropSpot(doc: TemplateDocument, row: TreeRow, fraction: number):
     ? { kind: 'before', container: row.container, index: row.index }
     : { kind: 'after', container: row.container, index: row.index + 1 };
 }
+
+/** A row with the rows nested under it, for the `role="group"` markup of the tree. */
+export interface TreeItem {
+  row: TreeRow;
+  children: TreeItem[];
+}
+
+/** Page and section rows sit above the depth of every other row. */
+const depthOf = (row: TreeRow): number => (row.kind === 'page' || row.kind === 'section' ? -1 : row.depth);
+
+/**
+ * Nests the flat rows: a row's children are the rows after it that are deeper, up to the next row at its own depth or
+ * above. The page row has none, a section has its blocks, a container block has its slots and blocks.
+ */
+export function nestRows(rows: readonly TreeRow[]): TreeItem[] {
+  const top: TreeItem[] = [];
+  const stack: { depth: number; item: TreeItem }[] = [];
+  for (const row of rows) {
+    const item: TreeItem = { row, children: [] };
+    const depth = depthOf(row);
+    while (stack.length && stack[stack.length - 1].depth >= depth) stack.pop();
+    // The page row is never a parent: whatever follows it is a sibling.
+    (stack.length ? stack[stack.length - 1].item.children : top).push(item);
+    if (row.kind !== 'page') stack.push({ depth, item });
+  }
+  return top;
+}

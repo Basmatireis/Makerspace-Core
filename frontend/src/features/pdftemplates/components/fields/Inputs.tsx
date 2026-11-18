@@ -17,16 +17,28 @@ interface TextFieldProps {
   maxLength?: number;
   onBlur?: () => void;
   placeholder?: string;
+  /** The label stays for assistive technology only, for fields in a list whose rows repeat it. */
+  hideLabel?: boolean;
 }
 
 /** A single-line text that is not an expression (names, titles). */
-export function TextField({ label, value, onChange, helper, maxLength, onBlur, placeholder }: TextFieldProps) {
+export function TextField({
+  label,
+  value,
+  onChange,
+  helper,
+  maxLength,
+  onBlur,
+  placeholder,
+  hideLabel,
+}: TextFieldProps) {
   const id = useId();
   return (
     <TextInput
       id={id}
       size="sm"
       labelText={label}
+      hideLabel={hideLabel}
       value={value}
       helperText={helper}
       maxLength={maxLength}
