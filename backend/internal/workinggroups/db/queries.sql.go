@@ -10,7 +10,34 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const addWorkingGroupComment = `-- name: AddWorkingGroupComment :exec
+INSERT INTO working_group_comments (id, ticket_id, todo_id, author_person_id, text, internal)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type AddWorkingGroupCommentParams struct {
+	ID             uuid.UUID
+	TicketID       *uuid.UUID
+	TodoID         *uuid.UUID
+	AuthorPersonID *uuid.UUID
+	Text           string
+	Internal       bool
+}
+
+func (q *Queries) AddWorkingGroupComment(ctx context.Context, arg AddWorkingGroupCommentParams) error {
+	_, err := q.db.Exec(ctx, addWorkingGroupComment,
+		arg.ID,
+		arg.TicketID,
+		arg.TodoID,
+		arg.AuthorPersonID,
+		arg.Text,
+		arg.Internal,
+	)
+	return err
+}
 
 const addWorkingGroupMachine = `-- name: AddWorkingGroupMachine :exec
 INSERT INTO working_group_machines (group_id, machine_id) VALUES ($1, $2)
@@ -63,12 +90,61 @@ func (q *Queries) AddWorkingGroupPlace(ctx context.Context, arg AddWorkingGroupP
 	return err
 }
 
+const addWorkingGroupTicketFollower = `-- name: AddWorkingGroupTicketFollower :execrows
+INSERT INTO working_group_ticket_followers (ticket_id, person_id) VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type AddWorkingGroupTicketFollowerParams struct {
+	TicketID uuid.UUID
+	PersonID uuid.UUID
+}
+
+func (q *Queries) AddWorkingGroupTicketFollower(ctx context.Context, arg AddWorkingGroupTicketFollowerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, addWorkingGroupTicketFollower, arg.TicketID, arg.PersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const clearWorkingGroupLead = `-- name: ClearWorkingGroupLead :exec
 UPDATE working_group_members SET is_lead = false WHERE group_id = $1 AND is_lead
 `
 
 func (q *Queries) ClearWorkingGroupLead(ctx context.Context, groupID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, clearWorkingGroupLead, groupID)
+	return err
+}
+
+const clearWorkingGroupTicketAssignments = `-- name: ClearWorkingGroupTicketAssignments :exec
+UPDATE working_group_tickets SET assignee_person_id = NULL, version = version + 1, updated_at = now()
+WHERE group_id = $1 AND assignee_person_id = $2
+`
+
+type ClearWorkingGroupTicketAssignmentsParams struct {
+	GroupID  uuid.UUID
+	PersonID *uuid.UUID
+}
+
+// A person who leaves a group no longer carries its tickets and to-dos.
+func (q *Queries) ClearWorkingGroupTicketAssignments(ctx context.Context, arg ClearWorkingGroupTicketAssignmentsParams) error {
+	_, err := q.db.Exec(ctx, clearWorkingGroupTicketAssignments, arg.GroupID, arg.PersonID)
+	return err
+}
+
+const clearWorkingGroupTodoAssignments = `-- name: ClearWorkingGroupTodoAssignments :exec
+UPDATE working_group_todos SET assignee_person_id = NULL, version = version + 1, updated_at = now()
+WHERE group_id = $1 AND assignee_person_id = $2
+`
+
+type ClearWorkingGroupTodoAssignmentsParams struct {
+	GroupID  uuid.UUID
+	PersonID *uuid.UUID
+}
+
+func (q *Queries) ClearWorkingGroupTodoAssignments(ctx context.Context, arg ClearWorkingGroupTodoAssignmentsParams) error {
+	_, err := q.db.Exec(ctx, clearWorkingGroupTodoAssignments, arg.GroupID, arg.PersonID)
 	return err
 }
 
@@ -87,6 +163,68 @@ func (q *Queries) CreateWorkingGroup(ctx context.Context, arg CreateWorkingGroup
 	return err
 }
 
+const createWorkingGroupTicket = `-- name: CreateWorkingGroupTicket :exec
+INSERT INTO working_group_tickets (id, group_id, machine_id, kind, subject, body, blocks_use, author_person_id)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8)
+`
+
+type CreateWorkingGroupTicketParams struct {
+	ID             uuid.UUID
+	GroupID        uuid.UUID
+	MachineID      *uuid.UUID
+	Kind           string
+	Subject        string
+	Body           string
+	BlocksUse      bool
+	AuthorPersonID *uuid.UUID
+}
+
+func (q *Queries) CreateWorkingGroupTicket(ctx context.Context, arg CreateWorkingGroupTicketParams) error {
+	_, err := q.db.Exec(ctx, createWorkingGroupTicket,
+		arg.ID,
+		arg.GroupID,
+		arg.MachineID,
+		arg.Kind,
+		arg.Subject,
+		arg.Body,
+		arg.BlocksUse,
+		arg.AuthorPersonID,
+	)
+	return err
+}
+
+const createWorkingGroupTodo = `-- name: CreateWorkingGroupTodo :exec
+INSERT INTO working_group_todos (id, group_id, title, assignee_person_id, due_on, column_id, repeat_every_days, created_by_person_id)
+VALUES ($1, $2, $3, $4, $5::date,
+        $6, $7::integer, $8)
+`
+
+type CreateWorkingGroupTodoParams struct {
+	ID                uuid.UUID
+	GroupID           uuid.UUID
+	Title             string
+	AssigneePersonID  *uuid.UUID
+	DueOn             pgtype.Date
+	ColumnID          uuid.UUID
+	RepeatEveryDays   *int32
+	CreatedByPersonID *uuid.UUID
+}
+
+func (q *Queries) CreateWorkingGroupTodo(ctx context.Context, arg CreateWorkingGroupTodoParams) error {
+	_, err := q.db.Exec(ctx, createWorkingGroupTodo,
+		arg.ID,
+		arg.GroupID,
+		arg.Title,
+		arg.AssigneePersonID,
+		arg.DueOn,
+		arg.ColumnID,
+		arg.RepeatEveryDays,
+		arg.CreatedByPersonID,
+	)
+	return err
+}
+
 const deleteWorkingGroup = `-- name: DeleteWorkingGroup :execrows
 DELETE FROM working_groups WHERE id = $1
 `
@@ -97,6 +235,20 @@ func (q *Queries) DeleteWorkingGroup(ctx context.Context, id uuid.UUID) (int64, 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteWorkingGroupColumn = `-- name: DeleteWorkingGroupColumn :exec
+DELETE FROM working_group_columns WHERE id = $1 AND group_id = $2
+`
+
+type DeleteWorkingGroupColumnParams struct {
+	ID      uuid.UUID
+	GroupID uuid.UUID
+}
+
+func (q *Queries) DeleteWorkingGroupColumn(ctx context.Context, arg DeleteWorkingGroupColumnParams) error {
+	_, err := q.db.Exec(ctx, deleteWorkingGroupColumn, arg.ID, arg.GroupID)
+	return err
 }
 
 const deleteWorkingGroupMachines = `-- name: DeleteWorkingGroupMachines :exec
@@ -136,6 +288,35 @@ type DeleteWorkingGroupPlaceParams struct {
 
 func (q *Queries) DeleteWorkingGroupPlace(ctx context.Context, arg DeleteWorkingGroupPlaceParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteWorkingGroupPlace, arg.ID, arg.GroupID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteWorkingGroupTicketFollower = `-- name: DeleteWorkingGroupTicketFollower :execrows
+DELETE FROM working_group_ticket_followers WHERE ticket_id = $1 AND person_id = $2
+`
+
+type DeleteWorkingGroupTicketFollowerParams struct {
+	TicketID uuid.UUID
+	PersonID uuid.UUID
+}
+
+func (q *Queries) DeleteWorkingGroupTicketFollower(ctx context.Context, arg DeleteWorkingGroupTicketFollowerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWorkingGroupTicketFollower, arg.TicketID, arg.PersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteWorkingGroupTodo = `-- name: DeleteWorkingGroupTodo :execrows
+DELETE FROM working_group_todos WHERE id = $1
+`
+
+func (q *Queries) DeleteWorkingGroupTodo(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWorkingGroupTodo, id)
 	if err != nil {
 		return 0, err
 	}
@@ -264,6 +445,96 @@ func (q *Queries) GetWorkingGroupMember(ctx context.Context, arg GetWorkingGroup
 	return i, err
 }
 
+const getWorkingGroupTicketCore = `-- name: GetWorkingGroupTicketCore :one
+SELECT id, group_id, machine_id, status, author_person_id, assignee_person_id, due_on, column_id, version
+FROM working_group_tickets WHERE id = $1
+`
+
+type GetWorkingGroupTicketCoreRow struct {
+	ID               uuid.UUID
+	GroupID          uuid.UUID
+	MachineID        *uuid.UUID
+	Status           string
+	AuthorPersonID   *uuid.UUID
+	AssigneePersonID *uuid.UUID
+	DueOn            pgtype.Date
+	ColumnID         *uuid.UUID
+	Version          int64
+}
+
+func (q *Queries) GetWorkingGroupTicketCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTicketCoreRow, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupTicketCore, id)
+	var i GetWorkingGroupTicketCoreRow
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.MachineID,
+		&i.Status,
+		&i.AuthorPersonID,
+		&i.AssigneePersonID,
+		&i.DueOn,
+		&i.ColumnID,
+		&i.Version,
+	)
+	return i, err
+}
+
+const getWorkingGroupTodoCore = `-- name: GetWorkingGroupTodoCore :one
+SELECT id, group_id, title, assignee_person_id, due_on, column_id, repeat_every_days, done_at, version
+FROM working_group_todos WHERE id = $1
+`
+
+type GetWorkingGroupTodoCoreRow struct {
+	ID               uuid.UUID
+	GroupID          uuid.UUID
+	Title            string
+	AssigneePersonID *uuid.UUID
+	DueOn            pgtype.Date
+	ColumnID         uuid.UUID
+	RepeatEveryDays  *int32
+	DoneAt           pgtype.Timestamptz
+	Version          int64
+}
+
+func (q *Queries) GetWorkingGroupTodoCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTodoCoreRow, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupTodoCore, id)
+	var i GetWorkingGroupTodoCoreRow
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.Title,
+		&i.AssigneePersonID,
+		&i.DueOn,
+		&i.ColumnID,
+		&i.RepeatEveryDays,
+		&i.DoneAt,
+		&i.Version,
+	)
+	return i, err
+}
+
+const insertWorkingGroupColumn = `-- name: InsertWorkingGroupColumn :exec
+INSERT INTO working_group_columns (id, group_id, name, position)
+VALUES ($1, $2, $3, $4)
+`
+
+type InsertWorkingGroupColumnParams struct {
+	ID       uuid.UUID
+	GroupID  uuid.UUID
+	Name     string
+	Position int32
+}
+
+func (q *Queries) InsertWorkingGroupColumn(ctx context.Context, arg InsertWorkingGroupColumnParams) error {
+	_, err := q.db.Exec(ctx, insertWorkingGroupColumn,
+		arg.ID,
+		arg.GroupID,
+		arg.Name,
+		arg.Position,
+	)
+	return err
+}
+
 const isVisitorPerson = `-- name: IsVisitorPerson :one
 SELECT EXISTS (
     SELECT 1 FROM person_roles pr JOIN roles r ON r.id = pr.role_id
@@ -291,6 +562,24 @@ type IsWorkingGroupLeadParams struct {
 
 func (q *Queries) IsWorkingGroupLead(ctx context.Context, arg IsWorkingGroupLeadParams) (bool, error) {
 	row := q.db.QueryRow(ctx, isWorkingGroupLead, arg.GroupID, arg.PersonID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const isWorkingGroupMember = `-- name: IsWorkingGroupMember :one
+SELECT EXISTS (
+    SELECT 1 FROM working_group_members WHERE group_id = $1 AND person_id = $2
+)
+`
+
+type IsWorkingGroupMemberParams struct {
+	GroupID  uuid.UUID
+	PersonID uuid.UUID
+}
+
+func (q *Queries) IsWorkingGroupMember(ctx context.Context, arg IsWorkingGroupMemberParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isWorkingGroupMember, arg.GroupID, arg.PersonID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -350,6 +639,35 @@ func (q *Queries) ListMachineGroupAssignments(ctx context.Context, ids []uuid.UU
 	for rows.Next() {
 		var i ListMachineGroupAssignmentsRow
 		if err := rows.Scan(&i.MachineID, &i.GroupID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupColumns = `-- name: ListWorkingGroupColumns :many
+SELECT id, name FROM working_group_columns WHERE group_id = $1 ORDER BY position, id
+`
+
+type ListWorkingGroupColumnsRow struct {
+	ID   uuid.UUID
+	Name string
+}
+
+func (q *Queries) ListWorkingGroupColumns(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupColumnsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupColumns, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupColumnsRow{}
+	for rows.Next() {
+		var i ListWorkingGroupColumnsRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -502,6 +820,349 @@ func (q *Queries) ListWorkingGroupPlaces(ctx context.Context, groupID uuid.UUID)
 	return items, nil
 }
 
+const listWorkingGroupTicketComments = `-- name: ListWorkingGroupTicketComments :many
+SELECT c.id, c.author_person_id, COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS author_name, c.text, c.internal, c.created_at
+FROM working_group_comments c
+LEFT JOIN people p ON p.id = c.author_person_id
+WHERE c.ticket_id = $1 AND (NOT c.internal OR $2::boolean)
+ORDER BY c.created_at, c.id
+`
+
+type ListWorkingGroupTicketCommentsParams struct {
+	TicketID        *uuid.UUID
+	IncludeInternal bool
+}
+
+type ListWorkingGroupTicketCommentsRow struct {
+	ID             uuid.UUID
+	AuthorPersonID *uuid.UUID
+	AuthorName     string
+	Text           string
+	Internal       bool
+	CreatedAt      time.Time
+}
+
+func (q *Queries) ListWorkingGroupTicketComments(ctx context.Context, arg ListWorkingGroupTicketCommentsParams) ([]ListWorkingGroupTicketCommentsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupTicketComments, arg.TicketID, arg.IncludeInternal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupTicketCommentsRow{}
+	for rows.Next() {
+		var i ListWorkingGroupTicketCommentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AuthorPersonID,
+			&i.AuthorName,
+			&i.Text,
+			&i.Internal,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupTicketFollowers = `-- name: ListWorkingGroupTicketFollowers :many
+SELECT f.person_id, COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS display_name
+FROM working_group_ticket_followers f
+JOIN people p ON p.id = f.person_id
+WHERE f.ticket_id = $1
+ORDER BY f.created_at, f.person_id
+`
+
+type ListWorkingGroupTicketFollowersRow struct {
+	PersonID    uuid.UUID
+	DisplayName string
+}
+
+func (q *Queries) ListWorkingGroupTicketFollowers(ctx context.Context, ticketID uuid.UUID) ([]ListWorkingGroupTicketFollowersRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupTicketFollowers, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupTicketFollowersRow{}
+	for rows.Next() {
+		var i ListWorkingGroupTicketFollowersRow
+		if err := rows.Scan(&i.PersonID, &i.DisplayName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupTickets = `-- name: ListWorkingGroupTickets :many
+SELECT t.id, t.group_id, g.name AS group_name, t.machine_id, mc.name AS machine_name, t.kind, t.subject, t.body,
+       t.blocks_use, t.status,
+       t.author_person_id, COALESCE(btrim(author.first_name || ' ' || author.last_name), '')::text AS author_name,
+       t.assignee_person_id, COALESCE(btrim(assignee.first_name || ' ' || assignee.last_name), '')::text AS assignee_name,
+       t.due_on, t.column_id,
+       (SELECT count(*) FROM working_group_ticket_followers f WHERE f.ticket_id = t.id)::bigint AS follower_count,
+       EXISTS (
+           SELECT 1 FROM working_group_ticket_followers f
+           WHERE f.ticket_id = t.id AND f.person_id = $1
+       ) AS is_following,
+       COALESCE(t.author_person_id = $1 OR t.assignee_person_id = $1, false)::boolean AS is_mine,
+       (SELECT count(*) FROM working_group_comments c
+        WHERE c.ticket_id = t.id AND (NOT c.internal OR $2::boolean OR EXISTS (
+            SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = $1
+        )))::bigint AS comment_count,
+       ($2::boolean OR EXISTS (
+           SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = $1
+       ))::boolean AS inside,
+       t.version, t.created_at, t.updated_at, t.closed_at
+FROM working_group_tickets t
+JOIN working_groups g ON g.id = t.group_id
+LEFT JOIN machines mc ON mc.id = t.machine_id
+LEFT JOIN people author ON author.id = t.author_person_id
+LEFT JOIN people assignee ON assignee.id = t.assignee_person_id
+WHERE ($3::uuid IS NULL OR t.id = $3::uuid)
+  AND ($4::uuid IS NULL OR t.group_id = $4::uuid)
+  AND ($5::text IS NULL OR t.status = $5::text)
+ORDER BY t.created_at DESC, t.id DESC
+LIMIT $6
+`
+
+type ListWorkingGroupTicketsParams struct {
+	CallerPersonID uuid.UUID
+	CallerManage   bool
+	ID             *uuid.UUID
+	GroupID        *uuid.UUID
+	Status         *string
+	RowLimit       int32
+}
+
+type ListWorkingGroupTicketsRow struct {
+	ID               uuid.UUID
+	GroupID          uuid.UUID
+	GroupName        string
+	MachineID        *uuid.UUID
+	MachineName      *string
+	Kind             string
+	Subject          string
+	Body             string
+	BlocksUse        bool
+	Status           string
+	AuthorPersonID   *uuid.UUID
+	AuthorName       string
+	AssigneePersonID *uuid.UUID
+	AssigneeName     string
+	DueOn            pgtype.Date
+	ColumnID         *uuid.UUID
+	FollowerCount    int64
+	IsFollowing      bool
+	IsMine           bool
+	CommentCount     int64
+	Inside           bool
+	Version          int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	ClosedAt         pgtype.Timestamptz
+}
+
+// One query for the list and the single ticket: id, group and status are optional filters.
+func (q *Queries) ListWorkingGroupTickets(ctx context.Context, arg ListWorkingGroupTicketsParams) ([]ListWorkingGroupTicketsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupTickets,
+		arg.CallerPersonID,
+		arg.CallerManage,
+		arg.ID,
+		arg.GroupID,
+		arg.Status,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupTicketsRow{}
+	for rows.Next() {
+		var i ListWorkingGroupTicketsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.GroupID,
+			&i.GroupName,
+			&i.MachineID,
+			&i.MachineName,
+			&i.Kind,
+			&i.Subject,
+			&i.Body,
+			&i.BlocksUse,
+			&i.Status,
+			&i.AuthorPersonID,
+			&i.AuthorName,
+			&i.AssigneePersonID,
+			&i.AssigneeName,
+			&i.DueOn,
+			&i.ColumnID,
+			&i.FollowerCount,
+			&i.IsFollowing,
+			&i.IsMine,
+			&i.CommentCount,
+			&i.Inside,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClosedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupTodoComments = `-- name: ListWorkingGroupTodoComments :many
+SELECT c.id, c.author_person_id, COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS author_name, c.text, c.internal, c.created_at
+FROM working_group_comments c
+LEFT JOIN people p ON p.id = c.author_person_id
+WHERE c.todo_id = $1
+ORDER BY c.created_at, c.id
+`
+
+type ListWorkingGroupTodoCommentsRow struct {
+	ID             uuid.UUID
+	AuthorPersonID *uuid.UUID
+	AuthorName     string
+	Text           string
+	Internal       bool
+	CreatedAt      time.Time
+}
+
+func (q *Queries) ListWorkingGroupTodoComments(ctx context.Context, todoID *uuid.UUID) ([]ListWorkingGroupTodoCommentsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupTodoComments, todoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupTodoCommentsRow{}
+	for rows.Next() {
+		var i ListWorkingGroupTodoCommentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AuthorPersonID,
+			&i.AuthorName,
+			&i.Text,
+			&i.Internal,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupTodos = `-- name: ListWorkingGroupTodos :many
+SELECT t.id, t.group_id, g.name AS group_name, t.title,
+       t.assignee_person_id, COALESCE(btrim(assignee.first_name || ' ' || assignee.last_name), '')::text AS assignee_name,
+       t.created_by_person_id, COALESCE(btrim(creator.first_name || ' ' || creator.last_name), '')::text AS creator_name,
+       t.due_on, t.column_id, t.repeat_every_days, t.done_at,
+       COALESCE(t.assignee_person_id = $1, false)::boolean AS is_mine,
+       (SELECT count(*) FROM working_group_comments c WHERE c.todo_id = t.id)::bigint AS comment_count,
+       t.version, t.created_at, t.updated_at
+FROM working_group_todos t
+JOIN working_groups g ON g.id = t.group_id
+LEFT JOIN people assignee ON assignee.id = t.assignee_person_id
+LEFT JOIN people creator ON creator.id = t.created_by_person_id
+WHERE ($2::boolean OR EXISTS (
+          SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = $1
+      ))
+  AND ($3::uuid IS NULL OR t.id = $3::uuid)
+  AND ($4::uuid IS NULL OR t.group_id = $4::uuid)
+ORDER BY (t.done_at IS NOT NULL), t.due_on, t.created_at, t.id
+LIMIT $5
+`
+
+type ListWorkingGroupTodosParams struct {
+	CallerPersonID *uuid.UUID
+	CallerManage   bool
+	ID             *uuid.UUID
+	GroupID        *uuid.UUID
+	RowLimit       int32
+}
+
+type ListWorkingGroupTodosRow struct {
+	ID                uuid.UUID
+	GroupID           uuid.UUID
+	GroupName         string
+	Title             string
+	AssigneePersonID  *uuid.UUID
+	AssigneeName      string
+	CreatedByPersonID *uuid.UUID
+	CreatorName       string
+	DueOn             pgtype.Date
+	ColumnID          uuid.UUID
+	RepeatEveryDays   *int32
+	DoneAt            pgtype.Timestamptz
+	IsMine            bool
+	CommentCount      int64
+	Version           int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+// To-dos exist only for people inside the group (a member or working_groups.manage); everybody else gets no rows.
+func (q *Queries) ListWorkingGroupTodos(ctx context.Context, arg ListWorkingGroupTodosParams) ([]ListWorkingGroupTodosRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupTodos,
+		arg.CallerPersonID,
+		arg.CallerManage,
+		arg.ID,
+		arg.GroupID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupTodosRow{}
+	for rows.Next() {
+		var i ListWorkingGroupTodosRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.GroupID,
+			&i.GroupName,
+			&i.Title,
+			&i.AssigneePersonID,
+			&i.AssigneeName,
+			&i.CreatedByPersonID,
+			&i.CreatorName,
+			&i.DueOn,
+			&i.ColumnID,
+			&i.RepeatEveryDays,
+			&i.DoneAt,
+			&i.IsMine,
+			&i.CommentCount,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkingGroups = `-- name: ListWorkingGroups :many
 SELECT g.id, g.name, g.description,
        lead.person_id AS lead_person_id,
@@ -589,6 +1250,24 @@ func (q *Queries) LockWorkingGroup(ctx context.Context, id uuid.UUID) (LockWorki
 	return i, err
 }
 
+const machineBelongsToWorkingGroup = `-- name: MachineBelongsToWorkingGroup :one
+SELECT EXISTS (
+    SELECT 1 FROM working_group_machines WHERE group_id = $1 AND machine_id = $2
+)
+`
+
+type MachineBelongsToWorkingGroupParams struct {
+	GroupID   uuid.UUID
+	MachineID uuid.UUID
+}
+
+func (q *Queries) MachineBelongsToWorkingGroup(ctx context.Context, arg MachineBelongsToWorkingGroupParams) (bool, error) {
+	row := q.db.QueryRow(ctx, machineBelongsToWorkingGroup, arg.GroupID, arg.MachineID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const markWorkingGroupLead = `-- name: MarkWorkingGroupLead :exec
 UPDATE working_group_members SET is_lead = true WHERE group_id = $1 AND person_id = $2
 `
@@ -603,6 +1282,53 @@ func (q *Queries) MarkWorkingGroupLead(ctx context.Context, arg MarkWorkingGroup
 	return err
 }
 
+const moveWorkingGroupTicketsToColumn = `-- name: MoveWorkingGroupTicketsToColumn :exec
+UPDATE working_group_tickets SET column_id = $1, version = version + 1, updated_at = now()
+WHERE group_id = $2 AND column_id = $3
+`
+
+type MoveWorkingGroupTicketsToColumnParams struct {
+	ToColumnID   *uuid.UUID
+	GroupID      uuid.UUID
+	FromColumnID *uuid.UUID
+}
+
+func (q *Queries) MoveWorkingGroupTicketsToColumn(ctx context.Context, arg MoveWorkingGroupTicketsToColumnParams) error {
+	_, err := q.db.Exec(ctx, moveWorkingGroupTicketsToColumn, arg.ToColumnID, arg.GroupID, arg.FromColumnID)
+	return err
+}
+
+const moveWorkingGroupTodosToColumn = `-- name: MoveWorkingGroupTodosToColumn :exec
+UPDATE working_group_todos SET column_id = $1, version = version + 1, updated_at = now()
+WHERE group_id = $2 AND column_id = $3
+`
+
+type MoveWorkingGroupTodosToColumnParams struct {
+	ToColumnID   uuid.UUID
+	GroupID      uuid.UUID
+	FromColumnID uuid.UUID
+}
+
+func (q *Queries) MoveWorkingGroupTodosToColumn(ctx context.Context, arg MoveWorkingGroupTodosToColumnParams) error {
+	_, err := q.db.Exec(ctx, moveWorkingGroupTodosToColumn, arg.ToColumnID, arg.GroupID, arg.FromColumnID)
+	return err
+}
+
+const parkWorkingGroupColumnName = `-- name: ParkWorkingGroupColumnName :exec
+UPDATE working_group_columns SET name = id::text WHERE id = $1 AND group_id = $2
+`
+
+type ParkWorkingGroupColumnNameParams struct {
+	ID      uuid.UUID
+	GroupID uuid.UUID
+}
+
+// Gives a column a name nobody else can want, so renames and swaps never meet the unique name index halfway.
+func (q *Queries) ParkWorkingGroupColumnName(ctx context.Context, arg ParkWorkingGroupColumnNameParams) error {
+	_, err := q.db.Exec(ctx, parkWorkingGroupColumnName, arg.ID, arg.GroupID)
+	return err
+}
+
 const personExists = `-- name: PersonExists :one
 SELECT EXISTS (SELECT 1 FROM people WHERE id = $1)
 `
@@ -612,6 +1338,59 @@ func (q *Queries) PersonExists(ctx context.Context, id uuid.UUID) (bool, error) 
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const setWorkingGroupTicketState = `-- name: SetWorkingGroupTicketState :execrows
+UPDATE working_group_tickets
+SET status = $1,
+    assignee_person_id = $2,
+    due_on = $3::date,
+    column_id = $4,
+    closed_at = CASE WHEN $1::text IN ('done', 'declined') THEN now() ELSE NULL END,
+    version = version + 1,
+    updated_at = now()
+WHERE id = $5
+`
+
+type SetWorkingGroupTicketStateParams struct {
+	Status           string
+	AssigneePersonID *uuid.UUID
+	DueOn            pgtype.Date
+	ColumnID         *uuid.UUID
+	ID               uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupTicketState(ctx context.Context, arg SetWorkingGroupTicketStateParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setWorkingGroupTicketState,
+		arg.Status,
+		arg.AssigneePersonID,
+		arg.DueOn,
+		arg.ColumnID,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setWorkingGroupTodoDone = `-- name: SetWorkingGroupTodoDone :execrows
+UPDATE working_group_todos
+SET done_at = CASE WHEN $1::boolean THEN now() ELSE NULL END, version = version + 1, updated_at = now()
+WHERE id = $2
+`
+
+type SetWorkingGroupTodoDoneParams struct {
+	Done bool
+	ID   uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupTodoDone(ctx context.Context, arg SetWorkingGroupTodoDoneParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setWorkingGroupTodoDone, arg.Done, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateWorkingGroup = `-- name: UpdateWorkingGroup :execrows
@@ -641,6 +1420,64 @@ func (q *Queries) UpdateWorkingGroup(ctx context.Context, arg UpdateWorkingGroup
 		arg.ChatUrl,
 		arg.ID,
 		arg.ExpectedVersion,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateWorkingGroupColumn = `-- name: UpdateWorkingGroupColumn :exec
+UPDATE working_group_columns SET name = $1, position = $2
+WHERE id = $3 AND group_id = $4
+`
+
+type UpdateWorkingGroupColumnParams struct {
+	Name     string
+	Position int32
+	ID       uuid.UUID
+	GroupID  uuid.UUID
+}
+
+func (q *Queries) UpdateWorkingGroupColumn(ctx context.Context, arg UpdateWorkingGroupColumnParams) error {
+	_, err := q.db.Exec(ctx, updateWorkingGroupColumn,
+		arg.Name,
+		arg.Position,
+		arg.ID,
+		arg.GroupID,
+	)
+	return err
+}
+
+const updateWorkingGroupTodo = `-- name: UpdateWorkingGroupTodo :execrows
+UPDATE working_group_todos
+SET title = $1,
+    assignee_person_id = $2,
+    due_on = $3::date,
+    column_id = $4,
+    repeat_every_days = $5::integer,
+    version = version + 1,
+    updated_at = now()
+WHERE id = $6
+`
+
+type UpdateWorkingGroupTodoParams struct {
+	Title            string
+	AssigneePersonID *uuid.UUID
+	DueOn            pgtype.Date
+	ColumnID         uuid.UUID
+	RepeatEveryDays  *int32
+	ID               uuid.UUID
+}
+
+func (q *Queries) UpdateWorkingGroupTodo(ctx context.Context, arg UpdateWorkingGroupTodoParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateWorkingGroupTodo,
+		arg.Title,
+		arg.AssigneePersonID,
+		arg.DueOn,
+		arg.ColumnID,
+		arg.RepeatEveryDays,
+		arg.ID,
 	)
 	if err != nil {
 		return 0, err

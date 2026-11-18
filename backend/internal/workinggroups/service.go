@@ -112,6 +112,13 @@ func (s *Service) Create(
 		}); err != nil {
 			return err
 		}
+		for position, name := range defaultColumns {
+			if err := q.InsertWorkingGroupColumn(ctx, workinggroupsdb.InsertWorkingGroupColumnParams{
+				ID: ids.New(), GroupID: id, Name: name, Position: int32(position),
+			}); err != nil {
+				return err
+			}
+		}
 		if err := writeAudit(ctx, tx, p, "working_group.created", id, requestID,
 			[]string{"name", "description", "leadPersonId"}); err != nil {
 			return err
@@ -273,6 +280,17 @@ func (s *Service) RemoveMember(
 		}
 		if _, err := q.DeleteWorkingGroupMember(ctx, workinggroupsdb.DeleteWorkingGroupMemberParams{
 			GroupID: groupID, PersonID: personID,
+		}); err != nil {
+			return err
+		}
+		// Tickets and to-dos assigned to the person go back to nobody.
+		if err := q.ClearWorkingGroupTicketAssignments(ctx, workinggroupsdb.ClearWorkingGroupTicketAssignmentsParams{
+			GroupID: groupID, PersonID: &personID,
+		}); err != nil {
+			return err
+		}
+		if err := q.ClearWorkingGroupTodoAssignments(ctx, workinggroupsdb.ClearWorkingGroupTodoAssignmentsParams{
+			GroupID: groupID, PersonID: &personID,
 		}); err != nil {
 			return err
 		}
@@ -582,6 +600,10 @@ func loadGroup(ctx context.Context, q *workinggroupsdb.Queries, p authorization.
 	if err != nil {
 		return Group{}, err
 	}
+	columns, err := q.ListWorkingGroupColumns(ctx, id)
+	if err != nil {
+		return Group{}, err
+	}
 	canManage := p.Has(authorization.WorkingGroupsManage)
 	group := Group{
 		Summary: summaryFromRow(
@@ -592,6 +614,7 @@ func loadGroup(ctx context.Context, q *workinggroupsdb.Queries, p authorization.
 		Members:   make([]Member, 0, len(members)),
 		Machines:  make([]Machine, 0, len(machines)),
 		Places:    make([]Place, 0, len(places)),
+		Columns:   make([]Column, 0, len(columns)),
 		CanEdit:   canManage || row.IsLead,
 		CanManage: canManage,
 	}
@@ -608,6 +631,9 @@ func loadGroup(ctx context.Context, q *workinggroupsdb.Queries, p authorization.
 	}
 	for _, place := range places {
 		group.Places = append(group.Places, Place{ID: place.ID, Name: place.Name})
+	}
+	for _, column := range columns {
+		group.Columns = append(group.Columns, Column{ID: column.ID, Name: column.Name})
 	}
 	return group, nil
 }

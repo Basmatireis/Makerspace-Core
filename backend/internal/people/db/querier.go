@@ -36,6 +36,9 @@ type Querier interface {
 	DeleteDuplicateMergeRecoveryCodes(ctx context.Context, arg DeleteDuplicateMergeRecoveryCodesParams) (int64, error)
 	// One active assignment per shift and Person: the target's assignment wins.
 	DeleteDuplicateMergeShiftAssignments(ctx context.Context, arg DeleteDuplicateMergeShiftAssignmentsParams) (int64, error)
+	// The target's follow stays where both follow. Nobody follows a ticket they wrote, so a follow of the source's or the
+	// target's own ticket that would end up with the merged person as author goes.
+	DeleteDuplicateMergeWorkingGroupFollowers(ctx context.Context, arg DeleteDuplicateMergeWorkingGroupFollowersParams) (int64, error)
 	// Where both Persons are members of a group the target stays.
 	DeleteDuplicateMergeWorkingGroupMembers(ctx context.Context, arg DeleteDuplicateMergeWorkingGroupMembersParams) (int64, error)
 	// Drops every password identity of the merged Accounts except the one kept for the login email.
@@ -97,6 +100,8 @@ type Querier interface {
 	MoveMergeShiftAssignments(ctx context.Context, arg MoveMergeShiftAssignmentsParams) (int64, error)
 	MoveMergeTrainingRecords(ctx context.Context, arg MoveMergeTrainingRecordsParams) (int64, error)
 	MoveMergeWorkingGroupMembers(ctx context.Context, arg MoveMergeWorkingGroupMembersParams) (int64, error)
+	// Moves the source's tickets, assignments, follows, to-dos and comments to the target; returns how many rows moved.
+	MoveMergeWorkingGroupTasks(ctx context.Context, arg MoveMergeWorkingGroupTasksParams) (int64, error)
 	// Keeps the highest membership (supervisor > trainee > visitor) after roles of several people were united.
 	NormalizePersonMembership(ctx context.Context, personID uuid.UUID) error
 	PersonHasAccount(ctx context.Context, personID uuid.UUID) (bool, error)

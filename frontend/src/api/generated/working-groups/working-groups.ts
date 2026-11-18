@@ -19,17 +19,31 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  CloseWorkingGroupTicketRequest,
   CreateWorkingGroupRequest,
+  CreateWorkingGroupTicketRequest,
+  CreateWorkingGroupTodoRequest,
   ListWorkingGroupPeopleParams,
+  ListWorkingGroupTicketsParams,
+  ListWorkingGroupTodosParams,
+  PlanWorkingGroupTicketRequest,
+  SetWorkingGroupColumnsRequest,
   SetWorkingGroupMachinesRequest,
   UUIDv7,
   UpdateWorkingGroupRequest,
+  UpdateWorkingGroupTicketRequest,
+  UpdateWorkingGroupTodoRequest,
   WorkingGroup,
+  WorkingGroupCommentRequest,
   WorkingGroupList,
   WorkingGroupMachineOptionList,
   WorkingGroupPersonOptionList,
   WorkingGroupPersonRequest,
-  WorkingGroupPlaceInput
+  WorkingGroupPlaceInput,
+  WorkingGroupTicketDetail,
+  WorkingGroupTicketList,
+  WorkingGroupTodoDetail,
+  WorkingGroupTodoList
 } from '../models';
 
 import { apiFetch } from '../../http-client';
@@ -378,6 +392,483 @@ export const removeWorkingGroupPlace = async (groupId: string,
     method: 'DELETE'
 
 
+  }
+);}
+
+
+export const getSetWorkingGroupColumnsUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/working-groups/${groupId}/columns`
+}
+
+/**
+ * Requires `working_groups.manage` or leading this group. Replaces the ordered list of custom columns between the fixed Inbox and Done. Entries with an `id` are renamed and reordered, entries without one are created and columns missing from the list are deleted; their open tickets and to-dos move to the first column of the new list. At least one column must remain (422 `working_group_column_required`).
+ * @summary Replace the board columns
+ */
+export const setWorkingGroupColumns = async (groupId: string,
+    setWorkingGroupColumnsRequest: SetWorkingGroupColumnsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroup> => {
+
+  return apiFetch<WorkingGroup>(getSetWorkingGroupColumnsUrl(groupId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(setWorkingGroupColumnsRequest)
+  }
+);}
+
+
+export const getListWorkingGroupTicketsUrl = (params?: ListWorkingGroupTicketsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/working-group-tickets?${stringifiedParams}` : `/api/v1/working-group-tickets`
+}
+
+/**
+ * Requires `working_groups.read`. Everybody with read sees every ticket of every group. Newest first, at most 500; `inside` per item says whether the caller may also work on it.
+ * @summary List tickets
+ */
+export const listWorkingGroupTickets = async (params?: ListWorkingGroupTicketsParams, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketList> => {
+
+  return apiFetch<WorkingGroupTicketList>(getListWorkingGroupTicketsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateWorkingGroupTicketUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-tickets`
+}
+
+/**
+ * Requires `working_groups.read`. The machine, when given, must belong to the group (422 `machine_not_in_working_group`).
+ * @summary Write a ticket
+ */
+export const createWorkingGroupTicket = async (createWorkingGroupTicketRequest: CreateWorkingGroupTicketRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketDetail> => {
+
+  return apiFetch<WorkingGroupTicketDetail>(getCreateWorkingGroupTicketUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(createWorkingGroupTicketRequest)
+  }
+);}
+
+
+export const getGetWorkingGroupTicketUrl = (ticketId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-tickets/${ticketId}`
+}
+
+/**
+ * Requires `working_groups.read`. Internal comments are only returned to people inside the group (a member or `working_groups.manage`).
+ * @summary Get a ticket
+ */
+export const getWorkingGroupTicket = async (ticketId: string, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketDetail> => {
+
+  return apiFetch<WorkingGroupTicketDetail>(getGetWorkingGroupTicketUrl(ticketId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdateWorkingGroupTicketUrl = (ticketId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-tickets/${ticketId}`
+}
+
+/**
+ * Requires being inside the group. Changes assignee, due date and column of a planned ticket under optimistic locking (409 `stale_write`; 409 `working_group_task_state` when the ticket is not planned).
+ * @summary Change a planned ticket
+ */
+export const updateWorkingGroupTicket = async (ticketId: string,
+    updateWorkingGroupTicketRequest: UpdateWorkingGroupTicketRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketDetail> => {
+
+  return apiFetch<WorkingGroupTicketDetail>(getUpdateWorkingGroupTicketUrl(ticketId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(updateWorkingGroupTicketRequest)
+  }
+);}
+
+
+export const getPlanWorkingGroupTicketUrl = (ticketId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-tickets/${ticketId}/plan`
+}
+
+/**
+ * Requires being inside the group. Moves a new ticket into a column; the assignee must be a member of the group (422 `assignee_not_in_group`). 409 `working_group_task_state` when the ticket is not new.
+ * @summary Plan a new ticket
+ */
+export const planWorkingGroupTicket = async (ticketId: string,
+    planWorkingGroupTicketRequest: PlanWorkingGroupTicketRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketDetail> => {
+
+  return apiFetch<WorkingGroupTicketDetail>(getPlanWorkingGroupTicketUrl(ticketId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(planWorkingGroupTicketRequest)
+  }
+);}
+
+
+export const getCloseWorkingGroupTicketUrl = (ticketId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-tickets/${ticketId}/close`
+}
+
+/**
+ * Requires being inside the group. Closes a new or planned ticket as done or declined. The answer is stored as a public comment in the same transaction and is required when declining.
+ * @summary Close a ticket
+ */
+export const closeWorkingGroupTicket = async (ticketId: string,
+    closeWorkingGroupTicketRequest: CloseWorkingGroupTicketRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketDetail> => {
+
+  return apiFetch<WorkingGroupTicketDetail>(getCloseWorkingGroupTicketUrl(ticketId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(closeWorkingGroupTicketRequest)
+  }
+);}
+
+
+export const getReopenWorkingGroupTicketUrl = (ticketId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-tickets/${ticketId}/reopen`
+}
+
+/**
+ * Requires being inside the group. Planned, done and declined tickets become new again; assignee, due date and column are cleared.
+ * @summary Send a ticket back to the inbox
+ */
+export const reopenWorkingGroupTicket = async (ticketId: string, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketDetail> => {
+
+  return apiFetch<WorkingGroupTicketDetail>(getReopenWorkingGroupTicketUrl(ticketId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getFollowWorkingGroupTicketUrl = (ticketId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-tickets/${ticketId}/follow`
+}
+
+/**
+ * Requires `working_groups.read`. Following twice changes nothing. The author cannot follow their own ticket (409 `working_group_ticket_own`).
+ * @summary Have this too
+ */
+export const followWorkingGroupTicket = async (ticketId: string, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketDetail> => {
+
+  return apiFetch<WorkingGroupTicketDetail>(getFollowWorkingGroupTicketUrl(ticketId),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+export const getUnfollowWorkingGroupTicketUrl = (ticketId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-tickets/${ticketId}/follow`
+}
+
+/**
+ * Requires `working_groups.read`. Not following is not an error.
+ * @summary Stop following a ticket
+ */
+export const unfollowWorkingGroupTicket = async (ticketId: string, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketDetail> => {
+
+  return apiFetch<WorkingGroupTicketDetail>(getUnfollowWorkingGroupTicketUrl(ticketId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getAddWorkingGroupTicketCommentUrl = (ticketId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-tickets/${ticketId}/comments`
+}
+
+/**
+ * Requires `working_groups.read` for a public comment. An internal comment needs being inside the group.
+ * @summary Comment on a ticket
+ */
+export const addWorkingGroupTicketComment = async (ticketId: string,
+    workingGroupCommentRequest: WorkingGroupCommentRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketDetail> => {
+
+  return apiFetch<WorkingGroupTicketDetail>(getAddWorkingGroupTicketCommentUrl(ticketId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupCommentRequest)
+  }
+);}
+
+
+export const getListWorkingGroupTodosUrl = (params?: ListWorkingGroupTodosParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/working-group-todos?${stringifiedParams}` : `/api/v1/working-group-todos`
+}
+
+/**
+ * Requires `working_groups.read`. Returns the to-dos of the groups the caller is inside (a member or `working_groups.manage`), optionally of one group. Everybody else gets an empty list.
+ * @summary List to-dos
+ */
+export const listWorkingGroupTodos = async (params?: ListWorkingGroupTodosParams, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTodoList> => {
+
+  return apiFetch<WorkingGroupTodoList>(getListWorkingGroupTodosUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateWorkingGroupTodoUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-todos`
+}
+
+/**
+ * Requires being inside the group. Without a column the to-do goes to the group's first column.
+ * @summary Add a to-do
+ */
+export const createWorkingGroupTodo = async (createWorkingGroupTodoRequest: CreateWorkingGroupTodoRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTodoDetail> => {
+
+  return apiFetch<WorkingGroupTodoDetail>(getCreateWorkingGroupTodoUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(createWorkingGroupTodoRequest)
+  }
+);}
+
+
+export const getGetWorkingGroupTodoUrl = (todoId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-todos/${todoId}`
+}
+
+/**
+ * Requires being inside the group; for everybody else the to-do does not exist (404).
+ * @summary Get a to-do
+ */
+export const getWorkingGroupTodo = async (todoId: string, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTodoDetail> => {
+
+  return apiFetch<WorkingGroupTodoDetail>(getGetWorkingGroupTodoUrl(todoId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdateWorkingGroupTodoUrl = (todoId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-todos/${todoId}`
+}
+
+/**
+ * Requires being inside the group (404 otherwise). Optimistic locking (409 `stale_write`).
+ * @summary Change a to-do
+ */
+export const updateWorkingGroupTodo = async (todoId: string,
+    updateWorkingGroupTodoRequest: UpdateWorkingGroupTodoRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTodoDetail> => {
+
+  return apiFetch<WorkingGroupTodoDetail>(getUpdateWorkingGroupTodoUrl(todoId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(updateWorkingGroupTodoRequest)
+  }
+);}
+
+
+export const getDeleteWorkingGroupTodoUrl = (todoId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-todos/${todoId}`
+}
+
+/**
+ * Requires being inside the group (404 otherwise). Removes the to-do and its comments for good.
+ * @summary Delete a to-do
+ */
+export const deleteWorkingGroupTodo = async (todoId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteWorkingGroupTodoUrl(todoId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getMarkWorkingGroupTodoDoneUrl = (todoId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-todos/${todoId}/done`
+}
+
+/**
+ * Requires being inside the group (404 otherwise). A repeating to-do creates the next open one with a due date of today plus its interval in the same transaction; `nextTodoId` names it.
+ * @summary Mark a to-do as done
+ */
+export const markWorkingGroupTodoDone = async (todoId: string, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTodoDetail> => {
+
+  return apiFetch<WorkingGroupTodoDetail>(getMarkWorkingGroupTodoDoneUrl(todoId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getReopenWorkingGroupTodoUrl = (todoId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-todos/${todoId}/reopen`
+}
+
+/**
+ * Requires being inside the group (404 otherwise).
+ * @summary Reopen a done to-do
+ */
+export const reopenWorkingGroupTodo = async (todoId: string, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTodoDetail> => {
+
+  return apiFetch<WorkingGroupTodoDetail>(getReopenWorkingGroupTodoUrl(todoId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getAddWorkingGroupTodoCommentUrl = (todoId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-todos/${todoId}/comments`
+}
+
+/**
+ * Requires being inside the group (404 otherwise). Comments on to-dos are never shown outside the group.
+ * @summary Comment on a to-do
+ */
+export const addWorkingGroupTodoComment = async (todoId: string,
+    workingGroupCommentRequest: WorkingGroupCommentRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTodoDetail> => {
+
+  return apiFetch<WorkingGroupTodoDetail>(getAddWorkingGroupTodoCommentUrl(todoId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupCommentRequest)
   }
 );}
 

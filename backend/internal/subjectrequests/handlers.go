@@ -216,6 +216,15 @@ func registerBuiltinHandlers(service *privacy.Service, fileService *files.Servic
 		},
 		outcome: privacy.OutcomeErased,
 	})
+	register(privacycatalog.WorkingGroupTasks, builtin{
+		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
+			return q.ExportWorkingGroupTasks(ctx, s.PersonID)
+		},
+		count: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) (int64, error) {
+			return q.CountWorkingGroupTasks(ctx, s.PersonID)
+		},
+		outcome: privacy.OutcomeUnlinked, note: "Tickets, to-dos and comments stay without their author or assignee; follows are deleted.",
+	})
 	register(privacycatalog.LabRulesConfirmations, builtin{
 		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
 			return q.ExportLabRulesConfirmations(ctx, s.PersonID)

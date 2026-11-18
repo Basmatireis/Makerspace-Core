@@ -49,6 +49,7 @@ const (
 	MergedSurveyResponses         MergeCategory = "survey_responses"
 	MergedOrganizationMemberships MergeCategory = "organization_memberships"
 	MergedWorkingGroupMemberships MergeCategory = "working_group_memberships"
+	MergedWorkingGroupTasks       MergeCategory = "working_group_tasks"
 	MergedNotifications           MergeCategory = "notifications"
 	MergedPrivacyHolds            MergeCategory = "privacy_holds"
 	MergedActorReferences         MergeCategory = "actor_references"
@@ -61,7 +62,7 @@ var mergeCategoryOrder = []MergeCategory{
 	MergedVisits, MergedTrainingRecords, MergedLabRulesConfirmations, MergedOpenDayAssignments,
 	MergedEventShiftAssignments, MergedEventPlanning, MergedOrders, MergedMachineJobs, MergedInvoiceRequests,
 	MergedCashMovements, MergedSurveyInvitations, MergedSurveyResponses, MergedOrganizationMemberships,
-	MergedWorkingGroupMemberships, MergedNotifications, MergedPrivacyHolds, MergedActorReferences,
+	MergedWorkingGroupMemberships, MergedWorkingGroupTasks, MergedNotifications, MergedPrivacyHolds, MergedActorReferences,
 	MergedAuthenticationMethods, MergedAuditEvents,
 }
 
@@ -530,6 +531,7 @@ func mergeHistory(ctx context.Context, queries *peopledb.Queries, state mergeSta
 		MergedSurveyResponses:         row.SurveyResponses,
 		MergedOrganizationMemberships: row.OrganizationMemberships,
 		MergedWorkingGroupMemberships: row.WorkingGroupMemberships,
+		MergedWorkingGroupTasks:       row.WorkingGroupTasks,
 		MergedNotifications:           row.Notifications,
 		MergedPrivacyHolds:            row.PrivacyHolds,
 	}), nil

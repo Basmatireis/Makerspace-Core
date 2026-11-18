@@ -27,6 +27,7 @@ const (
 	StaffingExcusals     privacy.CategoryID = "opendays.staffing_excusals"
 	TrainingRecords      privacy.CategoryID = "trainings.records"
 	WorkingGroupMembers  privacy.CategoryID = "working_groups.members"
+	WorkingGroupTasks    privacy.CategoryID = "working_groups.tasks"
 	// LabRulesConfirmations keeps the identifier it had when confirmations were paper requests: policies,
 	// retention holds and subject requests store category identifiers.
 	LabRulesConfirmations  privacy.CategoryID = "laborordnung.requests"
@@ -278,6 +279,23 @@ func declarations() []privacy.Definition {
 			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt},
 			Actions:        []privacy.Action{privacy.ActionRetainWithReview},
 			Subject:        privacy.SubjectPerson,
+		},
+		{
+			ID: WorkingGroupTasks, Owner: WorkingGroups, Name: "Working group tickets and to-dos",
+			Description:    "Tickets people wrote for a group, who has the same problem, to-dos of the group and the comments on both.",
+			Contains:       "Authors, assignees, followers, subjects, descriptions, titles and comments",
+			ErasureOutcome: privacy.ErasureUnlinked,
+			Fields: []string{
+				"working_group_tickets.author_person_id", "working_group_tickets.assignee_person_id",
+				"working_group_tickets.subject", "working_group_tickets.body",
+				"working_group_ticket_followers.person_id",
+				"working_group_todos.assignee_person_id", "working_group_todos.created_by_person_id",
+				"working_group_todos.title",
+				"working_group_comments.author_person_id", "working_group_comments.text",
+			},
+			Triggers: []privacy.Trigger{privacy.TriggerCompletedAt},
+			Actions:  []privacy.Action{privacy.ActionRetainWithReview},
+			Subject:  privacy.SubjectPerson,
 		},
 		{
 			ID: LabRulesConfirmations, Owner: Laborordnung, Name: "Lab Rules confirmations",

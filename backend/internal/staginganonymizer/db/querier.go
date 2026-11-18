@@ -137,6 +137,8 @@ type Querier interface {
 	NeutralizeInvoiceRequestEvents(ctx context.Context) error
 	NeutralizeLabRulesConfirmations(ctx context.Context) error
 	NeutralizePrivacyRetentionHolds(ctx context.Context) error
+	// Ticket subjects, descriptions, to-do titles and comments often name people.
+	NeutralizeWorkingGroupTasks(ctx context.Context) error
 	// The SMTP password is encrypted with production's keys and staging must never reach real inboxes.
 	PointMailAtMailpit(ctx context.Context, baseUrl string) error
 	// The closings usually carry a staff member's signature.

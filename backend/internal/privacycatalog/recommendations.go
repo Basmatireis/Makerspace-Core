@@ -90,6 +90,11 @@ var recommendations = map[privacy.CategoryID]privacy.Recommendation{
 		Purpose: "Know who looks after which machines and places", LegalBasis: basisLabUse,
 		Reason: "Needed while the person is a member of a group; deleted with the person.",
 	},
+	WorkingGroupTasks: {
+		Trigger: privacy.TriggerCompletedAt, PeriodDays: 0, Action: privacy.ActionRetainWithReview,
+		Purpose: "Report and track problems, requests and tasks of working groups", LegalBasis: basisLabUse,
+		Reason: "Tickets and to-dos document how machines were looked after; the person links go when the person is deleted, the texts stay. Review old tickets for personal data.",
+	},
 	LabRulesConfirmations: {
 		Trigger: privacy.TriggerAccountClosedAt, PeriodDays: 0, Action: privacy.ActionRetainWithReview,
 		Purpose: "Prove that the Lab Rules were accepted", LegalBasis: basisLabUse,

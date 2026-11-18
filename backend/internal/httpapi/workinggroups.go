@@ -281,6 +281,7 @@ func workingGroupDTO(item workinggroups.Group) openapi.WorkingGroup {
 		Members:      make([]openapi.WorkingGroupMember, 0, len(item.Members)),
 		Machines:     make([]openapi.WorkingGroupMachine, 0, len(item.Machines)),
 		Places:       make([]openapi.WorkingGroupPlace, 0, len(item.Places)),
+		Columns:      make([]openapi.WorkingGroupColumn, 0, len(item.Columns)),
 		CanEdit:      item.CanEdit,
 		CanManage:    item.CanManage,
 	}
@@ -294,6 +295,9 @@ func workingGroupDTO(item workinggroups.Group) openapi.WorkingGroup {
 	}
 	for _, place := range item.Places {
 		result.Places = append(result.Places, openapi.WorkingGroupPlace{Id: place.ID, Name: place.Name})
+	}
+	for _, column := range item.Columns {
+		result.Columns = append(result.Columns, openapi.WorkingGroupColumn{Id: column.ID, Name: column.Name})
 	}
 	return result
 }

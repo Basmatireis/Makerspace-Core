@@ -11,33 +11,64 @@ import (
 )
 
 type Querier interface {
+	AddWorkingGroupComment(ctx context.Context, arg AddWorkingGroupCommentParams) error
 	AddWorkingGroupMachine(ctx context.Context, arg AddWorkingGroupMachineParams) error
 	AddWorkingGroupMember(ctx context.Context, arg AddWorkingGroupMemberParams) error
 	AddWorkingGroupPlace(ctx context.Context, arg AddWorkingGroupPlaceParams) error
+	AddWorkingGroupTicketFollower(ctx context.Context, arg AddWorkingGroupTicketFollowerParams) (int64, error)
 	ClearWorkingGroupLead(ctx context.Context, groupID uuid.UUID) error
+	// A person who leaves a group no longer carries its tickets and to-dos.
+	ClearWorkingGroupTicketAssignments(ctx context.Context, arg ClearWorkingGroupTicketAssignmentsParams) error
+	ClearWorkingGroupTodoAssignments(ctx context.Context, arg ClearWorkingGroupTodoAssignmentsParams) error
 	CreateWorkingGroup(ctx context.Context, arg CreateWorkingGroupParams) error
+	CreateWorkingGroupTicket(ctx context.Context, arg CreateWorkingGroupTicketParams) error
+	CreateWorkingGroupTodo(ctx context.Context, arg CreateWorkingGroupTodoParams) error
 	DeleteWorkingGroup(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteWorkingGroupColumn(ctx context.Context, arg DeleteWorkingGroupColumnParams) error
 	DeleteWorkingGroupMachines(ctx context.Context, groupID uuid.UUID) error
 	DeleteWorkingGroupMember(ctx context.Context, arg DeleteWorkingGroupMemberParams) (int64, error)
 	DeleteWorkingGroupPlace(ctx context.Context, arg DeleteWorkingGroupPlaceParams) (int64, error)
+	DeleteWorkingGroupTicketFollower(ctx context.Context, arg DeleteWorkingGroupTicketFollowerParams) (int64, error)
+	DeleteWorkingGroupTodo(ctx context.Context, id uuid.UUID) (int64, error)
 	FindWorkingGroupPeople(ctx context.Context, arg FindWorkingGroupPeopleParams) ([]FindWorkingGroupPeopleRow, error)
 	GetWorkingGroup(ctx context.Context, arg GetWorkingGroupParams) (GetWorkingGroupRow, error)
 	GetWorkingGroupMember(ctx context.Context, arg GetWorkingGroupMemberParams) (GetWorkingGroupMemberRow, error)
+	GetWorkingGroupTicketCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTicketCoreRow, error)
+	GetWorkingGroupTodoCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTodoCoreRow, error)
+	InsertWorkingGroupColumn(ctx context.Context, arg InsertWorkingGroupColumnParams) error
 	IsVisitorPerson(ctx context.Context, personID uuid.UUID) (bool, error)
 	IsWorkingGroupLead(ctx context.Context, arg IsWorkingGroupLeadParams) (bool, error)
+	IsWorkingGroupMember(ctx context.Context, arg IsWorkingGroupMemberParams) (bool, error)
 	LeadsAnyWorkingGroup(ctx context.Context, personID uuid.UUID) (bool, error)
 	ListExistingMachineIDs(ctx context.Context, ids []uuid.UUID) ([]uuid.UUID, error)
 	ListMachineGroupAssignments(ctx context.Context, ids []uuid.UUID) ([]ListMachineGroupAssignmentsRow, error)
+	ListWorkingGroupColumns(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupColumnsRow, error)
 	ListWorkingGroupMachineOptions(ctx context.Context) ([]ListWorkingGroupMachineOptionsRow, error)
 	ListWorkingGroupMachines(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupMachinesRow, error)
 	ListWorkingGroupMembers(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupMembersRow, error)
 	ListWorkingGroupPlaces(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupPlacesRow, error)
+	ListWorkingGroupTicketComments(ctx context.Context, arg ListWorkingGroupTicketCommentsParams) ([]ListWorkingGroupTicketCommentsRow, error)
+	ListWorkingGroupTicketFollowers(ctx context.Context, ticketID uuid.UUID) ([]ListWorkingGroupTicketFollowersRow, error)
+	// One query for the list and the single ticket: id, group and status are optional filters.
+	ListWorkingGroupTickets(ctx context.Context, arg ListWorkingGroupTicketsParams) ([]ListWorkingGroupTicketsRow, error)
+	ListWorkingGroupTodoComments(ctx context.Context, todoID *uuid.UUID) ([]ListWorkingGroupTodoCommentsRow, error)
+	// To-dos exist only for people inside the group (a member or working_groups.manage); everybody else gets no rows.
+	ListWorkingGroupTodos(ctx context.Context, arg ListWorkingGroupTodosParams) ([]ListWorkingGroupTodosRow, error)
 	ListWorkingGroups(ctx context.Context, callerPersonID uuid.UUID) ([]ListWorkingGroupsRow, error)
 	// Locks the group row; every mutation takes it first so lead and membership changes of one group are serialized.
 	LockWorkingGroup(ctx context.Context, id uuid.UUID) (LockWorkingGroupRow, error)
+	MachineBelongsToWorkingGroup(ctx context.Context, arg MachineBelongsToWorkingGroupParams) (bool, error)
 	MarkWorkingGroupLead(ctx context.Context, arg MarkWorkingGroupLeadParams) error
+	MoveWorkingGroupTicketsToColumn(ctx context.Context, arg MoveWorkingGroupTicketsToColumnParams) error
+	MoveWorkingGroupTodosToColumn(ctx context.Context, arg MoveWorkingGroupTodosToColumnParams) error
+	// Gives a column a name nobody else can want, so renames and swaps never meet the unique name index halfway.
+	ParkWorkingGroupColumnName(ctx context.Context, arg ParkWorkingGroupColumnNameParams) error
 	PersonExists(ctx context.Context, id uuid.UUID) (bool, error)
+	SetWorkingGroupTicketState(ctx context.Context, arg SetWorkingGroupTicketStateParams) (int64, error)
+	SetWorkingGroupTodoDone(ctx context.Context, arg SetWorkingGroupTodoDoneParams) (int64, error)
 	UpdateWorkingGroup(ctx context.Context, arg UpdateWorkingGroupParams) (int64, error)
+	UpdateWorkingGroupColumn(ctx context.Context, arg UpdateWorkingGroupColumnParams) error
+	UpdateWorkingGroupTodo(ctx context.Context, arg UpdateWorkingGroupTodoParams) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

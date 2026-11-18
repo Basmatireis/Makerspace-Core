@@ -20,6 +20,7 @@
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
+import type { WorkingGroupColumn } from './workingGroupColumn';
 import type { WorkingGroupMachine } from './workingGroupMachine';
 import type { WorkingGroupMember } from './workingGroupMember';
 import type { WorkingGroupPerson } from './workingGroupPerson';
@@ -44,6 +45,8 @@ export interface WorkingGroup {
   members: WorkingGroupMember[];
   machines: WorkingGroupMachine[];
   places: WorkingGroupPlace[];
+  /** The custom board columns in order, between the fixed Inbox and Done. */
+  columns: WorkingGroupColumn[];
   /** Whether the caller leads the group or holds `working_groups.manage`. */
   canEdit: boolean;
   /** Whether the caller holds `working_groups.manage`. */

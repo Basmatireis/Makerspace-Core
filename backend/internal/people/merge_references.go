@@ -29,6 +29,7 @@ const (
 	ruleNotifyAccount = "deleted with the source account; the surviving account keeps its own rules and channel choices"
 	ruleAskCooldown   = "deleted with the source person; the target keeps its own ask times"
 	ruleWorkingGroups = "moved to the target; where both were members the target stays and takes over a lead role"
+	ruleWorkingTasks  = "moved to the target; follows the target already had or that would follow its own ticket are dropped"
 	ruleSurveyPreserv = "moved to the target; anonymous responses never carry a person"
 )
 
@@ -61,7 +62,13 @@ var MergeReferences = []MergeReference{
 	{"survey_responses", "identified_person_id", "people", ruleSurveyPreserv},
 	{"training_records", "person_id", "people", ruleDeduplicated},
 	{"visits", "person_id", "people", ruleConflict},
+	{"working_group_comments", "author_person_id", "people", ruleWorkingTasks},
 	{"working_group_members", "person_id", "people", ruleWorkingGroups},
+	{"working_group_ticket_followers", "person_id", "people", ruleWorkingTasks},
+	{"working_group_tickets", "assignee_person_id", "people", ruleWorkingTasks},
+	{"working_group_tickets", "author_person_id", "people", ruleWorkingTasks},
+	{"working_group_todos", "assignee_person_id", "people", ruleWorkingTasks},
+	{"working_group_todos", "created_by_person_id", "people", ruleWorkingTasks},
 
 	{"audit_events", "actor_account_id", "accounts", ruleAuditRepoint},
 	{"auth_challenges", "account_id", "accounts", ruleTransient},

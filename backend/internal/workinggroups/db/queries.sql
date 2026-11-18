@@ -140,3 +140,181 @@ INSERT INTO working_group_places (id, group_id, name) VALUES (sqlc.arg(id), sqlc
 
 -- name: DeleteWorkingGroupPlace :execrows
 DELETE FROM working_group_places WHERE id = sqlc.arg(id) AND group_id = sqlc.arg(group_id);
+
+-- name: IsWorkingGroupMember :one
+SELECT EXISTS (
+    SELECT 1 FROM working_group_members WHERE group_id = sqlc.arg(group_id) AND person_id = sqlc.arg(person_id)
+);
+
+-- name: MachineBelongsToWorkingGroup :one
+SELECT EXISTS (
+    SELECT 1 FROM working_group_machines WHERE group_id = sqlc.arg(group_id) AND machine_id = sqlc.arg(machine_id)
+);
+
+-- name: ClearWorkingGroupTicketAssignments :exec
+-- A person who leaves a group no longer carries its tickets and to-dos.
+UPDATE working_group_tickets SET assignee_person_id = NULL, version = version + 1, updated_at = now()
+WHERE group_id = sqlc.arg(group_id) AND assignee_person_id = sqlc.arg(person_id);
+
+-- name: ClearWorkingGroupTodoAssignments :exec
+UPDATE working_group_todos SET assignee_person_id = NULL, version = version + 1, updated_at = now()
+WHERE group_id = sqlc.arg(group_id) AND assignee_person_id = sqlc.arg(person_id);
+
+-- name: ListWorkingGroupColumns :many
+SELECT id, name FROM working_group_columns WHERE group_id = sqlc.arg(group_id) ORDER BY position, id;
+
+-- name: InsertWorkingGroupColumn :exec
+INSERT INTO working_group_columns (id, group_id, name, position)
+VALUES (sqlc.arg(id), sqlc.arg(group_id), sqlc.arg(name), sqlc.arg(position));
+
+-- name: ParkWorkingGroupColumnName :exec
+-- Gives a column a name nobody else can want, so renames and swaps never meet the unique name index halfway.
+UPDATE working_group_columns SET name = id::text WHERE id = sqlc.arg(id) AND group_id = sqlc.arg(group_id);
+
+-- name: UpdateWorkingGroupColumn :exec
+UPDATE working_group_columns SET name = sqlc.arg(name), position = sqlc.arg(position)
+WHERE id = sqlc.arg(id) AND group_id = sqlc.arg(group_id);
+
+-- name: MoveWorkingGroupTicketsToColumn :exec
+UPDATE working_group_tickets SET column_id = sqlc.arg(to_column_id), version = version + 1, updated_at = now()
+WHERE group_id = sqlc.arg(group_id) AND column_id = sqlc.arg(from_column_id);
+
+-- name: MoveWorkingGroupTodosToColumn :exec
+UPDATE working_group_todos SET column_id = sqlc.arg(to_column_id), version = version + 1, updated_at = now()
+WHERE group_id = sqlc.arg(group_id) AND column_id = sqlc.arg(from_column_id);
+
+-- name: DeleteWorkingGroupColumn :exec
+DELETE FROM working_group_columns WHERE id = sqlc.arg(id) AND group_id = sqlc.arg(group_id);
+
+-- name: GetWorkingGroupTicketCore :one
+SELECT id, group_id, machine_id, status, author_person_id, assignee_person_id, due_on, column_id, version
+FROM working_group_tickets WHERE id = sqlc.arg(id);
+
+-- name: CreateWorkingGroupTicket :exec
+INSERT INTO working_group_tickets (id, group_id, machine_id, kind, subject, body, blocks_use, author_person_id)
+VALUES (sqlc.arg(id), sqlc.arg(group_id), sqlc.narg(machine_id), sqlc.arg(kind), sqlc.arg(subject), sqlc.arg(body),
+        sqlc.arg(blocks_use), sqlc.arg(author_person_id));
+
+-- name: SetWorkingGroupTicketState :execrows
+UPDATE working_group_tickets
+SET status = sqlc.arg(status),
+    assignee_person_id = sqlc.narg(assignee_person_id),
+    due_on = sqlc.narg(due_on)::date,
+    column_id = sqlc.narg(column_id),
+    closed_at = CASE WHEN sqlc.arg(status)::text IN ('done', 'declined') THEN now() ELSE NULL END,
+    version = version + 1,
+    updated_at = now()
+WHERE id = sqlc.arg(id);
+
+-- name: ListWorkingGroupTickets :many
+-- One query for the list and the single ticket: id, group and status are optional filters.
+SELECT t.id, t.group_id, g.name AS group_name, t.machine_id, mc.name AS machine_name, t.kind, t.subject, t.body,
+       t.blocks_use, t.status,
+       t.author_person_id, COALESCE(btrim(author.first_name || ' ' || author.last_name), '')::text AS author_name,
+       t.assignee_person_id, COALESCE(btrim(assignee.first_name || ' ' || assignee.last_name), '')::text AS assignee_name,
+       t.due_on, t.column_id,
+       (SELECT count(*) FROM working_group_ticket_followers f WHERE f.ticket_id = t.id)::bigint AS follower_count,
+       EXISTS (
+           SELECT 1 FROM working_group_ticket_followers f
+           WHERE f.ticket_id = t.id AND f.person_id = sqlc.arg(caller_person_id)
+       ) AS is_following,
+       COALESCE(t.author_person_id = sqlc.arg(caller_person_id) OR t.assignee_person_id = sqlc.arg(caller_person_id), false)::boolean AS is_mine,
+       (SELECT count(*) FROM working_group_comments c
+        WHERE c.ticket_id = t.id AND (NOT c.internal OR sqlc.arg(caller_manage)::boolean OR EXISTS (
+            SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = sqlc.arg(caller_person_id)
+        )))::bigint AS comment_count,
+       (sqlc.arg(caller_manage)::boolean OR EXISTS (
+           SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = sqlc.arg(caller_person_id)
+       ))::boolean AS inside,
+       t.version, t.created_at, t.updated_at, t.closed_at
+FROM working_group_tickets t
+JOIN working_groups g ON g.id = t.group_id
+LEFT JOIN machines mc ON mc.id = t.machine_id
+LEFT JOIN people author ON author.id = t.author_person_id
+LEFT JOIN people assignee ON assignee.id = t.assignee_person_id
+WHERE (sqlc.narg(id)::uuid IS NULL OR t.id = sqlc.narg(id)::uuid)
+  AND (sqlc.narg(group_id)::uuid IS NULL OR t.group_id = sqlc.narg(group_id)::uuid)
+  AND (sqlc.narg(status)::text IS NULL OR t.status = sqlc.narg(status)::text)
+ORDER BY t.created_at DESC, t.id DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: ListWorkingGroupTicketFollowers :many
+SELECT f.person_id, COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS display_name
+FROM working_group_ticket_followers f
+JOIN people p ON p.id = f.person_id
+WHERE f.ticket_id = sqlc.arg(ticket_id)
+ORDER BY f.created_at, f.person_id;
+
+-- name: AddWorkingGroupTicketFollower :execrows
+INSERT INTO working_group_ticket_followers (ticket_id, person_id) VALUES (sqlc.arg(ticket_id), sqlc.arg(person_id))
+ON CONFLICT DO NOTHING;
+
+-- name: DeleteWorkingGroupTicketFollower :execrows
+DELETE FROM working_group_ticket_followers WHERE ticket_id = sqlc.arg(ticket_id) AND person_id = sqlc.arg(person_id);
+
+-- name: AddWorkingGroupComment :exec
+INSERT INTO working_group_comments (id, ticket_id, todo_id, author_person_id, text, internal)
+VALUES (sqlc.arg(id), sqlc.narg(ticket_id), sqlc.narg(todo_id), sqlc.arg(author_person_id), sqlc.arg(text), sqlc.arg(internal));
+
+-- name: ListWorkingGroupTicketComments :many
+SELECT c.id, c.author_person_id, COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS author_name, c.text, c.internal, c.created_at
+FROM working_group_comments c
+LEFT JOIN people p ON p.id = c.author_person_id
+WHERE c.ticket_id = sqlc.arg(ticket_id) AND (NOT c.internal OR sqlc.arg(include_internal)::boolean)
+ORDER BY c.created_at, c.id;
+
+-- name: ListWorkingGroupTodoComments :many
+SELECT c.id, c.author_person_id, COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS author_name, c.text, c.internal, c.created_at
+FROM working_group_comments c
+LEFT JOIN people p ON p.id = c.author_person_id
+WHERE c.todo_id = sqlc.arg(todo_id)
+ORDER BY c.created_at, c.id;
+
+-- name: GetWorkingGroupTodoCore :one
+SELECT id, group_id, title, assignee_person_id, due_on, column_id, repeat_every_days, done_at, version
+FROM working_group_todos WHERE id = sqlc.arg(id);
+
+-- name: CreateWorkingGroupTodo :exec
+INSERT INTO working_group_todos (id, group_id, title, assignee_person_id, due_on, column_id, repeat_every_days, created_by_person_id)
+VALUES (sqlc.arg(id), sqlc.arg(group_id), sqlc.arg(title), sqlc.narg(assignee_person_id), sqlc.arg(due_on)::date,
+        sqlc.arg(column_id), sqlc.narg(repeat_every_days)::integer, sqlc.narg(created_by_person_id));
+
+-- name: UpdateWorkingGroupTodo :execrows
+UPDATE working_group_todos
+SET title = sqlc.arg(title),
+    assignee_person_id = sqlc.narg(assignee_person_id),
+    due_on = sqlc.arg(due_on)::date,
+    column_id = sqlc.arg(column_id),
+    repeat_every_days = sqlc.narg(repeat_every_days)::integer,
+    version = version + 1,
+    updated_at = now()
+WHERE id = sqlc.arg(id);
+
+-- name: SetWorkingGroupTodoDone :execrows
+UPDATE working_group_todos
+SET done_at = CASE WHEN sqlc.arg(done)::boolean THEN now() ELSE NULL END, version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id);
+
+-- name: DeleteWorkingGroupTodo :execrows
+DELETE FROM working_group_todos WHERE id = sqlc.arg(id);
+
+-- name: ListWorkingGroupTodos :many
+-- To-dos exist only for people inside the group (a member or working_groups.manage); everybody else gets no rows.
+SELECT t.id, t.group_id, g.name AS group_name, t.title,
+       t.assignee_person_id, COALESCE(btrim(assignee.first_name || ' ' || assignee.last_name), '')::text AS assignee_name,
+       t.created_by_person_id, COALESCE(btrim(creator.first_name || ' ' || creator.last_name), '')::text AS creator_name,
+       t.due_on, t.column_id, t.repeat_every_days, t.done_at,
+       COALESCE(t.assignee_person_id = sqlc.arg(caller_person_id), false)::boolean AS is_mine,
+       (SELECT count(*) FROM working_group_comments c WHERE c.todo_id = t.id)::bigint AS comment_count,
+       t.version, t.created_at, t.updated_at
+FROM working_group_todos t
+JOIN working_groups g ON g.id = t.group_id
+LEFT JOIN people assignee ON assignee.id = t.assignee_person_id
+LEFT JOIN people creator ON creator.id = t.created_by_person_id
+WHERE (sqlc.arg(caller_manage)::boolean OR EXISTS (
+          SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = sqlc.arg(caller_person_id)
+      ))
+  AND (sqlc.narg(id)::uuid IS NULL OR t.id = sqlc.narg(id)::uuid)
+  AND (sqlc.narg(group_id)::uuid IS NULL OR t.group_id = sqlc.narg(group_id)::uuid)
+ORDER BY (t.done_at IS NOT NULL), t.due_on, t.created_at, t.id
+LIMIT sqlc.arg(row_limit);

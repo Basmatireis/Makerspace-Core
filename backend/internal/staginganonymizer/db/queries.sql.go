@@ -1112,6 +1112,21 @@ func (q *Queries) NeutralizePrivacyRetentionHolds(ctx context.Context) error {
 	return err
 }
 
+const neutralizeWorkingGroupTasks = `-- name: NeutralizeWorkingGroupTasks :exec
+WITH tickets AS (
+    UPDATE working_group_tickets SET subject = 'Ticket', body = '' RETURNING 1
+), todos AS (
+    UPDATE working_group_todos SET title = 'To-do' RETURNING 1
+)
+UPDATE working_group_comments SET text = 'Comment'
+`
+
+// Ticket subjects, descriptions, to-do titles and comments often name people.
+func (q *Queries) NeutralizeWorkingGroupTasks(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, neutralizeWorkingGroupTasks)
+	return err
+}
+
 const pointMailAtMailpit = `-- name: PointMailAtMailpit :exec
 UPDATE mail_configuration SET
     smtp_host = 'mailpit',

@@ -2558,6 +2558,24 @@ type WorkingGroup struct {
 	UpdatedAt   time.Time
 }
 
+type WorkingGroupColumn struct {
+	ID        uuid.UUID
+	GroupID   uuid.UUID
+	Name      string
+	Position  int32
+	CreatedAt time.Time
+}
+
+type WorkingGroupComment struct {
+	ID             uuid.UUID
+	TicketID       *uuid.UUID
+	TodoID         *uuid.UUID
+	AuthorPersonID *uuid.UUID
+	Text           string
+	Internal       bool
+	CreatedAt      time.Time
+}
+
 type WorkingGroupMachine struct {
 	GroupID   uuid.UUID
 	MachineID uuid.UUID
@@ -2575,4 +2593,44 @@ type WorkingGroupPlace struct {
 	GroupID   uuid.UUID
 	Name      string
 	CreatedAt time.Time
+}
+
+type WorkingGroupTicket struct {
+	ID               uuid.UUID
+	GroupID          uuid.UUID
+	MachineID        *uuid.UUID
+	Kind             string
+	Subject          string
+	Body             string
+	BlocksUse        bool
+	AuthorPersonID   *uuid.UUID
+	Status           string
+	AssigneePersonID *uuid.UUID
+	DueOn            pgtype.Date
+	ColumnID         *uuid.UUID
+	Version          int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	ClosedAt         pgtype.Timestamptz
+}
+
+type WorkingGroupTicketFollower struct {
+	TicketID  uuid.UUID
+	PersonID  uuid.UUID
+	CreatedAt time.Time
+}
+
+type WorkingGroupTodo struct {
+	ID                uuid.UUID
+	GroupID           uuid.UUID
+	Title             string
+	AssigneePersonID  *uuid.UUID
+	DueOn             pgtype.Date
+	ColumnID          uuid.UUID
+	RepeatEveryDays   *int32
+	DoneAt            pgtype.Timestamptz
+	CreatedByPersonID *uuid.UUID
+	Version           int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }

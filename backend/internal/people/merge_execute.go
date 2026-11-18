@@ -432,7 +432,7 @@ func moveMergePerson(
 		dedupe   func() (int64, error)
 		move     func() (int64, error)
 	}
-	var droppedWorkingGroupMembers int64
+	var droppedWorkingGroupMembers, droppedWorkingGroupFollowers int64
 	steps := []dedupeMove{
 		{MergedTrainingRecords, func() (int64, error) {
 			return queries.DeleteSupersededMergeTrainingRecords(ctx, peopledb.DeleteSupersededMergeTrainingRecordsParams{
@@ -503,6 +503,19 @@ func moveMergePerson(
 			})
 			// The count is memberships dropped as duplicates plus memberships moved.
 			return moved + droppedWorkingGroupMembers, err
+		}},
+		{MergedWorkingGroupTasks, func() (int64, error) {
+			var err error
+			droppedWorkingGroupFollowers, err = queries.DeleteDuplicateMergeWorkingGroupFollowers(
+				ctx,
+				peopledb.DeleteDuplicateMergeWorkingGroupFollowersParams{SourcePersonID: source, TargetPersonID: target},
+			)
+			return droppedWorkingGroupFollowers, err
+		}, func() (int64, error) {
+			moved, err := queries.MoveMergeWorkingGroupTasks(ctx, peopledb.MoveMergeWorkingGroupTasksParams{
+				SourcePersonID: &source, TargetPersonID: target,
+			})
+			return moved + droppedWorkingGroupFollowers, err
 		}},
 	}
 	for _, step := range steps {

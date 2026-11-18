@@ -35,6 +35,42 @@ Being the lead is data scope, not a permission: it only counts for people who al
 - The chat link is an invite link of an external chat. Removing a member does not take it back from them; rotate the link at the chat provider and save the new one.
 - Description and place names are visible to every reader. Do not put personal data in them.
 
+## Tickets
+
+A ticket is a problem, request or question for a group (`kind` `problem`, `request` or `question`). Anybody with `working_groups.read` writes one: a subject (1–120 characters), an optional description (up to 2000), an optional machine of that group (else the ticket is "general") and the flag `blocksUse` ("it cannot be used right now"). Everybody with read sees every ticket of every group: subject, description, kind, machine, author name, status, followers, assignee and due date.
+
+A person is **inside** a group when they are a member of it or hold `working_groups.manage`; everybody else with read is **outside**.
+
+| Operation                                                              | Outside | Inside |
+| ---------------------------------------------------------------------- | ------- | ------ |
+| Write a ticket, comment publicly, follow and unfollow (not their own)  | yes     | yes    |
+| Write an internal comment ("only the group and management see it")     | no      | yes    |
+| Plan, change, close, decline and reopen a ticket                       | no      | yes    |
+
+- Status: `new` (the group's inbox) → `planned` → `done` or `declined`. **Plan** moves a new ticket into one of the group's columns with an assignee (a member of the group, optional), a due date (optional) and the column, all in one call. A planned ticket's assignee, due date and column are changed with `PATCH` under optimistic locking (`expectedVersion`, 409 `stale_write`). **Close** (`done` or `declined`, from `new` or `planned`) takes an optional answer that is stored as a public comment in the same transaction; declining requires one (422). **Reopen** sends a planned, done or declined ticket back to the inbox and clears assignee, due date and column. A call that does not fit the ticket's status answers 409 `working_group_task_state`.
+- Following ("I have this too") is idempotent: following twice or unfollowing when not following changes nothing and is not audited. The author cannot follow their own ticket (409 `working_group_ticket_own`). The author is not listed among the followers.
+- The machine of a ticket must belong to the group (422 `machine_not_in_working_group`); the assignee must be a member (422 `assignee_not_in_group`); the column must belong to the group (422 `working_group_column_not_found`).
+- Removing a member clears their assignments in that group; the tickets stay planned without an assignee.
+- A deleted person's tickets and comments stay; author and assignee are then absent ("Former member"). Their follows are deleted.
+- The list returns at most 500 tickets, newest first, and can be filtered by `groupId` and `status`. Each item carries `isFollowing`, `isMine` (author or assignee), the number of comments the caller may see and `inside`.
+- Notifications for planned and closed tickets are not sent yet.
+
+## To-dos
+
+A to-do is a task of the group: a title (1–160 characters), an optional assignee (a member), a due date (required), a column and an optional `repeatEveryDays` (1–730). To-dos and their comments are visible and editable **only to people inside the group**: for everybody else a single to-do answers 404, lists never contain them, and writing one answers 403 (the group itself is visible to every reader).
+
+- Marking a repeating to-do as done creates, in the same transaction, the next open to-do with the same title, assignee (if still a member), column and repeat and a due date of today (UTC) plus the interval; the response names it in `nextTodoId`. Reopening only clears the done mark and spawns nothing.
+- Without a column a new to-do goes to the group's first column. `PATCH` uses optimistic locking like tickets. Deleting a to-do is a hard delete and removes its comments.
+- Comments on to-dos are always internal.
+
+## Columns
+
+Each group has an ordered list of custom columns between the fixed **Inbox** (tickets with status `new`) and **Done** (done and declined tickets, done to-dos); those two are not rows. A new group starts with "To do" and "In progress". The lead or `working_groups.manage` replaces the list with `PUT /working-groups/{groupId}/columns`: entries with an `id` are renamed and reordered, entries without one are created, missing ids are deleted. The open tickets and to-dos of a deleted column move to the first column of the new list. Column names are 1–40 characters and unique ignoring case (409 `working_group_column_exists`); at least one column must remain (422 `working_group_column_required`), at most 20.
+
+## Data protection
+
+Tickets, to-dos and comments are one privacy category ("Working group tickets and to-dos"): the person links are unlinked when the person is deleted, the texts stay; subject requests export the subject's own tickets, assignments, to-dos, comments and follows (follows name only the group and the time). Audit events name ids and changed fields, never subjects, descriptions, titles, comments or answers. People merge moves tickets, assignments, to-dos and comments to the surviving person and drops follows that would duplicate or follow the merged person's own ticket. The staging anonymizer replaces subjects, descriptions, titles and comments with neutral text. Do not put personal data in tickets.
+
 ## In the app
 
 - **Working groups → Overview** (`/working-groups`, side navigation, needs `working_groups.read`): one tab per group, the groups of the signed-in person first. A tab shows the description, the machines and places, the people with the group lead first and, for members and management, a link to the group chat. The selected group is in the URL (`?group=<id>`). Without groups, people with `working_groups.manage` get a button to set them up.
@@ -58,5 +94,25 @@ Being the lead is data scope, not a permission: it only counts for people who al
 | `removeWorkingGroupPlace`                    | `DELETE /working-groups/{groupId}/places/{placeId}` | lead or manage           |
 | `listWorkingGroupPeople`                     | `GET /working-groups/people?search=`             | manage or lead of any group |
 | `listWorkingGroupMachines`                   | `GET /working-groups/machines`                   | manage or lead of any group |
+
+| `setWorkingGroupColumns`                     | `PUT /working-groups/{groupId}/columns`          | lead or manage              |
+| `listWorkingGroupTickets`                    | `GET /working-group-tickets?groupId=&status=`    | read                        |
+| `createWorkingGroupTicket`                   | `POST /working-group-tickets`                    | read                        |
+| `getWorkingGroupTicket`                      | `GET /working-group-tickets/{ticketId}`          | read (internal comments: inside) |
+| `updateWorkingGroupTicket`                   | `PATCH /working-group-tickets/{ticketId}`        | inside                      |
+| `planWorkingGroupTicket`                     | `POST /working-group-tickets/{ticketId}/plan`    | inside                      |
+| `closeWorkingGroupTicket`                    | `POST /working-group-tickets/{ticketId}/close`   | inside                      |
+| `reopenWorkingGroupTicket`                   | `POST /working-group-tickets/{ticketId}/reopen`  | inside                      |
+| `followWorkingGroupTicket`                   | `PUT /working-group-tickets/{ticketId}/follow`   | read                        |
+| `unfollowWorkingGroupTicket`                 | `DELETE /working-group-tickets/{ticketId}/follow` | read                       |
+| `addWorkingGroupTicketComment`               | `POST /working-group-tickets/{ticketId}/comments` | read (internal: inside)    |
+| `listWorkingGroupTodos`                      | `GET /working-group-todos?groupId=`              | inside (others: empty list) |
+| `createWorkingGroupTodo`                     | `POST /working-group-todos`                      | inside                      |
+| `getWorkingGroupTodo`                        | `GET /working-group-todos/{todoId}`              | inside (others: 404)        |
+| `updateWorkingGroupTodo`                     | `PATCH /working-group-todos/{todoId}`            | inside (others: 404)        |
+| `deleteWorkingGroupTodo`                     | `DELETE /working-group-todos/{todoId}`           | inside (others: 404)        |
+| `markWorkingGroupTodoDone`                   | `POST /working-group-todos/{todoId}/done`        | inside (others: 404)        |
+| `reopenWorkingGroupTodo`                     | `POST /working-group-todos/{todoId}/reopen`      | inside (others: 404)        |
+| `addWorkingGroupTodoComment`                 | `POST /working-group-todos/{todoId}/comments`    | inside (others: 404)        |
 
 All operations also need `working_groups.read`. The two picker lists return the minimum: people as id and display name (no e-mail, no matriculation number), machines with the group they already belong to.

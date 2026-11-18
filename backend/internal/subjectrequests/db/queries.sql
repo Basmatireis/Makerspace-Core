@@ -275,6 +275,41 @@ FROM working_group_members m JOIN working_groups g ON g.id = m.group_id WHERE m.
 -- name: CountWorkingGroupMemberships :one
 SELECT count(*)::bigint FROM working_group_members WHERE person_id = sqlc.arg(subject_person)::uuid;
 
+-- name: ExportWorkingGroupTasks :one
+-- The subject's own tickets, assignments, to-dos and comments. Follows name only the group and the time: the ticket text
+-- belongs to its author.
+SELECT jsonb_build_object(
+    'tickets', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'kind', t.kind, 'subject', t.subject, 'body', t.body, 'blocksUse', t.blocks_use, 'status', t.status,
+            'wrote', t.author_person_id = sqlc.arg(subject_person)::uuid,
+            'assigned', t.assignee_person_id = sqlc.arg(subject_person)::uuid,
+            'dueOn', t.due_on, 'createdAt', t.created_at) ORDER BY t.created_at), '[]'::jsonb)
+        FROM working_group_tickets t JOIN working_groups g ON g.id = t.group_id
+        WHERE t.author_person_id = sqlc.arg(subject_person)::uuid OR t.assignee_person_id = sqlc.arg(subject_person)::uuid),
+    'follows', (SELECT COALESCE(jsonb_agg(jsonb_build_object('group', g.name, 'since', f.created_at) ORDER BY f.created_at), '[]'::jsonb)
+        FROM working_group_ticket_followers f
+        JOIN working_group_tickets t ON t.id = f.ticket_id JOIN working_groups g ON g.id = t.group_id
+        WHERE f.person_id = sqlc.arg(subject_person)::uuid),
+    'todos', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'title', d.title, 'dueOn', d.due_on, 'doneAt', d.done_at,
+            'assigned', d.assignee_person_id = sqlc.arg(subject_person)::uuid,
+            'created', d.created_by_person_id = sqlc.arg(subject_person)::uuid, 'createdAt', d.created_at) ORDER BY d.created_at), '[]'::jsonb)
+        FROM working_group_todos d JOIN working_groups g ON g.id = d.group_id
+        WHERE d.assignee_person_id = sqlc.arg(subject_person)::uuid OR d.created_by_person_id = sqlc.arg(subject_person)::uuid),
+    'comments', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'text', c.text, 'internal', c.internal, 'on', CASE WHEN c.ticket_id IS NOT NULL THEN 'ticket' ELSE 'todo' END,
+            'createdAt', c.created_at) ORDER BY c.created_at), '[]'::jsonb)
+        FROM working_group_comments c WHERE c.author_person_id = sqlc.arg(subject_person)::uuid)
+)::jsonb AS document;
+
+-- name: CountWorkingGroupTasks :one
+SELECT ((SELECT count(*) FROM working_group_tickets
+          WHERE author_person_id = sqlc.arg(subject_person)::uuid OR assignee_person_id = sqlc.arg(subject_person)::uuid)
+    + (SELECT count(*) FROM working_group_ticket_followers WHERE person_id = sqlc.arg(subject_person)::uuid)
+    + (SELECT count(*) FROM working_group_todos
+          WHERE assignee_person_id = sqlc.arg(subject_person)::uuid OR created_by_person_id = sqlc.arg(subject_person)::uuid)
+    + (SELECT count(*) FROM working_group_comments WHERE author_person_id = sqlc.arg(subject_person)::uuid))::bigint AS total;
+
 -- name: ExportTrainingRecords :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object('training', t.name, 'status', r.status, 'completedOn', r.completed_on, 'notes', r.notes, 'createdAt', r.created_at) ORDER BY t.name), '[]'::jsonb)::jsonb AS document
 FROM training_records r JOIN trainings t ON t.id = r.training_id WHERE r.person_id = sqlc.arg(subject_person)::uuid;

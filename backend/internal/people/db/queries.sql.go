@@ -248,6 +248,12 @@ SELECT
     (SELECT count(*) FROM survey_responses WHERE identified_person_id = ANY(($1::text[])::uuid[]))::bigint AS survey_responses,
     (SELECT count(*) FROM organization_members WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS organization_memberships,
     (SELECT count(*) FROM working_group_members WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS working_group_memberships,
+    ((SELECT count(*) FROM working_group_tickets
+        WHERE author_person_id = ANY(($1::text[])::uuid[]) OR assignee_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_ticket_followers WHERE person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_todos
+            WHERE assignee_person_id = ANY(($1::text[])::uuid[]) OR created_by_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_comments WHERE author_person_id = ANY(($1::text[])::uuid[])))::bigint AS working_group_tasks,
     (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY(($2::text[])::uuid[]))::bigint AS notifications,
     ((SELECT count(*) FROM privacy_retention_holds WHERE subject_person_id = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM privacy_subject_requests WHERE subject_person_id = ANY(($1::text[])::uuid[])))::bigint AS privacy_holds
@@ -273,6 +279,7 @@ type CountMergeHistoryRow struct {
 	SurveyResponses         int64
 	OrganizationMemberships int64
 	WorkingGroupMemberships int64
+	WorkingGroupTasks       int64
 	Notifications           int64
 	PrivacyHolds            int64
 }
@@ -296,6 +303,7 @@ func (q *Queries) CountMergeHistory(ctx context.Context, arg CountMergeHistoryPa
 		&i.SurveyResponses,
 		&i.OrganizationMemberships,
 		&i.WorkingGroupMemberships,
+		&i.WorkingGroupTasks,
 		&i.Notifications,
 		&i.PrivacyHolds,
 	)
@@ -571,6 +579,38 @@ func (q *Queries) DeleteDuplicateMergeShiftAssignments(ctx context.Context, arg 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteDuplicateMergeWorkingGroupFollowers = `-- name: DeleteDuplicateMergeWorkingGroupFollowers :one
+WITH from_source AS (
+    DELETE FROM working_group_ticket_followers f
+    WHERE f.person_id = $1
+      AND (EXISTS (SELECT 1 FROM working_group_ticket_followers t
+                   WHERE t.ticket_id = f.ticket_id AND t.person_id = $2)
+           OR EXISTS (SELECT 1 FROM working_group_tickets w
+                      WHERE w.id = f.ticket_id AND w.author_person_id = $2))
+    RETURNING 1
+), from_target AS (
+    DELETE FROM working_group_ticket_followers f
+    WHERE f.person_id = $2
+      AND EXISTS (SELECT 1 FROM working_group_tickets w WHERE w.id = f.ticket_id AND w.author_person_id = $1)
+    RETURNING 1
+)
+SELECT ((SELECT count(*) FROM from_source) + (SELECT count(*) FROM from_target))::bigint AS dropped
+`
+
+type DeleteDuplicateMergeWorkingGroupFollowersParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// The target's follow stays where both follow. Nobody follows a ticket they wrote, so a follow of the source's or the
+// target's own ticket that would end up with the merged person as author goes.
+func (q *Queries) DeleteDuplicateMergeWorkingGroupFollowers(ctx context.Context, arg DeleteDuplicateMergeWorkingGroupFollowersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, deleteDuplicateMergeWorkingGroupFollowers, arg.SourcePersonID, arg.TargetPersonID)
+	var dropped int64
+	err := row.Scan(&dropped)
+	return dropped, err
 }
 
 const deleteDuplicateMergeWorkingGroupMembers = `-- name: DeleteDuplicateMergeWorkingGroupMembers :execrows
@@ -1846,6 +1886,43 @@ func (q *Queries) MoveMergeWorkingGroupMembers(ctx context.Context, arg MoveMerg
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const moveMergeWorkingGroupTasks = `-- name: MoveMergeWorkingGroupTasks :one
+WITH tickets_moved AS (
+    UPDATE working_group_tickets AS t SET
+        author_person_id = CASE WHEN t.author_person_id = $1 THEN $2::uuid ELSE t.author_person_id END,
+        assignee_person_id = CASE WHEN t.assignee_person_id = $1 THEN $2::uuid ELSE t.assignee_person_id END
+    WHERE t.author_person_id = $1 OR t.assignee_person_id = $1
+    RETURNING 1
+), followers_moved AS (
+    UPDATE working_group_ticket_followers AS f SET person_id = $2::uuid
+    WHERE f.person_id = $1 RETURNING 1
+), todos_moved AS (
+    UPDATE working_group_todos AS d SET
+        assignee_person_id = CASE WHEN d.assignee_person_id = $1 THEN $2::uuid ELSE d.assignee_person_id END,
+        created_by_person_id = CASE WHEN d.created_by_person_id = $1 THEN $2::uuid ELSE d.created_by_person_id END
+    WHERE d.assignee_person_id = $1 OR d.created_by_person_id = $1
+    RETURNING 1
+), comments_moved AS (
+    UPDATE working_group_comments AS c SET author_person_id = $2::uuid
+    WHERE c.author_person_id = $1 RETURNING 1
+)
+SELECT ((SELECT count(*) FROM tickets_moved) + (SELECT count(*) FROM followers_moved)
+      + (SELECT count(*) FROM todos_moved) + (SELECT count(*) FROM comments_moved))::bigint AS moved
+`
+
+type MoveMergeWorkingGroupTasksParams struct {
+	SourcePersonID *uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// Moves the source's tickets, assignments, follows, to-dos and comments to the target; returns how many rows moved.
+func (q *Queries) MoveMergeWorkingGroupTasks(ctx context.Context, arg MoveMergeWorkingGroupTasksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, moveMergeWorkingGroupTasks, arg.SourcePersonID, arg.TargetPersonID)
+	var moved int64
+	err := row.Scan(&moved)
+	return moved, err
 }
 
 const normalizePersonMembership = `-- name: NormalizePersonMembership :exec

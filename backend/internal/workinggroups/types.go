@@ -53,6 +53,7 @@ type Group struct {
 	Members   []Member
 	Machines  []Machine
 	Places    []Place
+	Columns   []Column
 	CanEdit   bool
 	CanManage bool
 }

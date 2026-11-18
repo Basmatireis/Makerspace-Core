@@ -295,6 +295,15 @@ UPDATE events SET internal_description = NULL WHERE internal_description IS NOT 
 -- Task titles often name the person who should do something.
 UPDATE event_tasks SET title = 'Task', description = NULL;
 
+-- name: NeutralizeWorkingGroupTasks :exec
+-- Ticket subjects, descriptions, to-do titles and comments often name people.
+WITH tickets AS (
+    UPDATE working_group_tickets SET subject = 'Ticket', body = '' RETURNING 1
+), todos AS (
+    UPDATE working_group_todos SET title = 'To-do' RETURNING 1
+)
+UPDATE working_group_comments SET text = 'Comment';
+
 -- name: ClearTrainingRecordNotes :exec
 UPDATE training_records SET notes = NULL WHERE notes IS NOT NULL;
 

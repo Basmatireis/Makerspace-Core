@@ -39,6 +39,7 @@ type Querier interface {
 	// Open visits plus the kept last visit date; completed visits are not kept.
 	CountVisits(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
 	CountWorkingGroupMemberships(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
+	CountWorkingGroupTasks(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
 	DeleteExportFilesQueueBlobs(ctx context.Context, fileIds []string) error
 	DeleteProcessingActivity(ctx context.Context, arg DeleteProcessingActivityParams) (uuid.UUID, error)
 	DeleteSubjectRequestsByID(ctx context.Context, ids []string) (int64, error)
@@ -76,6 +77,9 @@ type Querier interface {
 	ExportTrainingRecords(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportVisits(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportWorkingGroupMemberships(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
+	// The subject's own tickets, assignments, to-dos and comments. Follows name only the group and the time: the ticket text
+	// belongs to its author.
+	ExportWorkingGroupTasks(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	GetProcessingActivity(ctx context.Context, id uuid.UUID) (PrivacyProcessingActivity, error)
 	// Subject lookups ----------------------------------------------------------------
 	GetSubjectPerson(ctx context.Context, subjectPerson uuid.UUID) (GetSubjectPersonRow, error)

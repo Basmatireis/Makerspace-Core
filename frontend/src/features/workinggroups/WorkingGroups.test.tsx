@@ -33,6 +33,7 @@ const printGroup: WorkingGroup = {
   ],
   machines: [{ id: machineId, name: 'Prusa CORE One' }],
   places: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8e201', name: 'Filament shelf' }],
+  columns: [],
   canEdit: false,
   canManage: false,
 };

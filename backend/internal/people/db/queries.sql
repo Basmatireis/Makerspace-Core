@@ -386,6 +386,12 @@ SELECT
     (SELECT count(*) FROM survey_responses WHERE identified_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS survey_responses,
     (SELECT count(*) FROM organization_members WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS organization_memberships,
     (SELECT count(*) FROM working_group_members WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS working_group_memberships,
+    ((SELECT count(*) FROM working_group_tickets
+        WHERE author_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]) OR assignee_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_ticket_followers WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_todos
+            WHERE assignee_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]) OR created_by_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_comments WHERE author_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS working_group_tasks,
     (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY((sqlc.arg(account_ids)::text[])::uuid[]))::bigint AS notifications,
     ((SELECT count(*) FROM privacy_retention_holds WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM privacy_subject_requests WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS privacy_holds;
@@ -484,6 +490,49 @@ WHERE source.person_id = sqlc.arg(source_person_id) AND target.person_id = sqlc.
 
 -- name: MoveMergeWorkingGroupMembers :execrows
 UPDATE working_group_members SET person_id = sqlc.arg(target_person_id) WHERE person_id = sqlc.arg(source_person_id);
+
+-- name: DeleteDuplicateMergeWorkingGroupFollowers :one
+-- The target's follow stays where both follow. Nobody follows a ticket they wrote, so a follow of the source's or the
+-- target's own ticket that would end up with the merged person as author goes.
+WITH from_source AS (
+    DELETE FROM working_group_ticket_followers f
+    WHERE f.person_id = sqlc.arg(source_person_id)
+      AND (EXISTS (SELECT 1 FROM working_group_ticket_followers t
+                   WHERE t.ticket_id = f.ticket_id AND t.person_id = sqlc.arg(target_person_id))
+           OR EXISTS (SELECT 1 FROM working_group_tickets w
+                      WHERE w.id = f.ticket_id AND w.author_person_id = sqlc.arg(target_person_id)))
+    RETURNING 1
+), from_target AS (
+    DELETE FROM working_group_ticket_followers f
+    WHERE f.person_id = sqlc.arg(target_person_id)
+      AND EXISTS (SELECT 1 FROM working_group_tickets w WHERE w.id = f.ticket_id AND w.author_person_id = sqlc.arg(source_person_id))
+    RETURNING 1
+)
+SELECT ((SELECT count(*) FROM from_source) + (SELECT count(*) FROM from_target))::bigint AS dropped;
+
+-- name: MoveMergeWorkingGroupTasks :one
+-- Moves the source's tickets, assignments, follows, to-dos and comments to the target; returns how many rows moved.
+WITH tickets_moved AS (
+    UPDATE working_group_tickets AS t SET
+        author_person_id = CASE WHEN t.author_person_id = sqlc.arg(source_person_id) THEN sqlc.arg(target_person_id)::uuid ELSE t.author_person_id END,
+        assignee_person_id = CASE WHEN t.assignee_person_id = sqlc.arg(source_person_id) THEN sqlc.arg(target_person_id)::uuid ELSE t.assignee_person_id END
+    WHERE t.author_person_id = sqlc.arg(source_person_id) OR t.assignee_person_id = sqlc.arg(source_person_id)
+    RETURNING 1
+), followers_moved AS (
+    UPDATE working_group_ticket_followers AS f SET person_id = sqlc.arg(target_person_id)::uuid
+    WHERE f.person_id = sqlc.arg(source_person_id) RETURNING 1
+), todos_moved AS (
+    UPDATE working_group_todos AS d SET
+        assignee_person_id = CASE WHEN d.assignee_person_id = sqlc.arg(source_person_id) THEN sqlc.arg(target_person_id)::uuid ELSE d.assignee_person_id END,
+        created_by_person_id = CASE WHEN d.created_by_person_id = sqlc.arg(source_person_id) THEN sqlc.arg(target_person_id)::uuid ELSE d.created_by_person_id END
+    WHERE d.assignee_person_id = sqlc.arg(source_person_id) OR d.created_by_person_id = sqlc.arg(source_person_id)
+    RETURNING 1
+), comments_moved AS (
+    UPDATE working_group_comments AS c SET author_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE c.author_person_id = sqlc.arg(source_person_id) RETURNING 1
+)
+SELECT ((SELECT count(*) FROM tickets_moved) + (SELECT count(*) FROM followers_moved)
+      + (SELECT count(*) FROM todos_moved) + (SELECT count(*) FROM comments_moved))::bigint AS moved;
 
 -- name: RepointMergePersonReferences :one
 -- Re-points the person references that carry no uniqueness rule. Conflicting open visits are rejected before this

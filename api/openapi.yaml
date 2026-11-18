@@ -8515,6 +8515,319 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /working-groups/{groupId}/columns:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupColumns
+      summary: Replace the board columns
+      description: >-
+        Requires `working_groups.manage` or leading this group. Replaces the ordered list of custom columns between the
+        fixed Inbox and Done. Entries with an `id` are renamed and reordered, entries without one are created and
+        columns missing from the list are deleted; their open tickets and to-dos move to the first column of the new
+        list. At least one column must remain (422 `working_group_column_required`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupColumnsRequest"}}}}
+      responses:
+        "200": {description: Working group with its columns., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupTickets
+      summary: List tickets
+      description: >-
+        Requires `working_groups.read`. Everybody with read sees every ticket of every group. Newest first, at most 500;
+        `inside` per item says whether the caller may also work on it.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: groupId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: status, in: query, schema: {$ref: "#/components/schemas/WorkingGroupTicketStatus"}}
+      responses:
+        "200": {description: Tickets., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupTicket
+      summary: Write a ticket
+      description: Requires `working_groups.read`. The machine, when given, must belong to the group (422 `machine_not_in_working_group`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupTicketRequest"}}}}
+      responses:
+        "201": {description: Ticket created., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    get:
+      tags: [Working groups]
+      operationId: getWorkingGroupTicket
+      summary: Get a ticket
+      description: Requires `working_groups.read`. Internal comments are only returned to people inside the group (a member or `working_groups.manage`).
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Ticket., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Working groups]
+      operationId: updateWorkingGroupTicket
+      summary: Change a planned ticket
+      description: Requires being inside the group. Changes assignee, due date and column of a planned ticket under optimistic locking (409 `stale_write`; 409 `working_group_task_state` when the ticket is not planned).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateWorkingGroupTicketRequest"}}}}
+      responses:
+        "200": {description: Ticket updated., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/plan:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    post:
+      tags: [Working groups]
+      operationId: planWorkingGroupTicket
+      summary: Plan a new ticket
+      description: Requires being inside the group. Moves a new ticket into a column; the assignee must be a member of the group (422 `assignee_not_in_group`). 409 `working_group_task_state` when the ticket is not new.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PlanWorkingGroupTicketRequest"}}}}
+      responses:
+        "200": {description: Ticket planned., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/close:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    post:
+      tags: [Working groups]
+      operationId: closeWorkingGroupTicket
+      summary: Close a ticket
+      description: Requires being inside the group. Closes a new or planned ticket as done or declined. The answer is stored as a public comment in the same transaction and is required when declining.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CloseWorkingGroupTicketRequest"}}}}
+      responses:
+        "200": {description: Ticket closed., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/reopen:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    post:
+      tags: [Working groups]
+      operationId: reopenWorkingGroupTicket
+      summary: Send a ticket back to the inbox
+      description: Requires being inside the group. Planned, done and declined tickets become new again; assignee, due date and column are cleared.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Ticket in the inbox., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/follow:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    put:
+      tags: [Working groups]
+      operationId: followWorkingGroupTicket
+      summary: Have this too
+      description: Requires `working_groups.read`. Following twice changes nothing. The author cannot follow their own ticket (409 `working_group_ticket_own`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Ticket with the caller following it., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: unfollowWorkingGroupTicket
+      summary: Stop following a ticket
+      description: Requires `working_groups.read`. Not following is not an error.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Ticket without the caller following it., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/comments:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    post:
+      tags: [Working groups]
+      operationId: addWorkingGroupTicketComment
+      summary: Comment on a ticket
+      description: Requires `working_groups.read` for a public comment. An internal comment needs being inside the group.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupCommentRequest"}}}}
+      responses:
+        "200": {description: Ticket with the new comment., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupTodos
+      summary: List to-dos
+      description: Requires `working_groups.read`. Returns the to-dos of the groups the caller is inside (a member or `working_groups.manage`), optionally of one group. Everybody else gets an empty list.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: groupId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      responses:
+        "200": {description: To-dos., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupTodo
+      summary: Add a to-do
+      description: Requires being inside the group. Without a column the to-do goes to the group's first column.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupTodoRequest"}}}}
+      responses:
+        "201": {description: To-do created., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos/{todoId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTodoId"}
+    get:
+      tags: [Working groups]
+      operationId: getWorkingGroupTodo
+      summary: Get a to-do
+      description: Requires being inside the group; for everybody else the to-do does not exist (404).
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: To-do., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Working groups]
+      operationId: updateWorkingGroupTodo
+      summary: Change a to-do
+      description: Requires being inside the group (404 otherwise). Optimistic locking (409 `stale_write`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateWorkingGroupTodoRequest"}}}}
+      responses:
+        "200": {description: To-do updated., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupTodo
+      summary: Delete a to-do
+      description: Requires being inside the group (404 otherwise). Removes the to-do and its comments for good.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: To-do deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos/{todoId}/done:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTodoId"}
+    post:
+      tags: [Working groups]
+      operationId: markWorkingGroupTodoDone
+      summary: Mark a to-do as done
+      description: Requires being inside the group (404 otherwise). A repeating to-do creates the next open one with a due date of today plus its interval in the same transaction; `nextTodoId` names it.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: To-do done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos/{todoId}/reopen:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTodoId"}
+    post:
+      tags: [Working groups]
+      operationId: reopenWorkingGroupTodo
+      summary: Reopen a done to-do
+      description: Requires being inside the group (404 otherwise).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: To-do open again., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos/{todoId}/comments:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTodoId"}
+    post:
+      tags: [Working groups]
+      operationId: addWorkingGroupTodoComment
+      summary: Comment on a to-do
+      description: Requires being inside the group (404 otherwise). Comments on to-dos are never shown outside the group.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupCommentRequest"}}}}
+      responses:
+        "200": {description: To-do with the new comment., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /people/{personId}/training-records:
     parameters:
       - $ref: "#/components/parameters/PersonId"
@@ -13372,6 +13685,8 @@ components:
 
   parameters:
     WorkingGroupId: {name: groupId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    WorkingGroupTicketId: {name: ticketId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    WorkingGroupTodoId: {name: todoId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
     PdfTemplateExport: {name: export, in: path, required: true, schema: {$ref: "#/components/schemas/PdfTemplateExport"}}
     ConfigurationImportMode: {name: mode, in: query, required: true, schema: {$ref: "#/components/schemas/ConfigurationImportMode"}}
     ConfigurationImportSections: {name: sections, in: query, required: true, style: form, explode: true, schema: {type: array, minItems: 1, maxItems: 32, items: {$ref: "#/components/schemas/ConfigurationSection"}}}
@@ -15946,6 +16261,7 @@ components:
         - survey_responses
         - organization_memberships
         - working_group_memberships
+        - working_group_tasks
         - notifications
         - privacy_holds
         - actor_references
@@ -20121,7 +20437,7 @@ components:
     WorkingGroup:
       type: object
       additionalProperties: false
-      required: [id, name, description, memberCount, machineCount, isMember, isLead, version, members, machines, places, canEdit, canManage]
+      required: [id, name, description, memberCount, machineCount, isMember, isLead, version, members, machines, places, columns, canEdit, canManage]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
@@ -20136,6 +20452,7 @@ components:
         members: {type: array, description: "Lead first, then by name.", items: {$ref: "#/components/schemas/WorkingGroupMember"}}
         machines: {type: array, items: {$ref: "#/components/schemas/WorkingGroupMachine"}}
         places: {type: array, items: {$ref: "#/components/schemas/WorkingGroupPlace"}}
+        columns: {type: array, description: "The custom board columns in order, between the fixed Inbox and Done.", items: {$ref: "#/components/schemas/WorkingGroupColumn"}}
         canEdit: {type: boolean, description: Whether the caller leads the group or holds `working_groups.manage`.}
         canManage: {type: boolean, description: Whether the caller holds `working_groups.manage`.}
 
@@ -20178,6 +20495,202 @@ components:
       required: [name]
       properties:
         name: {type: string, minLength: 1, maxLength: 80}
+
+    WorkingGroupColumn:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+
+    WorkingGroupColumnInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 40}
+
+    SetWorkingGroupColumnsRequest:
+      type: object
+      additionalProperties: false
+      required: [columns]
+      properties:
+        columns: {type: array, minItems: 1, maxItems: 20, items: {$ref: "#/components/schemas/WorkingGroupColumnInput"}}
+
+    WorkingGroupTicketKind:
+      type: string
+      enum: [problem, request, question]
+
+    WorkingGroupTicketStatus:
+      type: string
+      enum: [new, planned, done, declined]
+
+    WorkingGroupTicket:
+      type: object
+      additionalProperties: false
+      required: [id, groupId, groupName, kind, subject, body, blocksUse, status, followerCount, isFollowing, isMine, commentCount, inside, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        groupName: {type: string}
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        machineName: {type: string, description: Absent for a general ticket without a machine.}
+        kind: {$ref: "#/components/schemas/WorkingGroupTicketKind"}
+        subject: {type: string}
+        body: {type: string}
+        blocksUse: {type: boolean, description: The machine or place cannot be used right now.}
+        status: {$ref: "#/components/schemas/WorkingGroupTicketStatus"}
+        author: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: Absent when the author's person record was deleted (a former member).}
+        assignee: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: Only while planned; absent when nobody is assigned.}
+        dueOn: {type: string, format: date, description: Only while planned.}
+        columnId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: Only while planned.}
+        followerCount: {type: integer, format: int64, minimum: 0}
+        isFollowing: {type: boolean}
+        isMine: {type: boolean, description: The caller wrote the ticket or is its assignee.}
+        commentCount: {type: integer, format: int64, minimum: 0, description: Counts the comments the caller may see.}
+        inside: {type: boolean, description: The caller is a member of the group or holds `working_groups.manage`.}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        closedAt: {type: string, format: date-time}
+
+    WorkingGroupTicketList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupTicket"}}
+
+    WorkingGroupComment:
+      type: object
+      additionalProperties: false
+      required: [id, text, internal, createdAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        author: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: Absent when the author's person record was deleted (a former member).}
+        text: {type: string}
+        internal: {type: boolean, description: Only the group and management see it.}
+        createdAt: {type: string, format: date-time}
+
+    WorkingGroupTicketDetail:
+      type: object
+      additionalProperties: false
+      required: [ticket, followers, comments]
+      properties:
+        ticket: {$ref: "#/components/schemas/WorkingGroupTicket"}
+        followers: {type: array, description: People who have this too; the author is not among them., items: {$ref: "#/components/schemas/WorkingGroupPerson"}}
+        comments: {type: array, description: Oldest first; internal comments only for people inside the group., items: {$ref: "#/components/schemas/WorkingGroupComment"}}
+
+    CreateWorkingGroupTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [groupId, kind, subject, blocksUse]
+      properties:
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {$ref: "#/components/schemas/WorkingGroupTicketKind"}
+        subject: {type: string, minLength: 1, maxLength: 120}
+        body: {type: string, maxLength: 2000}
+        blocksUse: {type: boolean}
+
+    PlanWorkingGroupTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [columnId]
+      properties:
+        columnId: {$ref: "#/components/schemas/UUIDv7"}
+        assigneePersonId: {$ref: "#/components/schemas/UUIDv7"}
+        dueOn: {type: string, format: date}
+
+    UpdateWorkingGroupTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        assigneePersonId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "`null` clears the assignee."}
+        dueOn: {type: string, format: date, nullable: true, description: "`null` clears the due date."}
+        columnId: {$ref: "#/components/schemas/UUIDv7"}
+
+    CloseWorkingGroupTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [outcome]
+      properties:
+        outcome: {type: string, enum: [done, declined]}
+        answer: {type: string, maxLength: 2000, description: Stored as a public comment; required when declining.}
+
+    WorkingGroupCommentRequest:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text: {type: string, minLength: 1, maxLength: 2000}
+        internal: {type: boolean, default: false, description: "Only people inside the group may write internal comments. Ignored for to-dos, whose comments are always internal."}
+
+    WorkingGroupTodo:
+      type: object
+      additionalProperties: false
+      required: [id, groupId, groupName, title, dueOn, columnId, done, isMine, commentCount, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        groupName: {type: string}
+        title: {type: string}
+        assignee: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: Absent when nobody is assigned or the person was deleted.}
+        createdBy: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: Absent when the person was deleted.}
+        dueOn: {type: string, format: date}
+        columnId: {$ref: "#/components/schemas/UUIDv7"}
+        repeatEveryDays: {type: integer, format: int32, minimum: 1, maximum: 730}
+        done: {type: boolean}
+        doneAt: {type: string, format: date-time}
+        isMine: {type: boolean, description: The caller is the assignee.}
+        commentCount: {type: integer, format: int64, minimum: 0}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    WorkingGroupTodoList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupTodo"}}
+
+    WorkingGroupTodoDetail:
+      type: object
+      additionalProperties: false
+      required: [todo, comments]
+      properties:
+        todo: {$ref: "#/components/schemas/WorkingGroupTodo"}
+        comments: {type: array, description: Oldest first., items: {$ref: "#/components/schemas/WorkingGroupComment"}}
+        nextTodoId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: Set when marking a repeating to-do as done created the next one.}
+
+    CreateWorkingGroupTodoRequest:
+      type: object
+      additionalProperties: false
+      required: [groupId, title, dueOn]
+      properties:
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        title: {type: string, minLength: 1, maxLength: 160}
+        assigneePersonId: {$ref: "#/components/schemas/UUIDv7"}
+        dueOn: {type: string, format: date}
+        columnId: {$ref: "#/components/schemas/UUIDv7"}
+        repeatEveryDays: {type: integer, format: int32, minimum: 1, maximum: 730}
+
+    UpdateWorkingGroupTodoRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        title: {type: string, minLength: 1, maxLength: 160}
+        assigneePersonId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "`null` clears the assignee."}
+        dueOn: {type: string, format: date}
+        columnId: {$ref: "#/components/schemas/UUIDv7"}
+        repeatEveryDays: {type: integer, format: int32, minimum: 1, maximum: 730, nullable: true, description: "`null` stops the repetition."}
 
     WorkingGroupPersonOption:
       type: object
