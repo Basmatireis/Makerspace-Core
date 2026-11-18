@@ -89,10 +89,7 @@ export function TemplateEditor({
   const errors = problems.filter((p) => p.severity === 'error');
   const warnings = problems.length - errors.length;
   // Nodes the data does not reach have no box; the engine lists them in `inactive`.
-  const inactive = useMemo(
-    () => new Set(preview.data?.inactive ?? []),
-    [preview.data],
-  );
+  const inactive = useMemo(() => new Set(preview.data?.inactive ?? []), [preview.data]);
   const errorIds = useMemo(() => new Set(errors.map((p) => p.nodeId)), [errors]);
   const stale = debounced !== doc || preview.isPlaceholderData;
 
