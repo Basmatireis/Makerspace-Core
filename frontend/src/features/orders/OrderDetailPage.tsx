@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Modal, Stack } from '@carbon/react';
+import { Button, Modal, NotificationActionButton, Stack } from '@carbon/react';
 import {
   Add,
   ArrowRight,
@@ -278,21 +278,16 @@ function OrderDetail({ order }: { order: Order }) {
         )}
         {pendingId && (
           <RichNotification kind="info" title="Replacement in progress">
-            <RefLink reference={order.pendingReplacementOrderReference ?? ''} id={pendingId} kind="order" /> replaces
-            this order once it is committed. Until then this order stays as it is.
-            <span className="sales-notice-actions">
-              <Button
-                kind="ghost"
-                size="sm"
-                renderIcon={ArrowRight}
-                onClick={() => void navigate(`/orders/${pendingId}`)}
-              >
+            <RefLink reference={order.pendingReplacementOrderReference ?? ''} id={pendingId} kind="order" /> will
+            replace this order when you commit it.
+            <span className="sales-notice-inline-actions">
+              <NotificationActionButton inline onClick={() => void navigate(`/orders/${pendingId}`)}>
                 Continue
-              </Button>
+              </NotificationActionButton>
               {canWrite && pending.data && (
-                <Button kind="ghost" size="sm" renderIcon={TrashCan} onClick={() => setDialog('discard')}>
+                <NotificationActionButton inline onClick={() => setDialog('discard')}>
                   Discard
-                </Button>
+                </NotificationActionButton>
               )}
             </span>
           </RichNotification>
