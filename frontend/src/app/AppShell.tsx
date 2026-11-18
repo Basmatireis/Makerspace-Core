@@ -122,6 +122,26 @@ export function AppShell() {
     if (!currentNarrowState()) setSideNavExpanded(!fullWidth);
   }, [fullWidth]);
 
+  // Only one menu is open at a time: the navigation, where it lies over the page, and the header panels exclude each other.
+  const navOverlays = isNarrow || fullWidth;
+  const toggleSideNav = () => {
+    if (!sideNavExpanded) {
+      setProfilePanelOpen(false);
+      setNotificationPanelOpen(false);
+    }
+    setSideNavExpanded(!sideNavExpanded);
+  };
+  const toggleNotificationPanel = () => {
+    if (!notificationPanelOpen && navOverlays) setSideNavExpanded(false);
+    setProfilePanelOpen(false);
+    setNotificationPanelOpen(!notificationPanelOpen);
+  };
+  const toggleProfilePanel = () => {
+    if (!profilePanelOpen && navOverlays) setSideNavExpanded(false);
+    setNotificationPanelOpen(false);
+    setProfilePanelOpen(!profilePanelOpen);
+  };
+
   const handleNavigation = () => {
     if (!isNarrow && !fullWidth) return;
     setSideNavExpanded(false);
@@ -147,7 +167,7 @@ export function AppShell() {
                   aria-label={sideNavExpanded ? 'Close navigation' : 'Open navigation'}
                   isActive={sideNavExpanded}
                   isCollapsible
-                  onClick={() => setSideNavExpanded((expanded) => !expanded)}
+                  onClick={toggleSideNav}
                 />
               )}
               <HeaderName as={Link} to="/dashboard" prefix="" className="app-header__brand">
@@ -172,10 +192,7 @@ export function AppShell() {
                     <NotificationAction
                       expanded={notificationPanelOpen}
                       actionRef={notificationActionRef}
-                      onToggle={() => {
-                        setProfilePanelOpen(false);
-                        setNotificationPanelOpen((open) => !open);
-                      }}
+                      onToggle={toggleNotificationPanel}
                     />
                   </>
                 )}
@@ -185,10 +202,7 @@ export function AppShell() {
                   tooltipAlignment="end"
                   isActive={profilePanelOpen}
                   ref={profileActionRef}
-                  onClick={() => {
-                    setNotificationPanelOpen(false);
-                    setProfilePanelOpen((open) => !open);
-                  }}
+                  onClick={toggleProfilePanel}
                 >
                   {currentUser.person.profileImage ? (
                     <PersonAvatar

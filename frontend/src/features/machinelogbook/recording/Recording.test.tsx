@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
@@ -614,9 +614,17 @@ describe('Recording settings', () => {
 });
 
 describe('Job detail recordings', () => {
-  it('shows the previews of its runs labelled with the run, the file of each run and the timelapse', async () => {
+  it('shows the print file and timelapse of the selected run in its properties', async () => {
     auth.permissions = [PermissionId.machine_jobsread];
-    const run = recordedRun({ job: { id: ids.job, displayId: 'J-2026-000001', title: 'Gearbox housing' } });
+    const job = { id: ids.job, displayId: 'J-2026-000001', title: 'Gearbox housing' };
+    const run = recordedRun({ job });
+    const earlier = recordedRun({
+      id: ids.manualRun,
+      displayId: 'RN-2026-000008',
+      job,
+      startedAt: '2026-09-14T08:00:00Z',
+      endedAt: '2026-09-14T09:00:00Z',
+    });
     const second = { ...recording({ artifact, runDisplayId: 'RN-2026-000008', runId: ids.manualRun }) };
     const plate = (id: string) => ({
       id,
@@ -628,7 +636,7 @@ describe('Job detail recordings', () => {
       primary: true,
     });
     server.use(
-      http.get(`*/api/v1/machine-jobs/${ids.job}`, () => HttpResponse.json(jobFixture({ runs: [run] }))),
+      http.get(`*/api/v1/machine-jobs/${ids.job}`, () => HttpResponse.json(jobFixture({ runs: [earlier, run] }))),
       http.get(`*/api/v1/machine-jobs/${ids.job}/recordings`, () =>
         HttpResponse.json({
           items: [
@@ -647,27 +655,31 @@ describe('Job detail recordings', () => {
         }),
       ),
     );
+    const user = userEvent.setup();
     renderWith(machineLogbookPaths.job(ids.job), '/workshop/jobs/:jobId', <JobDetailPage />);
-    // Print file and timelapse of the first run, then the print file of the second, in one slideshow.
-    expect(await screen.findByText('1 / 3')).toBeInTheDocument();
-    expect(screen.getByAltText('Preview of housing.3mf')).toHaveAttribute(
+    // The latest run is selected: its print file and timelapse, and nothing of the other run.
+    expect(await screen.findByText('1 / 2')).toBeInTheDocument();
+    const properties = screen.getByRole('region', { name: 'Run properties' });
+    expect(within(properties).getByAltText('Preview of housing.3mf')).toHaveAttribute(
       'src',
       `/api/v1/machine-runs/${runId}/previews/${previewId}/content`,
     );
-    expect(screen.getAllByText('RN-2026-000007').length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: /housing.3mf/ })).toHaveAttribute(
+    expect(within(properties).getByRole('link', { name: /housing.3mf/ })).toHaveAttribute(
       'href',
       `/api/v1/machine-runs/${runId}/artifact/content`,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Print file of RN-2026-000008' }));
-    expect(screen.getByRole('link', { name: /housing.3mf/ })).toHaveAttribute(
-      'href',
-      `/api/v1/machine-runs/${ids.manualRun}/artifact/content`,
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Timelapse of RN-2026-000007' }));
-    expect(screen.getByRole('link', { name: /RN-2026-000007-timelapse.mp4/ })).toHaveAttribute(
+    expect(within(properties).queryByRole('button', { name: 'Print file of RN-2026-000008' })).not.toBeInTheDocument();
+    await user.click(within(properties).getByRole('button', { name: 'Timelapse of RN-2026-000007' }));
+    expect(within(properties).getByRole('link', { name: /RN-2026-000007-timelapse.mp4/ })).toHaveAttribute(
       'href',
       `/api/v1/machine-runs/${runId}/timelapse/content`,
+    );
+    // Selecting the other run shows its print file instead.
+    await user.click(screen.getByRole('link', { name: 'RN-2026-000008' }).closest('tr')!);
+    expect(within(properties).queryByText('1 / 2')).not.toBeInTheDocument();
+    expect(within(properties).getByRole('link', { name: /housing.3mf/ })).toHaveAttribute(
+      'href',
+      `/api/v1/machine-runs/${ids.manualRun}/artifact/content`,
     );
   });
 });

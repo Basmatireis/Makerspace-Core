@@ -1,11 +1,8 @@
-import { useState } from 'react';
+import { useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { RefLink } from '../../../app/RefLink';
 import {
   Button,
   DataTable,
-  OverflowMenu,
-  OverflowMenuItem,
-  ProgressBar,
   Table,
   TableBody,
   TableCell,
@@ -15,91 +12,70 @@ import {
   TableRow,
   TableToolbar,
   TableToolbarContent,
+  Tooltip,
 } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import type { MachineJob, MachineRun } from '../../../api/generated/models';
-import { formatDateTime, formatDuration, formatTime } from '../shared/format';
-import {
-  FromMachineTag,
-  isRunLive,
-  RunOutcomeTag,
-  runEnd,
-  RunSourceTag,
-  RunStateTag,
-  runName,
-  runProgress,
-  runConsumptionText,
-  runStateNow,
-} from '../shared/status';
-import { ConsumptionTooltip, HintTooltip } from './HintTooltip';
+import { AttentionFlag, attentionColumnClassName } from '../../../app/components/AttentionFlag';
+import { runAttention } from '../jobDetail/jobDetailShared';
+import { formatDateTime, formatDuration } from '../shared/format';
+import { JobRowStatusTag, OutcomeTag, RunStateTag, runStateNow } from '../shared/status';
 import '../styles/jobs.scss';
-
-export type RunAction = 'edit' | 'usage' | 'cancel' | 'delete' | 'detach';
 
 const headers = [
   { key: 'run', header: 'Run' },
-  { key: 'source', header: 'Source' },
-  { key: 'state', header: 'State' },
+  { key: 'status', header: 'Status' },
   { key: 'start', header: 'Start' },
-  { key: 'end', header: 'End' },
   { key: 'runtime', header: 'Runtime' },
-  { key: 'outcome', header: 'Outcome' },
-  { key: 'material', header: 'Material' },
 ];
-const hideNarrow = new Set(['source', 'start', 'runtime']);
+const hideNarrow = new Set(['start', 'runtime']);
 
-/** Row actions available for one run, depending on the permissions of the viewer. */
-function actionsFor(
-  run: MachineRun,
-  now: number,
-  canEdit: boolean,
-  canDelete: boolean,
-): { action: RunAction; label: string; isDelete?: boolean }[] {
-  if (run.state === 'replaced') return [];
-  const live = isRunLive(run, now);
-  const mayDelete = canDelete || (run.source === 'manual' && canEdit);
-  return [
-    // A running recorded run has no start to correct and cannot have an outcome yet.
-    ...(canEdit && (run.source === 'manual' || !live) ? [{ action: 'edit' as const, label: 'Edit run' }] : []),
-    ...(canEdit ? [{ action: 'usage' as const, label: 'Edit material usage' }] : []),
-    ...(canEdit && run.source === 'manual' && live ? [{ action: 'cancel' as const, label: 'Cancel run' }] : []),
-    ...(canEdit && run.source === 'recorded'
-      ? [{ action: 'detach' as const, label: 'Detach from job', isDelete: true }]
-      : []),
-    ...(mayDelete ? [{ action: 'delete' as const, label: 'Delete run', isDelete: true }] : []),
-  ];
+/**
+ * One status per run: running or replaced while that is what matters, then the outcome, and "Needs outcome" for a
+ * run that ended without one. With `tooltip`, an outcome the machine reported says so on hover and keyboard focus.
+ */
+export function RunStatus({ run, now, tooltip = false }: { run: MachineRun; now: number; tooltip?: boolean }) {
+  if (run.state === 'replaced') return <RunStateTag state="replaced" size="sm" />;
+  const state = runStateNow(run, now);
+  if (state === 'running') return <RunStateTag state="running" size="sm" />;
+  if (!run.outcome) return <JobRowStatusTag status="needs_outcome" size="sm" />;
+  if (!tooltip || !run.outcomeFromMachine) return <OutcomeTag outcome={run.outcome} size="sm" />;
+  return (
+    <Tooltip align="bottom" description="Reported by the machine">
+      <button type="button" className="mj-tag-trigger">
+        <OutcomeTag outcome={run.outcome} size="sm" />
+      </button>
+    </Tooltip>
+  );
 }
 
 type Props = {
   job: MachineJob;
   now: number;
   canEdit: boolean;
-  /** machine_jobs.delete: lets recorded runs be deleted too. */
-  canDelete?: boolean;
-
-  onAction: (action: RunAction, run: MachineRun) => void;
+  /** The run whose properties the job page shows next to the table. */
+  selectedId: string | undefined;
+  onSelect: (run: MachineRun) => void;
   onAdd: () => void;
 };
 
-/** The runs of one job: manual and recorded, with row actions for people who may edit the job. */
-export function JobRunsTable({ job, now, canEdit, canDelete = false, onAction, onAdd }: Props) {
+/**
+ * The runs of one job, manual and recorded, one line each. Clicking a row (or Enter on it) shows the run's
+ * properties, files and actions next to the table; the flag at the end marks material that still needs someone.
+ */
+export function JobRunsTable({ job, now, canEdit, selectedId, onSelect, onAdd }: Props) {
   const [showReplaced, setShowReplaced] = useState(false);
   const ordered = [...job.runs].sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
   const replaced = ordered.filter((run) => run.state === 'replaced');
   const visible = showReplaced
     ? [...ordered.filter((run) => run.state !== 'replaced'), ...replaced]
     : ordered.filter((run) => run.state !== 'replaced');
-  const showActions = canEdit || canDelete;
   const rows = visible.map((run) => ({
     id: run.id,
     run: run.displayId,
-    source: run.source,
-    state: run.state,
+    status: run.outcome ?? run.state,
     start: run.startedAt,
-    end: runEnd(run) ?? '',
     runtime: run.durationSeconds,
-    outcome: run.outcome ?? '',
-    material: '',
   }));
 
   return (
@@ -108,7 +84,7 @@ export function JobRunsTable({ job, now, canEdit, canDelete = false, onAction, o
         {({ rows: tableRows, headers: tableHeaders, getTableProps, getHeaderProps, getRowProps }) => (
           <TableContainer
             title="Runs"
-            description="Every machine run of this job. Runtime and material add up; replaced runs are history only."
+            description="Every machine run of this job. Runtime and material add up; replaced runs are history only. Select a run to see its files and actions."
             className="mj-table-container"
           >
             {canEdit && (
@@ -120,7 +96,7 @@ export function JobRunsTable({ job, now, canEdit, canDelete = false, onAction, o
                 </TableToolbarContent>
               </TableToolbar>
             )}
-            <Table {...getTableProps()} aria-label="Runs">
+            <Table {...getTableProps()} aria-label="Runs" className="mj-runs-table">
               <TableHead>
                 <TableRow>
                   {tableHeaders.map((header) => {
@@ -135,7 +111,9 @@ export function JobRunsTable({ job, now, canEdit, canDelete = false, onAction, o
                       </TableHeader>
                     );
                   })}
-                  {showActions && <TableHeader aria-label="Actions" />}
+                  <TableHeader className={attentionColumnClassName}>
+                    <span className="cds--visually-hidden">Needs attention</span>
+                  </TableHeader>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -143,111 +121,43 @@ export function JobRunsTable({ job, now, canEdit, canDelete = false, onAction, o
                   const run = visible.find((item) => item.id === row.id);
                   if (!run) return null;
                   const { key, ...props } = getRowProps({ row });
-                  const state = runStateNow(run, now);
-                  const live = state === 'running';
-                  const end = runEnd(run);
-                  const progress = runProgress(run, now);
-                  const isReplaced = run.state === 'replaced';
-                  const actions = actionsFor(run, now, canEdit, canDelete);
+                  const live = runStateNow(run, now) === 'running';
+                  const selected = run.id === selectedId;
+                  const className = ['mj-row-clickable', run.state === 'replaced' && 'mj-run-row--replaced']
+                    .filter(Boolean)
+                    .join(' ');
                   return (
-                    <TableRow key={key} {...props} className={isReplaced ? 'mj-run-row--replaced' : undefined}>
-                      <TableCell>
-                        <div className="mj-cell-stack">
-                          <RefLink kind="run" reference={run.displayId} id={run.id} />
-                          <span className="mj-secondary">{run.fileName ? runName(run) : 'No file name'}</span>
-                          <span className="mj-secondary mj-show-narrow">
-                            {run.source === 'recorded'
-                              ? `Recorded${run.connectorName ? ` via ${run.connectorName}` : ''}`
-                              : 'Manual'}{' '}
-                            · {formatDateTime(run.startedAt)}
-                          </span>
-                        </div>
+                    <TableRow
+                      key={key}
+                      {...props}
+                      isSelected={selected}
+                      aria-current={selected ? 'true' : undefined}
+                      tabIndex={0}
+                      className={className}
+                      onClick={(event: MouseEvent<HTMLElement>) => {
+                        if (!(event.target as HTMLElement).closest('a, button')) onSelect(run);
+                      }}
+                      onKeyDown={(event: KeyboardEvent<HTMLElement>) => {
+                        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' '))
+                          return;
+                        event.preventDefault();
+                        onSelect(run);
+                      }}
+                    >
+                      <TableCell className="mj-runs-table__run">
+                        <RefLink kind="run" reference={run.displayId} id={run.id} />
                       </TableCell>
-                      <TableCell className="mj-hide-narrow">
-                        <span className="mj-inline">
-                          <RunSourceTag source={run.source} size="sm" />
-                          {run.connectorName && <HintTooltip text={`Recorded via ${run.connectorName}.`} />}
-                        </span>
-                      </TableCell>
                       <TableCell>
-                        {isReplaced ? (
-                          <RunStateTag state="replaced" size="sm" />
-                        ) : (
-                          <RunStateTag state={state} size="sm" />
-                        )}
+                        <RunStatus run={run} now={now} tooltip />
                       </TableCell>
                       <TableCell className="mj-hide-narrow">{formatDateTime(run.startedAt)}</TableCell>
-                      <TableCell>
-                        {live ? (
-                          <ProgressBar
-                            label="Run progress"
-                            hideLabel
-                            size="small"
-                            value={progress}
-                            max={100}
-                            helperText={`${progress} %${end ? ` · ends ~${formatTime(end)}` : ''}`}
-                          />
-                        ) : end ? (
-                          formatDateTime(end)
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
                       <TableCell className="mj-hide-narrow">
                         {formatDuration(run.durationSeconds)}
                         {live ? ' so far' : ''}
                       </TableCell>
-                      <TableCell>
-                        {live || isReplaced ? (
-                          <span className="mj-secondary">—</span>
-                        ) : (
-                          <div className="mj-cell-stack">
-                            <span>
-                              <RunOutcomeTag outcome={run.outcome} size="sm" />
-                            </span>
-                            {run.outcomeFromMachine && (
-                              <span>
-                                <FromMachineTag />
-                              </span>
-                            )}
-                          </div>
-                        )}
+                      <TableCell className={attentionColumnClassName}>
+                        <AttentionFlag attention={runAttention(run, now)} />
                       </TableCell>
-                      <TableCell>
-                        <div className="mj-cell-stack">
-                          <span className="mj-inline">
-                            {runConsumptionText(run)}
-                            <ConsumptionTooltip status={run.consumptionStatus} />
-                          </span>
-                          {run.usagesFromMachine && (
-                            <span>
-                              <FromMachineTag />
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      {showActions && (
-                        <TableCell className="cds--table-column-menu">
-                          {actions.length > 0 && (
-                            <OverflowMenu
-                              aria-label={`Actions for ${run.displayId}`}
-                              iconDescription={`Actions for ${run.displayId}`}
-                              flipped
-                              size="md"
-                            >
-                              {actions.map((item) => (
-                                <OverflowMenuItem
-                                  key={item.action}
-                                  itemText={item.label}
-                                  isDelete={item.isDelete}
-                                  hasDivider={item.isDelete}
-                                  onClick={() => onAction(item.action, run)}
-                                />
-                              ))}
-                            </OverflowMenu>
-                          )}
-                        </TableCell>
-                      )}
                     </TableRow>
                   );
                 })}

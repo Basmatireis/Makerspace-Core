@@ -15,7 +15,7 @@ A job can mix both kinds. The job page shows the runs, the material used and the
 
 ## Getting work into the list
 
-- **New job** in the toolbar logs work by hand. Choose the machine and the recipient, say whether the run starts now or is already done, and add the material. You are the operator unless you pick someone else.
+- **New job** in the toolbar logs work by hand. Choose the machine and the recipient, say whether the run starts now or is already done, and add the material. A run that is already done ends by now at the latest: if its start and duration reach into the future, the start moves back so that it ends now. You are the operator unless you pick someone else.
 - **Claim** turns a recorded run into part of a job. Runs that no job owns yet wait in the strip **Reported by machines, not assigned** above the table. Claim one to attach it to an open job on the same machine or to start a new job for a recipient.
 
 If you attach a run to a job that has a manual run for the same work, you can replace the manual run. It stays as history and its material goes back to stock.

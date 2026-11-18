@@ -89,21 +89,6 @@
   background: theme.$layer-selected-01;
 }
 
-// Next to the detail panel the rows stack machine, name and progress; the actions keep the end column.
-@container (max-width: 44rem) {
-  .jobs-strip__row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    row-gap: $spacing-02;
-    padding-block: $spacing-03;
-  }
-
-  .jobs-strip__actions {
-    grid-row: 1 / span 3;
-    grid-column: 2;
-    align-self: center;
-  }
-}
-
 .jobs-strip__cell {
   min-inline-size: 0;
   overflow: hidden;
@@ -132,21 +117,23 @@
   justify-content: flex-end;
 }
 
-@media (max-width: 65.98rem) {
+// Next to the detail panel and on narrow screens a row stacks: the run's name, its machine and progress, then the
+// actions under them, their ghost labels in line with the text above.
+@container (max-width: 44rem) {
   .jobs-strip__row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    padding-block: $spacing-03;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: $spacing-02;
+    padding-block: $spacing-04 $spacing-02;
+    padding-inline-end: $spacing-05;
+  }
+
+  .jobs-strip__name {
+    order: -1;
   }
 
   .jobs-strip__actions {
-    grid-column: 1 / -1;
     justify-content: flex-start;
-  }
-}
-
-@media (max-width: 41.98rem) {
-  .jobs-strip__row {
-    grid-template-columns: minmax(0, 1fr);
+    margin-inline-start: -$spacing-05;
   }
 }
 

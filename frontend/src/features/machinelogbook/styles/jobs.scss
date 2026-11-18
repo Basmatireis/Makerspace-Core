@@ -104,6 +104,40 @@
   background: var(--cds-layer-accent);
 }
 
+// The selected run next to the runs table: its media run edge to edge, the caption and count keep the panel's inset.
+.mj-run-properties .jobs-media__caption,
+.mj-run-properties .jobs-media__count {
+  padding-inline: $spacing-05;
+}
+.mj-run-properties .jobs-media__count {
+  margin-block: $spacing-03 0;
+}
+
+// Visually hidden header labels stay inside the scrolling table on narrow screens.
+.cds--data-table.mj-runs-table th {
+  position: relative;
+}
+.mj-runs-table__run {
+  white-space: nowrap;
+}
+.mj-runs-table tbody tr:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+
+// A tag that carries a tooltip: the button only makes it focusable.
+.mj-tag-trigger {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+.mj-tag-trigger:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: 1px;
+}
+
 // Replaced runs stay on the job as history; they read muted.
 .mj-run-row--replaced td {
   color: theme.$text-secondary;

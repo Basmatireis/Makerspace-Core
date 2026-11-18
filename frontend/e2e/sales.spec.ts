@@ -92,9 +92,17 @@ test.describe('sales and payments', () => {
     await expect(choice.getByText('1 ready for Institute of Design')).toBeVisible();
     await choice.getByText('Something from inventory').click();
     await choice.getByRole('button', { name: 'Continue' }).click();
+    // A new stock item starts in the article picker of the material dialog of a job.
+    const picker = dialogTitled(page, 'Select article');
+    await picker.getByRole('searchbox', { name: 'Search article' }).fill('insert');
+    await expectNoAccessibilityViolations(page, '.jobs-picker');
+    await page.screenshot({ path: testInfo.outputPath('order-article-picker.png') });
+    await picker
+      .getByRole('table', { name: 'Articles in stock' })
+      .getByText('M3 heat-set insert', { exact: true })
+      .click();
     const stock = dialogTitled(page, 'Add from inventory');
-    await stock.getByRole('combobox', { name: 'Article' }).fill('insert');
-    await page.getByRole('option', { name: /A-0010 · M3 heat-set insert/ }).click();
+    await expect(stock.getByText('M3 heat-set insert')).toBeVisible();
     await expect(stock.getByLabel(/^Unit price/)).toHaveValue('0.12');
     await stock.getByLabel(/^Quantity/).fill('10');
     await expect(stock.getByText('€1.20')).toBeVisible();
@@ -105,14 +113,34 @@ test.describe('sales and payments', () => {
     await page.getByRole('button', { name: 'Add item' }).click();
     await choice.getByText('Something from inventory').click();
     await choice.getByRole('button', { name: 'Continue' }).click();
-    await stock.getByRole('combobox', { name: 'Article' }).fill('acrylic');
-    await page.getByRole('option', { name: /A-0020/ }).click();
+    await picker.getByRole('searchbox', { name: 'Search article' }).fill('acrylic');
+    await picker.getByRole('table', { name: 'Articles in stock' }).getByRole('row').nth(1).click();
     await expect(stock.getByText(/This article has no price in any group/)).toBeVisible();
     await stock.getByRole('button', { name: 'Add item' }).click();
     await expect(stock.getByText('No price for this customer')).toBeVisible();
     await expect(stock.getByRole('link', { name: 'Pricing' })).toHaveAttribute('href', '/pricing');
     await page.screenshot({ path: testInfo.outputPath('order-price-missing.png') });
   });
+
+  for (const width of [1440, 375]) {
+    test(`adds a finished job of the customer from the jobs table at ${width}px`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/orders/${salesIds.draft}`);
+      await page.getByRole('button', { name: 'Add item' }).click();
+      const choice = dialogTitled(page, 'Add to order');
+      await choice.getByText('A finished job').click();
+      await choice.getByRole('button', { name: 'Continue' }).click();
+      const dialog = dialogTitled(page, 'Add a job');
+      const table = dialog.getByRole('table', { name: 'Jobs of this customer' });
+      await expect(table.getByRole('row')).toHaveCount(2);
+      await expect(dialog.getByRole('button', { name: 'Add job' })).toBeDisabled();
+      await table.getByRole('row').nth(1).click();
+      await expect(dialog.getByRole('button', { name: 'Add job' })).toBeEnabled();
+      await expectNoHorizontalScroll(page);
+      await expectNoAccessibilityViolations(page, '.sales-picker');
+      await page.screenshot({ path: testInfo.outputPath(`order-job-picker-${width}.png`) });
+    });
+  }
 
   test('the order page shows attention, balance and customer', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 1000 });

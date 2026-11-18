@@ -21,7 +21,7 @@ import { FactTiles } from '../../app/components/Facts';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
-import { JobRunsTable, type RunAction } from './components/JobRunsTable';
+import { JobRunsTable } from './components/JobRunsTable';
 import { MaterialUsageTable } from './components/MaterialUsageTable';
 import { DeleteJobModal, DeleteRunModal } from './dialogs/DeleteDialogs';
 import { JobFormModal } from './dialogs/JobFormModal';
@@ -36,7 +36,7 @@ import { AddToOrderModal } from './jobs/AddToOrderModal';
 import { JobNotesModal } from './jobs/JobNotesModal';
 import { jobPhase, JobPhaseTag, OutcomeStatusTag } from './jobs/jobStatus';
 import { useUpdateJobFacts } from './jobs/jobsQueries';
-import { MediaCard } from './jobs/MediaCard';
+import { segmentAsLine } from './jobs/runLines';
 import { jobQuery, jobRecordingsQuery, machineLogbookKeys } from './queries';
 import { jobConsumption } from './processConfig';
 import { formatDateTime, formatDuration, formatMoney, formatTime } from './shared/format';
@@ -46,9 +46,10 @@ import { activeRuns, adjustmentSummary, isRunLive, machineJobName, outcomeLabel 
 import { useNotify } from './shared/toasts';
 import { useCan } from './shared/useCan';
 import { useNow } from './shared/useNow';
-import { errorText, statusNow, runsNeedingOutcome } from './jobDetail/jobDetailShared';
+import { errorText, statusNow, runsNeedingOutcome, type RunAction } from './jobDetail/jobDetailShared';
 import { RunOutcomeRow } from './jobDetail/RunOutcomeRow';
 import { PriceBillingTile } from './jobDetail/PriceBillingTile';
+import { RunPropertiesCard } from './jobDetail/RunPropertiesCard';
 import './styles/jobs.scss';
 
 type Dialog = 'edit' | 'override' | 'clear' | 'add-run' | 'delete' | 'reprice' | 'notes' | 'order' | null;
@@ -59,8 +60,10 @@ function JobDetail({ job }: { job: MachineJob }) {
   const client = useQueryClient();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [runDialog, setRunDialog] = useState<{ action: RunAction; runId: string } | null>(null);
-  // The report line being mapped; the run is read from the job on every render so the dialog sees its latest version.
-  const [mapping, setMapping] = useState<{ runId: string; lineNumber: number } | null>(null);
+  // The report line (or one part of it) being mapped; the run is read from the job on every render so the dialog
+  // sees its latest version.
+  const [mapping, setMapping] = useState<{ runId: string; lineNumber: number; segmentIndex?: number } | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const now = useNow();
   const canEdit = can('machine_jobs.edit');
   const canDelete = can('machine_jobs.delete');
@@ -83,6 +86,12 @@ function JobDetail({ job }: { job: MachineJob }) {
     setRunDialog(null);
   };
   const targetRun = runDialog ? job.runs.find((run) => run.id === runDialog.runId) : undefined;
+  // The selected run, else the latest run that counts for the job.
+  const selectedRun =
+    job.runs.find((run) => run.id === selectedRunId) ??
+    [...runs].sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0] ??
+    job.runs[0];
+  const canMapUsage = canEdit && can('inventory.read');
   const signage = useUpdateJobFacts(job);
   const toggleSignage = () =>
     signage.mutate(
@@ -159,7 +168,6 @@ function JobDetail({ job }: { job: MachineJob }) {
   const finished = status !== 'planned' && status !== 'running';
   const live = runs.find((run) => isRunLive(run, now));
   const types = [...new Set(runs.flatMap((run) => run.usages.map((usage) => usage.materialTypeName)))];
-  const isPrinter = job.machine.process.integration === 'fdm_printer' || runs.some((run) => run.source === 'recorded');
   const canToggleSignage = canEdit && !!job.operator;
   const attention = job.attention ?? [];
   const notYet = status === 'planned' || status === 'running';
@@ -300,8 +308,8 @@ function JobDetail({ job }: { job: MachineJob }) {
                 job={job}
                 now={now}
                 canEdit={canEdit}
-                canDelete={canDelete}
-                onAction={openRun}
+                selectedId={selectedRun?.id}
+                onSelect={(run) => setSelectedRunId(run.id)}
                 onAdd={() => open('add-run')}
               />
             </div>
@@ -310,8 +318,12 @@ function JobDetail({ job }: { job: MachineJob }) {
               showRun
               description="Everything consumed by the runs of this job, and what the machine reported but could not assign."
               onMap={
-                canEdit && can('inventory.read')
-                  ? (run, item) => setMapping({ runId: run.id, lineNumber: item.lineNumber })
+                canMapUsage ? (run, item) => setMapping({ runId: run.id, lineNumber: item.lineNumber }) : undefined
+              }
+              onMapSegment={
+                canMapUsage
+                  ? (run, item, segment) =>
+                      setMapping({ runId: run.id, lineNumber: item.lineNumber, segmentIndex: segment.index })
                   : undefined
               }
             />
@@ -329,9 +341,14 @@ function JobDetail({ job }: { job: MachineJob }) {
             </StackCard>
           </div>
           <div className="mj-stack">
-            {isPrinter && (
-              <MediaCard
+            {selectedRun && (
+              <RunPropertiesCard
+                run={selectedRun}
                 recordings={recordings.data?.items ?? []}
+                now={now}
+                canEdit={canEdit}
+                canDelete={canDelete}
+                onAction={openRun}
                 offSignage={job.hiddenFromSignage}
                 signagePending={signage.isPending}
                 onToggleSignage={canToggleSignage ? toggleSignage : undefined}
@@ -361,7 +378,9 @@ function JobDetail({ job }: { job: MachineJob }) {
       {mapping &&
         (() => {
           const run = job.runs.find((candidate) => candidate.id === mapping.runId);
-          const item = run?.reportedUsageItems?.find((candidate) => candidate.lineNumber === mapping.lineNumber);
+          const line = run?.reportedUsageItems?.find((candidate) => candidate.lineNumber === mapping.lineNumber);
+          const segment = line?.segments?.find((candidate) => candidate.index === mapping.segmentIndex);
+          const item = line && mapping.segmentIndex != null ? segment && segmentAsLine(line, segment) : line;
           return run && item ? (
             <ResolveReportedUsageModal open onClose={() => setMapping(null)} run={run} item={item} />
           ) : null;
