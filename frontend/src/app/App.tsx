@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { WithPublicFooter } from '../features/branding/PublicFooter';
 import { PermissionRoute, ProtectedRoute, useCurrentUser } from '../features/auth/auth';
 import { canAccessSettings } from '../features/auth/permissions';
 import { AppShell } from './AppShell';
@@ -160,19 +161,42 @@ export function App() {
           <Route path="/kiosk" element={<VisitorKioskPage />} />
           {/* Devices registered before the rename still open the old path. */}
           <Route path="/terminal" element={<Navigate to="/kiosk" replace />} />
-          <Route path="/survey/*" element={<PublicSurveyPage />} />
+          <Route
+            path="/survey/*"
+            element={
+              <WithPublicFooter>
+                <PublicSurveyPage />
+              </WithPublicFooter>
+            }
+          />
           <Route path="/legal/imprint" element={<LegalPage kind="imprint" />} />
           <Route path="/legal/privacy" element={<LegalPage kind="privacy" />} />
           <Route path="/legal-and-privacy" element={<Navigate to="/legal/imprint" replace />} />
-          <Route path="/events/public/:publicId" element={<PublicEventPage />} />
-          <Route path="/events/signup/manage" element={<EventSignupManagementPage />} />
+          <Route
+            path="/events/public/:publicId"
+            element={
+              <WithPublicFooter>
+                <PublicEventPage />
+              </WithPublicFooter>
+            }
+          />
+          <Route
+            path="/events/signup/manage"
+            element={
+              <WithPublicFooter>
+                <EventSignupManagementPage />
+              </WithPublicFooter>
+            }
+          />
           {/* Opened from the "New Lab Rules" notification and e-mail: needs a session but not the application shell. */}
           <Route
             path="/lab-rules/confirm"
             element={
               <ColorSchemeRoot>
                 <ProtectedRoute>
-                  <LabRulesConfirmPage />
+                  <WithPublicFooter>
+                    <LabRulesConfirmPage />
+                  </WithPublicFooter>
                 </ProtectedRoute>
               </ColorSchemeRoot>
             }
@@ -183,7 +207,9 @@ export function App() {
             element={
               <ColorSchemeRoot>
                 <ProtectedRoute>
-                  <PrintPage />
+                  <WithPublicFooter>
+                    <PrintPage />
+                  </WithPublicFooter>
                 </ProtectedRoute>
               </ColorSchemeRoot>
             }
@@ -194,7 +220,9 @@ export function App() {
             element={
               <ColorSchemeRoot>
                 <ProtectedRoute allowRestricted>
-                  <NotificationSettingsPage />
+                  <WithPublicFooter>
+                    <NotificationSettingsPage />
+                  </WithPublicFooter>
                 </ProtectedRoute>
               </ColorSchemeRoot>
             }

@@ -72,7 +72,10 @@ describe('print page', () => {
     );
     // Outside the shell: no side navigation.
     expect(container.querySelector('.cds--side-nav')).toBeNull();
-    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+    // No application navigation: the only navigation is the legal footer of pages opened from outside the app.
+    expect(screen.getAllByRole('navigation').map((nav) => nav.getAttribute('aria-label'))).toEqual([
+      'Legal information',
+    ]);
   });
 
   it('says "Print" instead of "Your print" for staff', async () => {

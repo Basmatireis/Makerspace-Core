@@ -153,7 +153,10 @@ describe('Lab Rules confirm page', () => {
     renderRoute(<App />, '/lab-rules/confirm');
 
     expect(await screen.findByRole('heading', { name: 'Lab Rules' })).toBeInTheDocument();
-    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+    // No application navigation: the only navigation is the legal footer of pages opened from outside the app.
+    expect(screen.getAllByRole('navigation').map((nav) => nav.getAttribute('aria-label'))).toEqual([
+      'Legal information',
+    ]);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await user.click(await screen.findByRole('checkbox', { name: agree }));
     await user.click(screen.getByRole('button', { name: 'Confirm' }));

@@ -163,8 +163,7 @@ h2 {
 }
 
 .app-shell {
-  display: flex;
-  flex-direction: column;
+  display: flow-root;
   min-height: 100vh;
 }
 
@@ -222,23 +221,10 @@ h2 {
 .app-main {
   position: relative;
   isolation: isolate;
-  flex: 1 0 auto;
+  min-height: calc(100vh - 3rem);
   padding: $spacing-07 $spacing-05 $spacing-09;
   margin-top: 3rem;
   transition: margin-inline-start 110ms cubic-bezier(0.2, 0, 1, 0.9);
-}
-
-// The shell footer sits under the page and follows the same offset as the side navigation.
-.app-footer {
-  position: relative;
-  padding: $spacing-05;
-  border-block-start: 1px solid var(--cds-border-subtle);
-  background: var(--cds-background);
-  transition: margin-inline-start 110ms cubic-bezier(0.2, 0, 1, 0.9);
-}
-
-.app-footer--nav-expanded {
-  margin-inline-start: 16rem;
 }
 
 // The background art: fixed and covering behind the content, faint in light mode, dimmer and inverted in dark mode.
@@ -1996,6 +1982,27 @@ body.panel-sheet-open .app-main > * {
   @include type-style('body-compact-01');
 }
 
+.public-footer-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.public-footer-layout__page {
+  flex: 1 0 auto;
+}
+
+// Footer of pages opened from outside the application; the application shell has the links in its navigation.
+.public-footer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  padding: $spacing-05;
+  border-block-start: 1px solid var(--cds-border-subtle);
+  background: var(--cds-background);
+}
+
 .auth-card__legal {
   padding-block-start: $spacing-03;
   border-block-start: 1px solid var(--cds-border-subtle);
@@ -2310,8 +2317,7 @@ body.panel-sheet-open .app-main > * {
 
 @media (max-width: 65.98rem) {
   .app-main,
-  .app-main--nav-expanded,
-  .app-footer--nav-expanded {
+  .app-main--nav-expanded {
     margin-inline-start: 0;
   }
 
