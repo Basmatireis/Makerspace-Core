@@ -319,13 +319,18 @@ func joinParts(parts ...string) string {
 	return strings.Join(kept, " · ")
 }
 
-// MaxCashbookSummaryLength bounds the order summary of a cashbook line in characters, so that the Kassabuch text
-// column still has room for the order reference and the customer.
-const MaxCashbookSummaryLength = 48
+const (
+	// MaxCashbookSummaryLength bounds the order summary of a CSV line in characters.
+	MaxCashbookSummaryLength = 48
+	// MaxKassabuchSummaryLength bounds it on the PDF sheet, which has no customer; a line shortens it further until
+	// its text fits the two lines of the text column.
+	MaxKassabuchSummaryLength = 64
+	minKassabuchSummaryLength = 16
+)
 
 // summary says what an order charged, e.g. "Laser cutting, FDM 3D printing and materials, Filament", shortened with
-// an ellipsis to MaxCashbookSummaryLength.
-func (w cashbookWords) summary(c orderContents) string {
+// an ellipsis to length characters.
+func (w cashbookWords) summary(c orderContents, length int) string {
 	services := strings.Join(c.processes, ", ")
 	switch {
 	case services == "" && c.materials:
@@ -334,22 +339,23 @@ func (w cashbookWords) summary(c orderContents) string {
 		services += " " + w.and + " " + w.materials
 	}
 	text := strings.Join(append(appendOnce(nil, services), c.goods...), ", ")
-	if utf8.RuneCountInString(text) <= MaxCashbookSummaryLength {
+	if utf8.RuneCountInString(text) <= length {
 		return text
 	}
-	runes := []rune(text)[:MaxCashbookSummaryLength-1]
+	runes := []rune(text)[:length-1]
 	return strings.TrimRight(string(runes), " ,") + "…"
 }
 
-// describe is the text of a cashbook line, e.g. "Einnahme O-2026-000012 · FDM 3D printing und Material · Name" or
-// "Entnahme · Tresor · note". Refunds and corrections of a receipt describe its order the same way.
-func (w cashbookWords) describe(line cashbookLine, withMethod bool) string {
+// describe is the text of a cashbook line, e.g. "Receipt O-2026-000012 · FDM 3D printing and materials · Name" or
+// "Withdrawal · Moved to safe · note", with the order summary cut to summaryLength. Refunds and corrections of a
+// receipt describe its order the same way.
+func (w cashbookWords) describe(line cashbookLine, withMethod bool, summaryLength int) string {
 	var text string
 	switch {
 	case line.kind == JournalReceipt:
-		text = joinParts(w.receipt+" "+line.orderReference, w.summary(line.contents), line.customer)
+		text = joinParts(w.receipt+" "+line.orderReference, w.summary(line.contents, summaryLength), line.customer)
 	case line.kind == JournalRefund:
-		text = joinParts(w.refund+" "+line.orderReference, w.summary(line.contents), line.paymentReason)
+		text = joinParts(w.refund+" "+line.orderReference, w.summary(line.contents, summaryLength), line.paymentReason)
 	case line.kind == JournalCorrection && line.countReference != "":
 		text = joinParts(
 			w.correction,
@@ -358,7 +364,7 @@ func (w cashbookWords) describe(line cashbookLine, withMethod bool) string {
 			line.note,
 		)
 	case line.kind == JournalCorrection:
-		text = joinParts(w.correction+" "+line.orderReference, w.summary(line.contents), line.paymentReason)
+		text = joinParts(w.correction+" "+line.orderReference, w.summary(line.contents, summaryLength), line.paymentReason)
 	case line.kind == JournalWithdrawal:
 		text = joinParts(w.withdrawal, w.movementReasons[line.movementReason], line.note)
 	default:
@@ -436,7 +442,7 @@ func (b cashbook) csv() []byte {
 		cells := []string{
 			line.at.In(b.location).Format("02.01.2006"),
 			line.reference,
-			englishWords.describe(line, !b.withBalance),
+			englishWords.describe(line, !b.withBalance, MaxCashbookSummaryLength),
 			optionalAmount(in, csvAmount),
 			optionalAmount(out, csvAmount),
 		}

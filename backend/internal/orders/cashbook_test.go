@@ -11,6 +11,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/orders/db"
+	"github.com/go-pdf/fpdf"
 	"github.com/google/uuid"
 	"github.com/ledongthuc/pdf"
 	"github.com/shopspring/decimal"
@@ -183,8 +184,12 @@ func TestCashbookPDFFollowsTheKassabuchSheets(t *testing.T) {
 			"2026 · Zeitraum 01.10.2026 – 31.10.2026", "Bestand/Übertrag von", "vorheriger Seite", "Kassierer*in",
 			"Einnahme", "Ausgabe", "1.000,00", "Summe/Bestand")
 		if c.entries > 0 {
-			requireTexts(t, pages[0], "Einnahme O-2026-000123 · FDM 3D printing", "und Material · Jürgen Weiß",
-				"Anna Kassierer", "01.10.2026", "234,50")
+			requireTexts(t, pages[0], "Einnahme O-2026-000123 · FDM 3D printing\nund Material\n", "Anna Kassierer",
+				"01.10.2026", "234,50")
+			// The sheet leaves the customer out; the CSV keeps it.
+			if strings.Contains(pages[0], "Jürgen Weiß") {
+				t.Fatalf("customer on the sheet: %s", pages[0])
+			}
 		}
 		// The first sheet closes with the balance after its last entry, which the next sheet carries over.
 		firstClose := b.opening
@@ -298,7 +303,7 @@ func TestCashbookSummarySaysWhatAnOrderCharged(t *testing.T) {
 			"Laser cutting service, Filament spools in bulk…", "Laser cutting service, Filament spools in bulk…"},
 	}
 	for _, c := range cases {
-		english, german := englishWords.summary(c.contents), germanWords.summary(c.contents)
+		english, german := englishWords.summary(c.contents, MaxCashbookSummaryLength), germanWords.summary(c.contents, MaxCashbookSummaryLength)
 		if english != c.english || german != c.german {
 			t.Fatalf("%s: %q / %q", c.name, english, german)
 		}
@@ -315,10 +320,10 @@ func TestCashbookSummarySaysWhatAnOrderCharged(t *testing.T) {
 		{OrderID: uuid.Max, Kind: "manual", Description: " Consulting "},
 		{OrderID: uuid.Nil, Kind: "inventory_item", ArticleCategory: "Parts"},
 	})
-	if s := englishWords.summary(got[uuid.Max]); s != "Laser cutting, FDM 3D printing and materials, F…" {
+	if s := englishWords.summary(got[uuid.Max], MaxCashbookSummaryLength); s != "Laser cutting, FDM 3D printing and materials, F…" {
 		t.Fatalf("collected %q", s)
 	}
-	if s := englishWords.summary(got[uuid.Nil]); s != "Parts" {
+	if s := englishWords.summary(got[uuid.Nil], MaxCashbookSummaryLength); s != "Parts" {
 		t.Fatalf("second order %q", s)
 	}
 }
@@ -340,10 +345,10 @@ func TestCashbookLinesNameTheOrderContents(t *testing.T) {
 		{cashbookLine{kind: JournalReceipt, orderReference: "O-2", customer: "Ada"}, "Receipt O-2 · Ada", "Einnahme O-2 · Ada"},
 	}
 	for _, c := range cases {
-		if got := englishWords.describe(c.line, false); got != c.english {
+		if got := englishWords.describe(c.line, false, MaxCashbookSummaryLength); got != c.english {
 			t.Fatalf("english %q, want %q", got, c.english)
 		}
-		if got := germanWords.describe(c.line, false); got != c.more {
+		if got := germanWords.describe(c.line, false, MaxCashbookSummaryLength); got != c.more {
 			t.Fatalf("german %q, want %q", got, c.more)
 		}
 	}
@@ -402,5 +407,45 @@ func TestCashbookOrderContentsFromTheItems(t *testing.T) {
 	}
 	if _, ok := contents[removed.ID]; ok {
 		t.Fatalf("removed item counted: %+v", contents[removed.ID])
+	}
+}
+
+func TestKassabuchLineFitsTheSummaryToTheColumn(t *testing.T) {
+	pdf := fpdf.New("P", "mm", "A4", "")
+	k := kbPDF{Fpdf: pdf, tr: pdf.UnicodeTranslatorFromDescriptor("")}
+	width := kbRules[4] - kbRules[3] - 2*kbPad
+	fits := func(text string) bool { return strings.Join(k.wrap(text, 7.5, width), " ") == text }
+	long := orderContents{
+		processes: []string{"Laser cutter", "FDM 3D printer", "Embroidery machine"},
+		materials: true,
+		goods:     []string{"Fasteners", "Bike parts", "Vinyl foil", "Plywood"},
+	}
+	line := cashbookLine{kind: JournalReceipt, method: PaymentExternal, orderReference: "O-2026-000123",
+		contents: long, customer: "Jürgen Weiß"}
+	short := cashbookLine{kind: JournalReceipt, method: PaymentCash, orderReference: "O-2026-000123",
+		contents: orderContents{processes: []string{"FDM 3D printer"}, materials: true}, customer: "Jürgen Weiß"}
+
+	register := k.lineText(line, false, width)
+	payments := k.lineText(line, true, width)
+	for _, text := range []string{register, payments} {
+		if !fits(text) || !strings.HasPrefix(text, k.tr("Einnahme O-2026-000123 · Laser cutter, FDM 3D printer")) ||
+			!strings.Contains(text, "\x85") || strings.Contains(text, k.tr("Jürgen Weiß")) {
+			t.Fatalf("%q", text)
+		}
+	}
+	// The method stays whole; the summary gives way, but no more than needed and never beyond its bound.
+	if !strings.HasSuffix(payments, "(Rechnung wiRef)") || len(payments) >= len(register)+len(" (Rechnung wiRef)") {
+		t.Fatalf("register %q, all payments %q", register, payments)
+	}
+	if len(register) <= len(k.tr(germanWords.describe(line, false, MaxCashbookSummaryLength)))-len(" · Jürgen Weiß") ||
+		len(register) > len("Einnahme O-2026-000123 · ")+MaxKassabuchSummaryLength+1 {
+		t.Fatalf("register summary not grown: %q", register)
+	}
+	if got := k.lineText(short, true, width); got != k.tr("Einnahme O-2026-000123 · FDM 3D printer und Material (Bar)") {
+		t.Fatalf("short %q", got)
+	}
+	empty := cashbookLine{kind: JournalWithdrawal, movementReason: CashReasonSafe, note: "Kassasturz"}
+	if got := k.lineText(empty, false, width); got != k.tr("Entnahme · Tresor · Kassasturz") {
+		t.Fatalf("movement %q", got)
 	}
 }

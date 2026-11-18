@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/go-pdf/fpdf"
 	"github.com/shopspring/decimal"
@@ -317,6 +318,21 @@ func (k kbPDF) wrap(text string, size, width float64) []string {
 	return lines
 }
 
+// lineText is the text of a line on the sheet: without the customer, and with the order summary as long as the
+// text still fits two lines of the smallest size.
+func (k kbPDF) lineText(line cashbookLine, withMethod bool, width float64) string {
+	line.customer = ""
+	var text string
+	longest := utf8.RuneCountInString(germanWords.summary(line.contents, MaxKassabuchSummaryLength))
+	for length := longest; ; length-- {
+		text = k.tr(germanWords.describe(line, withMethod, length))
+		if length <= minKassabuchSummaryLength || strings.Join(k.wrap(text, 7.5, width), " ") == text {
+			break
+		}
+	}
+	return text
+}
+
 // entry fills one body row. A long cashier name takes two smaller lines; a long text takes two smaller lines above
 // the receipt number.
 func (k kbPDF) entry(b cashbook, n int, y, h float64) {
@@ -337,7 +353,7 @@ func (k kbPDF) entry(b cashbook, n int, y, h float64) {
 		}
 	}
 	x, width = kbRules[3]+kbPad, kbRules[4]-kbRules[3]-2*kbPad
-	text := k.tr(germanWords.describe(line, !b.withBalance))
+	text := k.lineText(line, !b.withBalance, width)
 	refBaseline, refSize := y+7.54, kbRefSize
 	size := kbTextSize
 	for ; size > 7.5; size -= 0.5 {
