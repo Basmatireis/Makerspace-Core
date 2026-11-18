@@ -313,3 +313,35 @@ func TestInternalStorageRunWithoutACoreArtifactStillLooksOnceAndGivesUp(t *testi
 		t.Fatalf("report = %+v", report.Consumption)
 	}
 }
+
+func TestBambuRunPayloadsCarryThePrintedPlate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	processor, err := newBambuProcessor(ctx, ids.New(), openTestStore(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	print := `{"print":{"gcode_state":"RUNNING","task_id":"7001","subtask_name":"Two plates",` +
+		`"gcode_file":"/data/Metadata/plate_2.gcode","url":"file:///media/usb0/cache/Two plates.gcode.3mf","mc_percent":5}}`
+	observations, _, err := processor.apply(ctx, []byte(print), time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reported := 0
+	for _, observation := range observations {
+		if observation.Kind != ObservationOperationalState && observation.Kind != ObservationProgress {
+			continue
+		}
+		var payload map[string]any
+		if err = json.Unmarshal(observation.Payload, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["plateNumber"] != float64(2) {
+			t.Fatalf("%s payload = %v, want plateNumber 2", observation.Kind, payload)
+		}
+		reported++
+	}
+	if reported == 0 {
+		t.Fatal("no operational state or progress observation")
+	}
+}

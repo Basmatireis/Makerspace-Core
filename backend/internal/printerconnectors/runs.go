@@ -304,6 +304,16 @@ func payloadFileName(payload map[string]any) *string {
 	return &value
 }
 
+// payloadPlateNumber is the plate of a multi-plate 3MF the printer reported for the run.
+func payloadPlateNumber(payload map[string]any) *int32 {
+	value, ok := payload["plateNumber"].(float64)
+	if !ok || value < 1 || value > 1000 || value != math.Trunc(value) {
+		return nil
+	}
+	plate := int32(value)
+	return &plate
+}
+
 func payloadPercent(payload map[string]any) *int16 {
 	value, ok := payload["percent"].(float64)
 	if !ok || math.IsNaN(value) || value < 0 || value > 100 {
@@ -346,6 +356,7 @@ func applyPrintFacts(
 	started, ended := timePointer(run.StartedAt), timePointer(run.EndedAt)
 	newest := !run.LastObservedAt.Valid || !at.Before(run.LastObservedAt.Time)
 	var fileName *string
+	var plate *int32
 	var percent *int16
 	var estimatedEnd *time.Time
 	switch kind {
@@ -354,11 +365,13 @@ func applyPrintFacts(
 			started = &at
 		}
 		fileName = payloadFileName(values)
+		plate = payloadPlateNumber(values)
 	case printing.EventProgress:
 		if started == nil {
 			started = &at
 		}
 		fileName = payloadFileName(values)
+		plate = payloadPlateNumber(values)
 		if newest {
 			percent = payloadPercent(values)
 			if remaining := payloadRemainingSeconds(values); remaining != nil {
@@ -390,6 +403,7 @@ func applyPrintFacts(
 			FileName:        fileName,
 			ProgressPercent: percent,
 			EstimatedEndAt:  pgTimestamp(estimatedEnd),
+			PlateNumber:     plate,
 		},
 	)
 }

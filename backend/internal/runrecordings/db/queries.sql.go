@@ -686,8 +686,8 @@ func (q *Queries) ListRunArtifactFiles(ctx context.Context, runIds []uuid.UUID) 
 }
 
 const listRunPreviews = `-- name: ListRunPreviews :many
-SELECT r.id AS run_id, p.id, p.role, p.plate_number, p.width, p.height, p.mime_type,
-       COALESCE(pa.primary_preview_id = p.id, false)::boolean AS is_primary
+SELECT r.id AS run_id, r.plate_number AS run_plate_number, p.id, p.role, p.plate_number, p.archive_path, p.width,
+       p.height, p.mime_type, COALESCE(pa.primary_preview_id = p.id, false)::boolean AS is_primary
 FROM machine_runs r
 JOIN print_artifacts pa ON pa.id = r.artifact_id
 JOIN print_artifact_previews p ON p.artifact_id = pa.id
@@ -696,14 +696,16 @@ ORDER BY r.id, (p.role <> 'plate'), p.plate_number NULLS LAST, p.archive_path, p
 `
 
 type ListRunPreviewsRow struct {
-	RunID       uuid.UUID
-	ID          uuid.UUID
-	Role        string
-	PlateNumber *int32
-	Width       int32
-	Height      int32
-	MimeType    string
-	IsPrimary   bool
+	RunID          uuid.UUID
+	RunPlateNumber *int32
+	ID             uuid.UUID
+	Role           string
+	PlateNumber    *int32
+	ArchivePath    string
+	Width          int32
+	Height         int32
+	MimeType       string
+	IsPrimary      bool
 }
 
 func (q *Queries) ListRunPreviews(ctx context.Context, runIds []uuid.UUID) ([]ListRunPreviewsRow, error) {
@@ -717,9 +719,11 @@ func (q *Queries) ListRunPreviews(ctx context.Context, runIds []uuid.UUID) ([]Li
 		var i ListRunPreviewsRow
 		if err := rows.Scan(
 			&i.RunID,
+			&i.RunPlateNumber,
 			&i.ID,
 			&i.Role,
 			&i.PlateNumber,
+			&i.ArchivePath,
 			&i.Width,
 			&i.Height,
 			&i.MimeType,

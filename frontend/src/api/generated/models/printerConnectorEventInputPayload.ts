@@ -20,6 +20,6 @@
  */
 
 /**
- * Kind-specific. Keys read by core: operational_state {state, fileName?}; progress {state?, percent 0-100, remainingSeconds?, fileName?}; terminal_outcome {outcome: completed|failed|cancelled}; consumption_report accepts legacy {quantityGrams, quantityBasis, slotExternalId?} or itemized {items:[...]}; printer_error {transition: appeared|cleared, sourceFamily, code, context?}. Unknown vendor fields are ignored.
+ * Kind-specific. Keys read by core: operational_state {state, fileName?, plateNumber?}; progress {state?, percent 0-100, remainingSeconds?, fileName?, plateNumber?} where plateNumber 1-1000 is the printed plate of a multi-plate 3MF; terminal_outcome {outcome: completed|failed|cancelled}; consumption_report accepts legacy {quantityGrams, quantityBasis, slotExternalId?} or itemized {items:[...]}; printer_error {transition: appeared|cleared, sourceFamily, code, context?}. Unknown vendor fields are ignored.
  */
 export type PrinterConnectorEventInputPayload = { [key: string]: unknown };

@@ -125,8 +125,8 @@ JOIN files f ON f.id = pa.original_file_id
 WHERE r.id = ANY(sqlc.arg(run_ids)::uuid[]);
 
 -- name: ListRunPreviews :many
-SELECT r.id AS run_id, p.id, p.role, p.plate_number, p.width, p.height, p.mime_type,
-       COALESCE(pa.primary_preview_id = p.id, false)::boolean AS is_primary
+SELECT r.id AS run_id, r.plate_number AS run_plate_number, p.id, p.role, p.plate_number, p.archive_path, p.width,
+       p.height, p.mime_type, COALESCE(pa.primary_preview_id = p.id, false)::boolean AS is_primary
 FROM machine_runs r
 JOIN print_artifacts pa ON pa.id = r.artifact_id
 JOIN print_artifact_previews p ON p.artifact_id = pa.id

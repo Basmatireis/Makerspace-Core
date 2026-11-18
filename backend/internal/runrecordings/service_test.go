@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -449,5 +450,70 @@ func TestTimelapseLimitsRemoveTheOldestVideos(t *testing.T) {
 	var audited int
 	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'machine_run.timelapse_trimmed' AND resource_id = ANY($1)`, runs).Scan(&audited); err != nil || audited != 2 {
 		t.Fatalf("trim audit events = %d, %v", audited, err)
+	}
+}
+
+// insertArtifact attaches a 3MF with the given plate renders to the runs; the first render is the artifact's primary.
+func (h *harness) insertArtifact(t *testing.T, runs []uuid.UUID, renders []string) map[string]uuid.UUID {
+	t.Helper()
+	insertFile := func(name string) uuid.UUID {
+		id := ids.New()
+		mustExec(t, h.pool, `INSERT INTO files (id, storage_key, original_filename, content_type, size_bytes, sha256)
+			VALUES ($1::uuid, $2, $3, 'image/png', 10, sha256($1::uuid::text::bytea))`, id, "test/"+id.String(), name)
+		return id
+	}
+	artifactID := ids.New()
+	mustExec(t, h.pool, `INSERT INTO print_artifacts (id, original_file_id, sha256, parser_status, parser_version, metadata)
+		VALUES ($1, $2, sha256($1::uuid::text::bytea), 'complete', 'test', '{}')`, artifactID, insertFile("plates.3mf"))
+	previews := map[string]uuid.UUID{}
+	for _, render := range renders {
+		var plate, size int
+		if _, err := fmt.Sscanf(render, "Metadata/plate_%d", &plate); err != nil {
+			t.Fatal(err)
+		}
+		size = 512
+		if strings.Contains(render, "small") {
+			size = 128
+		}
+		id := ids.New()
+		mustExec(t, h.pool, `INSERT INTO print_artifact_previews
+			(id, artifact_id, file_id, archive_path, role, plate_number, width, height, mime_type, size_bytes, sha256)
+			VALUES ($1, $2, $3, $4, 'plate', $5, $6, $6, 'image/png', 10, sha256($1::uuid::text::bytea))`,
+			id, artifactID, insertFile(render), render, plate, size)
+		previews[render] = id
+	}
+	mustExec(t, h.pool, `UPDATE print_artifacts SET primary_preview_id = $1 WHERE id = $2`, previews[renders[0]], artifactID)
+	mustExec(t, h.pool, `UPDATE machine_runs SET artifact_id = $1 WHERE id = ANY($2::uuid[])`, artifactID, runs)
+	return previews
+}
+
+func TestRecordingShowsThePreviewOfTheReportedPlate(t *testing.T) {
+	h := newHarness(t)
+	ctx := t.Context()
+	unknown, second, missing := h.recordedRun(t, "finished"), h.recordedRun(t, "finished"), h.recordedRun(t, "finished")
+	previews := h.insertArtifact(t, []uuid.UUID{unknown, second, missing}, []string{
+		"Metadata/plate_1.png", "Metadata/plate_2_small.png", "Metadata/plate_2.png", "Metadata/plate_3.png",
+	})
+	mustExec(t, h.pool, `UPDATE machine_runs SET plate_number = 2 WHERE id = $1`, second)
+	mustExec(t, h.pool, `UPDATE machine_runs SET plate_number = 4 WHERE id = $1`, missing)
+
+	for run, want := range map[uuid.UUID]string{
+		unknown: "Metadata/plate_1.png",
+		second:  "Metadata/plate_2.png",
+		missing: "Metadata/plate_1.png",
+	} {
+		recording, err := h.service.GetRecording(ctx, h.master, run)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var primaries []uuid.UUID
+		for _, preview := range recording.Previews {
+			if preview.Primary {
+				primaries = append(primaries, preview.ID)
+			}
+		}
+		if len(primaries) != 1 || primaries[0] != previews[want] {
+			t.Fatalf("run with plate %s: primary previews %v, want %s (%s)", want, primaries, previews[want], want)
+		}
 	}
 }
