@@ -604,6 +604,7 @@ export const getSaveOpenDayScheduleUrl = (periodId: string,) => {
 }
 
 /**
+ * Requires `open_days.manage`. Changing, cancelling, removing or rejoining an Open Day that has ended, moving one so that it ends in the past, or creating one that has already ended also requires `open_days.edit_past`. A save that only touches ended days sends no notifications.
  * @summary Atomically save a period schedule delta
  */
 export const saveOpenDaySchedule = async (periodId: string,
@@ -680,6 +681,7 @@ export const getJoinOpenDayUrl = (openDayId: string,) => {
 }
 
 /**
+ * Requires `open_days.signup`. A timeslot that has ended answers `409 timeslot_ended`.
  * @summary Assign the current Person to one staffing requirement
  */
 export const joinOpenDay = async (openDayId: string,
@@ -726,6 +728,7 @@ export const getLeaveOpenDayUrl = (openDayId: string,
 }
 
 /**
+ * Requires `open_days.signup`. A timeslot that has ended answers `409 timeslot_ended`.
  * @summary Remove the current Person's assignment in one timeslot
  */
 export const leaveOpenDay = async (openDayId: string,
@@ -750,6 +753,7 @@ export const getAssignOpenDayPersonUrl = (openDayId: string,) => {
 }
 
 /**
+ * Requires `open_days.assign`; a timeslot that has ended also requires `open_days.edit_past`. Such a retroactive correction is audited but sends no notifications.
  * @summary Administratively assign an eligible Person
  */
 export const assignOpenDayPerson = async (openDayId: string,
@@ -789,6 +793,7 @@ export const getRemoveOpenDayAssignmentUrl = (openDayId: string,
 }
 
 /**
+ * Requires `open_days.assign`; a timeslot that has ended also requires `open_days.edit_past`. Such a retroactive correction is audited but sends no notifications.
  * @summary Administratively remove an assignment
  */
 export const removeOpenDayAssignment = async (openDayId: string,

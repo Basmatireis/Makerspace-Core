@@ -100,6 +100,11 @@ func (s *Service) SaveSchedule(
 		}
 		rejoins = append(rejoins, day)
 	}
+	now := time.Now().UTC()
+	retroactiveOnly, err := authorizeRetroactive(principal, now, delta, slices.Concat(removals, updates, rejoins))
+	if err != nil {
+		return Schedule{}, err
+	}
 	roleIDs := []uuid.UUID{}
 	for _, input := range append(slices.Clone(delta.Creates), delta.Updates...) {
 		if err := s.validateTimeslots(period, input.timeslots()); err != nil {
@@ -130,7 +135,7 @@ func (s *Service) SaveSchedule(
 	}
 
 	w := &scheduleWriter{
-		s: s, q: q, tx: tx, principal: principal, period: period, requestID: requestID, now: time.Now().UTC(),
+		s: s, q: q, tx: tx, principal: principal, period: period, requestID: requestID, now: now,
 		removedDays: map[uuid.UUID]bool{}, deletedDays: map[uuid.UUID]bool{},
 	}
 	heldBefore, err := snapshotHeldSlots(ctx, q, periodID)
@@ -182,7 +187,8 @@ func (s *Service) SaveSchedule(
 			return Schedule{}, err
 		}
 		// A draft is still being prepared and nobody sees it; once people can, a save is news to the staffing people.
-		if PeriodStatus(period.Status) != PeriodDraft {
+		// A correction of days that are over is history and news to nobody.
+		if PeriodStatus(period.Status) != PeriodDraft && !retroactiveOnly {
 			if err := s.inbox.OpenDayPeriodChanged(ctx, tx, periodID, notifyrules.OpenDayPeriodChanged); err != nil {
 				return Schedule{}, err
 			}
@@ -200,6 +206,41 @@ func (s *Service) SaveSchedule(
 		return Schedule{}, databaseError(err)
 	}
 	return s.GetSchedule(ctx, principal, periodID)
+}
+
+// authorizeRetroactive asks for open_days.edit_past when the delta touches an Open Day that has ended: changing,
+// cancelling, removing or rejoining one, moving a day so that it ends in the past, or creating one there. It reports
+// whether the delta touches nothing but such days, so the save is a correction of the past and notifies nobody.
+// Series always plan ahead (an update leaves started days alone) and never count as a correction.
+func authorizeRetroactive(
+	principal authorization.Principal,
+	now time.Time,
+	delta ScheduleDelta,
+	targets []opendaysdb.OpenDay,
+) (bool, error) {
+	past, future := false, false
+	see := func(end time.Time) {
+		if end.After(now) {
+			future = true
+		} else {
+			past = true
+		}
+	}
+	for _, day := range targets {
+		see(day.EndsAt)
+	}
+	for _, input := range append(slices.Clone(delta.Creates), delta.Updates...) {
+		if slots := input.timeslots(); len(slots) > 0 {
+			see(slots[len(slots)-1].EndsAt)
+		}
+	}
+	if len(delta.SeriesCreates)+len(delta.SeriesUpdates) > 0 {
+		future = true
+	}
+	if past && !principal.Has(authorization.OpenDaysEditPast) {
+		return false, apperror.PermissionDenied
+	}
+	return past && !future, nil
 }
 
 // scheduleWriter performs the writes of one schedule save inside its transaction, with the period locked.

@@ -127,3 +127,48 @@ describe('Open Days routing', () => {
     expect(within(rows[1]).queryByRole('button', { name: 'Join' })).not.toBeInTheDocument();
   });
 });
+
+describe('Open days that are over', () => {
+  const pastDay = openDay('past-d1', [
+    slot('past-d1-slot', '2001-11-10', '17:00', '21:00', [
+      { ...requirement('past-d1-sup', 'supervisor', 2), assignments: [] },
+      { ...requirement('past-d1-tr', 'trainee', 0), assignments: [] },
+    ]),
+  ]);
+  const showPastDay = (permissions: PermissionId[]) => {
+    mock(permissions);
+    server.use(
+      http.get('*/api/v1/open-day-periods/:id/open-days', () =>
+        HttpResponse.json({ period: period({ id: 'p-staffing' }), items: [pastDay], timeZone: 'Europe/Vienna' }),
+      ),
+    );
+    renderRoute(<App />, '/open-days/p-staffing?day=past-d1');
+    return screen.findByRole('dialog', { name: 'Open day details' });
+  };
+
+  it('stay read-only for the Leitung without open_days.edit_past', async () => {
+    const panel = await showPastDay([
+      'open_days.read',
+      'open_days.read_assignments',
+      'open_days.manage',
+      'open_days.assign',
+    ]);
+    expect(await within(panel).findByRole('heading', { name: /Supervisors/ })).toBeInTheDocument();
+    expect(within(panel).queryByLabelText('Edit this open day')).not.toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'Assign' })).not.toBeInTheDocument();
+    expect(within(panel).queryByText('This open day is over.')).not.toBeInTheDocument();
+  });
+
+  it('can be corrected with open_days.edit_past, without messages to anyone', async () => {
+    const panel = await showPastDay([
+      'open_days.read',
+      'open_days.read_assignments',
+      'open_days.manage',
+      'open_days.assign',
+      'open_days.edit_past',
+    ]);
+    expect(await within(panel).findByLabelText('Edit this open day')).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Assign' })).toBeInTheDocument();
+    expect(within(panel).getByText('This open day is over.')).toBeInTheDocument();
+  });
+});

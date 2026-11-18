@@ -3482,6 +3482,10 @@ paths:
       tags: [Open Days]
       operationId: saveOpenDaySchedule
       summary: Atomically save a period schedule delta
+      description: >-
+        Requires `open_days.manage`. Changing, cancelling, removing or rejoining an Open Day that has ended, moving one
+        so that it ends in the past, or creating one that has already ended also requires `open_days.edit_past`. A save
+        that only touches ended days sends no notifications.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SaveOpenDayScheduleRequest"}}}}
       responses:
@@ -3517,6 +3521,7 @@ paths:
       tags: [Open Days]
       operationId: joinOpenDay
       summary: Assign the current Person to one staffing requirement
+      description: Requires `open_days.signup`. A timeslot that has ended answers `409 timeslot_ended`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/JoinOpenDayRequest"}}}}
       responses:
@@ -3531,6 +3536,7 @@ paths:
       tags: [Open Days]
       operationId: leaveOpenDay
       summary: Remove the current Person's assignment in one timeslot
+      description: Requires `open_days.signup`. A timeslot that has ended answers `409 timeslot_ended`.
       security: [{sessionCookie: [], csrfHeader: []}]
       parameters:
         - {name: timeslotId, in: query, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -3539,6 +3545,7 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -3548,6 +3555,9 @@ paths:
       tags: [Open Days]
       operationId: assignOpenDayPerson
       summary: Administratively assign an eligible Person
+      description: >-
+        Requires `open_days.assign`; a timeslot that has ended also requires `open_days.edit_past`. Such a retroactive
+        correction is audited but sends no notifications.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AssignOpenDayPersonRequest"}}}}
       responses:
@@ -3567,12 +3577,16 @@ paths:
       tags: [Open Days]
       operationId: removeOpenDayAssignment
       summary: Administratively remove an assignment
+      description: >-
+        Requires `open_days.assign`; a timeslot that has ended also requires `open_days.edit_past`. Such a retroactive
+        correction is audited but sends no notifications.
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
         "204": {description: Assignment removed.}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -13106,6 +13120,7 @@ components:
         - open_days.signup
         - open_days.assign
         - open_days.manage
+        - open_days.edit_past
         - events.read
         - events.manage
         - events.staffing.manage

@@ -180,3 +180,20 @@ func TestWriteAcceptsOnlyTheKnownSessionRestriction(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteAcceptsOnlyATrueRetroactiveFlag(t *testing.T) {
+	actorID := ids.New()
+	event := Event{
+		ActorAccountID: &actorID, Action: "open_day.person_assigned", ResourceType: "open_day_assignment",
+		Metadata: map[string]any{"retroactive": "true"},
+	}
+	if err := write(context.Background(), &recordingAuditQueries{}, event); err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []any{"false", "yes", true, 1} {
+		event.Metadata = map[string]any{"retroactive": value}
+		if err := write(context.Background(), &recordingAuditQueries{}, event); err == nil {
+			t.Fatalf("retroactive %#v was accepted", value)
+		}
+	}
+}

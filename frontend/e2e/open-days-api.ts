@@ -472,6 +472,18 @@ export async function installOpenDaysApi(page: Page, world: World) {
       return assignment;
     };
 
+    // As in the backend: an ended timeslot takes no self sign-up or leave, and corrections need open_days.edit_past.
+    const ended = (openDay: Day | undefined, timeslotId: string | null) =>
+      openDay?.timeslots.some((slot) => slot.id === timeslotId && new Date(slot.endsAt) <= new Date()) ?? false;
+    const slotOfRequirement = (openDay: Day | undefined, requirementId: string) =>
+      openDay ? (place(openDay, requirementId)?.slot.id ?? null) : null;
+    const slotOfAssignment = (openDay: Day | undefined, assignmentId: string) =>
+      openDay?.timeslots.find((slot) =>
+        slot.requirements.some((item) => (item.assignments ?? []).some((a) => a.id === assignmentId)),
+      )?.id ?? null;
+    const timeslotEnded = () => json(route, { code: 'timeslot_ended', message: 'This timeslot has ended' }, 409);
+    const forbidden = () => json(route, { code: 'forbidden', message: 'No.' }, 403);
+
     const single = path.match(/^\/open-days\/([^/]+)$/);
     if (single && method === 'GET') {
       const found = day(single[1]);
@@ -482,6 +494,8 @@ export async function installOpenDaysApi(page: Page, world: World) {
       const found = day(mine[1]);
       if (!found) return json(route, { code: 'not_found', message: 'No.' }, 404);
       if (method === 'PUT') {
+        if (ended(found, slotOfRequirement(found, (body as { requirementId: string }).requirementId)))
+          return timeslotEnded();
         const assignment = assignIn(found, (body as { requirementId: string }).requirementId, {
           id: ids.person,
           name: 'Ada Lovelace',
@@ -491,6 +505,7 @@ export async function installOpenDaysApi(page: Page, world: World) {
       }
       if (method === 'DELETE') {
         const timeslotId = url.searchParams.get('timeslotId');
+        if (ended(found, timeslotId)) return timeslotEnded();
         for (const slot of found.timeslots)
           for (const item of slot.requirements)
             if (slot.id === timeslotId) item.assignments = (item.assignments ?? []).filter((a) => !a.isCurrentUser);
@@ -501,6 +516,8 @@ export async function installOpenDaysApi(page: Page, world: World) {
     if (assignments && method === 'POST') {
       const found = day(assignments[1]);
       const request = body as { requirementId: string; personId: string };
+      if (ended(found, slotOfRequirement(found, request.requirementId)) && !can(world, 'open_days.edit_past'))
+        return forbidden();
       const who = world.eligible.find((item) => item.personId === request.personId);
       const assignment =
         found && who
@@ -511,6 +528,7 @@ export async function installOpenDaysApi(page: Page, world: World) {
     const removal = path.match(/^\/open-days\/([^/]+)\/assignments\/([^/]+)$/);
     if (removal && method === 'DELETE') {
       const found = day(removal[1]);
+      if (ended(found, slotOfAssignment(found, removal[2])) && !can(world, 'open_days.edit_past')) return forbidden();
       for (const slot of found?.timeslots ?? [])
         for (const item of slot.requirements)
           item.assignments = (item.assignments ?? []).filter((a) => a.id !== removal[2]);

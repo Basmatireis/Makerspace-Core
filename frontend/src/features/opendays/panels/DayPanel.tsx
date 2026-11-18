@@ -64,7 +64,9 @@ function RequirementSection({
   const { viewer } = ctx;
   const open = day.status !== 'cancelled' && !slotEnded(slot, ctx.now);
   const roles = (requirement.eligibleRoleIds ?? []).map((id) => roleNames.get(id) ?? 'a role');
-  const canAssign = (viewer.canAssign || viewer.canManage) && open && !locked;
+  // Who staffed a timeslot that is over can still be corrected with open_days.edit_past.
+  const canAssign =
+    (viewer.canAssign || viewer.canManage) && day.status !== 'cancelled' && (open || viewer.canEditPast) && !locked;
   const joinable = requirement.canJoin && free(requirement) > 0 && !locked;
   // Without open_days.read_assignments the list is omitted, but the viewer still sees themselves with Leave.
   const own = slot.myAssignment?.requirementId === requirement.id ? slot.myAssignment : undefined;
@@ -193,7 +195,8 @@ export function DayPanel({
   const unsavedSingle = day.id.startsWith('new-');
   const mine = mySlots(day).filter((slot) => !slotEnded(slot, now));
   const comp = supporters(day);
-  const editable = viewer.canManage && !cancelled && !ended && !locked;
+  const editable = viewer.canManage && !cancelled && (!ended || viewer.canEditPast) && !locked;
+  const correcting = ended && !cancelled && viewer.canEditPast && (viewer.canManage || viewer.canAssign);
   const joinSlot = !multi && !locked ? day.timeslots[0] : undefined;
   const joinPlace = joinSlot && !cancelled && !ended ? joinablePlaces(joinSlot)[0] : undefined;
   const sum = (kind: 'supervisor' | 'trainee') => {
@@ -282,6 +285,15 @@ export function DayPanel({
           hideCloseButton
           title="Cancelled."
           subtitle="Sign-ups are closed; who was assigned stays on record."
+        />
+      )}
+      {correcting && (
+        <InlineNotification
+          kind="info"
+          lowContrast
+          hideCloseButton
+          title="This open day is over."
+          subtitle="Changes correct the record and count towards the staffing minimums; nobody gets a message."
         />
       )}
       {locked && (

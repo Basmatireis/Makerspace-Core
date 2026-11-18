@@ -10,6 +10,8 @@ export type Viewer = {
   canSignUp: boolean;
   canAssign: boolean;
   canManage: boolean;
+  /** May correct open days that have ended (open_days.edit_past), on top of managing or assigning. */
+  canEditPast: boolean;
   canSeePeople: boolean;
 };
 
@@ -23,6 +25,7 @@ export function viewerOf(user: CurrentUser): Viewer {
     canSignUp: hasPermission(user, 'open_days.signup'),
     canAssign: hasPermission(user, 'open_days.assign'),
     canManage: hasPermission(user, 'open_days.manage'),
+    canEditPast: hasPermission(user, 'open_days.edit_past'),
     canSeePeople: hasPermission(user, 'open_days.read_assignments') || hasPermission(user, 'open_days.manage'),
   };
 }

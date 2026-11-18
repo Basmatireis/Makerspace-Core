@@ -35,6 +35,12 @@ Short-staffed means a supervisor place of a timeslot that has not ended is still
 
 List and calendar colour each day from the viewer's side. People with `open_days.manage`: red while a supervisor place is free, green when all supervisor places are filled, blue when they hold a place themselves, grey when cancelled. People who sign up: red when there is a place they can take, green when every place of their own kind is taken, blue when they hold a place, grey when cancelled. A day with several timeslots shows the strongest state (blue, then red, then green).
 
+## Correcting the past
+
+An open day that has ended, and who staffed it, can be corrected afterwards by people with `open_days.edit_past` (lab leadership). It is needed on top of the usual permission: `open_days.manage` to change, cancel or remove an ended day, move a day so that it ends in the past or create one there, and `open_days.assign` to add or remove people in a timeslot that has ended. Without it the backend answers 403 and the detail panel shows ended days read-only. Nobody joins or leaves an ended timeslot themselves (409 `timeslot_ended`). Series always plan ahead and never change started days.
+
+A correction is audited like any change (assignment events carry `retroactive: true`) but notifies nobody: no inbox message, mail or schedule-change notice, and a schedule save that touches only ended days does not count as a period change. Staffing counts, semester minimums and the supervisor dashboard are computed from the assignments, so they follow the correction. Eligibility still follows the person's current membership and roles, and archived periods stay read-only. The migration gives `open_days.edit_past` to every role that held `open_days.manage`.
+
 ## Local time and calendar context
 
 Period bounds, holidays, and academic breaks use inclusive PostgreSQL `date` values. User-entered schedule times are interpreted in the configured makerspace timezone and stored as UTC `timestamptz`. Defaults are `Europe/Vienna`, `AT`, `AT-6`, and German holiday labels. Configure them with `MAKERSPACE_TIME_ZONE`, `OPEN_DAYS_HOLIDAY_COUNTRY`, `OPEN_DAYS_HOLIDAY_SUBDIVISION`, and `OPEN_DAYS_HOLIDAY_LANGUAGE`. Invalid timezones or unsupported offline GoHoliday jurisdictions fail API startup clearly.

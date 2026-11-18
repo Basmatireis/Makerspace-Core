@@ -213,7 +213,8 @@ export function SchedulePage({ periodId }: { periodId: string }) {
     const change = changes.get(day.id);
     return day.id.startsWith('gen-') || (change === 'series' && !day.id.startsWith('new-')) || change === 'cancelled';
   };
-  const editable = (day: OpenDay) => day.status === 'scheduled' && !dayEnded(day, now) && !isLocked(day);
+  const editable = (day: OpenDay) =>
+    day.status === 'scheduled' && (viewer.canEditPast || !dayEnded(day, now)) && !isLocked(day);
   const selectedDays = days.filter((day) => checked.has(day.id));
 
   const saveMutation = useMutation({
