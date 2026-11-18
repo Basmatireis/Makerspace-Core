@@ -534,3 +534,16 @@ sql:
         emit_empty_slices: true
         emit_pointers_for_null_types: true
         overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/workinggroups/db/queries.sql"
+    gen:
+      go:
+        package: "workinggroupsdb"
+        out: "internal/workinggroups/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides

@@ -688,4 +688,8 @@ var Tables = []Table{
 		"pdf_closing":     Cleared,
 		"reply_to_email":  Cleared,
 	}},
+	{Name: "working_group_machines"},
+	{Name: "working_group_members"},
+	{Name: "working_group_places", Columns: map[string]Treatment{"name": Catalog}},
+	{Name: "working_groups", Columns: map[string]Treatment{"name": Catalog, "description": Catalog, "chat_url": Cleared}},
 }

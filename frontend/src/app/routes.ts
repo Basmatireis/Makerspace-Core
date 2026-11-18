@@ -139,6 +139,16 @@ export const OpenDayBreaksRedirect = lazy(() =>
 export const MessagesPage = lazy(() =>
   import('../features/notifications/MessagesPage').then(({ MessagesPage }) => ({ default: MessagesPage })),
 );
+export const WorkingGroupsPage = lazy(() =>
+  import('../features/workinggroups/WorkingGroupsPage').then(({ WorkingGroupsPage }) => ({
+    default: WorkingGroupsPage,
+  })),
+);
+export const WorkingGroupsSettingsPage = lazy(() =>
+  import('../features/workinggroups/WorkingGroupsSettingsPage').then(({ WorkingGroupsSettingsPage }) => ({
+    default: WorkingGroupsSettingsPage,
+  })),
+);
 export const SettingsPage = lazy(() =>
   import('../features/settings/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })),
 );

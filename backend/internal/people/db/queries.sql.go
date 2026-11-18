@@ -247,6 +247,7 @@ SELECT
     (SELECT count(*) FROM survey_invitations WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS survey_invitations,
     (SELECT count(*) FROM survey_responses WHERE identified_person_id = ANY(($1::text[])::uuid[]))::bigint AS survey_responses,
     (SELECT count(*) FROM organization_members WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS organization_memberships,
+    (SELECT count(*) FROM working_group_members WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS working_group_memberships,
     (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY(($2::text[])::uuid[]))::bigint AS notifications,
     ((SELECT count(*) FROM privacy_retention_holds WHERE subject_person_id = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM privacy_subject_requests WHERE subject_person_id = ANY(($1::text[])::uuid[])))::bigint AS privacy_holds
@@ -271,6 +272,7 @@ type CountMergeHistoryRow struct {
 	SurveyInvitations       int64
 	SurveyResponses         int64
 	OrganizationMemberships int64
+	WorkingGroupMemberships int64
 	Notifications           int64
 	PrivacyHolds            int64
 }
@@ -293,6 +295,7 @@ func (q *Queries) CountMergeHistory(ctx context.Context, arg CountMergeHistoryPa
 		&i.SurveyInvitations,
 		&i.SurveyResponses,
 		&i.OrganizationMemberships,
+		&i.WorkingGroupMemberships,
 		&i.Notifications,
 		&i.PrivacyHolds,
 	)
@@ -564,6 +567,27 @@ type DeleteDuplicateMergeShiftAssignmentsParams struct {
 // One active assignment per shift and Person: the target's assignment wins.
 func (q *Queries) DeleteDuplicateMergeShiftAssignments(ctx context.Context, arg DeleteDuplicateMergeShiftAssignmentsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteDuplicateMergeShiftAssignments, arg.SourcePersonID, arg.TargetPersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDuplicateMergeWorkingGroupMembers = `-- name: DeleteDuplicateMergeWorkingGroupMembers :execrows
+DELETE FROM working_group_members source
+USING working_group_members target
+WHERE source.person_id = $1 AND target.person_id = $2
+  AND source.group_id = target.group_id
+`
+
+type DeleteDuplicateMergeWorkingGroupMembersParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// Where both Persons are members of a group the target stays.
+func (q *Queries) DeleteDuplicateMergeWorkingGroupMembers(ctx context.Context, arg DeleteDuplicateMergeWorkingGroupMembersParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDuplicateMergeWorkingGroupMembers, arg.SourcePersonID, arg.TargetPersonID)
 	if err != nil {
 		return 0, err
 	}
@@ -997,6 +1021,30 @@ func (q *Queries) GetRolePermissionGrantsForAssignment(ctx context.Context, role
 		return nil, err
 	}
 	return items, nil
+}
+
+const handOverMergeWorkingGroupLeads = `-- name: HandOverMergeWorkingGroupLeads :exec
+WITH handed AS (
+    UPDATE working_group_members source SET is_lead = false
+    FROM working_group_members target
+    WHERE source.person_id = $2 AND target.person_id = $1
+      AND source.group_id = target.group_id AND source.is_lead
+    RETURNING source.group_id
+)
+UPDATE working_group_members SET is_lead = true
+FROM handed
+WHERE working_group_members.group_id = handed.group_id AND working_group_members.person_id = $1
+`
+
+type HandOverMergeWorkingGroupLeadsParams struct {
+	TargetPersonID uuid.UUID
+	SourcePersonID uuid.UUID
+}
+
+// Where both Persons are members of a group and the source led it, the target takes over the lead.
+func (q *Queries) HandOverMergeWorkingGroupLeads(ctx context.Context, arg HandOverMergeWorkingGroupLeadsParams) error {
+	_, err := q.db.Exec(ctx, handOverMergeWorkingGroupLeads, arg.TargetPersonID, arg.SourcePersonID)
+	return err
 }
 
 const isPersonRoleAssigned = `-- name: IsPersonRoleAssigned :one
@@ -1544,6 +1592,38 @@ func (q *Queries) LockAccountsForMerge(ctx context.Context, personIds []string) 
 	return items, nil
 }
 
+const lockMergeWorkingGroups = `-- name: LockMergeWorkingGroups :many
+SELECT id FROM working_groups
+WHERE id IN (SELECT group_id FROM working_group_members WHERE person_id IN ($1, $2))
+ORDER BY id FOR UPDATE
+`
+
+type LockMergeWorkingGroupsParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// Locks the groups of both Persons in id order, like every working group mutation, before memberships move.
+func (q *Queries) LockMergeWorkingGroups(ctx context.Context, arg LockMergeWorkingGroupsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, lockMergeWorkingGroups, arg.SourcePersonID, arg.TargetPersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockPeopleForMerge = `-- name: LockPeopleForMerge :many
 
 SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since, last_visit_on FROM people WHERE id = ANY(($1::text[])::uuid[]) ORDER BY id FOR UPDATE
@@ -1745,6 +1825,23 @@ type MoveMergeTrainingRecordsParams struct {
 
 func (q *Queries) MoveMergeTrainingRecords(ctx context.Context, arg MoveMergeTrainingRecordsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, moveMergeTrainingRecords, arg.TargetPersonID, arg.SourcePersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const moveMergeWorkingGroupMembers = `-- name: MoveMergeWorkingGroupMembers :execrows
+UPDATE working_group_members SET person_id = $1 WHERE person_id = $2
+`
+
+type MoveMergeWorkingGroupMembersParams struct {
+	TargetPersonID uuid.UUID
+	SourcePersonID uuid.UUID
+}
+
+func (q *Queries) MoveMergeWorkingGroupMembers(ctx context.Context, arg MoveMergeWorkingGroupMembersParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveMergeWorkingGroupMembers, arg.TargetPersonID, arg.SourcePersonID)
 	if err != nil {
 		return 0, err
 	}

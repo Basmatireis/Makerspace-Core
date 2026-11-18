@@ -2547,3 +2547,32 @@ type WirefDeliverySetting struct {
 	UpdatedAt              time.Time
 	ReplyToEmail           string
 }
+
+type WorkingGroup struct {
+	ID          uuid.UUID
+	Name        string
+	Description string
+	ChatUrl     *string
+	Version     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type WorkingGroupMachine struct {
+	GroupID   uuid.UUID
+	MachineID uuid.UUID
+}
+
+type WorkingGroupMember struct {
+	GroupID  uuid.UUID
+	PersonID uuid.UUID
+	IsLead   bool
+	JoinedAt time.Time
+}
+
+type WorkingGroupPlace struct {
+	ID        uuid.UUID
+	GroupID   uuid.UUID
+	Name      string
+	CreatedAt time.Time
+}

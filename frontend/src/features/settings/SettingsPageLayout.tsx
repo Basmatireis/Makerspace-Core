@@ -1,6 +1,6 @@
 import { SkeletonText } from '@carbon/react';
 import type { ReactNode } from 'react';
-import { PageShell, type PageShellWidth } from '../../app/PageShell';
+import { PageShell, type PageShellProps, type PageShellWidth } from '../../app/PageShell';
 import { settingsGroup, settingsItem, type SettingsPageId } from './settingsCatalog';
 
 type SettingsPageLayoutProps = {
@@ -9,6 +9,8 @@ type SettingsPageLayoutProps = {
   actions?: ReactNode;
   tabs?: ReactNode;
   width?: PageShellWidth;
+  /** Replaces the "Settings / Group" crumbs, for pages that people without settings access reach elsewhere. */
+  breadcrumbs?: PageShellProps['breadcrumbs'];
   className?: string;
   children: ReactNode;
 };

@@ -69,6 +69,8 @@ import {
   RecycleBinPage,
   RunDetailPage,
   TrainingsSettingsPage,
+  WorkingGroupsPage,
+  WorkingGroupsSettingsPage,
   SettingsPage,
   SingleSignOnPage,
   DevicesSessionsPage,
@@ -501,6 +503,22 @@ export function App() {
               element={
                 <PermissionRoute allOf={['trainings.manage']}>
                   <TrainingsSettingsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="settings/working-groups"
+              element={
+                <PermissionRoute allOf={['working_groups.read']}>
+                  <WorkingGroupsSettingsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="working-groups"
+              element={
+                <PermissionRoute allOf={['working_groups.read']}>
+                  <WorkingGroupsPage />
                 </PermissionRoute>
               }
             />

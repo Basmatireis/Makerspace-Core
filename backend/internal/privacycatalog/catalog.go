@@ -26,6 +26,7 @@ const (
 	OpenDayAssignments   privacy.CategoryID = "opendays.assignments"
 	StaffingExcusals     privacy.CategoryID = "opendays.staffing_excusals"
 	TrainingRecords      privacy.CategoryID = "trainings.records"
+	WorkingGroupMembers  privacy.CategoryID = "working_groups.members"
 	// LabRulesConfirmations keeps the identifier it had when confirmations were paper requests: policies,
 	// retention holds and subject requests store category identifiers.
 	LabRulesConfirmations  privacy.CategoryID = "laborordnung.requests"
@@ -57,16 +58,17 @@ const (
 
 // Owner modules: the built-in feature areas that own data categories.
 const (
-	Identity     privacy.ModuleID = "identity"
-	Platform     privacy.ModuleID = "platform"
-	Laborordnung privacy.ModuleID = "laborordnung"
-	Attendance   privacy.ModuleID = "attendance"
-	Trainings    privacy.ModuleID = "trainings"
-	OpenDays     privacy.ModuleID = "open_days"
-	Events       privacy.ModuleID = "events"
-	Orders       privacy.ModuleID = "orders"
-	Machines     privacy.ModuleID = "machines"
-	Signage      privacy.ModuleID = "signage"
+	Identity      privacy.ModuleID = "identity"
+	Platform      privacy.ModuleID = "platform"
+	Laborordnung  privacy.ModuleID = "laborordnung"
+	Attendance    privacy.ModuleID = "attendance"
+	Trainings     privacy.ModuleID = "trainings"
+	WorkingGroups privacy.ModuleID = "working_groups"
+	OpenDays      privacy.ModuleID = "open_days"
+	Events        privacy.ModuleID = "events"
+	Orders        privacy.ModuleID = "orders"
+	Machines      privacy.ModuleID = "machines"
+	Signage       privacy.ModuleID = "signage"
 )
 
 const day = 24 * time.Hour
@@ -263,6 +265,16 @@ func declarations() []privacy.Definition {
 			Contains:       "Training status per person, internal notes, completion date",
 			ErasureOutcome: privacy.ErasureErased,
 			Fields:         []string{"training_records.person_id", "training_records.notes", "training_records.completed_on"},
+			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt},
+			Actions:        []privacy.Action{privacy.ActionRetainWithReview},
+			Subject:        privacy.SubjectPerson,
+		},
+		{
+			ID: WorkingGroupMembers, Owner: WorkingGroups, Name: "Working group memberships",
+			Description:    "Which working groups a person belongs to or leads.",
+			Contains:       "Person, group, lead flag, join time",
+			ErasureOutcome: privacy.ErasureErased,
+			Fields:         []string{"working_group_members.person_id"},
 			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt},
 			Actions:        []privacy.Action{privacy.ActionRetainWithReview},
 			Subject:        privacy.SubjectPerson,

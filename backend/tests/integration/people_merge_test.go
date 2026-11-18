@@ -24,7 +24,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var mergePermissions = []string{"people.merge", "people.read.all", "people.roles.assign"}
+// The actor also holds working_groups.read: merging unites the source's roles on the target, and the membership roles
+// carry that permission by migration (privilege subset).
+var mergePermissions = []string{"people.merge", "people.read.all", "people.roles.assign", "working_groups.read"}
 
 func mergeExec(t *testing.T, pool *pgxpool.Pool, query string, args ...any) {
 	t.Helper()

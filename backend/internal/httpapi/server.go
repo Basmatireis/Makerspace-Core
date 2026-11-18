@@ -52,6 +52,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/trainings"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/workinggroups"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -101,6 +102,7 @@ type Server struct {
 	inbox              *inbox.Service
 	configTransfer     *configtransfer.Service
 	trainings          *trainings.Service
+	workingGroups      *workinggroups.Service
 	privacy            *privacy.Service
 	subjectRequests    *subjectrequests.Service
 	deviceRates        deviceRateLimits
@@ -297,6 +299,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		accountPreferences: accountpreferences.NewService(pool),
 		configTransfer:     configTransferService,
 		trainings:          trainingsService,
+		workingGroups:      workinggroups.NewService(pool),
 		privacy:            privacyService,
 		deviceRates:        newDeviceRateLimits(),
 		surveyLinkViews:    ratelimit.New(surveyLinkViewsPerWindow, surveyLinkWindow),

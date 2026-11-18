@@ -1,0 +1,47 @@
+@use '@carbon/styles/scss/spacing' as *;
+
+// Application-specific layout for the working-group pages; every control is a Carbon component.
+.wg-description {
+  max-inline-size: 48rem;
+  margin: 0;
+}
+
+.wg-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  align-items: start;
+}
+
+// Carbon's lg breakpoint (1056 px): from here on the side column sits next to the main one, in a 2:1 split.
+@media (min-width: 66rem) {
+  .wg-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
+
+.wg-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+  margin-block-end: $spacing-03;
+}
+
+.wg-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: $spacing-03;
+  align-items: end;
+  max-inline-size: 36rem;
+}
+
+@media (max-width: 41.98rem) {
+  .wg-add {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.wg-form {
+  max-inline-size: 36rem;
+}

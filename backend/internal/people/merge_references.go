@@ -28,6 +28,7 @@ const (
 	ruleNotifyPerson  = "deleted with the source person; the target keeps its own answers and the 90-day delivery log is not merged"
 	ruleNotifyAccount = "deleted with the source account; the surviving account keeps its own rules and channel choices"
 	ruleAskCooldown   = "deleted with the source person; the target keeps its own ask times"
+	ruleWorkingGroups = "moved to the target; where both were members the target stays and takes over a lead role"
 	ruleSurveyPreserv = "moved to the target; anonymous responses never carry a person"
 )
 
@@ -60,6 +61,7 @@ var MergeReferences = []MergeReference{
 	{"survey_responses", "identified_person_id", "people", ruleSurveyPreserv},
 	{"training_records", "person_id", "people", ruleDeduplicated},
 	{"visits", "person_id", "people", ruleConflict},
+	{"working_group_members", "person_id", "people", ruleWorkingGroups},
 
 	{"audit_events", "actor_account_id", "accounts", ruleAuditRepoint},
 	{"auth_challenges", "account_id", "accounts", ruleTransient},

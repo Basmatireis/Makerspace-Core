@@ -268,6 +268,13 @@ FROM staffing_excusals e JOIN open_day_periods p ON p.id = e.period_id WHERE e.p
 -- name: CountStaffingExcusals :one
 SELECT count(*)::bigint FROM staffing_excusals WHERE person_id = sqlc.arg(subject_person)::uuid;
 
+-- name: ExportWorkingGroupMemberships :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object('group', g.name, 'isLead', m.is_lead, 'joinedAt', m.joined_at) ORDER BY g.name), '[]'::jsonb)::jsonb AS document
+FROM working_group_members m JOIN working_groups g ON g.id = m.group_id WHERE m.person_id = sqlc.arg(subject_person)::uuid;
+
+-- name: CountWorkingGroupMemberships :one
+SELECT count(*)::bigint FROM working_group_members WHERE person_id = sqlc.arg(subject_person)::uuid;
+
 -- name: ExportTrainingRecords :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object('training', t.name, 'status', r.status, 'completedOn', r.completed_on, 'notes', r.notes, 'createdAt', r.created_at) ORDER BY t.name), '[]'::jsonb)::jsonb AS document
 FROM training_records r JOIN trainings t ON t.id = r.training_id WHERE r.person_id = sqlc.arg(subject_person)::uuid;

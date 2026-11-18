@@ -311,6 +311,17 @@ func (q *Queries) CountVisits(ctx context.Context, subjectPerson uuid.UUID) (int
 	return total, err
 }
 
+const countWorkingGroupMemberships = `-- name: CountWorkingGroupMemberships :one
+SELECT count(*)::bigint FROM working_group_members WHERE person_id = $1::uuid
+`
+
+func (q *Queries) CountWorkingGroupMemberships(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkingGroupMemberships, subjectPerson)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deleteExportFilesQueueBlobs = `-- name: DeleteExportFilesQueueBlobs :exec
 WITH deleted AS (
     DELETE FROM files WHERE id = ANY(($1::text[])::uuid[]) RETURNING storage_key
@@ -801,6 +812,18 @@ SELECT jsonb_build_object(
 
 func (q *Queries) ExportVisits(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
 	row := q.db.QueryRow(ctx, exportVisits, subjectPerson)
+	var document []byte
+	err := row.Scan(&document)
+	return document, err
+}
+
+const exportWorkingGroupMemberships = `-- name: ExportWorkingGroupMemberships :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object('group', g.name, 'isLead', m.is_lead, 'joinedAt', m.joined_at) ORDER BY g.name), '[]'::jsonb)::jsonb AS document
+FROM working_group_members m JOIN working_groups g ON g.id = m.group_id WHERE m.person_id = $1::uuid
+`
+
+func (q *Queries) ExportWorkingGroupMemberships(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, exportWorkingGroupMemberships, subjectPerson)
 	var document []byte
 	err := row.Scan(&document)
 	return document, err

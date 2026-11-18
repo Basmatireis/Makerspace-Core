@@ -36,6 +36,8 @@ type Querier interface {
 	DeleteDuplicateMergeRecoveryCodes(ctx context.Context, arg DeleteDuplicateMergeRecoveryCodesParams) (int64, error)
 	// One active assignment per shift and Person: the target's assignment wins.
 	DeleteDuplicateMergeShiftAssignments(ctx context.Context, arg DeleteDuplicateMergeShiftAssignmentsParams) (int64, error)
+	// Where both Persons are members of a group the target stays.
+	DeleteDuplicateMergeWorkingGroupMembers(ctx context.Context, arg DeleteDuplicateMergeWorkingGroupMembersParams) (int64, error)
 	// Drops every password identity of the merged Accounts except the one kept for the login email.
 	DeleteMergePasswordIdentities(ctx context.Context, arg DeleteMergePasswordIdentitiesParams) (int64, error)
 	// Outstanding one-time challenges, pending logins, ceremonies and throttles of every merged Account end with the merge.
@@ -60,6 +62,8 @@ type Querier interface {
 	GetProfileImage(ctx context.Context, id uuid.UUID) (GetProfileImageRow, error)
 	GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role, error)
 	GetRolePermissionGrantsForAssignment(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsForAssignmentRow, error)
+	// Where both Persons are members of a group and the source led it, the target takes over the lead.
+	HandOverMergeWorkingGroupLeads(ctx context.Context, arg HandOverMergeWorkingGroupLeadsParams) error
 	IsPersonRoleAssigned(ctx context.Context, arg IsPersonRoleAssignedParams) (bool, error)
 	ListAccountsForMerge(ctx context.Context, personIds []string) ([]Account, error)
 	ListMergeAccountMethods(ctx context.Context, accountIds []string) ([]ListMergeAccountMethodsRow, error)
@@ -78,6 +82,8 @@ type Querier interface {
 	ListRoleOptions(ctx context.Context) ([]ListRoleOptionsRow, error)
 	// Locks the Accounts of the merged People in id order after the people and the master invariant lock.
 	LockAccountsForMerge(ctx context.Context, personIds []string) ([]Account, error)
+	// Locks the groups of both Persons in id order, like every working group mutation, before memberships move.
+	LockMergeWorkingGroups(ctx context.Context, arg LockMergeWorkingGroupsParams) ([]uuid.UUID, error)
 	// People merge (people.merge). Every query below is part of PreviewMerge or Merge; see docs/people-merge.md.
 	// Locks every Person of a merge in id order. People are locked before the master invariant lock and accounts.
 	LockPeopleForMerge(ctx context.Context, ids []string) ([]Person, error)
@@ -90,6 +96,7 @@ type Querier interface {
 	MoveMergeSecondFactors(ctx context.Context, arg MoveMergeSecondFactorsParams) (int64, error)
 	MoveMergeShiftAssignments(ctx context.Context, arg MoveMergeShiftAssignmentsParams) (int64, error)
 	MoveMergeTrainingRecords(ctx context.Context, arg MoveMergeTrainingRecordsParams) (int64, error)
+	MoveMergeWorkingGroupMembers(ctx context.Context, arg MoveMergeWorkingGroupMembersParams) (int64, error)
 	// Keeps the highest membership (supervisor > trainee > visitor) after roles of several people were united.
 	NormalizePersonMembership(ctx context.Context, personID uuid.UUID) error
 	PersonHasAccount(ctx context.Context, personID uuid.UUID) (bool, error)

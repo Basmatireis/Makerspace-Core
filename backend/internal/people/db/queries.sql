@@ -385,6 +385,7 @@ SELECT
     (SELECT count(*) FROM survey_invitations WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS survey_invitations,
     (SELECT count(*) FROM survey_responses WHERE identified_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS survey_responses,
     (SELECT count(*) FROM organization_members WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS organization_memberships,
+    (SELECT count(*) FROM working_group_members WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS working_group_memberships,
     (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY((sqlc.arg(account_ids)::text[])::uuid[]))::bigint AS notifications,
     ((SELECT count(*) FROM privacy_retention_holds WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM privacy_subject_requests WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS privacy_holds;
@@ -454,6 +455,35 @@ WHERE source.person_id = sqlc.arg(source_person_id) AND target.person_id = sqlc.
 
 -- name: MoveMergeOrganizationMembers :execrows
 UPDATE organization_members SET person_id = sqlc.arg(target_person_id) WHERE person_id = sqlc.arg(source_person_id);
+
+-- name: LockMergeWorkingGroups :many
+-- Locks the groups of both Persons in id order, like every working group mutation, before memberships move.
+SELECT id FROM working_groups
+WHERE id IN (SELECT group_id FROM working_group_members WHERE person_id IN (sqlc.arg(source_person_id), sqlc.arg(target_person_id)))
+ORDER BY id FOR UPDATE;
+
+-- name: HandOverMergeWorkingGroupLeads :exec
+-- Where both Persons are members of a group and the source led it, the target takes over the lead.
+WITH handed AS (
+    UPDATE working_group_members source SET is_lead = false
+    FROM working_group_members target
+    WHERE source.person_id = sqlc.arg(source_person_id) AND target.person_id = sqlc.arg(target_person_id)
+      AND source.group_id = target.group_id AND source.is_lead
+    RETURNING source.group_id
+)
+UPDATE working_group_members SET is_lead = true
+FROM handed
+WHERE working_group_members.group_id = handed.group_id AND working_group_members.person_id = sqlc.arg(target_person_id);
+
+-- name: DeleteDuplicateMergeWorkingGroupMembers :execrows
+-- Where both Persons are members of a group the target stays.
+DELETE FROM working_group_members source
+USING working_group_members target
+WHERE source.person_id = sqlc.arg(source_person_id) AND target.person_id = sqlc.arg(target_person_id)
+  AND source.group_id = target.group_id;
+
+-- name: MoveMergeWorkingGroupMembers :execrows
+UPDATE working_group_members SET person_id = sqlc.arg(target_person_id) WHERE person_id = sqlc.arg(source_person_id);
 
 -- name: RepointMergePersonReferences :one
 -- Re-points the person references that carry no uniqueness rule. Conflicting open visits are rejected before this

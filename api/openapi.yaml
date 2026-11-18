@@ -36,6 +36,7 @@ tags:
   - name: Public Events
   - name: Machines
   - name: Trainings
+  - name: Working groups
   - name: Organizations
   - name: Pricing
   - name: Machine Jobs
@@ -8296,6 +8297,224 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /working-groups:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroups
+      summary: List working groups
+      description: Requires `working_groups.read`. Sorted by name; the chat link is not part of the list.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Working groups., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroup
+      summary: Create a working group
+      description: Requires `working_groups.manage`. The lead becomes a member of the group.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupRequest"}}}}
+      responses:
+        "201": {description: Working group created., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/people:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupPeople
+      summary: Find people for a working group
+      description: >-
+        Requires `working_groups.read` and either `working_groups.manage` or leading at least one working group.
+        Minimal candidates for the member and lead pickers: id and display name only, at most 50.
+      security: [{sessionCookie: []}]
+      parameters: [{name: search, in: query, schema: {type: string, maxLength: 200}}]
+      responses:
+        "200": {description: Minimal person options., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPersonOptionList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/machines:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupMachines
+      summary: List machines a working group can look after
+      description: >-
+        Requires `working_groups.read` and either `working_groups.manage` or leading at least one working group. Every
+        machine with the working group it is already assigned to, if any.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Assignable machines., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupMachineOptionList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    get:
+      tags: [Working groups]
+      operationId: getWorkingGroup
+      summary: Get a working group
+      description: >-
+        Requires `working_groups.read`. The chat link is only returned to members of the group and holders of
+        `working_groups.manage`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Working group., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Working groups]
+      operationId: updateWorkingGroup
+      summary: Update a working group
+      description: >-
+        Changing the name requires `working_groups.manage`. The description and chat link may also be changed by the
+        group's lead. A `null` chat link clears it; an omitted field stays as it is.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateWorkingGroupRequest"}}}}
+      responses:
+        "200": {description: Working group updated., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroup
+      summary: Delete a working group
+      description: Requires `working_groups.manage`. Removes the group with its memberships, machine assignments and places.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Working group deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/members:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    post:
+      tags: [Working groups]
+      operationId: addWorkingGroupMember
+      summary: Add a member
+      description: Requires `working_groups.manage` or leading this group. A person already in the group answers 409 `working_group_member_exists`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPersonRequest"}}}}
+      responses:
+        "200": {description: Working group with the new member., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/members/{personId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+      - {name: personId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Working groups]
+      operationId: removeWorkingGroupMember
+      summary: Remove a member
+      description: Requires `working_groups.manage` or leading this group. The lead cannot be removed (409 `working_group_lead_required`); choose another lead first.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Working group without the member., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/lead:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupLead
+      summary: Choose the lead
+      description: Requires `working_groups.manage`. The person is added as a member if needed; the previous lead stays a normal member.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPersonRequest"}}}}
+      responses:
+        "200": {description: Working group with the new lead., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/machines:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupMachines
+      summary: Set the machines a group looks after
+      description: >-
+        Requires `working_groups.manage` or leading this group. Replaces the set. A machine that belongs to another
+        group answers 409 `machine_in_other_working_group` with `details.machineId`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupMachinesRequest"}}}}
+      responses:
+        "200": {description: Working group with its machines., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/places:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    post:
+      tags: [Working groups]
+      operationId: addWorkingGroupPlace
+      summary: Add a place
+      description: Requires `working_groups.manage` or leading this group. A place is free text without a machine.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPlaceInput"}}}}
+      responses:
+        "200": {description: Working group with the new place., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/places/{placeId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+      - {name: placeId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Working groups]
+      operationId: removeWorkingGroupPlace
+      summary: Remove a place
+      description: Requires `working_groups.manage` or leading this group.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Working group without the place., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /people/{personId}/training-records:
     parameters:
       - $ref: "#/components/parameters/PersonId"
@@ -13152,6 +13371,7 @@ components:
       description: One-assignment management credential stored only as a SHA-256 digest.
 
   parameters:
+    WorkingGroupId: {name: groupId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
     PdfTemplateExport: {name: export, in: path, required: true, schema: {$ref: "#/components/schemas/PdfTemplateExport"}}
     ConfigurationImportMode: {name: mode, in: query, required: true, schema: {$ref: "#/components/schemas/ConfigurationImportMode"}}
     ConfigurationImportSections: {name: sections, in: query, required: true, style: form, explode: true, schema: {type: array, minItems: 1, maxItems: 32, items: {$ref: "#/components/schemas/ConfigurationSection"}}}
@@ -13557,6 +13777,8 @@ components:
         - training_records.read.all
         - training_records.update
         - training_records.update.self
+        - working_groups.read
+        - working_groups.manage
         - machine_jobs.read
         - machine_jobs.create
         - machine_jobs.edit
@@ -15723,6 +15945,7 @@ components:
         - survey_invitations
         - survey_responses
         - organization_memberships
+        - working_group_memberships
         - notifications
         - privacy_holds
         - actor_references
@@ -19839,6 +20062,154 @@ components:
         description: {type: string, maxLength: 2000, nullable: true}
         active: {type: boolean}
         sortOrder: {type: integer, format: int32, minimum: -10000, maximum: 10000}
+
+    WorkingGroupPerson:
+      type: object
+      additionalProperties: false
+      required: [personId, displayName]
+      properties:
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        displayName: {type: string}
+
+    WorkingGroupSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, memberCount, machineCount, isMember, isLead]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        description: {type: string}
+        lead: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: "The group's lead. Absent only when the lead's person record was deleted and no new lead has been chosen yet."}
+        memberCount: {type: integer, format: int64, minimum: 0}
+        machineCount: {type: integer, format: int64, minimum: 0}
+        isMember: {type: boolean, description: Whether the caller is a member of this group.}
+        isLead: {type: boolean, description: Whether the caller leads this group.}
+
+    WorkingGroupList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupSummary"}}
+
+    WorkingGroupMember:
+      type: object
+      additionalProperties: false
+      required: [personId, displayName, isLead, joinedAt]
+      properties:
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        displayName: {type: string}
+        isLead: {type: boolean}
+        joinedAt: {type: string, format: date-time}
+
+    WorkingGroupMachine:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+
+    WorkingGroupPlace:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+
+    WorkingGroup:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, memberCount, machineCount, isMember, isLead, version, members, machines, places, canEdit, canManage]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        description: {type: string}
+        lead: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: "The group's lead. Absent only when the lead's person record was deleted and no new lead has been chosen yet."}
+        memberCount: {type: integer, format: int64, minimum: 0}
+        machineCount: {type: integer, format: int64, minimum: 0}
+        isMember: {type: boolean}
+        isLead: {type: boolean}
+        version: {$ref: "#/components/schemas/Version"}
+        chatUrl: {type: string, description: "Only present for members of the group and holders of `working_groups.manage`; omitted when no link is set."}
+        members: {type: array, description: "Lead first, then by name.", items: {$ref: "#/components/schemas/WorkingGroupMember"}}
+        machines: {type: array, items: {$ref: "#/components/schemas/WorkingGroupMachine"}}
+        places: {type: array, items: {$ref: "#/components/schemas/WorkingGroupPlace"}}
+        canEdit: {type: boolean, description: Whether the caller leads the group or holds `working_groups.manage`.}
+        canManage: {type: boolean, description: Whether the caller holds `working_groups.manage`.}
+
+    CreateWorkingGroupRequest:
+      type: object
+      additionalProperties: false
+      required: [name, description, leadPersonId]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 80}
+        description: {type: string, maxLength: 500}
+        leadPersonId: {$ref: "#/components/schemas/UUIDv7"}
+
+    UpdateWorkingGroupRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 80}
+        description: {type: string, maxLength: 500}
+        chatUrl: {type: string, maxLength: 300, nullable: true, description: "An absolute `https://` URL; `null` clears the link."}
+
+    WorkingGroupPersonRequest:
+      type: object
+      additionalProperties: false
+      required: [personId]
+      properties:
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+
+    SetWorkingGroupMachinesRequest:
+      type: object
+      additionalProperties: false
+      required: [machineIds]
+      properties:
+        machineIds: {type: array, maxItems: 200, items: {$ref: "#/components/schemas/UUIDv7"}}
+
+    WorkingGroupPlaceInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 80}
+
+    WorkingGroupPersonOption:
+      type: object
+      additionalProperties: false
+      required: [id, displayName]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        displayName: {type: string}
+
+    WorkingGroupPersonOptionList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupPersonOption"}}
+
+    WorkingGroupMachineOption:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        workingGroupId: {$ref: "#/components/schemas/UUIDv7"}
+        workingGroupName: {type: string}
+
+    WorkingGroupMachineOptionList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupMachineOption"}}
 
     Training:
       type: object

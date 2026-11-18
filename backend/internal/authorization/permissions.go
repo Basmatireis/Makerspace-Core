@@ -110,6 +110,8 @@ const (
 	TrainingRecordsReadAll             Permission = Permission(openapi.TrainingRecordsReadAll)
 	TrainingRecordsUpdate              Permission = Permission(openapi.TrainingRecordsUpdate)
 	TrainingRecordsUpdateSelf          Permission = Permission(openapi.TrainingRecordsUpdateSelf)
+	WorkingGroupsRead                  Permission = Permission(openapi.WorkingGroupsRead)
+	WorkingGroupsManage                Permission = Permission(openapi.WorkingGroupsManage)
 	MachineJobsRead                    Permission = Permission(openapi.MachineJobsRead)
 	MachineJobsCreate                  Permission = Permission(openapi.MachineJobsCreate)
 	MachineJobsEdit                    Permission = Permission(openapi.MachineJobsEdit)
@@ -198,6 +200,7 @@ var registry = []Permission{
 	MachinesRead, MachinesManage,
 	TrainingsManage, TrainingRecordsReadSelf, TrainingRecordsReadAll, TrainingRecordsUpdate,
 	TrainingRecordsUpdateSelf,
+	WorkingGroupsRead, WorkingGroupsManage,
 	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsOverridePrice, MachineJobsDelete,
 	InventoryRead, InventoryArticlesManage, InventoryReceive, InventoryConsume, InventoryCorrect,
 	InventoryDelete, InventoryLedgerDelete, FilamentSpoolsManage, PrinterSlotsAssign,
@@ -314,6 +317,8 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	TrainingRecordsReadAll:             "Read every person's training records, including internal notes.",
 	TrainingRecordsUpdate:              "Set another person's training status and read every person's records.",
 	TrainingRecordsUpdateSelf:          "Set the own training status and read the own records including internal notes.",
+	WorkingGroupsRead:                  "See the working groups, who leads them and who their members are (names only).",
+	WorkingGroupsManage:                "Create, rename and delete working groups, choose their lead and edit any group.",
 	MachineJobsRead:                    "Read machine jobs and their pricing and usage details.",
 	MachineJobsCreate:                  "Create manual jobs and ingest automatically detected jobs.",
 	MachineJobsEdit:                    "Correct confirmed machine-job facts and material usage.",

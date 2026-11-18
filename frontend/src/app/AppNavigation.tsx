@@ -18,7 +18,7 @@ import type { CurrentUser, PublicLegalLinks } from '../api/generated/models';
 import { Link, useLocation } from 'react-router-dom';
 import { canAccessOpenDays, canAccessSettings, hasAnyPermission, hasPermission } from '../features/auth/permissions';
 
-type NavigationGroupId = 'operations' | 'people' | 'workshop' | 'sales' | 'signage';
+type NavigationGroupId = 'operations' | 'people' | 'workshop' | 'sales' | 'signage' | 'working-groups';
 
 interface NavigationItem {
   label: string;
@@ -95,6 +95,7 @@ function activeGroupForPath(pathname: string): NavigationGroupId | null {
   )
     return 'sales';
   if (pathname.startsWith('/signage')) return 'signage';
+  if (pathname.startsWith('/working-groups')) return 'working-groups';
   return null;
 }
 
@@ -193,6 +194,15 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
     signage.push({ label: 'Media', to: '/signage/media', active: pathname.startsWith('/signage/media') });
   }
 
+  const workingGroups: NavigationItem[] = [];
+  if (hasPermission(currentUser, 'working_groups.read')) {
+    workingGroups.push({
+      label: 'Overview',
+      to: '/working-groups',
+      active: pathname.startsWith('/working-groups'),
+    });
+  }
+
   const canReadAuditLog = hasPermission(currentUser, 'audit.read');
   const canReadStatistics = hasPermission(currentUser, 'statistics.read');
   const showAdministration = canReadStatistics || canAccessSettings(currentUser) || canReadAuditLog;
@@ -231,6 +241,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
         {renderGroup('workshop', 'Workshop', Tools, workshop)}
         {renderGroup('sales', 'Sales & payments', Receipt, sales)}
         {renderGroup('operations', 'Operations', Calendar, operations)}
+        {renderGroup('working-groups', 'Working groups', UserMultiple, workingGroups)}
         {renderGroup('signage', 'Signage', Screen, signage)}
         {renderGroup('people', 'Directory', UserMultiple, people)}
         {showAdministration && (
