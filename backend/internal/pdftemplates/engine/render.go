@@ -101,6 +101,10 @@ type Result struct {
 	Boxes    []Box
 	Problems []Problem
 	Redacted []string
+	// Inactive are the nodes that drew nothing with this data: blocks of a branch that was not taken, of a loop
+	// without entries, of a layer whose pages the document does not have, and texts that came out empty. Page
+	// breaks and the elements of hidden layers are not listed.
+	Inactive []string
 	Filename string
 }
 
@@ -161,6 +165,7 @@ func Render(ctx context.Context, in RenderInput) (result Result, err error) {
 		Boxes:    r.boxList(),
 		Problems: problems.problems(),
 		Redacted: r.redactedList(),
+		Inactive: r.inactive(),
 		Filename: r.filename(len(pages)),
 	}
 	for i := range result.Pages {
@@ -474,7 +479,7 @@ func (r *renderer) layer(layer *Layer, index, count int, sc *scope) error {
 	if !on || layer.Hidden {
 		return nil
 	}
-	var union *Box
+	// A layer has no box of its own: it would cover its elements in the editor's preview.
 	for i := range layer.Elements {
 		if err := r.cancelled(); err != nil {
 			return err
@@ -482,22 +487,15 @@ func (r *renderer) layer(layer *Layer, index, count int, sc *scope) error {
 		b := &layer.Elements[i]
 		x, y := deref(b.X, r.bodyLeft()), deref(b.Y, r.bodyTop())
 		w := deref(b.W, r.bodyWidth())
-		var drawn Box
 		if positioned[b.Type] {
-			drawn = r.positioned(b, sc, x, y, w)
-		} else {
-			items, err := r.flow([]Block{*b}, sc, w, false)
-			if err != nil {
-				return err
-			}
-			h := stackHeight(items)
-			r.stack(items, x, y, w)
-			drawn = Box{X: x, Y: y, W: w, H: h}
+			r.positioned(b, sc, x, y, w)
+			continue
 		}
-		union = unionBox(union, drawn)
-	}
-	if union != nil {
-		r.box(layer.ID, union.X, union.Y, union.W, union.H)
+		items, err := r.flow([]Block{*b}, sc, w, false)
+		if err != nil {
+			return err
+		}
+		r.stack(items, x, y, w)
 	}
 	return nil
 }
@@ -547,6 +545,36 @@ func round2(v float64) float64 {
 		return -round2(-v)
 	}
 	return float64(int64(v*100+0.5)) / 100
+}
+
+// inactive lists the nodes without a box, in document order.
+func (r *renderer) inactive() []string {
+	drawn := map[string]bool{}
+	for _, b := range r.boxOrder {
+		drawn[b.NodeID] = true
+	}
+	out := []string{}
+	var visit func(blocks []Block)
+	visit = func(blocks []Block) {
+		for i := range blocks {
+			b := &blocks[i]
+			if b.Type != BlockPageBreak && !drawn[b.ID] {
+				out = append(out, b.ID)
+			}
+			for _, children := range b.children() {
+				visit(children)
+			}
+		}
+	}
+	for _, layer := range r.doc.Layers {
+		if !layer.Hidden {
+			visit(layer.Elements)
+		}
+	}
+	visit(r.doc.Header)
+	visit(r.doc.Body)
+	visit(r.doc.Footer)
+	return out
 }
 
 func (r *renderer) redactedList() []string {

@@ -36,4 +36,10 @@ export interface PdfTemplatePreview {
      * @items.maxLength 200
      */
   redacted: string[];
+  /**
+     * Ids of the nodes that drew nothing with this data (a branch not taken, a loop without entries, a layer whose pages the document lacks, a text that came out empty), in document order; the editor marks them "not shown with this data". Page breaks and the elements of hidden layers are not listed.
+     * @maxItems 1000
+     * @items.maxLength 40
+     */
+  inactive: string[];
 }

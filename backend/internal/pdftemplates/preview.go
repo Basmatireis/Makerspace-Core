@@ -34,6 +34,8 @@ type Preview struct {
 	Boxes    []engine.Box
 	Problems []engine.Problem
 	Redacted []string
+	// Inactive are the nodes that drew nothing with this data (engine.Result.Inactive).
+	Inactive []string
 }
 
 // Preview renders a possibly unsaved document. With a real record it additionally needs the permissions of the
@@ -74,7 +76,12 @@ func (s *Service) Preview(
 		return Preview{}, err
 	}
 	return Preview{
-		PDF: result.PDF, Pages: result.Pages, Boxes: result.Boxes, Problems: result.Problems, Redacted: result.Redacted,
+		PDF:      result.PDF,
+		Pages:    result.Pages,
+		Boxes:    result.Boxes,
+		Problems: result.Problems,
+		Redacted: result.Redacted,
+		Inactive: result.Inactive,
 	}, nil
 }
 

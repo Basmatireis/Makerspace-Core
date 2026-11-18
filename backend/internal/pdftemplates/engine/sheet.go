@@ -115,9 +115,11 @@ func (p *paginator) sheet(it item) error {
 		sheetScope := sc.with(map[string]any{"sheet": map[string]any{
 			"number": number, "carry": carry, "sumIn": sumIn, "sumOut": sumOut, "balance": balance,
 		}})
-		drawn := r.sheetPage(b, g, sheetScope, canonical, chunk, start)
+		drawn, left := r.sheetPage(b, g, sheetScope, canonical, chunk, start)
+		// The blocks the sheet came from (a condition around it) get its box as well.
+		drawn.owners = it.owners
 		page := p.current()
-		page.items = append(page.items, placed{it: drawn, y: g.top})
+		page.items = append(page.items, placed{it: drawn, x: left, y: g.top, w: drawn.w})
 		page.used = true
 		p.y = g.top + drawn.h + blockAfter
 		carry, start = balance, end
@@ -158,7 +160,14 @@ func firstPath(text string) string {
 }
 
 // sheetPage builds the drawing of one sheet at its fixed page position; the item records its own box.
-func (r *renderer) sheetPage(b *Block, g sheetGeometry, sc *scope, canonical string, chunk []any, offset int) item {
+func (r *renderer) sheetPage(
+	b *Block,
+	g sheetGeometry,
+	sc *scope,
+	canonical string,
+	chunk []any,
+	offset int,
+) (item, float64) {
 	st := r.sheetStyles(b)
 	cols := b.Columns
 	n := len(cols)
@@ -247,7 +256,7 @@ func (r *renderer) sheetPage(b *Block, g sheetGeometry, sc *scope, canonical str
 		}
 		r.box(b.ID, left, g.top, right-left, height)
 	}
-	return item{h: height, draw: draw}
+	return item{h: height, w: right - left, draw: draw}, left
 }
 
 // sheetLines writes lines centred on the height of capitals: from the top of the first line's capitals to the

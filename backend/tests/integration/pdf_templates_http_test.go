@@ -429,6 +429,15 @@ func TestPDFTemplatesNeedThePermissionAndRealRecordsNeedTheExportPermission(t *t
 		t.Fatalf("sample preview = %d bytes, %d pages, %d boxes, redacted %v",
 			len(preview.Pdf), len(preview.Pages), len(preview.Boxes), preview.Redacted)
 	}
+	// Pages of boxes count from 1, as the editor numbers them; the receipt of a whole order has no payment note.
+	for _, box := range preview.Boxes {
+		if box.Page < 1 || box.Page > len(preview.Pages) {
+			t.Fatalf("box %+v is on page %d of %d", box, box.Page, len(preview.Pages))
+		}
+	}
+	if preview.Inactive == nil {
+		t.Fatal("inactive is missing")
+	}
 	for kind, source := range map[string]string{"wiref": ids.New().String(), "cashbook": "2026-10", "receipt": ids.New().String()} {
 		manager.expectError(http.MethodPost, "/pdf-templates/"+kind+"/preview",
 			map[string]any{"document": h.master.builtinDocument(kind), "source": map[string]any{"kind": "record", "id": source}},

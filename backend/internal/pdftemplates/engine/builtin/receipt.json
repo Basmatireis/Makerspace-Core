@@ -178,7 +178,7 @@
   {
    "id": "brand",
    "type": "columns",
-   "title": "Brand mark",
+   "title": "Logo and names",
    "gap": 3.5,
    "columns": [
     {
@@ -198,6 +198,7 @@
       {
        "id": "brand-space",
        "type": "spacer",
+       "title": "Space above the name",
        "height": 1
       },
       {
@@ -218,7 +219,7 @@
   {
    "id": "title-row",
    "type": "columns",
-   "title": "Title and customer",
+   "title": "Title, date and customer",
    "gap": 8,
    "columns": [
     {
@@ -272,7 +273,7 @@
   {
    "id": "single-payment",
    "type": "if",
-   "title": "Receipt of one payment",
+   "title": "Receipt of one payment, when it is one",
    "when": {
     "path": "payment.reference",
     "op": "exists"
@@ -291,12 +292,13 @@
   {
    "id": "items-space",
    "type": "spacer",
+   "title": "Space before the items",
    "height": "$s:gapM"
   },
   {
    "id": "items",
    "type": "table",
-   "title": "Order items",
+   "title": "Items and totals",
    "source": "items",
    "as": "item",
    "repeatHeader": true,
@@ -356,9 +358,9 @@
    ]
   },
   {
-   "id": "payments-shown",
+   "id": "payments-section",
    "type": "if",
-   "title": "Payments, if any",
+   "title": "Payments, when there are any",
    "when": {
     "path": "payments",
     "op": "exists"
@@ -367,6 +369,7 @@
     {
      "id": "payments-space",
      "type": "spacer",
+     "title": "Space before the payments",
      "height": "$s:gapS"
     },
     {
@@ -379,7 +382,7 @@
     {
      "id": "payments",
      "type": "table",
-     "title": "Payment list",
+     "title": "Payments",
      "source": "payments",
      "as": "payment",
      "repeatHeader": true,
@@ -423,6 +426,7 @@
   {
    "id": "note-space",
    "type": "spacer",
+   "title": "Space before the note",
    "height": "$s:gapL"
   },
   {
@@ -446,7 +450,7 @@
       {
        "id": "footer-reference",
        "type": "text",
-       "title": "Makerspace",
+       "title": "Makerspace name and address",
        "text": "{{makerspace.name}}{{makerspace.address | prefix(\" · \")}}",
        "textStyle": "footer"
       }

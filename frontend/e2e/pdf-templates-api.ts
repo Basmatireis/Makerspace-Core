@@ -292,6 +292,7 @@ export async function installPdfTemplatesApi(page: Page, world: World) {
         boxes: boxesOf(document),
         problems: [],
         redacted: [],
+        inactive: [],
       });
     }
     if (path === '/pdf-templates/assets' && method === 'POST')

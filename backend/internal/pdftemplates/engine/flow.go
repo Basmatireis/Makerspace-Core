@@ -207,6 +207,8 @@ func (r *renderer) blockItems(b *Block, sc *scope, width float64, body bool) ([]
 			return nil, err
 		}
 		return []item{it}, nil
+	case BlockGrid:
+		return []item{r.gridItem(b, sc)}, nil
 	case BlockBox:
 		it, err := r.boxItem(b, sc, width)
 		if err != nil {
@@ -589,8 +591,12 @@ func (r *renderer) boxItem(b *Block, sc *scope, width float64) (item, error) {
 func (r *renderer) logoItem(b *Block) []item {
 	h := r.mm(b.Height, 12)
 	logo := r.logo()
-	if logo.failed != "" || h <= 0 {
+	if h <= 0 {
 		return nil
+	}
+	if logo.failed != "" {
+		// Without a logo the block keeps a square of its height, so it stays visible and selectable in the editor.
+		return []item{{id: b.ID, h: h, w: h, natural: h}}
 	}
 	w := h * logo.width / logo.height
 	return []item{{
@@ -706,8 +712,8 @@ func (r *renderer) shape(b *Block, sc *scope, x, y, w, h float64) {
 		}
 		r.drawImage(loaded, x, y, w, h)
 	case BlockGraphic:
-		if b.Art == ArtLetterhead {
-			r.drawLetterhead(x, y, w, h)
+		if builtinArt(b.Art) {
+			r.drawBuiltinArt(b.Art, x, y, w, h)
 			return
 		}
 		loaded := r.asset(strings.TrimPrefix(b.Art, artAssetPrefix))
@@ -733,8 +739,8 @@ func (r *renderer) placeholder(id string, loaded *loadedAsset, x, y, w, h float6
 	r.rect(x, y, w, h, 0.2, mustHex("#8d8d8d"), mustHex("#e0e0e0"))
 }
 
-// positioned draws a layer element at its own position and returns its box.
-func (r *renderer) positioned(b *Block, sc *scope, x, y, w float64) Box {
+// positioned draws a layer element at its own position and records its box.
+func (r *renderer) positioned(b *Block, sc *scope, x, y, w float64) {
 	h := deref(b.H, 0)
 	switch b.Type {
 	case BlockPText:
@@ -743,10 +749,12 @@ func (r *renderer) positioned(b *Block, sc *scope, x, y, w float64) Box {
 		h = t.height()
 		r.drawLines(t, x, y, w)
 	case BlockLine:
-		r.line(x, y, x+w, y+h, r.mm(b.Stroke, defaultStroke), r.color(b.Color, mustHex(defaultInk)))
+		stroke := r.mm(b.Stroke, defaultStroke)
+		r.line(x, y, x+w, y+h, stroke, r.color(b.Color, mustHex(defaultInk)))
+		// The box of a line is at least as thick as its stroke, so a horizontal or vertical line can be picked.
+		w, h = max(w, stroke), max(h, stroke)
 	default:
 		r.shape(b, sc, x, y, w, h)
 	}
 	r.box(b.ID, x, y, w, h)
-	return Box{X: x, Y: y, W: w, H: h}
 }

@@ -92,7 +92,7 @@ func TestDecodeRejectsStructuralErrors(t *testing.T) {
 			findBlock(doc, "items")["columns"].([]any)[0].(map[string]any)["width"] = 0
 		},
 		"bad condition op": func(doc map[string]any) {
-			findBlock(doc, "contact-shown")["when"] = map[string]any{"path": "show.approver", "op": "like"}
+			findBlock(doc, "payments-section")["when"] = map[string]any{"path": "show.approver", "op": "like"}
 		},
 		"layer element without position": func(doc map[string]any) {
 			doc["layers"] = []any{map[string]any{"id": "l", "type": "layer", "pages": "all", "elements": []any{

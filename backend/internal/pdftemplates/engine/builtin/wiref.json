@@ -199,7 +199,7 @@
   {
    "id": "brand",
    "type": "columns",
-   "title": "Brand mark",
+   "title": "Logo and names",
    "gap": 3.5,
    "columns": [
     {
@@ -219,6 +219,7 @@
       {
        "id": "brand-space",
        "type": "spacer",
+       "title": "Space above the name",
        "height": 1
       },
       {
@@ -239,7 +240,7 @@
   {
    "id": "title",
    "type": "heading",
-   "title": "Document title",
+   "title": "Title",
    "text": "{{texts.title}}",
    "textStyle": "title"
   },
@@ -251,14 +252,15 @@
    "textStyle": "body"
   },
   {
-   "id": "intro-space",
+   "id": "details-space",
    "type": "spacer",
+   "title": "Space before the details",
    "height": "$s:gapXS"
   },
   {
-   "id": "recipient",
+   "id": "details",
    "type": "fields",
-   "title": "Recipient",
+   "title": "Recipient and request",
    "labelWidth": "$s:label",
    "labelStyle": "label",
    "valueStyle": "value",
@@ -278,104 +280,23 @@
       "path": "recipient.addressLines",
       "op": "exists"
      }
-    }
-   ]
-  },
-  {
-   "id": "contact-shown",
-   "type": "if",
-   "title": "Contact person, when shown",
-   "when": {
-    "path": "show.contactPerson",
-    "op": "exists"
-   },
-   "then": [
+    },
     {
-     "id": "contact-named",
-     "type": "if",
-     "title": "With a name",
+     "label": "Contact person",
+     "value": "{{recipient.contactName}}{{recipient.contactChannel | prefix(\" (\") | suffix(\")\")}}",
      "when": {
       "path": "recipient.contactName",
       "op": "exists"
-     },
-     "then": [
-      {
-       "id": "contact",
-       "type": "fields",
-       "title": "Contact person",
-       "labelWidth": "$s:label",
-       "labelStyle": "label",
-       "valueStyle": "value",
-       "rows": [
-        {
-         "label": "Contact person",
-         "value": "{{recipient.contactName}}{{recipient.contactChannel | prefix(\" (\") | suffix(\")\")}}"
-        }
-       ]
-      }
-     ],
-     "else": [
-      {
-       "id": "contact-channel",
-       "type": "fields",
-       "title": "Contact channel only",
-       "labelWidth": "$s:label",
-       "labelStyle": "label",
-       "valueStyle": "value",
-       "rows": [
-        {
-         "label": "Contact person",
-         "value": "{{recipient.contactChannel}}",
-         "when": {
-          "path": "recipient.contactChannel",
-          "op": "exists"
-         }
-        }
-       ]
-      }
-     ]
-    }
-   ],
-   "else": []
-  },
-  {
-   "id": "purchase-order-shown",
-   "type": "if",
-   "title": "Purchase order, when shown",
-   "when": {
-    "path": "show.purchaseOrder",
-    "op": "exists"
-   },
-   "then": [
+     }
+    },
     {
-     "id": "purchase-order",
-     "type": "fields",
-     "title": "Purchase order",
-     "labelWidth": "$s:label",
-     "labelStyle": "label",
-     "valueStyle": "value",
-     "rows": [
-      {
-       "label": "Purchase order reference",
-       "value": "{{recipient.purchaseOrderReference}}",
-       "when": {
-        "path": "recipient.purchaseOrderReference",
-        "op": "exists"
-       }
-      }
-     ]
-    }
-   ],
-   "else": []
-  },
-  {
-   "id": "request",
-   "type": "fields",
-   "title": "Request and order",
-   "labelWidth": "$s:label",
-   "labelStyle": "label",
-   "valueStyle": "value",
-   "rows": [
+     "label": "Purchase order reference",
+     "value": "{{recipient.purchaseOrderReference}}",
+     "when": {
+      "path": "recipient.purchaseOrderReference",
+      "op": "exists"
+     }
+    },
     {
      "label": "Invoice request",
      "value": "{{request.number}}",
@@ -391,105 +312,35 @@
       "path": "request.orderNumber",
       "op": "exists"
      }
+    },
+    {
+     "label": "Service period",
+     "value": "{{request.servicePeriod.from | date}}{{request.servicePeriod.to | date | prefix(\" to \")}}",
+     "when": {
+      "path": "request.servicePeriod.from",
+      "op": "exists"
+     }
+    },
+    {
+     "label": "Service",
+     "value": "{{request.serviceDescription}}",
+     "when": {
+      "path": "request.serviceDescription",
+      "op": "exists"
+     }
     }
    ]
   },
   {
-   "id": "service-period-shown",
-   "type": "if",
-   "title": "Service period, when shown",
-   "when": {
-    "path": "show.servicePeriod",
-    "op": "exists"
-   },
-   "then": [
-    {
-     "id": "service-period-start",
-     "type": "if",
-     "title": "With a first day",
-     "when": {
-      "path": "request.servicePeriod.from",
-      "op": "exists"
-     },
-     "then": [
-      {
-       "id": "service-period",
-       "type": "fields",
-       "title": "Service period",
-       "labelWidth": "$s:label",
-       "labelStyle": "label",
-       "valueStyle": "value",
-       "rows": [
-        {
-         "label": "Service period",
-         "value": "{{request.servicePeriod.from | date}}{{request.servicePeriod.to | date | prefix(\" to \")}}"
-        }
-       ]
-      }
-     ],
-     "else": [
-      {
-       "id": "service-period-end",
-       "type": "fields",
-       "title": "Last day only",
-       "labelWidth": "$s:label",
-       "labelStyle": "label",
-       "valueStyle": "value",
-       "rows": [
-        {
-         "label": "Service period",
-         "value": "{{request.servicePeriod.to | date}}",
-         "when": {
-          "path": "request.servicePeriod.to",
-          "op": "exists"
-         }
-        }
-       ]
-      }
-     ]
-    }
-   ],
-   "else": []
-  },
-  {
-   "id": "service-shown",
-   "type": "if",
-   "title": "Service description, when shown",
-   "when": {
-    "path": "show.serviceDescription",
-    "op": "exists"
-   },
-   "then": [
-    {
-     "id": "service",
-     "type": "fields",
-     "title": "Service",
-     "labelWidth": "$s:label",
-     "labelStyle": "label",
-     "valueStyle": "value",
-     "rows": [
-      {
-       "label": "Service",
-       "value": "{{request.serviceDescription}}",
-       "when": {
-        "path": "request.serviceDescription",
-        "op": "exists"
-       }
-      }
-     ]
-    }
-   ],
-   "else": []
-  },
-  {
    "id": "items-space",
    "type": "spacer",
+   "title": "Space before the items",
    "height": "$s:gapM"
   },
   {
    "id": "items",
    "type": "table",
-   "title": "Invoiced items",
+   "title": "Items and totals",
    "source": "items",
    "as": "item",
    "repeatHeader": true,
@@ -553,9 +404,9 @@
    ]
   },
   {
-   "id": "payments-shown",
+   "id": "payments-section",
    "type": "if",
-   "title": "Payments, if any",
+   "title": "Payments, when there are any",
    "when": {
     "path": "payments",
     "op": "exists"
@@ -564,6 +415,7 @@
     {
      "id": "payments-space",
      "type": "spacer",
+     "title": "Space before the payments",
      "height": "$s:gapS"
     },
     {
@@ -576,7 +428,7 @@
     {
      "id": "payments",
      "type": "table",
-     "title": "Payment list",
+     "title": "Payments",
      "source": "payments",
      "as": "payment",
      "repeatHeader": true,
@@ -620,46 +472,25 @@
   {
    "id": "approval-space",
    "type": "spacer",
+   "title": "Space before the approval",
    "height": "$s:gapL"
-  },
-  {
-   "id": "approver-shown",
-   "type": "if",
-   "title": "Approver, when shown",
-   "when": {
-    "path": "show.approver",
-    "op": "exists"
-   },
-   "then": [
-    {
-     "id": "approver",
-     "type": "fields",
-     "title": "Approver",
-     "labelWidth": "$s:label",
-     "labelStyle": "label",
-     "valueStyle": "value",
-     "rows": [
-      {
-       "label": "Approved by",
-       "value": "{{request.approver}}",
-       "when": {
-        "path": "request.approver",
-        "op": "exists"
-       }
-      }
-     ]
-    }
-   ],
-   "else": []
   },
   {
    "id": "approval",
    "type": "fields",
-   "title": "Approval date",
+   "title": "Approval",
    "labelWidth": "$s:label",
    "labelStyle": "label",
    "valueStyle": "value",
    "rows": [
+    {
+     "label": "Approved by",
+     "value": "{{request.approver}}",
+     "when": {
+      "path": "request.approver",
+      "op": "exists"
+     }
+    },
     {
      "label": "Approved on",
      "value": "{{request.approvedAt | date}}",
@@ -673,12 +504,13 @@
   {
    "id": "closing-space",
    "type": "spacer",
+   "title": "Space before the closing text",
    "height": "$s:gapS"
   },
   {
    "id": "closing",
    "type": "text",
-   "title": "Closing",
+   "title": "Closing text",
    "text": "{{texts.closing}}",
    "textStyle": "body"
   }
@@ -696,7 +528,7 @@
       {
        "id": "footer-reference",
        "type": "text",
-       "title": "Reference",
+       "title": "Request number",
        "text": "{{request.number}}",
        "textStyle": "small"
       }

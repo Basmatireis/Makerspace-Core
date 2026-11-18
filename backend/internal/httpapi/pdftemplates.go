@@ -337,16 +337,21 @@ func (s *Server) PreviewPdfTemplate(
 		Boxes:    make([]openapi.PdfTemplateBox, 0, len(preview.Boxes)),
 		Problems: problemDTOs(preview.Problems),
 		Redacted: preview.Redacted,
+		Inactive: preview.Inactive,
 	}
 	if body.Redacted == nil {
 		body.Redacted = []string{}
+	}
+	if body.Inactive == nil {
+		body.Inactive = []string{}
 	}
 	for _, page := range preview.Pages {
 		body.Pages = append(body.Pages, openapi.PdfTemplatePage{Width: float32(page.Width), Height: float32(page.Height)})
 	}
 	for _, box := range preview.Boxes {
 		body.Boxes = append(body.Boxes, openapi.PdfTemplateBox{
-			NodeId: box.NodeID, Page: box.Page, X: float32(box.X), Y: float32(box.Y), W: float32(box.W), H: float32(box.H),
+			// The engine counts pages from 0; the contract (and the editor) from 1.
+			NodeId: box.NodeID, Page: box.Page + 1, X: float32(box.X), Y: float32(box.Y), W: float32(box.W), H: float32(box.H),
 		})
 	}
 	return openapi.PreviewPdfTemplate200JSONResponse{

@@ -151,10 +151,18 @@ const (
 	BlockLine       = "line"
 	BlockRect       = "rect"
 	BlockEllipse    = "ellipse"
+	BlockGrid       = "grid"
 )
 
-// ArtLetterhead is the built-in HTU letterhead artwork of the Kassabuch form.
-const ArtLetterhead = "htu-letterhead"
+// Built-in artwork of the HTU Kassabuch letterhead. ArtLetterhead is the whole letterhead on an A4 page (kept for
+// stored templates); the other arts are its parts, each sized to its own outline.
+const (
+	ArtLetterhead   = "htu-letterhead"
+	ArtLogo         = "htu-logo"
+	ArtCornerTop    = "htu-corner-top"
+	ArtCornerBottom = "htu-corner-bottom"
+	ArtFooter       = "htu-footer"
+)
 
 // artAssetPrefix starts a graphic that draws an uploaded SVG asset.
 const artAssetPrefix = "asset:"
@@ -244,14 +252,33 @@ type Block struct {
 	LineColor Color    `json:"lineColor,omitempty"`
 	BoxColor  Color    `json:"boxColor,omitempty"`
 	LineWidth *float64 `json:"lineWidth,omitempty"`
+
+	// ColWidths are the column widths of a grid in millimetres; its rows are Rows with Height and Cells.
+	ColWidths []float64 `json:"colWidths,omitempty"`
 }
 
-// FieldRow is a row of a fields block or a totals row of a table.
+// FieldRow is a row of a fields block, a totals row of a table (label, value, bold, when) or a row of a grid
+// (height and cells). Decode admits only the properties of the block the row belongs to.
 type FieldRow struct {
-	Label string     `json:"label"`
-	Value string     `json:"value"`
-	Bold  bool       `json:"bold,omitempty"`
-	When  *Condition `json:"when,omitempty"`
+	Label  string     `json:"label,omitempty"`
+	Value  string     `json:"value,omitempty"`
+	Bold   bool       `json:"bold,omitempty"`
+	When   *Condition `json:"when,omitempty"`
+	Height *Length    `json:"height,omitempty"`
+	Cells  []GridCell `json:"cells,omitempty"`
+}
+
+// GridCell is one cell of a grid row; it covers Span columns (1 when unset).
+type GridCell struct {
+	Text      string  `json:"text,omitempty"`
+	Align     string  `json:"align,omitempty"`
+	VAlign    string  `json:"valign,omitempty"`
+	TextStyle string  `json:"textStyle,omitempty"`
+	Size      *Length `json:"size,omitempty"`
+	Weight    int     `json:"weight,omitempty"`
+	Color     Color   `json:"color,omitempty"`
+	Fill      Color   `json:"fill,omitempty"`
+	Span      int     `json:"span,omitempty"`
 }
 
 // Column is a column of a table (width share), of a form table (x and w on the page) or of a columns block
@@ -399,6 +426,27 @@ func normalize(doc *Document) {
 			doc.Layers[i].Elements = []Block{}
 		}
 	}
+}
+
+// children are the nested block lists of a block.
+func (b *Block) children() [][]Block {
+	var out [][]Block
+	switch b.Type {
+	case BlockRepeat, BlockBox:
+		out = append(out, b.Blocks)
+	case BlockIf:
+		out = append(out, b.Then, b.Else)
+	case BlockSwitch:
+		for _, c := range b.Cases {
+			out = append(out, c.Blocks)
+		}
+		out = append(out, b.Else)
+	case BlockColumns:
+		for _, c := range b.Columns {
+			out = append(out, c.Blocks)
+		}
+	}
+	return out
 }
 
 // Regions of a document, as Check reports them.

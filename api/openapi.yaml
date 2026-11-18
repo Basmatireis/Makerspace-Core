@@ -25612,13 +25612,18 @@ components:
     PdfTemplatePreview:
       type: object
       additionalProperties: false
-      required: [pdf, pages, boxes, problems, redacted]
+      required: [pdf, pages, boxes, problems, redacted, inactive]
       properties:
         pdf: {type: string, format: byte, description: Base64 PDF.}
         pages: {type: array, maxItems: 300, items: {$ref: "#/components/schemas/PdfTemplatePage"}}
         boxes: {type: array, maxItems: 20000, items: {$ref: "#/components/schemas/PdfTemplateBox"}}
         problems: {type: array, maxItems: 1000, items: {$ref: "#/components/schemas/PdfTemplateProblem"}}
         redacted: {type: array, maxItems: 200, items: {type: string, maxLength: 200}}
+        inactive:
+          type: array
+          maxItems: 1000
+          description: Ids of the nodes that drew nothing with this data (a branch not taken, a loop without entries, a layer whose pages the document lacks, a text that came out empty), in document order; the editor marks them "not shown with this data". Page breaks and the elements of hidden layers are not listed.
+          items: {type: string, maxLength: 40}
     PdfTemplateAsset:
       type: object
       additionalProperties: false

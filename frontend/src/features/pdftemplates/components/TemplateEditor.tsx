@@ -88,9 +88,9 @@ export function TemplateEditor({
   const problems = useMemo(() => preview.data?.problems ?? [], [preview.data]);
   const errors = problems.filter((p) => p.severity === 'error');
   const warnings = problems.length - errors.length;
-  // Nodes the data does not reach have no box. (`inactive` comes with the preview of the engine that reports it.)
+  // Nodes the data does not reach have no box; the engine lists them in `inactive`.
   const inactive = useMemo(
-    () => new Set((preview.data as { inactive?: string[] } | undefined)?.inactive ?? []),
+    () => new Set(preview.data?.inactive ?? []),
     [preview.data],
   );
   const errorIds = useMemo(() => new Set(errors.map((p) => p.nodeId)), [errors]);

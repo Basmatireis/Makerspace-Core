@@ -41,6 +41,8 @@ const (
 const (
 	maxFlowColumns   = 4
 	maxTableColumns  = 20
+	maxGridColumns   = 20
+	maxGridRows      = 100
 	minSheetColumns  = 3
 	maxSheetColumns  = 20
 	maxFieldRows     = 100
@@ -192,6 +194,8 @@ const (
 	pSum
 	pAsset
 	pArt
+	pGridColumns
+	pGridRows
 )
 
 type prop struct {
@@ -291,6 +295,10 @@ var blockProps = map[string]map[string]prop{
 	BlockLine:      {"stroke": strokeWidth(), "color": simple(pColor)},
 	BlockRect:      {"stroke": strokeWidth(), "color": simple(pColor), "fill": simple(pColor)},
 	BlockEllipse:   {"stroke": strokeWidth(), "color": simple(pColor), "fill": simple(pColor)},
+	BlockGrid: {
+		"colWidths": required(simple(pGridColumns)), "rows": required(simple(pGridRows)), "stroke": strokeWidth(),
+		"color": simple(pColor), "padding": length(0, maxGapOrPadding),
+	},
 }
 
 // sizedBlocks have a width and a height of their own.
@@ -593,7 +601,9 @@ func (v *validator) block(path string, value any, depth int, inLayer bool) {
 			v.value(join(path, key), raw, extent())
 			continue
 		}
-		needed := (key == "w" && inLayer) || (sizedBlocks[typ] && (key == "w" || key == "h") && typ != BlockLine)
+		// A grid takes its width from its columns.
+		needed := (key == "w" && inLayer && typ != BlockGrid) ||
+			(sizedBlocks[typ] && (key == "w" || key == "h") && typ != BlockLine)
 		if needed {
 			v.fail(join(path, key), "Required")
 		}
@@ -604,6 +614,87 @@ func (v *validator) block(path string, value any, depth int, inLayer bool) {
 			continue
 		}
 		v.property(join(path, key), raw, p, depth, typ)
+	}
+	if typ == BlockGrid {
+		if rows, ok := m["rows"]; ok {
+			columns, _ := m["colWidths"].([]any)
+			v.gridRows(join(path, "rows"), rows, len(columns))
+		}
+	}
+}
+
+func (v *validator) gridColumns(path string, raw any) {
+	list, ok := v.array(path, raw)
+	if !ok {
+		return
+	}
+	if len(list) < 1 || len(list) > maxGridColumns {
+		v.fail(path, "Between 1 and %d columns are required", maxGridColumns)
+	}
+	for i, entry := range list {
+		v.value(index(path, i), entry, num(0, maxExtent))
+		if n, ok := number(entry); ok && n <= 0 {
+			v.fail(index(path, i), "A column needs a width above 0")
+		}
+	}
+}
+
+// gridRows checks the rows of a grid: each row has a minimum height and at most as many cells as the grid has
+// columns, counting spans.
+func (v *validator) gridRows(path string, raw any, columns int) {
+	list, ok := v.array(path, raw)
+	if !ok {
+		return
+	}
+	if len(list) < 1 || len(list) > maxGridRows {
+		v.fail(path, "Between 1 and %d rows are required", maxGridRows)
+	}
+	rowShape := map[string]prop{"height": required(length(0, maxExtent)), "cells": {}}
+	cellShape := map[string]prop{
+		"text": simple(pExpr), "align": alignment(), "valign": enum("top", "middle", "bottom"),
+		"textStyle": simple(pStyleRef), "size": textSize(), "weight": weights(), "color": simple(pColor),
+		"fill": simple(pColor), "span": integer(1, maxGridColumns),
+	}
+	for i, entry := range list {
+		rowPath := index(path, i)
+		row, ok := v.object(rowPath, entry)
+		if !ok {
+			continue
+		}
+		v.keys(rowPath, row, rowShape)
+		if height, ok := row["height"]; ok {
+			v.value(join(rowPath, "height"), height, rowShape["height"])
+		}
+		cells, ok := row["cells"]
+		if !ok {
+			continue
+		}
+		cellList, ok := v.array(join(rowPath, "cells"), cells)
+		if !ok {
+			continue
+		}
+		used := 0
+		for c, cellRaw := range cellList {
+			cellPath := index(join(rowPath, "cells"), c)
+			cell, ok := v.object(cellPath, cellRaw)
+			if !ok {
+				continue
+			}
+			v.keys(cellPath, cell, cellShape)
+			for key, p := range cellShape {
+				if value, ok := cell[key]; ok {
+					v.value(join(cellPath, key), value, p)
+				}
+			}
+			span := 1
+			if n, ok := number(cell["span"]); ok && n >= 1 {
+				span = int(n)
+			}
+			used += span
+		}
+		if used > columns {
+			v.fail(join(rowPath, "cells"), "The cells of a row span more columns than the grid has")
+		}
 	}
 }
 
@@ -616,6 +707,10 @@ func (v *validator) property(path string, raw any, p prop, depth int, blockType 
 		v.condition(path, raw)
 	case pFieldRows:
 		v.fieldRows(path, raw, blockType)
+	case pGridColumns:
+		v.gridColumns(path, raw)
+	case pGridRows:
+		// Checked by gridRows, which needs the number of columns.
 	case pTableColumns, pSheetColumns, pFlowColumns:
 		v.columns(path, raw, p.kind, depth)
 	case pCases:
@@ -844,8 +939,8 @@ func (v *validator) value(path string, raw any, p prop) {
 	case pArt:
 		text, ok := raw.(string)
 		id, isAsset := strings.CutPrefix(text, artAssetPrefix)
-		if !ok || (text != ArtLetterhead && (!isAsset || !canonicalUUID(id))) {
-			v.fail(path, "Expected %s or asset:<id>", ArtLetterhead)
+		if !ok || (!builtinArt(text) && (!isAsset || !canonicalUUID(id))) {
+			v.fail(path, "Expected a built-in artwork such as %s or asset:<id>", ArtLogo)
 		}
 	case pBool:
 		if _, ok := raw.(bool); !ok {

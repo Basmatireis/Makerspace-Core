@@ -3,7 +3,6 @@ package engine
 import (
 	"bytes"
 	"context"
-	_ "embed"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -15,7 +14,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/go-pdf/fpdf"
@@ -318,88 +316,6 @@ func (r *renderer) drawArt(art vectorArt, x, y, w, h float64, fill rgb) {
 			}
 		}
 		r.pdf.DrawPath("F")
-	}
-}
-
-// htuLetterhead is the letterhead artwork of the HTU Kassabuch form (logo, triangles and footer text as outlines)
-// as filled paths in millimetres on A4: "#rrggbb" sets the colour, M/L/C/Z build a path, F fills it.
-//
-//go:embed htu_letterhead.txt
-var htuLetterheadSource string
-
-// letterheadSize is the extent of the letterhead artwork: the A4 page it was measured on.
-var letterheadSize = PageSize{Width: 210, Height: 297}
-
-type pathOp struct {
-	op     byte
-	values []float64
-	color  rgb
-}
-
-var letterheadOps = sync.OnceValues(func() ([]pathOp, error) { return parseLetterhead(htuLetterheadSource) })
-
-func parseLetterhead(source string) ([]pathOp, error) {
-	arity := map[byte]int{'M': 2, 'L': 2, 'C': 6, 'Z': 0, 'F': 0}
-	var ops []pathOp
-	for n, line := range strings.Split(strings.TrimSpace(source), "\n") {
-		if strings.HasPrefix(line, "#") {
-			color, ok := parseHex(line)
-			if !ok {
-				return nil, fmt.Errorf("letterhead line %d: bad colour", n+1)
-			}
-			ops = append(ops, pathOp{op: '#', color: color})
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) == 0 || len(fields[0]) != 1 {
-			return nil, fmt.Errorf("letterhead line %d: no operator", n+1)
-		}
-		op := fields[0][0]
-		want, ok := arity[op]
-		if !ok || len(fields)-1 != want {
-			return nil, fmt.Errorf("letterhead line %d: bad operator", n+1)
-		}
-		values := make([]float64, want)
-		for i, field := range fields[1:] {
-			v, err := strconv.ParseFloat(field, 64)
-			if err != nil {
-				return nil, fmt.Errorf("letterhead line %d: %w", n+1, err)
-			}
-			values[i] = v
-		}
-		ops = append(ops, pathOp{op: op, values: values})
-	}
-	return ops, nil
-}
-
-// drawLetterhead paints the letterhead scaled from A4 into the box.
-func (r *renderer) drawLetterhead(x, y, w, h float64) {
-	ops, err := letterheadOps()
-	if err != nil {
-		return
-	}
-	scale := min(w/letterheadSize.Width, h/letterheadSize.Height)
-	if scale <= 0 {
-		return
-	}
-	px := func(v float64) float64 { return x + v*scale }
-	py := func(v float64) float64 { return y + v*scale }
-	for _, o := range ops {
-		v := o.values
-		switch o.op {
-		case '#':
-			r.pdf.SetFillColor(o.color.r, o.color.g, o.color.b)
-		case 'M':
-			r.pdf.MoveTo(px(v[0]), py(v[1]))
-		case 'L':
-			r.pdf.LineTo(px(v[0]), py(v[1]))
-		case 'C':
-			r.pdf.CurveBezierCubicTo(px(v[0]), py(v[1]), px(v[2]), py(v[3]), px(v[4]), py(v[5]))
-		case 'Z':
-			r.pdf.ClosePath()
-		case 'F':
-			r.pdf.DrawPath("F")
-		}
 	}
 }
 

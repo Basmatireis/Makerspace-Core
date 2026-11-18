@@ -10,6 +10,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -38,7 +39,9 @@ func TestBuiltinsRenderWithoutProblems(t *testing.T) {
 
 func TestWiRefDefaultShowsTheSettingsTexts(t *testing.T) {
 	data := SampleData(KindWiRef)
-	data["show"] = map[string]any{"contactPerson": "", "approver": "true"}
+	// The data builder blanks what the wiRef settings switch off (invoicing.Document.PDFData).
+	recipient := data["recipient"].(map[string]any)
+	recipient["contactName"], recipient["contactChannel"], recipient["purchaseOrderReference"] = "", "", ""
 	data["amounts"] = map[string]any{
 		"total": decimal.RequireFromString("145"), "alreadyPaid": decimal.RequireFromString("20"),
 		"toInvoice": decimal.RequireFromString("125"),
@@ -75,8 +78,8 @@ func TestCashbookDefaultRedactsOrderDataWithoutPermission(t *testing.T) {
 		t.Fatalf("with orders.read: %v", with.Redacted)
 	}
 	// 22 lines: a first sheet of 14 rows, a second sheet and the closing sheet.
-	if len(with.Pages) != 3 || len(pagesOf(with, "sheet-cash")) != 2 || fmt.Sprint(pagesOf(with, "closing-sheet")) != "[2]" {
-		t.Fatalf("pages %d, sheet %v, closing %v", len(with.Pages), pagesOf(with, "sheet-cash"), pagesOf(with, "closing-sheet"))
+	if len(with.Pages) != 3 || len(pagesOf(with, "sheets-cash-register")) != 2 || fmt.Sprint(pagesOf(with, "totals")) != "[2]" {
+		t.Fatalf("pages %d, sheet %v, totals %v", len(with.Pages), pagesOf(with, "sheets-cash-register"), pagesOf(with, "totals"))
 	}
 	texts := pageTexts(t, with.PDF)
 	// Carried balance of sheet two is the balance at the end of sheet one.
@@ -90,8 +93,11 @@ func TestCashbookDefaultWithAllPayments(t *testing.T) {
 	data["period"].(map[string]any)["contents"] = "alle Zahlungen"
 	data["totals"] = map[string]any{"in": decimal.RequireFromString("10"), "out": decimal.Zero}
 	res := render(t, RenderInput{Doc: Builtin(KindCashbook), Data: data})
-	if len(pagesOf(res, "sheet-all")) != 2 || len(pagesOf(res, "sheet-cash")) != 0 {
-		t.Fatalf("sheets %v %v", pagesOf(res, "sheet-all"), pagesOf(res, "sheet-cash"))
+	if len(pagesOf(res, "sheets-all-payments")) != 2 || len(pagesOf(res, "sheets-cash-register")) != 0 {
+		t.Fatalf("sheets %v %v", pagesOf(res, "sheets-all-payments"), pagesOf(res, "sheets-cash-register"))
+	}
+	if !slices.Contains(res.Inactive, "sheets-cash-register") || slices.Contains(res.Inactive, "sheets-all-payments") {
+		t.Fatalf("inactive %v", res.Inactive)
 	}
 	if first := pageTexts(t, res.PDF)[0]; !strings.Contains(first, "alleZahlungen") || !strings.Contains(first, "(Bar)") {
 		t.Fatalf("first page %q", first)
@@ -198,7 +204,15 @@ func TestLayersFollowTheirPageSelector(t *testing.T) {
 	}})
 	res := render(t, RenderInput{Doc: doc})
 	want := map[string]string{
-		"r-all": "[0 1 2]", "r-first": "[0]", "r-next": "[1 2]", "r-last": "[2]", "r-hidden": "[]", "layer-next": "[1 2]",
+		"r-all": "[0 1 2]", "r-first": "[0]", "r-next": "[1 2]", "r-last": "[2]", "r-hidden": "[]",
+	}
+	for _, layer := range doc.Layers {
+		if len(boxesOf(res, layer.ID)) > 0 {
+			t.Errorf("layer %s has a box of its own", layer.ID)
+		}
+	}
+	if slices.Contains(res.Inactive, "r-hidden") || slices.Contains(res.Inactive, "r-next") {
+		t.Errorf("inactive %v", res.Inactive)
 	}
 	for id, pages := range want {
 		if got := fmt.Sprint(pagesOf(res, id)); got != pages {
@@ -508,8 +522,12 @@ func TestColumnsWithContentWidth(t *testing.T) {
 		{Width: ptr(0.0), Blocks: []Block{{ID: "empty", Type: BlockImage}}},
 	}})
 	res := render(t, RenderInput{Doc: doc})
-	narrow, wide := boxesOf(res, "narrow")[0], boxesOf(res, "wide")[0]
-	if narrow.X != 20 || narrow.W > 10 || math.Abs(wide.X-(narrow.X+narrow.W+4)) > 0.01 || math.Abs(wide.X+wide.W-190) > 0.01 {
+	narrow, wide, logo := boxesOf(res, "narrow")[0], boxesOf(res, "wide")[0], boxesOf(res, "empty")
+	// Without a logo the image keeps a square of its height (12 mm).
+	if len(logo) != 1 || logo[0].W != 12 || logo[0].X != 178 {
+		t.Fatalf("logo %+v", logo)
+	}
+	if narrow.X != 20 || narrow.W > 10 || math.Abs(wide.X-(narrow.X+narrow.W+4)) > 0.01 || math.Abs(wide.X+wide.W-174) > 0.01 {
 		t.Fatalf("narrow %+v wide %+v", narrow, wide)
 	}
 }

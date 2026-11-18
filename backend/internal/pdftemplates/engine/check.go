@@ -202,6 +202,19 @@ func (c *checker) block(b *Block, sc *scope, flow bool, region string) {
 		}
 	case BlockBox:
 		c.blocks(b.Blocks, sc, false, region)
+	case BlockGrid:
+		for _, row := range b.Rows {
+			c.length(id, row.Height)
+			for _, cell := range row.Cells {
+				c.expr(id, cell.Text, sc, inBody)
+				if cell.TextStyle != "" && !c.texts[cell.TextStyle] {
+					c.out.error(id, fmt.Sprintf("Unknown text style “%s”", cell.TextStyle))
+				}
+				c.color(id, cell.Color)
+				c.color(id, cell.Fill)
+				c.length(id, cell.Size)
+			}
+		}
 	case BlockQR, BlockBarcode:
 		c.expr(id, b.Value, sc, inBody)
 	case BlockSignatures:
