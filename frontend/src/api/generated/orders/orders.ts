@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  GetOrderReceiptPdfParams,
   JobOrderAssociation,
   ListOrdersParams,
   Order,
@@ -144,6 +145,39 @@ return apiFetch<Order>(getUpdateOrderUrl(orderId),
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(updateOrderDraftInput)
+  }
+);}
+
+
+export const getGetOrderReceiptPdfUrl = (orderId: UUIDv7,
+    params?: GetOrderReceiptPdfParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/orders/${orderId}/receipt.pdf?${stringifiedParams}` : `/api/v1/orders/${orderId}/receipt.pdf`
+}
+
+/**
+ * Requires orders.read. Rendered with the effective receipt template (published, else built-in). Only finalized orders with a settled amount; 409 `receipt_not_available` otherwise. `paymentId` limits the receipt to one payment of the order.
+ * @summary Download the receipt of a finalized order as PDF
+ */
+export const getOrderReceiptPdf = async (orderId: UUIDv7,
+    params?: GetOrderReceiptPdfParams, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getGetOrderReceiptPdfUrl(orderId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 

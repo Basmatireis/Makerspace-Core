@@ -101,6 +101,7 @@ const (
 	MailManage                         Permission = Permission(openapi.MailManage)
 	BrandingManage                     Permission = Permission(openapi.BrandingManage)
 	InvoicingSettingsManage            Permission = Permission(openapi.InvoicingSettingsManage)
+	PDFTemplatesManage                 Permission = Permission(openapi.PdfTemplatesManage)
 	MachinesRead                       Permission = Permission(openapi.MachinesRead)
 	MachinesManage                     Permission = Permission(openapi.MachinesManage)
 	TrainingsManage                    Permission = Permission(openapi.TrainingsManage)
@@ -192,7 +193,7 @@ var registry = []Permission{
 	SurveysRead, SurveysManage,
 	LaborordnungRead, LaborordnungManage, LaborordnungConfirmationsRead,
 	VisitorEnrollmentManage, SupervisorDashboardRead,
-	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage, InvoicingSettingsManage,
+	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage, InvoicingSettingsManage, PDFTemplatesManage,
 	MachinesRead, MachinesManage,
 	TrainingsManage, TrainingRecordsReadSelf, TrainingRecordsReadAll, TrainingRecordsUpdate,
 	TrainingRecordsUpdateSelf,
@@ -303,6 +304,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	MailManage:                         "Configure transactional SMTP delivery and sender identity.",
 	BrandingManage:                     "Manage public organization identity, branding, and legal notices.",
 	InvoicingSettingsManage:            "Configure the delivery of approved invoice requests to wiRef: recipient, mail and PDF templates.",
+	PDFTemplatesManage:                 "Edit and publish PDF templates and manage their images.",
 	MachinesRead:                       "Read machine types, machines, and their operational metrics.",
 	MachinesManage:                     "Create and update machine types and machines.",
 	TrainingsManage:                    "Create, update and deactivate trainings and the competency categories they feed.",

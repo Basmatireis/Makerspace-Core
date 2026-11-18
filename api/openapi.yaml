@@ -67,6 +67,8 @@ tags:
     description: "Export the configuration of this makerspace as a versioned JSON file and import it section by section (docs/configuration-transfer.md)."
   - name: Privacy
     description: "The privacy registry: data categories declared by modules, retention and data-subject requests, and the installation's privacy settings (docs/privacy-and-retention.md)."
+  - name: PDF Templates
+    description: "Editable PDF documents (wiRef invoice request, Kassabuch, receipt): versions, assets and server-side preview (docs/pdf-templates.md)."
 
 paths:
   /health/live:
@@ -5445,6 +5447,243 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /pdf-templates:
+    get:
+      tags: [PDF Templates]
+      operationId: listPdfTemplates
+      summary: List the editable PDF documents with their published and draft versions
+      description: "Requires pdf_templates.manage. One entry per export; no version means the built-in default is in effect."
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: The three exports.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {type: array, maxItems: 8, items: {$ref: "#/components/schemas/PdfTemplateSummary"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/assets:
+    get:
+      tags: [PDF Templates]
+      operationId: listPdfTemplateAssets
+      summary: List the uploaded images and graphics
+      description: "Requires pdf_templates.manage. Metadata only."
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Uploaded assets, newest first.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {type: array, maxItems: 500, items: {$ref: "#/components/schemas/PdfTemplateAsset"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [PDF Templates]
+      operationId: uploadPdfTemplateAsset
+      summary: Upload a PNG, JPEG or SVG for use in templates
+      description: "Requires pdf_templates.manage. The content type is sniffed from the bytes, not taken from the request. At most 2 MiB; raster images at most 4000 x 4000 px. 413 when larger, 422 `pdf_template_asset_invalid` for an unsupported or unsafe file."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: fileName, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 200}}
+      requestBody:
+        required: true
+        description: PNG, JPEG or SVG bytes.
+        content: {application/octet-stream: {schema: {type: string, format: binary}}}
+      responses:
+        "201": {description: Stored asset., content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplateAsset"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/assets/{assetId}:
+    parameters:
+      - {name: assetId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [PDF Templates]
+      operationId: getPdfTemplateAsset
+      summary: Download an uploaded asset
+      description: "Requires pdf_templates.manage. The stored bytes with their sniffed content type."
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: The asset bytes.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}, Content-Security-Policy: {schema: {type: string}}}
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+            image/svg+xml: {schema: {type: string, format: binary}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [PDF Templates]
+      operationId: deletePdfTemplateAsset
+      summary: Delete an uploaded asset
+      description: "Requires pdf_templates.manage. 409 `pdf_template_asset_in_use` while the draft or the published version references it."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: The asset is deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+    get:
+      tags: [PDF Templates]
+      operationId: getPdfTemplate
+      summary: Read the draft and published template of an export with its built-in default and variable schema
+      description: "Requires pdf_templates.manage. The schema lists the variables and filters the template may use; examples come from sample data only."
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: The template state.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplateDetail"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}/versions:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+    get:
+      tags: [PDF Templates]
+      operationId: listPdfTemplateVersions
+      summary: List the versions of an export, newest first
+      description: "Requires pdf_templates.manage."
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Version metadata without documents.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {type: array, maxItems: 1000, items: {$ref: "#/components/schemas/PdfTemplateVersionMeta"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}/versions/{versionId}:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+      - {name: versionId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [PDF Templates]
+      operationId: getPdfTemplateVersion
+      summary: Read one version with its document
+      description: "Requires pdf_templates.manage."
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: The version.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplateVersion"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}/versions/{versionId}/restore:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+      - {name: versionId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [PDF Templates]
+      operationId: restorePdfTemplateVersion
+      summary: Copy an earlier version into the draft
+      description: "Requires pdf_templates.manage. Replaces the current draft, if any, with the document of the given version."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200":
+          description: The new draft.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplateVersion"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}/draft:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+    put:
+      tags: [PDF Templates]
+      operationId: savePdfTemplateDraft
+      summary: Create or replace the draft
+      description: "Requires pdf_templates.manage. Drafts may be saved with problems (returned in `problems`); a document that violates the structure is refused with 422 `pdf_template_invalid`, one that exceeds the size limits with `pdf_template_too_large`. 409 when `expectedRevision` is stale."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SavePdfTemplateDraftRequest"}}}}
+      responses:
+        "200":
+          description: The saved draft.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplateDraftResult"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [PDF Templates]
+      operationId: discardPdfTemplateDraft
+      summary: Discard the draft
+      description: "Requires pdf_templates.manage."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: The draft is discarded.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}/publish:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+    post:
+      tags: [PDF Templates]
+      operationId: publishPdfTemplateDraft
+      summary: Publish the draft
+      description: "Requires pdf_templates.manage. The previous published version is archived. 409 when `expectedRevision` is stale or there is no draft; 422 `pdf_template_has_problems` while the document has any error."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PublishPdfTemplateRequest"}}}}
+      responses:
+        "200":
+          description: The published version.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplateVersion"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /pdf-templates/{export}/preview:
+    parameters:
+      - {$ref: "#/components/parameters/PdfTemplateExport"}
+    post:
+      tags: [PDF Templates]
+      operationId: previewPdfTemplate
+      summary: Render a possibly unsaved document
+      description: "Requires pdf_templates.manage; a `record` source additionally needs the permission of the export (wiref: external_invoice_requests.read; cashbook: payments.read and cash_movements.read; receipt: orders.read) and fields the caller may not read are rendered empty and listed in `redacted`. Nothing is stored."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PreviewPdfTemplateRequest"}}}}
+      responses:
+        "200":
+          description: The rendered PDF with the layout of every drawn node.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/PdfTemplatePreview"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /invoicing/wiref-settings:
     get:
       tags: ["External Invoicing"]
@@ -10503,6 +10742,28 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/UpdateOrderDraftInput"
+  /orders/{orderId}/receipt.pdf:
+    parameters:
+      - {name: orderId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: ["Orders"]
+      operationId: getOrderReceiptPdf
+      summary: Download the receipt of a finalized order as PDF
+      description: "Requires orders.read. Rendered with the effective receipt template (published, else built-in). Only finalized orders with a settled amount; 409 `receipt_not_available` otherwise. `paymentId` limits the receipt to one payment of the order."
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: paymentId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      responses:
+        "200":
+          description: The receipt.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}}
+          content: {application/pdf: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /orders/{orderId}/items:
     post:
       tags:
@@ -12740,6 +13001,7 @@ components:
       description: One-assignment management credential stored only as a SHA-256 digest.
 
   parameters:
+    PdfTemplateExport: {name: export, in: path, required: true, schema: {$ref: "#/components/schemas/PdfTemplateExport"}}
     ConfigurationImportMode: {name: mode, in: query, required: true, schema: {$ref: "#/components/schemas/ConfigurationImportMode"}}
     ConfigurationImportSections: {name: sections, in: query, required: true, style: form, explode: true, schema: {type: array, minItems: 1, maxItems: 32, items: {$ref: "#/components/schemas/ConfigurationSection"}}}
     BrandingAssetSlot:
@@ -13134,6 +13396,7 @@ components:
         - scim.manage
         - mail.manage
         - invoicing.settings.manage
+        - pdf_templates.manage
         - branding.manage
         - machines.read
         - machines.manage
@@ -25183,3 +25446,188 @@ components:
         cacheUsedBytes: {type: integer, format: int64, minimum: 0, nullable: true}
         cacheQuotaBytes: {type: integer, format: int64, minimum: 0, nullable: true}
         errors: {type: array, maxItems: 20, items: {type: string, maxLength: 200}}
+
+    PdfTemplateExport:
+      type: string
+      enum: [wiref, cashbook, receipt]
+      x-enum-varnames: [PdfTemplateExportWiref, PdfTemplateExportCashbook, PdfTemplateExportReceipt]
+    PdfTemplateState:
+      type: string
+      enum: [draft, published, archived]
+    PdfTemplateDocument:
+      type: object
+      additionalProperties: true
+      description: >-
+        The template document (`schemaVersion` 1). Free-form in the contract and validated strictly by the server;
+        unknown properties are rejected with 422 `pdf_template_invalid`. At most 256 KiB.
+    PdfTemplateVersionMeta:
+      type: object
+      additionalProperties: false
+      required: [id, version, state, revision, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        version: {type: integer, minimum: 1}
+        state: {$ref: "#/components/schemas/PdfTemplateState"}
+        revision: {type: integer, minimum: 1, description: Counts saves of a draft; used as `expectedRevision`.}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        publishedAt: {type: string, format: date-time, nullable: true}
+        createdBy: {type: string, nullable: true, maxLength: 200, description: Display name of the author; absent when the account is gone.}
+        publishedBy: {type: string, nullable: true, maxLength: 200}
+    PdfTemplateVersion:
+      type: object
+      additionalProperties: false
+      required: [id, version, state, revision, createdAt, updatedAt, document]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        version: {type: integer, minimum: 1}
+        state: {$ref: "#/components/schemas/PdfTemplateState"}
+        revision: {type: integer, minimum: 1}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        publishedAt: {type: string, format: date-time, nullable: true}
+        createdBy: {type: string, nullable: true, maxLength: 200}
+        publishedBy: {type: string, nullable: true, maxLength: 200}
+        document: {$ref: "#/components/schemas/PdfTemplateDocument"}
+    PdfTemplateProblem:
+      type: object
+      additionalProperties: false
+      required: [nodeId, severity, message]
+      properties:
+        nodeId: {type: string, maxLength: 40, description: Empty for problems of the document itself.}
+        severity: {type: string, enum: [error, warning]}
+        message: {type: string, maxLength: 500}
+    PdfTemplateDraftResult:
+      type: object
+      additionalProperties: false
+      required: [version, problems]
+      properties:
+        version: {$ref: "#/components/schemas/PdfTemplateVersion"}
+        problems: {type: array, maxItems: 1000, items: {$ref: "#/components/schemas/PdfTemplateProblem"}}
+    PdfTemplateSummary:
+      type: object
+      additionalProperties: false
+      required: [export, name, published, draft]
+      properties:
+        export: {$ref: "#/components/schemas/PdfTemplateExport"}
+        name: {type: string, maxLength: 120}
+        published: {allOf: [{$ref: "#/components/schemas/PdfTemplateVersionMeta"}], nullable: true}
+        draft: {allOf: [{$ref: "#/components/schemas/PdfTemplateVersionMeta"}], nullable: true}
+    PdfTemplateSchemaField:
+      type: object
+      additionalProperties: false
+      required: [path, type, description]
+      properties:
+        path: {type: string, maxLength: 200}
+        type: {type: string, enum: [text, date, money, number, list, list<text>, image]}
+        permission: {type: string, maxLength: 100, nullable: true, description: Permission the reader needs; without it the field is empty.}
+        description: {type: string, maxLength: 1000}
+        example: {type: string, maxLength: 500, nullable: true}
+    PdfTemplateSchemaGroup:
+      type: object
+      additionalProperties: false
+      required: [name, fields]
+      properties:
+        name: {type: string, maxLength: 120}
+        list: {type: string, maxLength: 200, nullable: true, description: "Path of the list whose entries the fields describe, if the group is a loop."}
+        description: {type: string, maxLength: 1000, nullable: true}
+        fields: {type: array, maxItems: 200, items: {$ref: "#/components/schemas/PdfTemplateSchemaField"}}
+    PdfTemplateFilter:
+      type: object
+      additionalProperties: false
+      required: [name, description]
+      properties:
+        name: {type: string, maxLength: 100}
+        description: {type: string, maxLength: 1000}
+    PdfTemplateSchema:
+      type: object
+      additionalProperties: false
+      required: [groups, filters]
+      properties:
+        groups: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/PdfTemplateSchemaGroup"}}
+        filters: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/PdfTemplateFilter"}}
+    PdfTemplatePreviewSource:
+      type: object
+      additionalProperties: false
+      required: [id, label]
+      properties:
+        id: {type: string, maxLength: 100}
+        label: {type: string, maxLength: 200}
+    PdfTemplateDetail:
+      type: object
+      additionalProperties: false
+      required: [export, draft, published, builtin, schema, previewSources]
+      properties:
+        export: {$ref: "#/components/schemas/PdfTemplateExport"}
+        draft: {allOf: [{$ref: "#/components/schemas/PdfTemplateVersion"}], nullable: true}
+        published: {allOf: [{$ref: "#/components/schemas/PdfTemplateVersion"}], nullable: true}
+        builtin: {$ref: "#/components/schemas/PdfTemplateDocument"}
+        schema: {$ref: "#/components/schemas/PdfTemplateSchema"}
+        previewSources: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/PdfTemplatePreviewSource"}}
+    SavePdfTemplateDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [document]
+      properties:
+        document: {$ref: "#/components/schemas/PdfTemplateDocument"}
+        expectedRevision: {type: integer, minimum: 1, description: Revision of the draft being replaced; omit when no draft exists yet.}
+    PublishPdfTemplateRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision]
+      properties:
+        expectedRevision: {type: integer, minimum: 1}
+    PdfTemplateSource:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind: {type: string, enum: [sample, record], x-enum-varnames: [PdfTemplateSourceSample, PdfTemplateSourceRecord]}
+        id: {type: string, maxLength: 100, description: "Required for `record`: the id of a source listed in `previewSources`."}
+    PreviewPdfTemplateRequest:
+      type: object
+      additionalProperties: false
+      required: [document, source]
+      properties:
+        document: {$ref: "#/components/schemas/PdfTemplateDocument"}
+        source: {$ref: "#/components/schemas/PdfTemplateSource"}
+    PdfTemplatePage:
+      type: object
+      additionalProperties: false
+      required: [width, height]
+      properties:
+        width: {type: number, description: Millimetres.}
+        height: {type: number, description: Millimetres.}
+    PdfTemplateBox:
+      type: object
+      additionalProperties: false
+      required: [nodeId, page, x, y, w, h]
+      properties:
+        nodeId: {type: string, maxLength: 40}
+        page: {type: integer, minimum: 1}
+        x: {type: number}
+        y: {type: number}
+        w: {type: number}
+        h: {type: number}
+    PdfTemplatePreview:
+      type: object
+      additionalProperties: false
+      required: [pdf, pages, boxes, problems, redacted]
+      properties:
+        pdf: {type: string, format: byte, description: Base64 PDF.}
+        pages: {type: array, maxItems: 300, items: {$ref: "#/components/schemas/PdfTemplatePage"}}
+        boxes: {type: array, maxItems: 20000, items: {$ref: "#/components/schemas/PdfTemplateBox"}}
+        problems: {type: array, maxItems: 1000, items: {$ref: "#/components/schemas/PdfTemplateProblem"}}
+        redacted: {type: array, maxItems: 200, items: {type: string, maxLength: 200}}
+    PdfTemplateAsset:
+      type: object
+      additionalProperties: false
+      required: [id, fileName, contentType, byteSize, width, height, createdAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        fileName: {type: string, maxLength: 200}
+        contentType: {type: string, enum: [image/png, image/jpeg, image/svg+xml], x-enum-varnames: [PdfTemplateAssetPng, PdfTemplateAssetJpeg, PdfTemplateAssetSvg]}
+        byteSize: {type: integer, minimum: 1, maximum: 2097152}
+        width: {type: integer, minimum: 0}
+        height: {type: integer, minimum: 0}
+        createdAt: {type: string, format: date-time}
