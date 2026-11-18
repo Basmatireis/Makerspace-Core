@@ -19,14 +19,15 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
  * The working document of one export: its undo history, what the server holds (draft and published version), and the
  * save, publish, restore, discard and reset actions. `dirty` compares the document with what was saved last.
  */
-export function useTemplateEditor(detail: PdfTemplateDetail) {
+export function useTemplateEditor(detail: PdfTemplateDetail, recovered?: TemplateDocument) {
   const kind = detail.export;
   const queryClient = useQueryClient();
   const notify = useNotify();
   const [server, setServer] = useState({ draft: detail.draft, published: detail.published });
-  const initial = documentOf((detail.draft ?? detail.published)?.document ?? detail.builtin);
-  const history = useDocumentHistory<TemplateDocument>(initial);
-  const [baseline, setBaseline] = useState(() => JSON.stringify(initial));
+  const saved = documentOf((detail.draft ?? detail.published)?.document ?? detail.builtin);
+  // Edits brought back after a crash start as unsaved changes on top of what the server holds.
+  const history = useDocumentHistory<TemplateDocument>(recovered ?? saved);
+  const [baseline, setBaseline] = useState(() => JSON.stringify(saved));
   const [error, setError] = useState<string | null>(null);
 
   // The JSON text is the comparison key: undoing back to the saved state makes the document clean again.

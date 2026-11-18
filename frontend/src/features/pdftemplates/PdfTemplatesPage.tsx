@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import type { PdfTemplateExport } from '../../api/generated/models';
 import { ErrorState } from '../../app/PageState';
 import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
+import { EditorErrorBoundary } from './components/EditorErrorBoundary';
 import { TemplateEditor } from './components/TemplateEditor';
 import { EXPORT_KINDS, EXPORT_LABELS } from './exports';
 import { pdfTemplateQuery } from './queries';
@@ -22,7 +23,14 @@ export function PdfTemplatesPage() {
   const query = useQuery(pdfTemplateQuery(kind));
   const choose = (next: PdfTemplateExport) => setParams({ export: next }, { replace: true });
 
-  if (query.data) return <TemplateEditor key={kind} detail={query.data} onKind={choose} />;
+  if (query.data) {
+    const detail = query.data;
+    return (
+      <EditorErrorBoundary key={kind} kind={kind}>
+        {(recovered) => <TemplateEditor detail={detail} onKind={choose} recovered={recovered} />}
+      </EditorErrorBoundary>
+    );
+  }
   return (
     <SettingsPageLayout
       page="pdf-templates"

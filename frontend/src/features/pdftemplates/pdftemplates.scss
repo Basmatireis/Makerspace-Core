@@ -8,6 +8,8 @@
 // preview overlay, which have no Carbon equivalent.
 
 .pdft {
+  --pdft-left: 300px;
+  --pdft-right: 320px;
   display: flex;
   flex-direction: column;
   block-size: calc(100vh - 3rem);
@@ -16,30 +18,61 @@
 .pdft-bar {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   gap: $spacing-03 $spacing-05;
-  padding: $spacing-04 $spacing-05;
+  padding: 0 $spacing-05 0 0;
   border-block-end: 1px solid theme.$border-subtle-01;
   background: theme.$layer-01;
 }
+// The title takes the width of the structure pane below it and centres its lines in the bar.
 .pdft-bar__title {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: $spacing-03;
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: $spacing-02;
+  box-sizing: border-box;
+  inline-size: var(--pdft-left, 300px);
   min-inline-size: 0;
-  margin-inline-end: auto;
+  max-inline-size: 100%;
+  padding: $spacing-04 $spacing-05;
   h1 {
     margin: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-inline-size: 28rem;
-    @include type-style('heading-03');
+    @include type-style('productive-heading-03');
+  }
+}
+// Below 80 rem the title gives up width to the selects and actions, so the bar stays on one line down to 66 rem.
+@media (max-width: 80rem) {
+  .pdft-bar__title {
+    inline-size: min(var(--pdft-left, 300px), 13rem);
+  }
+  .pdft-bar__select {
+    flex-basis: 10rem;
+  }
+}
+.pdft-bar__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+  .cds--tag {
+    margin: 0;
   }
 }
 .pdft-bar__select {
-  inline-size: 14rem;
+  flex: 0 1 12rem;
+  min-inline-size: 8rem;
+  padding-block: $spacing-03;
+}
+// Undo, redo and the actions sit together at the right end of the bar, and wrap together.
+.pdft-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  margin-inline-start: auto;
+  padding-block: $spacing-03;
 }
 .pdft-bar__group {
   display: flex;
@@ -54,8 +87,6 @@
 
 // Three panes with splitters between them ------------------------------------------------------------------------------
 .pdft-work {
-  --pdft-left: 300px;
-  --pdft-right: 320px;
   flex: 1;
   min-block-size: 0;
   display: grid;
@@ -764,17 +795,6 @@ body.pdft-resizing {
   min-block-size: 0;
   background: theme.$layer-02;
 }
-.pdft-ptools {
-  display: flex;
-  align-items: flex-end;
-  gap: $spacing-04;
-  padding: $spacing-03 $spacing-05;
-  border-block-end: 1px solid theme.$border-subtle-01;
-  background: theme.$layer-01;
-  .cds--select {
-    inline-size: 14rem;
-  }
-}
 .pdft-pages {
   flex: 1;
   min-block-size: 0;
@@ -1048,6 +1068,35 @@ body.pdft-resizing {
 .pdft-kbd {
   font-family: 'IBM Plex Mono', monospace;
   @include type-style('code-01');
+}
+
+// The ghost of an element being moved: its rendered pixels at the new place, over a cover of the paper at the old one.
+.pdft-ghost__cover {
+  position: absolute;
+  background: #fff;
+  pointer-events: none;
+}
+.pdft-ghost {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+}
+.pdft-ghost__picture {
+  position: absolute;
+}
+
+// The error screen of the editor.
+.pdft-crash {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  max-inline-size: 40rem;
+  padding: $spacing-07 $spacing-05;
+}
+.pdft-crash__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
 }
 
 // A row of a grid: its height field takes the width, the move buttons sit beside it.

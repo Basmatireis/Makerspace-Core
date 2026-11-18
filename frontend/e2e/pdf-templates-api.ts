@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, type Page, type Route } from '@playwright/test';
 import { defaultPublicBrandingConfiguration } from './branding-fixtures';
 import { welcomeTourSeen } from './guide-progress';
@@ -35,6 +36,10 @@ export type World = {
   unexpected: string[];
   /** Makes the preview answer with an error (the editor must stay usable). */
   previewFails: boolean;
+  /** Built-in documents to serve instead of the small stand-in (see `realBuiltins`). */
+  builtins?: Partial<Record<Kind, Doc>>;
+  /** Schemas to serve instead of the stand-in (see `realSchemas`). */
+  schemas?: Partial<Record<Kind, unknown>>;
 };
 
 const nodeId = (suffix: string) => `0192f6f8-743e-7c77-a349-cd07c3e8c${suffix}`;
@@ -114,6 +119,92 @@ const schema = {
   ],
   filters: [{ name: 'currency', description: 'Formats an amount with the currency.' }],
 };
+
+/** The three built-in templates of the engine, as the backend serves them: the real documents, with every block type. */
+export function realBuiltins(): Record<Kind, Doc> {
+  const read = (kind: Kind) =>
+    JSON.parse(
+      readFileSync(new URL(`../../backend/internal/pdftemplates/engine/builtin/${kind}.json`, import.meta.url), 'utf8'),
+    ) as Doc;
+  return { wiref: read('wiref'), cashbook: read('cashbook'), receipt: read('receipt') };
+}
+
+/**
+ * The variables of the real exports (names and types of backend/internal/pdftemplates/engine/schema.go): the cashbook and
+ * receipt ones carry fields gated by a permission, which the small stand-in schema does not.
+ */
+export function realSchemas() {
+  type F = [path: string, type: string, permission?: string];
+  const group = (name: string, fields: F[], list?: string) => ({
+    name,
+    ...(list ? { list } : {}),
+    fields: fields.map(([path, type, permission]) => ({
+      path,
+      type,
+      description: `The ${path}.`,
+      example: 'e.g.',
+      ...(permission ? { permission } : {}),
+    })),
+  });
+  const payment = (p: string): F[] => [
+    [`${p}.reference`, 'text'],
+    [`${p}.method`, 'text'],
+    [`${p}.paidAt`, 'date'],
+    [`${p}.amount`, 'money'],
+  ];
+  const always = group('Always available', [
+    ['makerspace.name', 'text'],
+    ['makerspace.logo', 'image'],
+    ['generatedAt', 'date'],
+    ['page', 'number'],
+    ['pages', 'number'],
+    ['sheet.carry', 'money'],
+    ['sheet.balance', 'money'],
+  ]);
+  const filters = [{ name: 'currency', description: 'Formats an amount.' }];
+  return {
+    cashbook: {
+      groups: [
+        group('Period', [
+          ['period.from', 'date'],
+          ['period.to', 'date'],
+          ['period.kind', 'text'],
+        ]),
+        group('Totals', [
+          ['totals.opening', 'money'],
+          ['totals.closing', 'money'],
+        ]),
+        group(
+          'Lines (list)',
+          [
+            ['lines[].no', 'number'],
+            ['lines[].date', 'date'],
+            ['lines[].orderSummary', 'text', 'orders.read'],
+            ['lines[].customer', 'text', 'orders.read'],
+            ['lines[].in', 'money'],
+          ],
+          'lines',
+        ),
+        always,
+      ],
+      filters,
+    },
+    receipt: {
+      groups: [
+        group('Order', [
+          ['order.number', 'text'],
+          ['order.customer.matriculationNumber', 'text', 'people.read.matriculation'],
+          ['order.total', 'money'],
+        ]),
+        group('Payment (receipt of one payment)', payment('payment')),
+        group('Items (list)', [['items[].description', 'text']], 'items'),
+        group('Payments (list)', payment('payments[]'), 'payments'),
+        always,
+      ],
+      filters,
+    },
+  };
+}
 
 export function newWorld(overrides: Partial<World> = {}): World {
   return {
@@ -234,8 +325,8 @@ export async function installPdfTemplatesApi(page: Page, world: World) {
         export: kind,
         draft: kind === 'wiref' ? world.draft : null,
         published: kind === 'wiref' ? world.published : null,
-        builtin: builtinDocument(kind),
-        schema,
+        builtin: world.builtins?.[kind] ?? builtinDocument(kind),
+        schema: world.schemas?.[kind] ?? schema,
         previewSources: [{ id: 'order-1042', label: 'Invoice request IR-2026-0042' }],
       });
     }

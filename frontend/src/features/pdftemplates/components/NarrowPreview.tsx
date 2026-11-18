@@ -21,12 +21,18 @@ export function NarrowPreview({
   doc,
   status,
   shown,
+  sources,
+  source,
+  onSource,
   onKind,
 }: {
   kind: PdfTemplateExport;
   doc: TemplateDocument;
   status: { label: string; tone: 'blue' | 'green' | 'gray' };
   shown: ShownPreview<TimedPreview> | null;
+  sources: readonly { id: string; label: string }[];
+  source: string;
+  onSource: (id: string) => void;
   onKind: (kind: PdfTemplateExport) => void;
 }) {
   return (
@@ -34,9 +40,11 @@ export function NarrowPreview({
       <header className="pdft-bar">
         <div className="pdft-bar__title">
           <h1 title={doc.name}>{doc.name}</h1>
-          <Tag type={status.tone} size="md">
-            {status.label}
-          </Tag>
+          <div className="pdft-bar__tags">
+            <Tag type={status.tone} size="md">
+              {status.label}
+            </Tag>
+          </div>
         </div>
         <Select
           id="pdft-export"
@@ -48,6 +56,18 @@ export function NarrowPreview({
         >
           {EXPORT_KINDS.map((k) => (
             <SelectItem key={k} value={k} text={EXPORT_LABELS[k]} />
+          ))}
+        </Select>
+        <Select
+          id="pdft-data"
+          className="pdft-bar__select"
+          labelText="Data"
+          size="md"
+          value={source}
+          onChange={(event) => onSource(event.target.value)}
+        >
+          {sources.map((s) => (
+            <SelectItem key={s.id} value={s.id} text={s.label} />
           ))}
         </Select>
       </header>

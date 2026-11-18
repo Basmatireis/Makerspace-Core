@@ -9,14 +9,21 @@ export function PdfPageCanvas({
   pageNumber,
   scale,
   label,
+  onDrawn,
 }: {
   doc: PDFDocumentProxy;
   pageNumber: number;
   /** Current zoom (1 = 100 %). */
   scale: number;
   label: string;
+  /** The canvas now shows a (new) render of the page. */
+  onDrawn?: () => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const drawn = useRef(onDrawn);
+  useEffect(() => {
+    drawn.current = onDrawn;
+  });
   const settled = useDebouncedValue(scale, 250);
   // Sharp at the zoom the person stopped on, but never an enormous bitmap.
   const resolution = Math.min(Math.max(settled, 1) * Math.max(1, window.devicePixelRatio || 1), 3);
@@ -25,9 +32,11 @@ export function PdfPageCanvas({
     const target = canvas.current;
     if (!target) return;
     const controller = new AbortController();
-    drawPage(doc, pageNumber, target, resolution, controller.signal).catch(() => {
-      /* cancelled by a newer render, or the document was replaced: the next effect run draws the page */
-    });
+    drawPage(doc, pageNumber, target, resolution, controller.signal)
+      .then(() => drawn.current?.())
+      .catch(() => {
+        /* cancelled by a newer render, or the document was replaced: the next effect run draws the page */
+      });
     return () => controller.abort();
   }, [doc, pageNumber, resolution]);
 

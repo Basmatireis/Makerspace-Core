@@ -1,6 +1,6 @@
-import { InlineNotification, Select, SelectItem, Tab, TabList, TabPanel, TabPanels, Tabs } from '@carbon/react';
+import { InlineNotification, Tab, TabList, TabPanel, TabPanels, Tabs } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createInsertRegistry, InsertContext } from '../insertTarget';
 import type { PdfTemplateDetail, PdfTemplateExport } from '../../../api/generated/models';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
@@ -8,7 +8,8 @@ import { useMediaQuery } from '../../../app/components/useMediaQuery';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import type { Zoom } from '../../signage/editor/zoom';
 import { schemaHints } from '../blocks';
-import { apiDocument, find, type Container, type TemplateNode, type ToolType } from '../model';
+import { forgetUnsaved, rememberUnsaved } from '../editorRecovery';
+import { apiDocument, find, type Container, type TemplateDocument, type TemplateNode, type ToolType } from '../model';
 import {
   copyNode,
   duplicateNode,
@@ -51,11 +52,14 @@ const choiceOf = (id: string): PreviewSourceChoice => (id === SAMPLE ? { kind: '
 export function TemplateEditor({
   detail,
   onKind,
+  recovered,
 }: {
   detail: PdfTemplateDetail;
+  /** Unsaved edits to start from, after the editor was restarted from an error. */
+  recovered?: TemplateDocument;
   onKind: (kind: PdfTemplateExport) => void;
 }) {
-  const editor = useTemplateEditor(detail);
+  const editor = useTemplateEditor(detail, recovered);
   const { doc } = editor;
   const hints = useMemo(() => schemaHints(detail.schema), [detail.schema]);
   const { workRef, sizes, drag: dragPane, commit: commitPane } = usePaneWidths();
@@ -77,6 +81,11 @@ export function TemplateEditor({
 
   // A selection that no longer exists (after an undo, say) counts as no selection.
   const selectedId = pickedId === 'page' || (pickedId && find(doc, pickedId)) ? pickedId : null;
+  // Remember unsaved edits (in memory) so an error screen can offer them back.
+  useEffect(() => {
+    if (editor.dirty) rememberUnsaved(detail.export, doc);
+    else forgetUnsaved(detail.export);
+  }, [editor.dirty, doc, detail.export]);
   const guard = useUnsavedChanges({ isDirty: editor.dirty });
 
   // Preview: the working document, debounced, with the chosen data. The previous render stays until the next one is there.
@@ -183,6 +192,9 @@ export function TemplateEditor({
           kind={detail.export}
           doc={doc}
           status={editor.status}
+          sources={sources}
+          source={source}
+          onSource={setSource}
           shown={shown}
           onKind={(next) => guard.requestDiscard(() => onKind(next))}
         />
@@ -192,9 +204,12 @@ export function TemplateEditor({
 
   return (
     <InsertContext.Provider value={insertRegistry}>
-      <div className="pdft">
+      <div className="pdft" ref={workRef} style={vars}>
         <EditorBar
           kind={detail.export}
+          sources={sources}
+          source={source}
+          onSource={setSource}
           name={doc.name}
           onKind={(next) => guard.requestDiscard(() => onKind(next))}
           status={editor.status}
@@ -223,7 +238,7 @@ export function TemplateEditor({
             />
           </div>
         )}
-        <div className="pdft-work" ref={workRef} style={vars}>
+        <div className="pdft-work">
           <section className="pdft-pane pdft-pane--left" aria-label="Template structure">
             <Tabs selectedIndex={leftTab} onChange={({ selectedIndex }) => setLeftTab(selectedIndex)}>
               <TabList aria-label="Structure and variables" contained fullWidth>
@@ -264,19 +279,6 @@ export function TemplateEditor({
             onCommit={(px) => commitPane('left', px)}
           />
           <section className="pdft-center" aria-label="Preview">
-            <div className="pdft-ptools">
-              <Select
-                id="pdft-data"
-                size="sm"
-                labelText="Data"
-                value={source}
-                onChange={(event) => setSource(event.target.value)}
-              >
-                {sources.map((s) => (
-                  <SelectItem key={s.id} value={s.id} text={s.label} />
-                ))}
-              </Select>
-            </div>
             {preview.isError && (
               <div className="pdft-notice">
                 <InlineNotification

@@ -6,6 +6,10 @@ import { KEYS } from '../../signage/editor/useEditorKeys';
 
 export interface EditorBarProps {
   kind: PdfTemplateExport;
+  /** The data the preview is made with, next to the document it belongs to. */
+  sources: readonly { id: string; label: string }[];
+  source: string;
+  onSource: (id: string) => void;
   name: string;
   onKind: (kind: PdfTemplateExport) => void;
   status: { label: string; tone: 'blue' | 'green' | 'gray' };
@@ -31,19 +35,21 @@ export function EditorBar(props: EditorBarProps) {
     <header className="pdft-bar">
       <div className="pdft-bar__title">
         <h1 title={props.name}>{props.name}</h1>
-        <Tag type={props.status.tone} size="md">
-          {props.status.label}
-        </Tag>
-        {errors > 0 && (
-          <Tag type="red" size="md">
-            {errors} problem{errors === 1 ? '' : 's'}
+        <div className="pdft-bar__tags">
+          <Tag type={props.status.tone} size="md">
+            {props.status.label}
           </Tag>
-        )}
-        {errors === 0 && warnings > 0 && (
-          <Tag type="warm-gray" size="md">
-            {warnings} warning{warnings === 1 ? '' : 's'}
-          </Tag>
-        )}
+          {errors > 0 && (
+            <Tag type="red" size="md">
+              {errors} problem{errors === 1 ? '' : 's'}
+            </Tag>
+          )}
+          {errors === 0 && warnings > 0 && (
+            <Tag type="warm-gray" size="md">
+              {warnings} warning{warnings === 1 ? '' : 's'}
+            </Tag>
+          )}
+        </div>
       </div>
       <Select
         id="pdft-export"
@@ -57,40 +63,54 @@ export function EditorBar(props: EditorBarProps) {
           <SelectItem key={kind} value={kind} text={EXPORT_LABELS[kind]} />
         ))}
       </Select>
-      <div className="pdft-bar__group" role="group" aria-label="Undo and redo">
-        <IconButton
-          label={`Undo (${KEYS.mod}Z)`}
-          kind="ghost"
-          size="md"
-          align="bottom"
-          disabled={!props.canUndo}
-          onClick={props.onUndo}
-        >
-          <Undo />
+      <Select
+        id="pdft-data"
+        className="pdft-bar__select"
+        labelText="Data"
+        size="md"
+        value={props.source}
+        onChange={(event) => props.onSource(event.target.value)}
+      >
+        {props.sources.map((s) => (
+          <SelectItem key={s.id} value={s.id} text={s.label} />
+        ))}
+      </Select>
+      <div className="pdft-bar__actions">
+        <div className="pdft-bar__group" role="group" aria-label="Undo and redo">
+          <IconButton
+            label={`Undo (${KEYS.mod}Z)`}
+            kind="ghost"
+            size="md"
+            align="bottom"
+            disabled={!props.canUndo}
+            onClick={props.onUndo}
+          >
+            <Undo />
+          </IconButton>
+          <IconButton
+            label={`Redo (${KEYS.shift}${KEYS.mod}Z)`}
+            kind="ghost"
+            size="md"
+            align="bottom"
+            disabled={!props.canRedo}
+            onClick={props.onRedo}
+          >
+            <Redo />
+          </IconButton>
+        </div>
+        <IconButton label="Keyboard shortcuts (?)" kind="ghost" size="md" align="bottom" onClick={props.onShortcuts}>
+          <Keyboard />
         </IconButton>
-        <IconButton
-          label={`Redo (${KEYS.shift}${KEYS.mod}Z)`}
-          kind="ghost"
-          size="md"
-          align="bottom"
-          disabled={!props.canRedo}
-          onClick={props.onRedo}
-        >
-          <Redo />
-        </IconButton>
+        <Button kind="ghost" size="md" renderIcon={Version} onClick={props.onVersions}>
+          Versions
+        </Button>
+        <Button kind="secondary" size="md" disabled={props.saveDisabled || props.saving} onClick={props.onSave}>
+          Save draft
+        </Button>
+        <Button kind="primary" size="md" disabled={props.publishDisabled} onClick={props.onPublish}>
+          Publish
+        </Button>
       </div>
-      <IconButton label="Keyboard shortcuts (?)" kind="ghost" size="md" align="bottom" onClick={props.onShortcuts}>
-        <Keyboard />
-      </IconButton>
-      <Button kind="ghost" size="md" renderIcon={Version} onClick={props.onVersions}>
-        Versions
-      </Button>
-      <Button kind="secondary" size="md" disabled={props.saveDisabled || props.saving} onClick={props.onSave}>
-        Save draft
-      </Button>
-      <Button kind="primary" size="md" disabled={props.publishDisabled} onClick={props.onPublish}>
-        Publish
-      </Button>
     </header>
   );
 }

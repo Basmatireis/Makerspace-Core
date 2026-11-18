@@ -10,6 +10,8 @@ import { PX_PER_MM } from '../renderPreview';
 import type { TimedPreview } from '../queries';
 import { drawnRect, usePreviewInteraction, type DragState, type DrawResult } from '../usePreviewInteraction';
 import type { ShownPreview } from '../usePreviewDocument';
+import { GhostLayer } from './GhostLayer';
+import { useGhost } from '../useGhost';
 import { PdfPageCanvas } from './PdfPageCanvas';
 
 export interface PreviewCanvasProps {
@@ -130,6 +132,16 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
   const selectedNode = selectedId && selectedId !== 'page' ? (find(doc, selectedId)?.node ?? null) : null;
   const framed = selectedNode && layerElementId(doc, selectedNode.id) === selectedNode.id ? selectedNode : null;
 
+  const live = useGhost({
+    host,
+    doc,
+    framedId: framed?.id ?? null,
+    boxes: boxes ?? [],
+    pages,
+    drag,
+    shown,
+  });
+
   return (
     <div
       ref={host}
@@ -150,7 +162,12 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
           const k = PX_PER_MM * scale;
           const pageBoxes = (boxes ?? []).filter((b) => b.page === number);
           return (
-            <div key={number} className="pdft-pagewrap" style={{ width: page.width * k, height: page.height * k }}>
+            <div
+              key={number}
+              data-page-wrap={number}
+              className="pdft-pagewrap"
+              style={{ width: page.width * k, height: page.height * k }}
+            >
               <span className="pdft-pno">
                 Page {number} of {pages.length}
               </span>
@@ -161,7 +178,11 @@ export function PreviewCanvas(props: PreviewCanvasProps) {
                     pageNumber={number}
                     scale={scale}
                     label={`Page ${number} of ${pages.length}`}
+                    onDrawn={live.onDrawn}
                   />
+                )}
+                {live.ghost && live.at && live.ghost.page === number && (
+                  <GhostLayer ghost={live.ghost} at={live.at} k={k} />
                 )}
                 {!props.readOnly && (
                   <div

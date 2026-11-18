@@ -290,3 +290,26 @@ test('inserts a grid and edits a cell', async ({ page }) => {
   await page.getByTestId('properties-panel').getByRole('button', { name: 'Add row' }).click();
   await expect(row(page, /Grid · 3 rows × 2 columns/)).toBeVisible();
 });
+
+test('shows the rendered content of a page element while it is moved, until the next render', async ({ page }) => {
+  await open(page, newWorld());
+  const overlay = page.locator('.pdft-overlay').first();
+  const area = (await overlay.boundingBox())!;
+  const pxPerMm = area.width / 210;
+  // The stamp sits at x 150, y 20, 40 × 12 mm.
+  const start = { x: area.x + 170 * pxPerMm, y: area.y + 26 * pxPerMm };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x - 30 * pxPerMm, start.y + 40 * pxPerMm, { steps: 6 });
+  const ghost = page.getByTestId('ghost');
+  await expect(ghost).toBeVisible();
+  await expect(page.getByTestId('ghost-cover')).toBeVisible();
+  // The copy follows the pointer: it is 30 mm left of and 40 mm below where the element was drawn.
+  const [cover, moved] = await Promise.all([page.getByTestId('ghost-cover').boundingBox(), ghost.boundingBox()]);
+  expect(Math.round((cover!.x - moved!.x) / pxPerMm)).toBe(30);
+  expect(Math.round((moved!.y - cover!.y) / pxPerMm)).toBe(40);
+  await page.mouse.up();
+  // It stays until the new render has been drawn, then goes.
+  await expect(page.getByTestId('ghost')).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByTestId('ghost-cover')).toHaveCount(0);
+});
