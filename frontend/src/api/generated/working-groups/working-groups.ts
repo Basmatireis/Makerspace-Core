@@ -19,10 +19,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  ApproveWorkingGroupProjectRequest,
   CloseWorkingGroupTicketRequest,
+  CompleteWorkingGroupProjectRequest,
   CreateWorkingGroupBookingRequest,
   CreateWorkingGroupBudgetPeriodRequest,
   CreateWorkingGroupNoteRequest,
+  CreateWorkingGroupProjectBody,
   CreateWorkingGroupPurchaseOrderRequest,
   CreateWorkingGroupPurchasesRequest,
   CreateWorkingGroupRequest,
@@ -33,11 +36,13 @@ import type {
   ListWorkingGroupBookingsParams,
   ListWorkingGroupNotesParams,
   ListWorkingGroupPeopleParams,
+  ListWorkingGroupProjectsParams,
   ListWorkingGroupPurchasesParams,
   ListWorkingGroupTicketsParams,
   ListWorkingGroupTodosParams,
   PlanWorkingGroupTicketRequest,
   RedactWorkingGroupPurchaseRequest,
+  ReorderWorkingGroupProjectItemsRequest,
   SetWorkingGroupBudgetShareRequest,
   SetWorkingGroupColumnsRequest,
   SetWorkingGroupFinanceRulesRequest,
@@ -45,6 +50,7 @@ import type {
   SetWorkingGroupStatusRequest,
   UUIDv7,
   UpdateWorkingGroupBudgetPeriodRequest,
+  UpdateWorkingGroupProjectBody,
   UpdateWorkingGroupRequest,
   UpdateWorkingGroupTicketRequest,
   UpdateWorkingGroupTodoRequest,
@@ -65,8 +71,18 @@ import type {
   WorkingGroupPersonOptionList,
   WorkingGroupPersonRequest,
   WorkingGroupPlaceInput,
+  WorkingGroupProject,
+  WorkingGroupProjectItemInput,
+  WorkingGroupProjectItemUpdateRequest,
+  WorkingGroupProjectList,
+  WorkingGroupProjectOfferInput,
+  WorkingGroupProjectPaidFromRequest,
+  WorkingGroupProjectReasonRequest,
   WorkingGroupProjectRequest,
+  WorkingGroupProjectRequestFormInput,
   WorkingGroupProjectRequestInput,
+  WorkingGroupProjectVersionRequest,
+  WorkingGroupProjectWiRefDecisionRequest,
   WorkingGroupPurchase,
   WorkingGroupPurchaseList,
   WorkingGroupPurchaseOrder,
@@ -1058,6 +1074,714 @@ export const getDownloadWorkingGroupPurchaseAttachmentUrl = (purchaseId: UUIDv7,
 export const downloadWorkingGroupPurchaseAttachment = async (purchaseId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
 
   return apiFetch<Blob>(getDownloadWorkingGroupPurchaseAttachmentUrl(purchaseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getListWorkingGroupProjectsUrl = (params?: ListWorkingGroupProjectsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/working-group-projects?${stringifiedParams}` : `/api/v1/working-group-projects`
+}
+
+/**
+ * Requires `working_groups.read`. Projects are visible only to the members of the group and to holders of `working_group_finances.manage`; for everybody else a project does not exist (404). Newest first, at most 200 (`truncated` says when more matched). Rows carry no items.
+ * @summary List projects
+ */
+export const listWorkingGroupProjects = async (params?: ListWorkingGroupProjectsParams, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProjectList> => {
+
+  return apiFetch<WorkingGroupProjectList>(getListWorkingGroupProjectsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateWorkingGroupProjectUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-projects`
+}
+
+/**
+ * Requires `working_groups.read` and membership of the group (403 for a finance manager who is not a member, 404 for everybody else). Creates a `draft` with the caller as requester.
+ * @summary Start a project draft
+ */
+export const createWorkingGroupProject = async (createWorkingGroupProjectBody: CreateWorkingGroupProjectBody, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getCreateWorkingGroupProjectUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(createWorkingGroupProjectBody)
+  }
+);}
+
+
+export const getGetWorkingGroupProjectUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}`
+}
+
+/**
+ * Requires `working_groups.read`. Projects are visible only to the members of the group and to holders of `working_group_finances.manage`; for everybody else a project does not exist (404). The cost plan, the checklist, the totals, the history and the flags are part of the answer; `requestForm` only for finance managers.
+ * @summary Read a project
+ */
+export const getWorkingGroupProject = async (projectId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getGetWorkingGroupProjectUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdateWorkingGroupProjectUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}`
+}
+
+/**
+ * Requires `working_groups.read`; the lead of the group or the requester while the project is `draft` or `returned`. The body replaces all editable fields.
+ * @summary Edit a project
+ */
+export const updateWorkingGroupProject = async (projectId: UUIDv7,
+    updateWorkingGroupProjectBody: UpdateWorkingGroupProjectBody, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getUpdateWorkingGroupProjectUrl(projectId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(updateWorkingGroupProjectBody)
+  }
+);}
+
+
+export const getDeleteWorkingGroupProjectUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}`
+}
+
+/**
+ * Requires `working_groups.read`; the lead, the requester or a finance manager while the project is `draft`, `returned` or `declined`. Its planned purchases and files are deleted with it.
+ * @summary Delete a draft
+ */
+export const deleteWorkingGroupProject = async (projectId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteWorkingGroupProjectUrl(projectId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getCreateWorkingGroupProjectItemUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/items`
+}
+
+/**
+ * Requires `working_groups.read`; the lead or the requester while `draft` or `returned`, a finance manager also afterwards (but not once completed or declined). At most 100 items.
+ * @summary Add a cost plan item
+ */
+export const createWorkingGroupProjectItem = async (projectId: UUIDv7,
+    workingGroupProjectItemInput: WorkingGroupProjectItemInput, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getCreateWorkingGroupProjectItemUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectItemInput)
+  }
+);}
+
+
+export const getReorderWorkingGroupProjectItemsUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/items/order`
+}
+
+/**
+ * Same permission as adding an item. `itemIds` must list every item of the project exactly once.
+ * @summary Reorder the items
+ */
+export const reorderWorkingGroupProjectItems = async (projectId: UUIDv7,
+    reorderWorkingGroupProjectItemsRequest: ReorderWorkingGroupProjectItemsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getReorderWorkingGroupProjectItemsUrl(projectId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(reorderWorkingGroupProjectItemsRequest)
+  }
+);}
+
+
+export const getUpdateWorkingGroupProjectItemUrl = (projectId: UUIDv7,
+    itemId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/items/${itemId}`
+}
+
+/**
+ * Same permission as adding an item. After the WiRef decision an item with a chosen offer keeps the price of that offer.
+ * @summary Edit a cost plan item
+ */
+export const updateWorkingGroupProjectItem = async (projectId: UUIDv7,
+    itemId: UUIDv7,
+    workingGroupProjectItemUpdateRequest: WorkingGroupProjectItemUpdateRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getUpdateWorkingGroupProjectItemUrl(projectId,itemId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectItemUpdateRequest)
+  }
+);}
+
+
+export const getDeleteWorkingGroupProjectItemUrl = (projectId: UUIDv7,
+    itemId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/items/${itemId}`
+}
+
+/**
+ * Same permission as adding an item. Its offers and their files are deleted; purchases linked to it stay in the project without an item.
+ * @summary Remove a cost plan item
+ */
+export const deleteWorkingGroupProjectItem = async (projectId: UUIDv7,
+    itemId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getDeleteWorkingGroupProjectItemUrl(projectId,itemId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getCreateWorkingGroupProjectOfferUrl = (projectId: UUIDv7,
+    itemId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/items/${itemId}/offers`
+}
+
+/**
+ * Same permission as adding an item. At most 10 offers per item. The file follows with the offer file operation.
+ * @summary Add an offer to an item
+ */
+export const createWorkingGroupProjectOffer = async (projectId: UUIDv7,
+    itemId: UUIDv7,
+    workingGroupProjectOfferInput: WorkingGroupProjectOfferInput, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getCreateWorkingGroupProjectOfferUrl(projectId,itemId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectOfferInput)
+  }
+);}
+
+
+export const getDeleteWorkingGroupProjectOfferUrl = (projectId: UUIDv7,
+    offerId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/offers/${offerId}`
+}
+
+/**
+ * Same permission as adding an item. The file is deleted with it.
+ * @summary Remove an offer
+ */
+export const deleteWorkingGroupProjectOffer = async (projectId: UUIDv7,
+    offerId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getDeleteWorkingGroupProjectOfferUrl(projectId,offerId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getUploadWorkingGroupProjectOfferFileUrl = (projectId: UUIDv7,
+    offerId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/offers/${offerId}/file`
+}
+
+/**
+ * Same permission as adding an item. PDF or image, at most 10 MiB. Replaces an earlier file.
+ * @summary Attach the offer file
+ */
+export const uploadWorkingGroupProjectOfferFile = async (projectId: UUIDv7,
+    offerId: UUIDv7,
+    uploadWorkingGroupProjectOfferFileBody: Blob, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getUploadWorkingGroupProjectOfferFileUrl(projectId,offerId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/octet-stream' }, options?.headers),
+    body: uploadWorkingGroupProjectOfferFileBody
+  }
+);}
+
+
+export const getDownloadWorkingGroupProjectOfferFileUrl = (projectId: UUIDv7,
+    offerId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/offers/${offerId}/file`
+}
+
+/**
+ * Requires `working_groups.read`. Projects are visible only to the members of the group and to holders of `working_group_finances.manage`; for everybody else a project does not exist (404).
+ * @summary Download the offer file
+ */
+export const downloadWorkingGroupProjectOfferFile = async (projectId: UUIDv7,
+    offerId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getDownloadWorkingGroupProjectOfferFileUrl(projectId,offerId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getSubmitWorkingGroupProjectUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/submit`
+}
+
+/**
+ * Requires `working_groups.read`; the lead or the requester while `draft` or `returned`. Refused with 409 `project_checklist_open` (details list the open points) while the hand-in checklist is not complete.
+ * @summary Hand the project in
+ */
+export const submitWorkingGroupProject = async (projectId: UUIDv7,
+    workingGroupProjectVersionRequest: WorkingGroupProjectVersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getSubmitWorkingGroupProjectUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectVersionRequest)
+  }
+);}
+
+
+export const getReturnWorkingGroupProjectUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/return`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`; a `submitted` project. The reason is required.
+ * @summary Return a project for changes
+ */
+export const returnWorkingGroupProject = async (projectId: UUIDv7,
+    workingGroupProjectReasonRequest: WorkingGroupProjectReasonRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getReturnWorkingGroupProjectUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectReasonRequest)
+  }
+);}
+
+
+export const getDeclineWorkingGroupProjectUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/decline`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`; a `submitted` project. The reason is required.
+ * @summary Decline a project
+ */
+export const declineWorkingGroupProject = async (projectId: UUIDv7,
+    workingGroupProjectReasonRequest: WorkingGroupProjectReasonRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getDeclineWorkingGroupProjectUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectReasonRequest)
+  }
+);}
+
+
+export const getApproveWorkingGroupProjectUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/approve`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`; a `submitted` project. When the wiRef has to decide (paid from external, or a planned total at or above the project threshold) the project becomes `wiref` and the Projektantrag is mailed to the wiRef address; otherwise it becomes `running` and its planned purchases `approved`. A project that needs the wiRef cannot be approved without a signature (422).
+ * @summary Approve a project
+ */
+export const approveWorkingGroupProject = async (projectId: UUIDv7,
+    approveWorkingGroupProjectRequest: ApproveWorkingGroupProjectRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getApproveWorkingGroupProjectUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(approveWorkingGroupProjectRequest)
+  }
+);}
+
+
+export const getRecordWorkingGroupProjectWiRefDecisionUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/wiref-decision`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`; a project in `wiref`. Sets the number, the chosen offer of every item that has offers and makes the item cost that offer; the project becomes `running` and its planned purchases `approved`.
+ * @summary Record the decision of the wiRef
+ */
+export const recordWorkingGroupProjectWiRefDecision = async (projectId: UUIDv7,
+    workingGroupProjectWiRefDecisionRequest: WorkingGroupProjectWiRefDecisionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getRecordWorkingGroupProjectWiRefDecisionUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectWiRefDecisionRequest)
+  }
+);}
+
+
+export const getSetWorkingGroupProjectPaidFromUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/paid-from`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`; any state before `completed`. Recorded in the history. When a running project starts to need the wiRef and no request was sent, `wirefRequestPending` is true.
+ * @summary Change who pays
+ */
+export const setWorkingGroupProjectPaidFrom = async (projectId: UUIDv7,
+    workingGroupProjectPaidFromRequest: WorkingGroupProjectPaidFromRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getSetWorkingGroupProjectPaidFromUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectPaidFromRequest)
+  }
+);}
+
+
+export const getSendWorkingGroupProjectToWiRefUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/send-to-wiref`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`; only while `wirefRequestPending` (409 otherwise). Mails the request stored with the project.
+ * @summary Send the Projektantrag
+ */
+export const sendWorkingGroupProjectToWiRef = async (projectId: UUIDv7,
+    workingGroupProjectVersionRequest: WorkingGroupProjectVersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getSendWorkingGroupProjectToWiRefUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectVersionRequest)
+  }
+);}
+
+
+export const getMarkWorkingGroupProjectAdvanceReceivedUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/advance-received`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`; the advance must have been asked for.
+ * @summary Record the advance
+ */
+export const markWorkingGroupProjectAdvanceReceived = async (projectId: UUIDv7,
+    workingGroupProjectVersionRequest: WorkingGroupProjectVersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getMarkWorkingGroupProjectAdvanceReceivedUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectVersionRequest)
+  }
+);}
+
+
+export const getCompleteWorkingGroupProjectUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/complete`
+}
+
+/**
+ * Requires `working_groups.read`; the lead of the group or a finance manager; a `running` project.
+ * @summary Complete a project
+ */
+export const completeWorkingGroupProject = async (projectId: UUIDv7,
+    completeWorkingGroupProjectRequest: CompleteWorkingGroupProjectRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getCompleteWorkingGroupProjectUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(completeWorkingGroupProjectRequest)
+  }
+);}
+
+
+export const getPreviewWorkingGroupProjectRequestUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/request-preview`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Renders the PDF with the defaults of the rules and the project, overridden by the given fields; nothing is stored or sent.
+ * @summary Preview the Projektantrag
+ */
+export const previewWorkingGroupProjectRequest = async (projectId: UUIDv7,
+    workingGroupProjectRequestFormInput: WorkingGroupProjectRequestFormInput, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getPreviewWorkingGroupProjectRequestUrl(projectId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectRequestFormInput)
+  }
+);}
+
+
+export const getDownloadWorkingGroupProjectRequestPdfUrl = (projectId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-projects/${projectId}/request-pdf`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. The PDF that was (or is to be) mailed; 404 until the project was approved for the wiRef.
+ * @summary Download the sent Projektantrag
+ */
+export const downloadWorkingGroupProjectRequestPdf = async (projectId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getDownloadWorkingGroupProjectRequestPdfUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getConvertWorkingGroupPurchaseToProjectUrl = (purchaseId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchases/${purchaseId}/to-project`
+}
+
+/**
+ * Requires `working_groups.read`; the lead of the group or the requester of a `wanted` purchase. Creates a draft project with one item from the purchase and links the purchase as `planned`.
+ * @summary Turn a purchase into a project
+ */
+export const convertWorkingGroupPurchaseToProject = async (purchaseId: UUIDv7,
+    workingGroupProjectVersionRequest: WorkingGroupProjectVersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+
+  return apiFetch<WorkingGroupProject>(getConvertWorkingGroupPurchaseToProjectUrl(purchaseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectVersionRequest)
+  }
+);}
+
+
+export const getPutWorkingGroupFinanceSignatureUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-finance-signature`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. A PNG image of at most 512 KiB; replaces the earlier one. Only its owner can read it.
+ * @summary Save the own signature
+ */
+export const putWorkingGroupFinanceSignature = async (putWorkingGroupFinanceSignatureBody: Blob, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getPutWorkingGroupFinanceSignatureUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/octet-stream' }, options?.headers),
+    body: putWorkingGroupFinanceSignatureBody
+  }
+);}
+
+
+export const getDeleteWorkingGroupFinanceSignatureUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-finance-signature`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`.
+ * @summary Delete the own signature
+ */
+export const deleteWorkingGroupFinanceSignature = async ( options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteWorkingGroupFinanceSignatureUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getDownloadWorkingGroupFinanceSignatureUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-finance-signature`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Only the signature of the caller; 404 when none is saved.
+ * @summary Read the own signature
+ */
+export const downloadWorkingGroupFinanceSignature = async ( options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getDownloadWorkingGroupFinanceSignatureUrl(),
   {
     ...options,
     method: 'GET'

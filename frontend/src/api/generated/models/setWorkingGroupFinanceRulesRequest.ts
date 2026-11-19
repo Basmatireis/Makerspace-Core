@@ -20,9 +20,11 @@
  */
 import type { Money } from './money';
 import type { Version } from './version';
+import type { WorkingGroupRequestDefaultsInput } from './workingGroupRequestDefaultsInput';
 
 export interface SetWorkingGroupFinanceRulesRequest {
   expectedVersion: Version;
   projectThreshold: Money;
   offersThreshold: Money;
+  request?: WorkingGroupRequestDefaultsInput;
 }

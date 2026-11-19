@@ -312,7 +312,9 @@ func (q *Queries) CountVisits(ctx context.Context, subjectPerson uuid.UUID) (int
 }
 
 const countWorkingGroupFinances = `-- name: CountWorkingGroupFinances :one
-SELECT count(*)::bigint FROM working_group_purchases WHERE requester_person_id = $1::uuid
+SELECT ((SELECT count(*) FROM working_group_purchases WHERE requester_person_id = $1::uuid)
+     + (SELECT count(*) FROM working_group_projects WHERE requester_person_id = $1::uuid)
+     + (SELECT count(*) FROM working_group_finance_signatures WHERE person_id = $1::uuid))::bigint
 `
 
 func (q *Queries) CountWorkingGroupFinances(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
@@ -855,7 +857,12 @@ SELECT jsonb_build_object(
             'hasAttachment', p.attachment_file_id IS NOT NULL, 'hasReceipt', p.receipt_file_id IS NOT NULL,
             'createdAt', p.created_at) ORDER BY p.created_at), '[]'::jsonb)
         FROM working_group_purchases p JOIN working_groups g ON g.id = p.group_id
-        WHERE p.requester_person_id = $1::uuid)
+        WHERE p.requester_person_id = $1::uuid),
+    'projects', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'title', pr.title, 'goal', pr.goal, 'benefit', pr.benefit, 'status', pr.status,
+            'plannedIncome', pr.planned_income, 'createdAt', pr.created_at) ORDER BY pr.created_at), '[]'::jsonb)
+        FROM working_group_projects pr JOIN working_groups g ON g.id = pr.group_id
+        WHERE pr.requester_person_id = $1::uuid)
 )::jsonb AS document
 `
 

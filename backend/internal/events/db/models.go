@@ -2606,11 +2606,22 @@ type WorkingGroupComment struct {
 }
 
 type WorkingGroupFinanceRule struct {
-	Singleton        bool
-	ProjectThreshold pgtype.Numeric
-	OffersThreshold  pgtype.Numeric
-	Version          int64
-	UpdatedAt        time.Time
+	Singleton                  bool
+	ProjectThreshold           pgtype.Numeric
+	OffersThreshold            pgtype.Numeric
+	Version                    int64
+	UpdatedAt                  time.Time
+	RequestUnitKind            string
+	RequestUnitName            string
+	RequestAddGroupName        bool
+	RequestResponsiblePersonID *uuid.UUID
+	RequestPlace               string
+}
+
+type WorkingGroupFinanceSignature struct {
+	PersonID  uuid.UUID
+	FileID    uuid.UUID
+	UpdatedAt time.Time
 }
 
 type WorkingGroupMachine struct {
@@ -2651,6 +2662,64 @@ type WorkingGroupPlace struct {
 	StatusChangedBy *uuid.UUID
 }
 
+type WorkingGroupProject struct {
+	ID                     uuid.UUID
+	GroupID                uuid.UUID
+	Title                  string
+	Goal                   string
+	Benefit                string
+	StartsOn               pgtype.Date
+	EndsOn                 pgtype.Date
+	People                 int32
+	PlannedIncome          pgtype.Numeric
+	Alcohol                bool
+	AdvanceRequested       bool
+	AdvanceAmount          pgtype.Numeric
+	AdvanceStatus          *string
+	PaidFrom               *string
+	WirefNumber            *string
+	Status                 string
+	RequesterPersonID      *uuid.UUID
+	WirefRequestSentAt     pgtype.Timestamptz
+	RequestForm            []byte
+	RequestSignatureFileID *uuid.UUID
+	RequestPdfFileID       *uuid.UUID
+	CompletionReport       *string
+	Version                int64
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+type WorkingGroupProjectHistory struct {
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
+	Status        string
+	ActorPersonID *uuid.UUID
+	Reason        *string
+	CreatedAt     time.Time
+}
+
+type WorkingGroupProjectItem struct {
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
+	Position      int32
+	Text          string
+	PlannedAmount pgtype.Numeric
+	Link          *string
+	Note          *string
+	ChosenOfferID *uuid.UUID
+	CreatedAt     time.Time
+}
+
+type WorkingGroupProjectOffer struct {
+	ID        uuid.UUID
+	ItemID    uuid.UUID
+	Shop      string
+	Price     pgtype.Numeric
+	FileID    *uuid.UUID
+	CreatedAt time.Time
+}
+
 type WorkingGroupProjectRequest struct {
 	ID        uuid.UUID
 	Number    string
@@ -2683,6 +2752,8 @@ type WorkingGroupPurchase struct {
 	Version           int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	ProjectID         *uuid.UUID
+	ProjectItemID     *uuid.UUID
 }
 
 type WorkingGroupPurchaseOrder struct {

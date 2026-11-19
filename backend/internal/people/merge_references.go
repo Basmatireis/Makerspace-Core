@@ -9,28 +9,29 @@ type MergeReference struct {
 }
 
 const (
-	ruleMoved         = "moved to the target"
-	ruleDeduplicated  = "moved to the target; duplicates resolved as documented"
-	ruleConflict      = "moved to the target; more than one blocks the merge"
-	ruleActor         = "re-pointed to the surviving account"
-	ruleSecondFactor  = "moved to the surviving account"
-	ruleTransient     = "deleted for every merged account"
-	ruleSessions      = "revoked for every merged account; deleted with the source account"
-	ruleSCIM          = "a SCIM-managed source blocks the merge; the target's mapping stays"
-	ruleAttached      = "the first source account becomes the target's account when the target has none"
-	ruleUnionedRoles  = "roles united on the target; only the highest membership stays"
-	ruleKeptIdentity  = "the chosen login email's identity moves to the surviving account; others are deleted"
-	ruleSourceFeed    = "deleted with the source person; the target keeps its own calendar link"
-	ruleInboxMoved    = "moved to the surviving account; duplicate deliveries dropped"
-	ruleGuideProgress = "deleted with the source account; the surviving account keeps its own progress"
-	rulePreferences   = "deleted with the source account; the surviving account keeps its own preferences"
-	ruleAuditRepoint  = "re-pointed to the surviving account (resource IDs of the merged person/account too)"
-	ruleNotifyPerson  = "deleted with the source person; the target keeps its own answers and the 90-day delivery log is not merged"
-	ruleNotifyAccount = "deleted with the source account; the surviving account keeps its own rules and channel choices"
-	ruleAskCooldown   = "deleted with the source person; the target keeps its own ask times"
-	ruleWorkingGroups = "moved to the target; where both were members the target stays and takes over a lead role"
-	ruleWorkingTasks  = "moved to the target; follows the target already had or that would follow its own ticket are dropped"
-	ruleSurveyPreserv = "moved to the target; anonymous responses never carry a person"
+	ruleMoved            = "moved to the target"
+	ruleDeduplicated     = "moved to the target; duplicates resolved as documented"
+	ruleConflict         = "moved to the target; more than one blocks the merge"
+	ruleActor            = "re-pointed to the surviving account"
+	ruleSecondFactor     = "moved to the surviving account"
+	ruleTransient        = "deleted for every merged account"
+	ruleSessions         = "revoked for every merged account; deleted with the source account"
+	ruleSCIM             = "a SCIM-managed source blocks the merge; the target's mapping stays"
+	ruleAttached         = "the first source account becomes the target's account when the target has none"
+	ruleUnionedRoles     = "roles united on the target; only the highest membership stays"
+	ruleKeptIdentity     = "the chosen login email's identity moves to the surviving account; others are deleted"
+	ruleSourceFeed       = "deleted with the source person; the target keeps its own calendar link"
+	ruleInboxMoved       = "moved to the surviving account; duplicate deliveries dropped"
+	ruleGuideProgress    = "deleted with the source account; the surviving account keeps its own progress"
+	rulePreferences      = "deleted with the source account; the surviving account keeps its own preferences"
+	ruleAuditRepoint     = "re-pointed to the surviving account (resource IDs of the merged person/account too)"
+	ruleNotifyPerson     = "deleted with the source person; the target keeps its own answers and the 90-day delivery log is not merged"
+	ruleNotifyAccount    = "deleted with the source account; the surviving account keeps its own rules and channel choices"
+	ruleAskCooldown      = "deleted with the source person; the target keeps its own ask times"
+	ruleWorkingGroups    = "moved to the target; where both were members the target stays and takes over a lead role"
+	ruleWorkingSignature = "moved to the target when it has no saved signature of its own; otherwise the source's is deleted with it"
+	ruleWorkingTasks     = "moved to the target; follows the target already had or that would follow its own ticket are dropped"
+	ruleSurveyPreserv    = "moved to the target; anonymous responses never carry a person"
 )
 
 // MergeReferences lists every handled reference column.
@@ -67,6 +68,10 @@ var MergeReferences = []MergeReference{
 	{"working_group_members", "person_id", "people", ruleWorkingGroups},
 	{"working_group_notes", "author_person_id", "people", ruleWorkingTasks},
 	{"working_group_places", "status_changed_by", "people", ruleWorkingTasks},
+	{"working_group_finance_rules", "request_responsible_person_id", "people", ruleWorkingTasks},
+	{"working_group_finance_signatures", "person_id", "people", ruleWorkingSignature},
+	{"working_group_project_history", "actor_person_id", "people", ruleWorkingTasks},
+	{"working_group_projects", "requester_person_id", "people", ruleWorkingTasks},
 	{"working_group_purchases", "requester_person_id", "people", ruleWorkingTasks},
 	{"working_group_ticket_followers", "person_id", "people", ruleWorkingTasks},
 	{"working_group_tickets", "assignee_person_id", "people", ruleWorkingTasks},

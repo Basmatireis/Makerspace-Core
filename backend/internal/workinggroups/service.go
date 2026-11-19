@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -40,6 +41,8 @@ type Service struct {
 	pool     *pgxpool.Pool
 	location *time.Location
 	files    *files.Service
+	mailer   WiRefMailer
+	sending  sync.Map
 }
 
 func NewService(pool *pgxpool.Pool) *Service {

@@ -25,6 +25,10 @@ import type { WorkingGroupPurchaseItemInput } from './workingGroupPurchaseItemIn
 export interface CreateWorkingGroupPurchasesRequest {
   groupId: UUIDv7;
   how: WorkingGroupPurchaseHow;
+  /** Adds the purchases to this project of the group as `planned` purchases (a link or a file is needed before the project is handed in). */
+  projectId?: UUIDv7;
+  /** The cost plan item they belong to. */
+  projectItemId?: UUIDv7;
   /**
      * @minItems 1
      * @maxItems 50

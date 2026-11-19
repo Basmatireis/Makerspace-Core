@@ -395,7 +395,11 @@ SELECT
         + (SELECT count(*) FROM working_group_notes WHERE author_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_machines WHERE status_changed_by = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_places WHERE status_changed_by = ANY((sqlc.arg(ids)::text[])::uuid[]))
-        + (SELECT count(*) FROM working_group_purchases WHERE requester_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS working_group_tasks,
+        + (SELECT count(*) FROM working_group_purchases WHERE requester_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_projects WHERE requester_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_project_history WHERE actor_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_finance_signatures WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_finance_rules WHERE request_responsible_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS working_group_tasks,
     (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY((sqlc.arg(account_ids)::text[])::uuid[]))::bigint AS notifications,
     ((SELECT count(*) FROM privacy_retention_holds WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM privacy_subject_requests WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS privacy_holds;
@@ -547,11 +551,26 @@ WITH tickets_moved AS (
 ), purchases_moved AS (
     UPDATE working_group_purchases AS pu SET requester_person_id = sqlc.arg(target_person_id)::uuid
     WHERE pu.requester_person_id = sqlc.arg(source_person_id) RETURNING 1
+), projects_moved AS (
+    UPDATE working_group_projects AS pr SET requester_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE pr.requester_person_id = sqlc.arg(source_person_id) RETURNING 1
+), project_history_moved AS (
+    UPDATE working_group_project_history AS ph SET actor_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE ph.actor_person_id = sqlc.arg(source_person_id) RETURNING 1
+), finance_rules_moved AS (
+    UPDATE working_group_finance_rules AS fr SET request_responsible_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE fr.request_responsible_person_id = sqlc.arg(source_person_id) RETURNING 1
+), signatures_moved AS (
+    UPDATE working_group_finance_signatures AS sg SET person_id = sqlc.arg(target_person_id)::uuid
+    WHERE sg.person_id = sqlc.arg(source_person_id)
+      AND NOT EXISTS (SELECT 1 FROM working_group_finance_signatures tsig WHERE tsig.person_id = sqlc.arg(target_person_id)::uuid) RETURNING 1
 )
 SELECT ((SELECT count(*) FROM tickets_moved) + (SELECT count(*) FROM followers_moved)
       + (SELECT count(*) FROM todos_moved) + (SELECT count(*) FROM comments_moved)
       + (SELECT count(*) FROM notes_moved) + (SELECT count(*) FROM machine_status_moved)
-      + (SELECT count(*) FROM place_status_moved) + (SELECT count(*) FROM purchases_moved))::bigint AS moved;
+      + (SELECT count(*) FROM place_status_moved) + (SELECT count(*) FROM purchases_moved)
+      + (SELECT count(*) FROM projects_moved) + (SELECT count(*) FROM project_history_moved)
+      + (SELECT count(*) FROM finance_rules_moved) + (SELECT count(*) FROM signatures_moved))::bigint AS moved;
 
 -- name: RepointMergePersonReferences :one
 -- Re-points the person references that carry no uniqueness rule. Conflicting open visits are rejected before this

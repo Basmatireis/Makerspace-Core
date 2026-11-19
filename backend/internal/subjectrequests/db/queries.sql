@@ -352,11 +352,18 @@ SELECT jsonb_build_object(
             'hasAttachment', p.attachment_file_id IS NOT NULL, 'hasReceipt', p.receipt_file_id IS NOT NULL,
             'createdAt', p.created_at) ORDER BY p.created_at), '[]'::jsonb)
         FROM working_group_purchases p JOIN working_groups g ON g.id = p.group_id
-        WHERE p.requester_person_id = sqlc.arg(subject_person)::uuid)
+        WHERE p.requester_person_id = sqlc.arg(subject_person)::uuid),
+    'projects', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'title', pr.title, 'goal', pr.goal, 'benefit', pr.benefit, 'status', pr.status,
+            'plannedIncome', pr.planned_income, 'createdAt', pr.created_at) ORDER BY pr.created_at), '[]'::jsonb)
+        FROM working_group_projects pr JOIN working_groups g ON g.id = pr.group_id
+        WHERE pr.requester_person_id = sqlc.arg(subject_person)::uuid)
 )::jsonb AS document;
 
 -- name: CountWorkingGroupFinances :one
-SELECT count(*)::bigint FROM working_group_purchases WHERE requester_person_id = sqlc.arg(subject_person)::uuid;
+SELECT ((SELECT count(*) FROM working_group_purchases WHERE requester_person_id = sqlc.arg(subject_person)::uuid)
+     + (SELECT count(*) FROM working_group_projects WHERE requester_person_id = sqlc.arg(subject_person)::uuid)
+     + (SELECT count(*) FROM working_group_finance_signatures WHERE person_id = sqlc.arg(subject_person)::uuid))::bigint;
 
 -- name: ExportLabRulesConfirmations :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object(

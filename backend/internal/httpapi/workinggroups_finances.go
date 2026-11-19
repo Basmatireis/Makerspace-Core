@@ -6,6 +6,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/workinggroups"
+	"github.com/oapi-codegen/nullable"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -39,6 +40,12 @@ func purchaseDTO(v workinggroups.Purchase) openapi.WorkingGroupPurchase {
 	}
 	if v.ActualTotal != nil {
 		out.ActualTotal = v.ActualTotal
+	}
+	if v.ProjectID != nil {
+		out.ProjectId = nullable.NewNullableWithValue(*v.ProjectID)
+	}
+	if v.ProjectItemID != nil {
+		out.ProjectItemId = nullable.NewNullableWithValue(*v.ProjectItemID)
 	}
 	if v.Requester != nil {
 		out.Requester = &openapi.WorkingGroupPerson{PersonId: v.Requester.ID, DisplayName: v.Requester.DisplayName}
@@ -75,8 +82,16 @@ func rulesDTO(v workinggroups.FinanceRules) openapi.WorkingGroupFinanceRules {
 	for _, r := range v.ProjectRequests {
 		requests = append(requests, openapi.WorkingGroupProjectRequest{Id: r.ID, Number: r.Number, Label: r.Label})
 	}
+	defaults := openapi.WorkingGroupRequestDefaults{
+		UnitKind: openapi.WorkingGroupProjectUnitKind(v.Request.UnitKind), UnitName: v.Request.UnitName,
+		AddGroupName: v.Request.AddGroupName, Place: v.Request.Place,
+	}
+	if v.Request.ResponsiblePerson != nil {
+		defaults.ResponsiblePerson = nullable.NewNullableWithValue(*workingGroupPersonDTO(v.Request.ResponsiblePerson))
+	}
 	return openapi.WorkingGroupFinanceRules{
-		ProjectThreshold: v.ProjectThreshold, OffersThreshold: v.OffersThreshold, ProjectRequests: requests, Version: v.Version,
+		ProjectThreshold: v.ProjectThreshold, OffersThreshold: v.OffersThreshold, Request: &defaults,
+		ProjectRequests: requests, Version: v.Version,
 	}
 }
 
@@ -242,7 +257,9 @@ func (s *Server) CreateWorkingGroupPurchases(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	input := workinggroups.CreatePurchasesInput{GroupID: r.Body.GroupId, How: string(r.Body.How)}
+	input := workinggroups.CreatePurchasesInput{
+		GroupID: r.Body.GroupId, How: string(r.Body.How), ProjectID: r.Body.ProjectId, ProjectItemID: r.Body.ProjectItemId,
+	}
 	for _, item := range r.Body.Items {
 		input.Items = append(input.Items, workinggroups.PurchaseItemInput{
 			Item: item.Item, Link: item.Link, Quantity: item.Quantity, UnitPrice: item.UnitPrice,
@@ -638,9 +655,19 @@ func (s *Server) SetWorkingGroupFinanceRules(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	rules, err := s.workingGroups.SetRules(ctx, p, workinggroups.FinanceRulesInput{
+	input := workinggroups.FinanceRulesInput{
 		ExpectedVersion: r.Body.ExpectedVersion, ProjectThreshold: r.Body.ProjectThreshold, OffersThreshold: r.Body.OffersThreshold,
-	}, requestIDPointer(ctx))
+	}
+	if in := r.Body.Request; in != nil {
+		input.Request = &workinggroups.RequestDefaultsInput{
+			UnitKind: string(in.UnitKind), UnitName: in.UnitName, AddGroupName: in.AddGroupName, Place: in.Place,
+		}
+		if in.ResponsiblePersonId.IsSpecified() && !in.ResponsiblePersonId.IsNull() {
+			id := in.ResponsiblePersonId.MustGet()
+			input.Request.ResponsiblePersonID = &id
+		}
+	}
+	rules, err := s.workingGroups.SetRules(ctx, p, input, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}

@@ -21,10 +21,12 @@
 import type { Money } from './money';
 import type { Version } from './version';
 import type { WorkingGroupProjectRequest } from './workingGroupProjectRequest';
+import type { WorkingGroupRequestDefaults } from './workingGroupRequestDefaults';
 
 export interface WorkingGroupFinanceRules {
   projectThreshold: Money;
   offersThreshold: Money;
+  request?: WorkingGroupRequestDefaults;
   projectRequests: WorkingGroupProjectRequest[];
   version: Version;
 }

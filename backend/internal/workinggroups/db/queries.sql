@@ -507,8 +507,18 @@ SELECT g.id AS group_id, g.name AS group_name,
        (COALESCE((SELECT sum(COALESCE(p.receipt_amount, p.quantity * p.unit_price)) FROM working_group_purchases p
                   WHERE p.group_id = g.id AND p.period_id = sqlc.arg(period_id) AND p.status IN ('ordered', 'bought', 'received', 'refunded')), 0)
         + COALESCE((SELECT sum(b.amount) FROM working_group_bookings b WHERE b.group_id = g.id AND b.period_id = sqlc.arg(period_id)), 0))::text AS spent,
-       COALESCE((SELECT sum(p.quantity * p.unit_price) FROM working_group_purchases p
-                 WHERE p.group_id = g.id AND p.period_id = sqlc.arg(period_id) AND p.status = 'approved'), 0)::text AS reserved
+       (COALESCE((SELECT sum(p.quantity * p.unit_price) FROM working_group_purchases p
+                  WHERE p.group_id = g.id AND p.period_id = sqlc.arg(period_id) AND p.status = 'approved'), 0)
+        -- A running project paid from the group budget reserves what is still planned beyond its purchases; it counts
+        -- in the period that is open today.
+        + CASE WHEN EXISTS (SELECT 1 FROM working_group_budget_periods bp WHERE bp.id = sqlc.arg(period_id) AND bp.closed_at IS NULL
+                            AND CURRENT_DATE BETWEEN bp.starts_on AND bp.ends_on)
+               THEN COALESCE((SELECT sum(GREATEST(0,
+                        (SELECT COALESCE(sum(i.planned_amount), 0) FROM working_group_project_items i WHERE i.project_id = pr.id)
+                        - (SELECT COALESCE(sum(COALESCE(pu.receipt_amount, pu.quantity * pu.unit_price)), 0) FROM working_group_purchases pu
+                           WHERE pu.project_id = pr.id AND pu.status IN ('approved', 'ordered', 'received', 'bought', 'refunded'))))
+                      FROM working_group_projects pr WHERE pr.group_id = g.id AND pr.status = 'running' AND pr.paid_from = 'group'), 0)
+               ELSE 0 END)::text AS reserved
 FROM working_groups g
 LEFT JOIN working_group_budget_shares s ON s.group_id = g.id AND s.period_id = sqlc.arg(period_id)
 WHERE (sqlc.arg(all_groups)::boolean
@@ -553,6 +563,8 @@ SELECT p.id, p.group_id, g.name AS group_name, p.period_id, per.name AS period_n
        p.requester_person_id, COALESCE(btrim(rp.first_name || ' ' || rp.last_name), '')::text AS requester_display_name,
        (p.attachment_file_id IS NOT NULL)::boolean AS has_attachment, (p.receipt_file_id IS NOT NULL)::boolean AS has_receipt,
        p.order_id, p.created_at, p.approved_at, p.declined_at, p.ordered_at, p.received_at, p.bought_at, p.refunded_at, p.version,
+       p.project_id, p.project_item_id,
+       COALESCE((SELECT pr.status = 'running' FROM working_group_projects pr WHERE pr.id = p.project_id), false)::boolean AS project_running,
        EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = p.group_id AND m.person_id = sqlc.arg(caller_person_id)) AS caller_is_member,
        EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = p.group_id AND m.person_id = sqlc.arg(caller_person_id) AND m.is_lead) AS caller_is_lead
 FROM working_group_purchases p
@@ -573,8 +585,9 @@ SELECT group_id FROM working_group_purchases WHERE id = sqlc.arg(id);
 
 -- name: LockWorkingGroupPurchase :one
 SELECT id, group_id, period_id, how, status, requester_person_id, version, (quantity * unit_price)::text AS estimated_total,
-       attachment_file_id, receipt_file_id, order_id
-FROM working_group_purchases WHERE id = sqlc.arg(id) FOR UPDATE;
+       attachment_file_id, receipt_file_id, order_id, project_id,
+       COALESCE((SELECT pr.status = 'running' FROM working_group_projects pr WHERE pr.id = lp.project_id), false)::boolean AS project_running
+FROM working_group_purchases lp WHERE lp.id = sqlc.arg(id) FOR UPDATE;
 
 -- name: CreateWorkingGroupPurchase :exec
 INSERT INTO working_group_purchases (id, group_id, period_id, item, link, quantity, unit_price, how, requester_person_id)
@@ -718,3 +731,252 @@ WHERE id = sqlc.arg(id);
 
 -- name: RedactWorkingGroupBooking :execrows
 UPDATE working_group_bookings SET text = 'Removed' WHERE id = sqlc.arg(id);
+
+
+-- name: GetWorkingGroupRequestDefaults :one
+SELECT r.request_unit_kind, r.request_unit_name, r.request_add_group_name, r.request_responsible_person_id,
+       COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS responsible_display_name,
+       COALESCE(p.first_name, '')::text AS responsible_first_name, COALESCE(p.last_name, '')::text AS responsible_last_name,
+       r.request_place
+FROM working_group_finance_rules r LEFT JOIN people p ON p.id = r.request_responsible_person_id WHERE r.singleton;
+
+-- name: UpdateWorkingGroupRequestDefaults :exec
+UPDATE working_group_finance_rules
+SET request_unit_kind = sqlc.arg(unit_kind), request_unit_name = sqlc.arg(unit_name), request_add_group_name = sqlc.arg(add_group_name),
+    request_responsible_person_id = sqlc.narg(responsible_person_id), request_place = sqlc.arg(place)
+WHERE singleton;
+
+-- name: PersonHoldsPermission :one
+-- Whether the person holds the permission through a role (master holds every permission).
+SELECT EXISTS (
+    SELECT 1 FROM person_roles pr JOIN roles r ON r.id = pr.role_id
+    LEFT JOIN role_permission_grants rp ON rp.role_id = r.id AND rp.permission_id = sqlc.arg(permission)
+    WHERE pr.person_id = sqlc.arg(person_id) AND (r.system_key = 'master' OR rp.role_id IS NOT NULL)
+);
+
+-- name: GetWorkingGroupName :one
+SELECT name FROM working_groups WHERE id = sqlc.arg(id);
+
+-- name: ListWorkingGroupProjects :many
+-- Projects the caller may see: every one for a finance manager, otherwise those of the caller's groups.
+SELECT pr.id, pr.group_id, g.name AS group_name, pr.title, pr.goal, pr.benefit, pr.starts_on, pr.ends_on, pr.people,
+       pr.planned_income::text AS planned_income, pr.alcohol, pr.advance_requested, COALESCE(pr.advance_amount::text, '')::text AS advance_amount,
+       COALESCE(pr.advance_status, '')::text AS advance_status, COALESCE(pr.paid_from, '')::text AS paid_from,
+       COALESCE(pr.wiref_number, '')::text AS wiref_number, pr.status, pr.requester_person_id,
+       COALESCE(btrim(rp.first_name || ' ' || rp.last_name), '')::text AS requester_display_name,
+       pr.wiref_request_sent_at, COALESCE(pr.completion_report, '')::text AS completion_report,
+       (pr.request_pdf_file_id IS NOT NULL)::boolean AS has_request_pdf, COALESCE(pr.request_form::text, '')::text AS request_form,
+       (SELECT COALESCE(sum(i.planned_amount), 0) FROM working_group_project_items i WHERE i.project_id = pr.id)::text AS planned_total,
+       (SELECT COALESCE(sum(pu.quantity * pu.unit_price), 0) FROM working_group_purchases pu
+        WHERE pu.project_id = pr.id AND pu.status <> 'declined')::text AS in_purchases,
+       (SELECT COALESCE(sum(COALESCE(pu.receipt_amount, pu.quantity * pu.unit_price)), 0) FROM working_group_purchases pu
+        WHERE pu.project_id = pr.id AND pu.status IN ('ordered', 'received', 'bought', 'refunded'))::text AS spent,
+       (SELECT COALESCE(sum(COALESCE(pu.receipt_amount, pu.quantity * pu.unit_price)), 0) FROM working_group_purchases pu
+        WHERE pu.project_id = pr.id AND pu.status IN ('approved', 'ordered', 'received', 'bought', 'refunded'))::text AS counted,
+       pr.version, pr.created_at, pr.updated_at,
+       EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = pr.group_id AND m.person_id = sqlc.arg(caller_person_id)) AS caller_is_member,
+       EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = pr.group_id AND m.person_id = sqlc.arg(caller_person_id) AND m.is_lead) AS caller_is_lead
+FROM working_group_projects pr
+JOIN working_groups g ON g.id = pr.group_id
+LEFT JOIN people rp ON rp.id = pr.requester_person_id
+WHERE (sqlc.arg(caller_finance)::boolean
+       OR EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = pr.group_id AND m.person_id = sqlc.arg(caller_person_id)))
+  AND (sqlc.narg(project_id)::uuid IS NULL OR pr.id = sqlc.narg(project_id))
+  AND (sqlc.narg(group_id)::uuid IS NULL OR pr.group_id = sqlc.narg(group_id))
+  AND (sqlc.narg(status)::text IS NULL OR pr.status = sqlc.narg(status))
+ORDER BY pr.created_at DESC, pr.id DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: GetWorkingGroupProjectGroup :one
+SELECT group_id FROM working_group_projects WHERE id = sqlc.arg(id);
+
+-- name: GetWorkingGroupProjectItemProject :one
+SELECT project_id FROM working_group_project_items WHERE id = sqlc.arg(id);
+
+-- name: GetWorkingGroupProjectOfferProject :one
+SELECT i.project_id, o.item_id FROM working_group_project_offers o JOIN working_group_project_items i ON i.id = o.item_id WHERE o.id = sqlc.arg(id);
+
+-- name: LockWorkingGroupProject :one
+SELECT lp.id, lp.group_id, lp.status, lp.requester_person_id, lp.version, COALESCE(lp.paid_from, '')::text AS paid_from,
+       lp.advance_requested, COALESCE(lp.advance_amount::text, '')::text AS advance_amount, COALESCE(lp.advance_status, '')::text AS advance_status,
+       lp.wiref_request_sent_at, lp.request_signature_file_id, lp.request_pdf_file_id,
+       (SELECT COALESCE(sum(i.planned_amount), 0) FROM working_group_project_items i WHERE i.project_id = lp.id)::text AS planned_total
+FROM working_group_projects lp WHERE lp.id = sqlc.arg(id) FOR UPDATE;
+
+-- name: CreateWorkingGroupProject :exec
+INSERT INTO working_group_projects (id, group_id, title, goal, benefit, starts_on, ends_on, people, planned_income, alcohol,
+                                    advance_requested, advance_amount, requester_person_id)
+VALUES (sqlc.arg(id), sqlc.arg(group_id), sqlc.arg(title), sqlc.arg(goal), sqlc.arg(benefit), sqlc.narg(starts_on), sqlc.narg(ends_on),
+        sqlc.arg(people), sqlc.arg(planned_income)::text::numeric, sqlc.arg(alcohol), sqlc.arg(advance_requested),
+        sqlc.narg(advance_amount)::text::numeric, sqlc.narg(requester_person_id));
+
+-- name: UpdateWorkingGroupProject :exec
+UPDATE working_group_projects
+SET title = sqlc.arg(title), goal = sqlc.arg(goal), benefit = sqlc.arg(benefit), starts_on = sqlc.narg(starts_on), ends_on = sqlc.narg(ends_on),
+    people = sqlc.arg(people), planned_income = sqlc.arg(planned_income)::text::numeric, alcohol = sqlc.arg(alcohol),
+    advance_requested = sqlc.arg(advance_requested), advance_amount = sqlc.narg(advance_amount)::text::numeric,
+    advance_status = CASE WHEN sqlc.arg(advance_requested) THEN advance_status ELSE NULL END,
+    version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id);
+
+-- name: DeleteWorkingGroupProject :exec
+DELETE FROM working_group_projects WHERE id = sqlc.arg(id);
+
+-- name: SetWorkingGroupProjectStatus :exec
+UPDATE working_group_projects SET status = sqlc.arg(status), version = version + 1, updated_at = now() WHERE id = sqlc.arg(id);
+
+-- name: SetWorkingGroupProjectPaidFrom :exec
+UPDATE working_group_projects SET paid_from = sqlc.arg(paid_from), version = version + 1, updated_at = now() WHERE id = sqlc.arg(id);
+
+-- name: SetWorkingGroupProjectWiRef :exec
+UPDATE working_group_projects SET wiref_number = sqlc.arg(number), status = 'running', version = version + 1, updated_at = now() WHERE id = sqlc.arg(id);
+
+-- name: SetWorkingGroupProjectRequest :exec
+UPDATE working_group_projects
+SET request_form = sqlc.arg(form)::text::jsonb, request_signature_file_id = COALESCE(sqlc.narg(signature_file_id), request_signature_file_id),
+    paid_from = NULLIF(sqlc.arg(paid_from)::text, ''),
+    version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id);
+
+-- name: SetWorkingGroupProjectRequestPDF :exec
+UPDATE working_group_projects SET request_pdf_file_id = sqlc.narg(pdf_file_id), wiref_request_sent_at = now(), version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id);
+
+-- name: SetWorkingGroupProjectAdvance :exec
+UPDATE working_group_projects SET advance_status = sqlc.arg(advance_status), version = version + 1, updated_at = now() WHERE id = sqlc.arg(id);
+
+-- name: SetWorkingGroupProjectAdvanceAsked :exec
+UPDATE working_group_projects SET advance_status = 'asked', version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND advance_requested AND advance_status IS NULL;
+
+-- name: CompleteWorkingGroupProject :exec
+UPDATE working_group_projects SET status = 'completed', completion_report = sqlc.narg(report), version = version + 1, updated_at = now() WHERE id = sqlc.arg(id);
+
+-- name: TouchWorkingGroupProject :exec
+UPDATE working_group_projects SET version = version + 1, updated_at = now() WHERE id = sqlc.arg(id);
+
+-- name: AddWorkingGroupProjectHistory :exec
+INSERT INTO working_group_project_history (id, project_id, status, actor_person_id, reason)
+VALUES (sqlc.arg(id), sqlc.arg(project_id), sqlc.arg(status), sqlc.narg(actor_person_id), sqlc.narg(reason));
+
+-- name: ListWorkingGroupProjectHistory :many
+SELECT h.status, h.actor_person_id, COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS actor_display_name,
+       COALESCE(h.reason, '')::text AS reason, h.created_at
+FROM working_group_project_history h LEFT JOIN people p ON p.id = h.actor_person_id
+WHERE h.project_id = sqlc.arg(project_id) ORDER BY h.created_at, h.id;
+
+-- name: ListWorkingGroupProjectItems :many
+SELECT id, position, text, planned_amount::text AS planned_amount, COALESCE(link, '')::text AS link, COALESCE(note, '')::text AS note, chosen_offer_id
+FROM working_group_project_items WHERE project_id = sqlc.arg(project_id) ORDER BY position, id;
+
+-- name: ListWorkingGroupProjectOffers :many
+SELECT o.id, o.item_id, o.shop, o.price::text AS price, (o.file_id IS NOT NULL)::boolean AS has_file
+FROM working_group_project_offers o JOIN working_group_project_items i ON i.id = o.item_id
+WHERE i.project_id = sqlc.arg(project_id) ORDER BY o.created_at, o.id;
+
+-- name: ListWorkingGroupProjectOfferFiles :many
+SELECT o.id, o.item_id, o.shop, o.price::text AS price, o.file_id
+FROM working_group_project_offers o JOIN working_group_project_items i ON i.id = o.item_id
+WHERE i.project_id = sqlc.arg(project_id) ORDER BY i.position, o.created_at, o.id;
+
+-- name: ListWorkingGroupProjectPurchases :many
+SELECT id, project_item_id, item, COALESCE(link, '')::text AS link, quantity, unit_price::text AS unit_price, status,
+       (attachment_file_id IS NOT NULL)::boolean AS has_attachment, attachment_file_id
+FROM working_group_purchases WHERE project_id = sqlc.arg(project_id) ORDER BY created_at, id;
+
+-- name: LockWorkingGroupProjectItem :one
+SELECT id, project_id, position, planned_amount::text AS planned_amount, chosen_offer_id FROM working_group_project_items WHERE id = sqlc.arg(id) FOR UPDATE;
+
+-- name: CountWorkingGroupProjectItems :one
+SELECT count(*)::bigint FROM working_group_project_items WHERE project_id = sqlc.arg(project_id);
+
+-- name: CreateWorkingGroupProjectItem :exec
+INSERT INTO working_group_project_items (id, project_id, position, text, planned_amount, link, note)
+VALUES (sqlc.arg(id), sqlc.arg(project_id), (SELECT COALESCE(max(position) + 1, 0) FROM working_group_project_items WHERE project_id = sqlc.arg(project_id)),
+        sqlc.arg(text), sqlc.arg(planned_amount)::text::numeric, sqlc.narg(link), sqlc.narg(note));
+
+-- name: UpdateWorkingGroupProjectItem :exec
+UPDATE working_group_project_items SET text = sqlc.arg(text), planned_amount = sqlc.arg(planned_amount)::text::numeric,
+    link = sqlc.narg(link), note = sqlc.narg(note) WHERE id = sqlc.arg(id);
+
+-- name: SetWorkingGroupProjectItemPosition :exec
+UPDATE working_group_project_items SET position = sqlc.arg(position) WHERE id = sqlc.arg(id) AND project_id = sqlc.arg(project_id);
+
+-- name: DeleteWorkingGroupProjectItem :exec
+DELETE FROM working_group_project_items WHERE id = sqlc.arg(id);
+
+-- name: ListWorkingGroupProjectItemFileIDs :many
+SELECT o.file_id FROM working_group_project_offers o WHERE o.item_id = sqlc.arg(item_id) AND o.file_id IS NOT NULL;
+
+-- name: CountWorkingGroupProjectOffers :one
+SELECT count(*)::bigint FROM working_group_project_offers WHERE item_id = sqlc.arg(item_id);
+
+-- name: CreateWorkingGroupProjectOffer :exec
+INSERT INTO working_group_project_offers (id, item_id, shop, price) VALUES (sqlc.arg(id), sqlc.arg(item_id), sqlc.arg(shop), sqlc.arg(price)::text::numeric);
+
+-- name: GetWorkingGroupProjectOffer :one
+SELECT id, item_id, shop, price::text AS price, file_id FROM working_group_project_offers WHERE id = sqlc.arg(id);
+
+-- name: SetWorkingGroupProjectOfferFile :exec
+UPDATE working_group_project_offers SET file_id = sqlc.narg(file_id) WHERE id = sqlc.arg(id);
+
+-- name: DeleteWorkingGroupProjectOffer :exec
+DELETE FROM working_group_project_offers WHERE id = sqlc.arg(id);
+
+-- name: ChooseWorkingGroupProjectOffer :exec
+UPDATE working_group_project_items AS it SET chosen_offer_id = sqlc.arg(offer_id),
+    planned_amount = (SELECT o.price FROM working_group_project_offers o WHERE o.id = sqlc.arg(offer_id))
+WHERE it.id = sqlc.arg(item_id);
+
+-- name: ListWorkingGroupProjectPurchaseFileIDs :many
+SELECT attachment_file_id FROM working_group_purchases WHERE project_id = sqlc.arg(project_id) AND attachment_file_id IS NOT NULL;
+
+-- name: ListWorkingGroupProjectOfferFileIDs :many
+SELECT o.file_id FROM working_group_project_offers o JOIN working_group_project_items i ON i.id = o.item_id
+WHERE i.project_id = sqlc.arg(project_id) AND o.file_id IS NOT NULL;
+
+-- name: DeleteWorkingGroupProjectPlannedPurchases :exec
+DELETE FROM working_group_purchases WHERE project_id = sqlc.arg(project_id) AND status = 'planned';
+
+-- name: StartWorkingGroupProjectPurchases :exec
+-- A project that starts running turns its planned purchases into approved ones, in the period open today.
+UPDATE working_group_purchases SET status = 'approved', approved_at = now(), period_id = sqlc.arg(period_id), version = version + 1, updated_at = now()
+WHERE project_id = sqlc.arg(project_id) AND status = 'planned';
+
+-- name: CreateWorkingGroupPlannedPurchase :exec
+INSERT INTO working_group_purchases (id, group_id, period_id, item, link, quantity, unit_price, how, requester_person_id, status, project_id, project_item_id)
+VALUES (sqlc.arg(id), sqlc.arg(group_id), sqlc.arg(period_id), sqlc.arg(item), sqlc.narg(link), sqlc.arg(quantity),
+        sqlc.arg(unit_price)::text::numeric, sqlc.arg(how), sqlc.arg(requester_person_id), 'planned', sqlc.arg(project_id), sqlc.narg(project_item_id));
+
+-- name: LinkWorkingGroupPurchaseToProject :exec
+UPDATE working_group_purchases SET status = 'planned', project_id = sqlc.arg(project_id), project_item_id = sqlc.arg(project_item_id),
+    version = version + 1, updated_at = now() WHERE id = sqlc.arg(id);
+
+-- name: GetWorkingGroupPurchaseForProject :one
+SELECT id, group_id, item, COALESCE(link, '')::text AS link, quantity, unit_price::text AS unit_price, (quantity * unit_price)::text AS total,
+       status, requester_person_id, project_id, (attachment_file_id IS NOT NULL)::boolean AS has_attachment
+FROM working_group_purchases WHERE id = sqlc.arg(id) FOR UPDATE;
+
+-- name: GetWorkingGroupFinanceSignature :one
+SELECT file_id FROM working_group_finance_signatures WHERE person_id = sqlc.arg(person_id);
+
+-- name: UpsertWorkingGroupFinanceSignature :one
+-- Returns the replaced file, if any.
+WITH old AS (SELECT s.file_id FROM working_group_finance_signatures s WHERE s.person_id = sqlc.arg(person_id)),
+     up AS (
+         INSERT INTO working_group_finance_signatures (person_id, file_id) VALUES (sqlc.arg(person_id), sqlc.arg(file_id))
+         ON CONFLICT (person_id) DO UPDATE SET file_id = EXCLUDED.file_id, updated_at = now() RETURNING 1)
+SELECT (SELECT old.file_id FROM old LIMIT 1)::uuid AS replaced_file_id FROM up;
+
+-- name: DeleteWorkingGroupFinanceSignature :one
+DELETE FROM working_group_finance_signatures WHERE person_id = sqlc.arg(person_id) RETURNING file_id;
+
+-- name: LinkWorkingGroupRunningPurchase :exec
+-- A purchase added to a running project keeps its status and only records the project.
+UPDATE working_group_purchases SET project_id = sqlc.narg(project_id), project_item_id = sqlc.narg(project_item_id) WHERE id = sqlc.arg(id);
+
+-- name: GetWorkingGroupProjectRequestPDF :one
+SELECT request_pdf_file_id FROM working_group_projects WHERE id = sqlc.arg(id);
+
+-- name: GetWorkingGroupProjectSignature :one
+SELECT request_signature_file_id FROM working_group_projects WHERE id = sqlc.arg(id);

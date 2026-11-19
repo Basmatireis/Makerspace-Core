@@ -17,20 +17,29 @@ type Querier interface {
 	AddWorkingGroupMachine(ctx context.Context, arg AddWorkingGroupMachineParams) error
 	AddWorkingGroupMember(ctx context.Context, arg AddWorkingGroupMemberParams) error
 	AddWorkingGroupPlace(ctx context.Context, arg AddWorkingGroupPlaceParams) error
+	AddWorkingGroupProjectHistory(ctx context.Context, arg AddWorkingGroupProjectHistoryParams) error
 	AddWorkingGroupTicketFollower(ctx context.Context, arg AddWorkingGroupTicketFollowerParams) (int64, error)
 	ApproveWorkingGroupPurchase(ctx context.Context, id uuid.UUID) error
+	ChooseWorkingGroupProjectOffer(ctx context.Context, arg ChooseWorkingGroupProjectOfferParams) error
 	ClearWorkingGroupLead(ctx context.Context, groupID uuid.UUID) error
 	// A person who leaves a group no longer carries its tickets and to-dos.
 	ClearWorkingGroupTicketAssignments(ctx context.Context, arg ClearWorkingGroupTicketAssignmentsParams) error
 	ClearWorkingGroupTodoAssignments(ctx context.Context, arg ClearWorkingGroupTodoAssignmentsParams) error
 	CloseWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUID) (int64, error)
+	CompleteWorkingGroupProject(ctx context.Context, arg CompleteWorkingGroupProjectParams) error
 	CopyWorkingGroupBudgetShares(ctx context.Context, arg CopyWorkingGroupBudgetSharesParams) error
 	// Purchases, bookings and shares of a group, and how many of them lie in a closed period.
 	CountWorkingGroupFinanceRecords(ctx context.Context, targetGroup uuid.UUID) (CountWorkingGroupFinanceRecordsRow, error)
+	CountWorkingGroupProjectItems(ctx context.Context, projectID uuid.UUID) (int64, error)
+	CountWorkingGroupProjectOffers(ctx context.Context, itemID uuid.UUID) (int64, error)
 	CreateWorkingGroup(ctx context.Context, arg CreateWorkingGroupParams) error
 	CreateWorkingGroupBooking(ctx context.Context, arg CreateWorkingGroupBookingParams) error
 	CreateWorkingGroupBudgetPeriod(ctx context.Context, arg CreateWorkingGroupBudgetPeriodParams) error
 	CreateWorkingGroupNote(ctx context.Context, arg CreateWorkingGroupNoteParams) error
+	CreateWorkingGroupPlannedPurchase(ctx context.Context, arg CreateWorkingGroupPlannedPurchaseParams) error
+	CreateWorkingGroupProject(ctx context.Context, arg CreateWorkingGroupProjectParams) error
+	CreateWorkingGroupProjectItem(ctx context.Context, arg CreateWorkingGroupProjectItemParams) error
+	CreateWorkingGroupProjectOffer(ctx context.Context, arg CreateWorkingGroupProjectOfferParams) error
 	CreateWorkingGroupProjectRequest(ctx context.Context, arg CreateWorkingGroupProjectRequestParams) error
 	CreateWorkingGroupPurchase(ctx context.Context, arg CreateWorkingGroupPurchaseParams) error
 	CreateWorkingGroupPurchaseOrder(ctx context.Context, arg CreateWorkingGroupPurchaseOrderParams) error
@@ -44,12 +53,17 @@ type Querier interface {
 	DeleteWorkingGroup(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupBooking(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupColumn(ctx context.Context, arg DeleteWorkingGroupColumnParams) error
+	DeleteWorkingGroupFinanceSignature(ctx context.Context, personID uuid.UUID) (uuid.UUID, error)
 	DeleteWorkingGroupMachine(ctx context.Context, arg DeleteWorkingGroupMachineParams) error
 	// A machine that leaves its group starts again at ok, without history.
 	DeleteWorkingGroupMachineStatusChanges(ctx context.Context, arg DeleteWorkingGroupMachineStatusChangesParams) error
 	DeleteWorkingGroupMember(ctx context.Context, arg DeleteWorkingGroupMemberParams) (int64, error)
 	DeleteWorkingGroupNote(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupPlace(ctx context.Context, arg DeleteWorkingGroupPlaceParams) (int64, error)
+	DeleteWorkingGroupProject(ctx context.Context, id uuid.UUID) error
+	DeleteWorkingGroupProjectItem(ctx context.Context, id uuid.UUID) error
+	DeleteWorkingGroupProjectOffer(ctx context.Context, id uuid.UUID) error
+	DeleteWorkingGroupProjectPlannedPurchases(ctx context.Context, projectID *uuid.UUID) error
 	DeleteWorkingGroupProjectRequest(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupPurchase(ctx context.Context, id uuid.UUID) (DeleteWorkingGroupPurchaseRow, error)
 	DeleteWorkingGroupTicket(ctx context.Context, id uuid.UUID) (int64, error)
@@ -62,15 +76,25 @@ type Querier interface {
 	GetWorkingGroupBookingPeriod(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUID) (GetWorkingGroupBudgetPeriodRow, error)
 	GetWorkingGroupFinanceRules(ctx context.Context) (GetWorkingGroupFinanceRulesRow, error)
+	GetWorkingGroupFinanceSignature(ctx context.Context, personID uuid.UUID) (uuid.UUID, error)
 	GetWorkingGroupMachineStatus(ctx context.Context, arg GetWorkingGroupMachineStatusParams) (GetWorkingGroupMachineStatusRow, error)
 	GetWorkingGroupMember(ctx context.Context, arg GetWorkingGroupMemberParams) (GetWorkingGroupMemberRow, error)
+	GetWorkingGroupName(ctx context.Context, id uuid.UUID) (string, error)
 	GetWorkingGroupNote(ctx context.Context, arg GetWorkingGroupNoteParams) (GetWorkingGroupNoteRow, error)
 	GetWorkingGroupNoteCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupNoteCoreRow, error)
 	GetWorkingGroupPlaceStatus(ctx context.Context, arg GetWorkingGroupPlaceStatusParams) (GetWorkingGroupPlaceStatusRow, error)
+	GetWorkingGroupProjectGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	GetWorkingGroupProjectItemProject(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	GetWorkingGroupProjectOffer(ctx context.Context, id uuid.UUID) (GetWorkingGroupProjectOfferRow, error)
+	GetWorkingGroupProjectOfferProject(ctx context.Context, id uuid.UUID) (GetWorkingGroupProjectOfferProjectRow, error)
 	GetWorkingGroupProjectRequest(ctx context.Context, id uuid.UUID) (GetWorkingGroupProjectRequestRow, error)
+	GetWorkingGroupProjectRequestPDF(ctx context.Context, id uuid.UUID) (*uuid.UUID, error)
+	GetWorkingGroupProjectSignature(ctx context.Context, id uuid.UUID) (*uuid.UUID, error)
 	GetWorkingGroupPurchaseFiles(ctx context.Context, id uuid.UUID) (GetWorkingGroupPurchaseFilesRow, error)
+	GetWorkingGroupPurchaseForProject(ctx context.Context, id uuid.UUID) (GetWorkingGroupPurchaseForProjectRow, error)
 	GetWorkingGroupPurchaseGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetWorkingGroupPurchaseOrderInvoice(ctx context.Context, id uuid.UUID) (*uuid.UUID, error)
+	GetWorkingGroupRequestDefaults(ctx context.Context) (GetWorkingGroupRequestDefaultsRow, error)
 	GetWorkingGroupTicketCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTicketCoreRow, error)
 	GetWorkingGroupTodoCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTodoCoreRow, error)
 	HandInWorkingGroupPurchaseReceipt(ctx context.Context, arg HandInWorkingGroupPurchaseReceiptParams) error
@@ -83,6 +107,9 @@ type Querier interface {
 	IsWorkingGroupLead(ctx context.Context, arg IsWorkingGroupLeadParams) (bool, error)
 	IsWorkingGroupMember(ctx context.Context, arg IsWorkingGroupMemberParams) (bool, error)
 	LeadsAnyWorkingGroup(ctx context.Context, personID uuid.UUID) (bool, error)
+	LinkWorkingGroupPurchaseToProject(ctx context.Context, arg LinkWorkingGroupPurchaseToProjectParams) error
+	// A purchase added to a running project keeps its status and only records the project.
+	LinkWorkingGroupRunningPurchase(ctx context.Context, arg LinkWorkingGroupRunningPurchaseParams) error
 	ListExistingMachineIDs(ctx context.Context, ids []uuid.UUID) ([]uuid.UUID, error)
 	ListMachineGroupAssignments(ctx context.Context, ids []uuid.UUID) ([]ListMachineGroupAssignmentsRow, error)
 	ListWorkingGroupBookings(ctx context.Context, arg ListWorkingGroupBookingsParams) ([]ListWorkingGroupBookingsRow, error)
@@ -99,7 +126,17 @@ type Querier interface {
 	ListWorkingGroupNotes(ctx context.Context, arg ListWorkingGroupNotesParams) ([]ListWorkingGroupNotesRow, error)
 	ListWorkingGroupOrderPurchaseIDs(ctx context.Context, orderIds []string) ([]ListWorkingGroupOrderPurchaseIDsRow, error)
 	ListWorkingGroupPlaces(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupPlacesRow, error)
+	ListWorkingGroupProjectHistory(ctx context.Context, projectID uuid.UUID) ([]ListWorkingGroupProjectHistoryRow, error)
+	ListWorkingGroupProjectItemFileIDs(ctx context.Context, itemID uuid.UUID) ([]*uuid.UUID, error)
+	ListWorkingGroupProjectItems(ctx context.Context, projectID uuid.UUID) ([]ListWorkingGroupProjectItemsRow, error)
+	ListWorkingGroupProjectOfferFileIDs(ctx context.Context, projectID uuid.UUID) ([]*uuid.UUID, error)
+	ListWorkingGroupProjectOfferFiles(ctx context.Context, projectID uuid.UUID) ([]ListWorkingGroupProjectOfferFilesRow, error)
+	ListWorkingGroupProjectOffers(ctx context.Context, projectID uuid.UUID) ([]ListWorkingGroupProjectOffersRow, error)
+	ListWorkingGroupProjectPurchaseFileIDs(ctx context.Context, projectID *uuid.UUID) ([]*uuid.UUID, error)
+	ListWorkingGroupProjectPurchases(ctx context.Context, projectID *uuid.UUID) ([]ListWorkingGroupProjectPurchasesRow, error)
 	ListWorkingGroupProjectRequests(ctx context.Context) ([]ListWorkingGroupProjectRequestsRow, error)
+	// Projects the caller may see: every one for a finance manager, otherwise those of the caller's groups.
+	ListWorkingGroupProjects(ctx context.Context, arg ListWorkingGroupProjectsParams) ([]ListWorkingGroupProjectsRow, error)
 	ListWorkingGroupPurchaseOrders(ctx context.Context, arg ListWorkingGroupPurchaseOrdersParams) ([]ListWorkingGroupPurchaseOrdersRow, error)
 	// Purchases the caller may see: every one for a finance manager, otherwise those of the caller's groups.
 	ListWorkingGroupPurchases(ctx context.Context, arg ListWorkingGroupPurchasesParams) ([]ListWorkingGroupPurchasesRow, error)
@@ -119,6 +156,8 @@ type Querier interface {
 	// Exclusive lock for changes of the period itself (edit, close, shares).
 	LockWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUID) (LockWorkingGroupBudgetPeriodRow, error)
 	LockWorkingGroupFinanceRules(ctx context.Context) (int64, error)
+	LockWorkingGroupProject(ctx context.Context, id uuid.UUID) (LockWorkingGroupProjectRow, error)
+	LockWorkingGroupProjectItem(ctx context.Context, id uuid.UUID) (LockWorkingGroupProjectItemRow, error)
 	LockWorkingGroupPurchase(ctx context.Context, id uuid.UUID) (LockWorkingGroupPurchaseRow, error)
 	LockWorkingGroupPurchaseOrder(ctx context.Context, id uuid.UUID) (LockWorkingGroupPurchaseOrderRow, error)
 	LockWorkingGroupPurchasesForOrder(ctx context.Context, ids []string) ([]LockWorkingGroupPurchasesForOrderRow, error)
@@ -133,6 +172,8 @@ type Querier interface {
 	// Gives a column a name nobody else can want, so renames and swaps never meet the unique name index halfway.
 	ParkWorkingGroupColumnName(ctx context.Context, arg ParkWorkingGroupColumnNameParams) error
 	PersonExists(ctx context.Context, id uuid.UUID) (bool, error)
+	// Whether the person holds the permission through a role (master holds every permission).
+	PersonHoldsPermission(ctx context.Context, arg PersonHoldsPermissionParams) (bool, error)
 	ReceiveWorkingGroupOrderPurchases(ctx context.Context, orderID *uuid.UUID) ([]uuid.UUID, error)
 	ReceiveWorkingGroupPurchase(ctx context.Context, id uuid.UUID) error
 	RedactWorkingGroupBooking(ctx context.Context, id uuid.UUID) (int64, error)
@@ -140,19 +181,36 @@ type Querier interface {
 	RefundWorkingGroupPurchase(ctx context.Context, id uuid.UUID) error
 	SetWorkingGroupMachineStatus(ctx context.Context, arg SetWorkingGroupMachineStatusParams) (int64, error)
 	SetWorkingGroupPlaceStatus(ctx context.Context, arg SetWorkingGroupPlaceStatusParams) (int64, error)
+	SetWorkingGroupProjectAdvance(ctx context.Context, arg SetWorkingGroupProjectAdvanceParams) error
+	SetWorkingGroupProjectAdvanceAsked(ctx context.Context, id uuid.UUID) error
+	SetWorkingGroupProjectItemPosition(ctx context.Context, arg SetWorkingGroupProjectItemPositionParams) error
+	SetWorkingGroupProjectOfferFile(ctx context.Context, arg SetWorkingGroupProjectOfferFileParams) error
+	SetWorkingGroupProjectPaidFrom(ctx context.Context, arg SetWorkingGroupProjectPaidFromParams) error
+	SetWorkingGroupProjectRequest(ctx context.Context, arg SetWorkingGroupProjectRequestParams) error
+	SetWorkingGroupProjectRequestPDF(ctx context.Context, arg SetWorkingGroupProjectRequestPDFParams) error
+	SetWorkingGroupProjectStatus(ctx context.Context, arg SetWorkingGroupProjectStatusParams) error
+	SetWorkingGroupProjectWiRef(ctx context.Context, arg SetWorkingGroupProjectWiRefParams) error
 	SetWorkingGroupPurchaseAttachment(ctx context.Context, arg SetWorkingGroupPurchaseAttachmentParams) error
 	SetWorkingGroupPurchaseOrderInvoice(ctx context.Context, arg SetWorkingGroupPurchaseOrderInvoiceParams) error
 	SetWorkingGroupTicketState(ctx context.Context, arg SetWorkingGroupTicketStateParams) (int64, error)
 	SetWorkingGroupTodoDone(ctx context.Context, arg SetWorkingGroupTodoDoneParams) (int64, error)
 	// Shared lock for everything that books into the period, so a period cannot be closed under a running change.
 	ShareLockWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUID) (ShareLockWorkingGroupBudgetPeriodRow, error)
+	// A project that starts running turns its planned purchases into approved ones, in the period open today.
+	StartWorkingGroupProjectPurchases(ctx context.Context, arg StartWorkingGroupProjectPurchasesParams) error
+	TouchWorkingGroupProject(ctx context.Context, id uuid.UUID) error
 	UpdateWorkingGroup(ctx context.Context, arg UpdateWorkingGroupParams) (int64, error)
 	UpdateWorkingGroupBudgetPeriod(ctx context.Context, arg UpdateWorkingGroupBudgetPeriodParams) (int64, error)
 	UpdateWorkingGroupColumn(ctx context.Context, arg UpdateWorkingGroupColumnParams) error
 	UpdateWorkingGroupFinanceRules(ctx context.Context, arg UpdateWorkingGroupFinanceRulesParams) (int64, error)
+	UpdateWorkingGroupProject(ctx context.Context, arg UpdateWorkingGroupProjectParams) error
+	UpdateWorkingGroupProjectItem(ctx context.Context, arg UpdateWorkingGroupProjectItemParams) error
 	UpdateWorkingGroupProjectRequest(ctx context.Context, arg UpdateWorkingGroupProjectRequestParams) (int64, error)
+	UpdateWorkingGroupRequestDefaults(ctx context.Context, arg UpdateWorkingGroupRequestDefaultsParams) error
 	UpdateWorkingGroupTodo(ctx context.Context, arg UpdateWorkingGroupTodoParams) (int64, error)
 	UpsertWorkingGroupBudgetShare(ctx context.Context, arg UpsertWorkingGroupBudgetShareParams) error
+	// Returns the replaced file, if any.
+	UpsertWorkingGroupFinanceSignature(ctx context.Context, arg UpsertWorkingGroupFinanceSignatureParams) (uuid.UUID, error)
 }
 
 var _ Querier = (*Queries)(nil)

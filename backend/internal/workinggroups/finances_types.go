@@ -69,6 +69,7 @@ type Budget struct {
 
 // Purchase statuses and ways of buying.
 const (
+	PurchasePlanned  = "planned"
 	PurchaseWanted   = "wanted"
 	PurchaseApproved = "approved"
 	PurchaseDeclined = "declined"
@@ -120,6 +121,8 @@ type Purchase struct {
 	ReceivedAt     *time.Time
 	BoughtAt       *time.Time
 	RefundedAt     *time.Time
+	ProjectID      *uuid.UUID
+	ProjectItemID  *uuid.UUID
 	PurchaseFlags
 	Version int64
 }
@@ -144,6 +147,9 @@ type CreatePurchasesInput struct {
 	GroupID uuid.UUID
 	How     string
 	Items   []PurchaseItemInput
+	// ProjectID adds the purchases to a project of the group (as planned purchases while it is not running).
+	ProjectID     *uuid.UUID
+	ProjectItemID *uuid.UUID
 }
 
 // FileUpload is an uploaded file: name and type as declared by the client, and its content.
@@ -215,6 +221,7 @@ type ProjectRequest struct {
 type FinanceRules struct {
 	ProjectThreshold string
 	OffersThreshold  string
+	Request          RequestDefaults
 	ProjectRequests  []ProjectRequest
 	Version          int64
 }
@@ -224,4 +231,5 @@ type FinanceRulesInput struct {
 	ExpectedVersion  int64
 	ProjectThreshold string
 	OffersThreshold  string
+	Request          *RequestDefaultsInput
 }

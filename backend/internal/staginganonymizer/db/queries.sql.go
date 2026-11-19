@@ -1040,6 +1040,14 @@ SELECT attachment_file_id FROM working_group_purchases WHERE attachment_file_id 
 UNION
 SELECT receipt_file_id FROM working_group_purchases WHERE receipt_file_id IS NOT NULL
 UNION
+SELECT file_id FROM working_group_project_offers WHERE file_id IS NOT NULL
+UNION
+SELECT request_signature_file_id FROM working_group_projects WHERE request_signature_file_id IS NOT NULL
+UNION
+SELECT request_pdf_file_id FROM working_group_projects WHERE request_pdf_file_id IS NOT NULL
+UNION
+SELECT file_id FROM working_group_finance_signatures
+UNION
 SELECT invoice_file_id FROM working_group_purchase_orders WHERE invoice_file_id IS NOT NULL
 UNION
 SELECT export_file_id::uuid FROM privacy_subject_requests WHERE export_file_id IS NOT NULL
@@ -1123,6 +1131,16 @@ WITH purchases AS (
     UPDATE working_group_purchases SET item = 'Item', link = NULL, decline_reason = NULL RETURNING 1
 ), orders AS (
     UPDATE working_group_purchase_orders SET shop = 'Shop' RETURNING 1
+), projects AS (
+    UPDATE working_group_projects SET title = 'Project', goal = '', benefit = '', completion_report = NULL, request_form = NULL RETURNING 1
+), project_items AS (
+    UPDATE working_group_project_items SET text = 'Item', link = NULL, note = NULL RETURNING 1
+), project_offers AS (
+    UPDATE working_group_project_offers SET shop = 'Shop' RETURNING 1
+), project_history AS (
+    UPDATE working_group_project_history SET reason = NULL RETURNING 1
+), request_defaults AS (
+    UPDATE working_group_finance_rules SET request_responsible_person_id = NULL, request_place = '' RETURNING 1
 )
 UPDATE working_group_bookings SET text = 'Booking'
 `

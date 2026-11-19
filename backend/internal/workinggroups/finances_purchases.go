@@ -49,12 +49,15 @@ func flagsFor(st purchaseState, a purchaseAccess, threshold decimal.Decimal) (bo
 		CanHandInReceipt: open && st.how == HowSelf && st.status == PurchaseApproved && (a.requester || a.lead || a.finance),
 		CanMarkArrived:   open && st.how == HowCentral && st.status == PurchaseOrdered && (a.member || a.finance),
 		CanMarkRefunded:  open && a.finance && st.how == HowSelf && st.status == PurchaseBought,
-		CanDelete: open && ((a.requester && st.status == PurchaseWanted) ||
-			(a.finance && (st.status == PurchaseWanted || st.status == PurchaseDeclined))),
+		CanDelete:        open && st.deletableBy(a),
 	}
 }
 
 func purchaseFromRow(row workinggroupsdb.ListWorkingGroupPurchasesRow, p authorization.Principal, threshold decimal.Decimal) Purchase {
+	if row.ProjectRunning {
+		// A project that runs is what the project threshold asks for.
+		threshold = decimal.NewFromInt(maxMoney).Add(decimal.NewFromInt(1))
+	}
 	requester := row.RequesterPersonID != nil && *row.RequesterPersonID == p.PersonID
 	needs, flags := flagsFor(
 		purchaseState{status: row.Status, how: row.How, estimated: dbMoney(row.EstimatedTotal), closed: row.PeriodClosed},
@@ -70,7 +73,8 @@ func purchaseFromRow(row workinggroupsdb.ListWorkingGroupPurchasesRow, p authori
 		NeedsProject: needs, HasAttachment: row.HasAttachment, HasReceipt: row.HasReceipt, OrderID: row.OrderID,
 		CreatedAt: row.CreatedAt, ApprovedAt: timeValue(row.ApprovedAt), DeclinedAt: timeValue(row.DeclinedAt),
 		OrderedAt: timeValue(row.OrderedAt), ReceivedAt: timeValue(row.ReceivedAt), BoughtAt: timeValue(row.BoughtAt),
-		RefundedAt: timeValue(row.RefundedAt), PurchaseFlags: flags, Version: row.Version,
+		RefundedAt: timeValue(row.RefundedAt), ProjectID: row.ProjectID, ProjectItemID: row.ProjectItemID,
+		PurchaseFlags: flags, Version: row.Version,
 	}
 	if row.ReceiptAmount != "" {
 		actual := moneyText(dbMoney(row.ReceiptAmount))
@@ -119,7 +123,7 @@ func (s *Service) loadPurchase(ctx context.Context, q *workinggroupsdb.Queries, 
 
 func validPurchaseStatus(value string) bool {
 	switch value {
-	case PurchaseWanted, PurchaseApproved, PurchaseDeclined, PurchaseOrdered, PurchaseReceived, PurchaseBought, PurchaseRefunded:
+	case PurchasePlanned, PurchaseWanted, PurchaseApproved, PurchaseDeclined, PurchaseOrdered, PurchaseReceived, PurchaseBought, PurchaseRefunded:
 		return true
 	}
 	return false
@@ -235,16 +239,43 @@ func (s *Service) CreatePurchases(
 		}
 		created := make([]uuid.UUID, 0, len(cleaned))
 		requester := p.PersonID
+		planned, err := projectForNewPurchases(ctx, q, input)
+		if err != nil {
+			return err
+		}
 		for _, c := range cleaned {
 			id := ids.New()
-			if err := q.CreateWorkingGroupPurchase(ctx, workinggroupsdb.CreateWorkingGroupPurchaseParams{
-				ID: id, GroupID: input.GroupID, PeriodID: periodID, Item: c.item, Link: c.link, Quantity: int32(c.qty),
-				UnitPrice: moneyText(c.price), How: input.How, RequesterPersonID: &requester,
-			}); err != nil {
+			fields := []string{"groupId", "item", "link", "quantity", "unitPrice", "how"}
+			if input.ProjectID != nil {
+				fields = append(fields, "projectId", "projectItemId")
+				params := workinggroupsdb.CreateWorkingGroupPurchaseParams{
+					ID: id, GroupID: input.GroupID, PeriodID: periodID, Item: c.item, Link: c.link, Quantity: int32(c.qty),
+					UnitPrice: moneyText(c.price), How: input.How, RequesterPersonID: &requester,
+				}
+				if planned {
+					err = q.CreateWorkingGroupPlannedPurchase(ctx, workinggroupsdb.CreateWorkingGroupPlannedPurchaseParams{
+						ID: params.ID, GroupID: params.GroupID, PeriodID: params.PeriodID, Item: params.Item, Link: params.Link,
+						Quantity: params.Quantity, UnitPrice: params.UnitPrice, How: params.How, RequesterPersonID: params.RequesterPersonID,
+						ProjectID: input.ProjectID, ProjectItemID: input.ProjectItemID,
+					})
+				} else {
+					err = q.CreateWorkingGroupPurchase(ctx, params)
+					if err == nil {
+						err = q.LinkWorkingGroupRunningPurchase(ctx, workinggroupsdb.LinkWorkingGroupRunningPurchaseParams{
+							ID: id, ProjectID: input.ProjectID, ProjectItemID: input.ProjectItemID,
+						})
+					}
+				}
+			} else {
+				err = q.CreateWorkingGroupPurchase(ctx, workinggroupsdb.CreateWorkingGroupPurchaseParams{
+					ID: id, GroupID: input.GroupID, PeriodID: periodID, Item: c.item, Link: c.link, Quantity: int32(c.qty),
+					UnitPrice: moneyText(c.price), How: input.How, RequesterPersonID: &requester,
+				})
+			}
+			if err != nil {
 				return err
 			}
-			if err := writeTaskAudit(ctx, tx, p, "working_group_purchase.created", "working_group_purchase", id, requestID,
-				[]string{"groupId", "item", "link", "quantity", "unitPrice", "how"}); err != nil {
+			if err := writeTaskAudit(ctx, tx, p, "working_group_purchase.created", "working_group_purchase", id, requestID, fields); err != nil {
 				return err
 			}
 			created = append(created, id)
@@ -398,7 +429,7 @@ func (s *Service) ApprovePurchase(ctx context.Context, p authorization.Principal
 	return s.changePurchase(ctx, p, id, expected, purchaseChange{
 		role: roleFinance, state: stateIs(PurchaseWanted), reload: true,
 		change: func(tx pgx.Tx, pc *purchaseCtx) ([]*uuid.UUID, error) {
-			if dbMoney(pc.core.EstimatedTotal).GreaterThanOrEqual(pc.threshold) {
+			if !pc.core.ProjectRunning && dbMoney(pc.core.EstimatedTotal).GreaterThanOrEqual(pc.threshold) {
 				return nil, apperror.Conflicting("purchase_needs_project", "This purchase needs a project request and cannot be approved")
 			}
 			if err := pc.q.ApproveWorkingGroupPurchase(ctx, id); err != nil {
@@ -510,7 +541,8 @@ func (s *Service) DeletePurchase(ctx context.Context, p authorization.Principal,
 }
 
 func (st purchaseState) deletableBy(a purchaseAccess) bool {
-	return (a.requester && st.status == PurchaseWanted) || (a.finance && (st.status == PurchaseWanted || st.status == PurchaseDeclined))
+	return (a.requester && (st.status == PurchaseWanted || st.status == PurchasePlanned)) ||
+		(a.finance && (st.status == PurchaseWanted || st.status == PurchaseDeclined || st.status == PurchasePlanned))
 }
 
 // precheck refuses, before a file is stored, a caller who may not see the purchase (404) or may not hand in files
@@ -565,7 +597,7 @@ func (s *Service) HandInReceipt(
 		role: roleRequesterLeadFinance, reload: true,
 		state: func(pc *purchaseCtx) bool { return pc.core.Status == PurchaseApproved && pc.core.How == HowSelf },
 		change: func(tx pgx.Tx, pc *purchaseCtx) ([]*uuid.UUID, error) {
-			if amount.GreaterThanOrEqual(pc.threshold) {
+			if !pc.core.ProjectRunning && amount.GreaterThanOrEqual(pc.threshold) {
 				return nil, apperror.Conflicting("receipt_needs_project", "A receipt of this amount needs a project request")
 			}
 			fileID := stored.ID
@@ -605,7 +637,9 @@ func (s *Service) SetAttachment(
 	result, err := s.changePurchase(ctx, p, id, 0, purchaseChange{
 		noVersion: true,
 		role:      roleRequesterLeadFinance, reload: true,
-		state: stateIs(PurchaseWanted),
+		state: func(pc *purchaseCtx) bool {
+			return pc.core.Status == PurchaseWanted || pc.core.Status == PurchasePlanned
+		},
 		change: func(tx pgx.Tx, pc *purchaseCtx) ([]*uuid.UUID, error) {
 			fileID := stored.ID
 			if err := pc.q.SetWorkingGroupPurchaseAttachment(

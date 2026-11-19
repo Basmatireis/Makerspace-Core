@@ -90,6 +90,30 @@ func (q *Queries) AddWorkingGroupPlace(ctx context.Context, arg AddWorkingGroupP
 	return err
 }
 
+const addWorkingGroupProjectHistory = `-- name: AddWorkingGroupProjectHistory :exec
+INSERT INTO working_group_project_history (id, project_id, status, actor_person_id, reason)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type AddWorkingGroupProjectHistoryParams struct {
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
+	Status        string
+	ActorPersonID *uuid.UUID
+	Reason        *string
+}
+
+func (q *Queries) AddWorkingGroupProjectHistory(ctx context.Context, arg AddWorkingGroupProjectHistoryParams) error {
+	_, err := q.db.Exec(ctx, addWorkingGroupProjectHistory,
+		arg.ID,
+		arg.ProjectID,
+		arg.Status,
+		arg.ActorPersonID,
+		arg.Reason,
+	)
+	return err
+}
+
 const addWorkingGroupTicketFollower = `-- name: AddWorkingGroupTicketFollower :execrows
 INSERT INTO working_group_ticket_followers (ticket_id, person_id) VALUES ($1, $2)
 ON CONFLICT DO NOTHING
@@ -115,6 +139,22 @@ WHERE id = $1
 
 func (q *Queries) ApproveWorkingGroupPurchase(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, approveWorkingGroupPurchase, id)
+	return err
+}
+
+const chooseWorkingGroupProjectOffer = `-- name: ChooseWorkingGroupProjectOffer :exec
+UPDATE working_group_project_items AS it SET chosen_offer_id = $1,
+    planned_amount = (SELECT o.price FROM working_group_project_offers o WHERE o.id = $1)
+WHERE it.id = $2
+`
+
+type ChooseWorkingGroupProjectOfferParams struct {
+	OfferID *uuid.UUID
+	ItemID  uuid.UUID
+}
+
+func (q *Queries) ChooseWorkingGroupProjectOffer(ctx context.Context, arg ChooseWorkingGroupProjectOfferParams) error {
+	_, err := q.db.Exec(ctx, chooseWorkingGroupProjectOffer, arg.OfferID, arg.ItemID)
 	return err
 }
 
@@ -171,6 +211,20 @@ func (q *Queries) CloseWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUI
 	return result.RowsAffected(), nil
 }
 
+const completeWorkingGroupProject = `-- name: CompleteWorkingGroupProject :exec
+UPDATE working_group_projects SET status = 'completed', completion_report = $1, version = version + 1, updated_at = now() WHERE id = $2
+`
+
+type CompleteWorkingGroupProjectParams struct {
+	Report *string
+	ID     uuid.UUID
+}
+
+func (q *Queries) CompleteWorkingGroupProject(ctx context.Context, arg CompleteWorkingGroupProjectParams) error {
+	_, err := q.db.Exec(ctx, completeWorkingGroupProject, arg.Report, arg.ID)
+	return err
+}
+
 const copyWorkingGroupBudgetShares = `-- name: CopyWorkingGroupBudgetShares :exec
 INSERT INTO working_group_budget_shares (period_id, group_id, amount)
 SELECT $1, s.group_id, s.amount FROM working_group_budget_shares s WHERE s.period_id = $2
@@ -209,6 +263,28 @@ func (q *Queries) CountWorkingGroupFinanceRecords(ctx context.Context, targetGro
 	var i CountWorkingGroupFinanceRecordsRow
 	err := row.Scan(&i.Total, &i.InClosed)
 	return i, err
+}
+
+const countWorkingGroupProjectItems = `-- name: CountWorkingGroupProjectItems :one
+SELECT count(*)::bigint FROM working_group_project_items WHERE project_id = $1
+`
+
+func (q *Queries) CountWorkingGroupProjectItems(ctx context.Context, projectID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkingGroupProjectItems, projectID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countWorkingGroupProjectOffers = `-- name: CountWorkingGroupProjectOffers :one
+SELECT count(*)::bigint FROM working_group_project_offers WHERE item_id = $1
+`
+
+func (q *Queries) CountWorkingGroupProjectOffers(ctx context.Context, itemID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkingGroupProjectOffers, itemID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const createWorkingGroup = `-- name: CreateWorkingGroup :exec
@@ -296,6 +372,134 @@ func (q *Queries) CreateWorkingGroupNote(ctx context.Context, arg CreateWorkingG
 		arg.IsPublic,
 		arg.Text,
 		arg.AuthorPersonID,
+	)
+	return err
+}
+
+const createWorkingGroupPlannedPurchase = `-- name: CreateWorkingGroupPlannedPurchase :exec
+INSERT INTO working_group_purchases (id, group_id, period_id, item, link, quantity, unit_price, how, requester_person_id, status, project_id, project_item_id)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7::text::numeric, $8, $9, 'planned', $10, $11)
+`
+
+type CreateWorkingGroupPlannedPurchaseParams struct {
+	ID                uuid.UUID
+	GroupID           uuid.UUID
+	PeriodID          uuid.UUID
+	Item              string
+	Link              *string
+	Quantity          int32
+	UnitPrice         string
+	How               string
+	RequesterPersonID *uuid.UUID
+	ProjectID         *uuid.UUID
+	ProjectItemID     *uuid.UUID
+}
+
+func (q *Queries) CreateWorkingGroupPlannedPurchase(ctx context.Context, arg CreateWorkingGroupPlannedPurchaseParams) error {
+	_, err := q.db.Exec(ctx, createWorkingGroupPlannedPurchase,
+		arg.ID,
+		arg.GroupID,
+		arg.PeriodID,
+		arg.Item,
+		arg.Link,
+		arg.Quantity,
+		arg.UnitPrice,
+		arg.How,
+		arg.RequesterPersonID,
+		arg.ProjectID,
+		arg.ProjectItemID,
+	)
+	return err
+}
+
+const createWorkingGroupProject = `-- name: CreateWorkingGroupProject :exec
+INSERT INTO working_group_projects (id, group_id, title, goal, benefit, starts_on, ends_on, people, planned_income, alcohol,
+                                    advance_requested, advance_amount, requester_person_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        $8, $9::text::numeric, $10, $11,
+        $12::text::numeric, $13)
+`
+
+type CreateWorkingGroupProjectParams struct {
+	ID                uuid.UUID
+	GroupID           uuid.UUID
+	Title             string
+	Goal              string
+	Benefit           string
+	StartsOn          pgtype.Date
+	EndsOn            pgtype.Date
+	People            int32
+	PlannedIncome     string
+	Alcohol           bool
+	AdvanceRequested  bool
+	AdvanceAmount     *string
+	RequesterPersonID *uuid.UUID
+}
+
+func (q *Queries) CreateWorkingGroupProject(ctx context.Context, arg CreateWorkingGroupProjectParams) error {
+	_, err := q.db.Exec(ctx, createWorkingGroupProject,
+		arg.ID,
+		arg.GroupID,
+		arg.Title,
+		arg.Goal,
+		arg.Benefit,
+		arg.StartsOn,
+		arg.EndsOn,
+		arg.People,
+		arg.PlannedIncome,
+		arg.Alcohol,
+		arg.AdvanceRequested,
+		arg.AdvanceAmount,
+		arg.RequesterPersonID,
+	)
+	return err
+}
+
+const createWorkingGroupProjectItem = `-- name: CreateWorkingGroupProjectItem :exec
+INSERT INTO working_group_project_items (id, project_id, position, text, planned_amount, link, note)
+VALUES ($1, $2, (SELECT COALESCE(max(position) + 1, 0) FROM working_group_project_items WHERE project_id = $2),
+        $3, $4::text::numeric, $5, $6)
+`
+
+type CreateWorkingGroupProjectItemParams struct {
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
+	Text          string
+	PlannedAmount string
+	Link          *string
+	Note          *string
+}
+
+func (q *Queries) CreateWorkingGroupProjectItem(ctx context.Context, arg CreateWorkingGroupProjectItemParams) error {
+	_, err := q.db.Exec(ctx, createWorkingGroupProjectItem,
+		arg.ID,
+		arg.ProjectID,
+		arg.Text,
+		arg.PlannedAmount,
+		arg.Link,
+		arg.Note,
+	)
+	return err
+}
+
+const createWorkingGroupProjectOffer = `-- name: CreateWorkingGroupProjectOffer :exec
+INSERT INTO working_group_project_offers (id, item_id, shop, price) VALUES ($1, $2, $3, $4::text::numeric)
+`
+
+type CreateWorkingGroupProjectOfferParams struct {
+	ID     uuid.UUID
+	ItemID uuid.UUID
+	Shop   string
+	Price  string
+}
+
+func (q *Queries) CreateWorkingGroupProjectOffer(ctx context.Context, arg CreateWorkingGroupProjectOfferParams) error {
+	_, err := q.db.Exec(ctx, createWorkingGroupProjectOffer,
+		arg.ID,
+		arg.ItemID,
+		arg.Shop,
+		arg.Price,
 	)
 	return err
 }
@@ -522,6 +726,17 @@ func (q *Queries) DeleteWorkingGroupColumn(ctx context.Context, arg DeleteWorkin
 	return err
 }
 
+const deleteWorkingGroupFinanceSignature = `-- name: DeleteWorkingGroupFinanceSignature :one
+DELETE FROM working_group_finance_signatures WHERE person_id = $1 RETURNING file_id
+`
+
+func (q *Queries) DeleteWorkingGroupFinanceSignature(ctx context.Context, personID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, deleteWorkingGroupFinanceSignature, personID)
+	var file_id uuid.UUID
+	err := row.Scan(&file_id)
+	return file_id, err
+}
+
 const deleteWorkingGroupMachine = `-- name: DeleteWorkingGroupMachine :exec
 DELETE FROM working_group_machines WHERE group_id = $1 AND machine_id = $2
 `
@@ -595,6 +810,42 @@ func (q *Queries) DeleteWorkingGroupPlace(ctx context.Context, arg DeleteWorking
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteWorkingGroupProject = `-- name: DeleteWorkingGroupProject :exec
+DELETE FROM working_group_projects WHERE id = $1
+`
+
+func (q *Queries) DeleteWorkingGroupProject(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkingGroupProject, id)
+	return err
+}
+
+const deleteWorkingGroupProjectItem = `-- name: DeleteWorkingGroupProjectItem :exec
+DELETE FROM working_group_project_items WHERE id = $1
+`
+
+func (q *Queries) DeleteWorkingGroupProjectItem(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkingGroupProjectItem, id)
+	return err
+}
+
+const deleteWorkingGroupProjectOffer = `-- name: DeleteWorkingGroupProjectOffer :exec
+DELETE FROM working_group_project_offers WHERE id = $1
+`
+
+func (q *Queries) DeleteWorkingGroupProjectOffer(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkingGroupProjectOffer, id)
+	return err
+}
+
+const deleteWorkingGroupProjectPlannedPurchases = `-- name: DeleteWorkingGroupProjectPlannedPurchases :exec
+DELETE FROM working_group_purchases WHERE project_id = $1 AND status = 'planned'
+`
+
+func (q *Queries) DeleteWorkingGroupProjectPlannedPurchases(ctx context.Context, projectID *uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkingGroupProjectPlannedPurchases, projectID)
+	return err
 }
 
 const deleteWorkingGroupProjectRequest = `-- name: DeleteWorkingGroupProjectRequest :execrows
@@ -867,6 +1118,17 @@ func (q *Queries) GetWorkingGroupFinanceRules(ctx context.Context) (GetWorkingGr
 	return i, err
 }
 
+const getWorkingGroupFinanceSignature = `-- name: GetWorkingGroupFinanceSignature :one
+SELECT file_id FROM working_group_finance_signatures WHERE person_id = $1
+`
+
+func (q *Queries) GetWorkingGroupFinanceSignature(ctx context.Context, personID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupFinanceSignature, personID)
+	var file_id uuid.UUID
+	err := row.Scan(&file_id)
+	return file_id, err
+}
+
 const getWorkingGroupMachineStatus = `-- name: GetWorkingGroupMachineStatus :one
 SELECT status, status_note, status_until FROM working_group_machines
 WHERE group_id = $1 AND machine_id = $2
@@ -910,6 +1172,17 @@ func (q *Queries) GetWorkingGroupMember(ctx context.Context, arg GetWorkingGroup
 	var i GetWorkingGroupMemberRow
 	err := row.Scan(&i.PersonID, &i.IsLead)
 	return i, err
+}
+
+const getWorkingGroupName = `-- name: GetWorkingGroupName :one
+SELECT name FROM working_groups WHERE id = $1
+`
+
+func (q *Queries) GetWorkingGroupName(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupName, id)
+	var name string
+	err := row.Scan(&name)
+	return name, err
 }
 
 const getWorkingGroupNote = `-- name: GetWorkingGroupNote :one
@@ -1000,6 +1273,69 @@ func (q *Queries) GetWorkingGroupPlaceStatus(ctx context.Context, arg GetWorking
 	return i, err
 }
 
+const getWorkingGroupProjectGroup = `-- name: GetWorkingGroupProjectGroup :one
+SELECT group_id FROM working_group_projects WHERE id = $1
+`
+
+func (q *Queries) GetWorkingGroupProjectGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupProjectGroup, id)
+	var group_id uuid.UUID
+	err := row.Scan(&group_id)
+	return group_id, err
+}
+
+const getWorkingGroupProjectItemProject = `-- name: GetWorkingGroupProjectItemProject :one
+SELECT project_id FROM working_group_project_items WHERE id = $1
+`
+
+func (q *Queries) GetWorkingGroupProjectItemProject(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupProjectItemProject, id)
+	var project_id uuid.UUID
+	err := row.Scan(&project_id)
+	return project_id, err
+}
+
+const getWorkingGroupProjectOffer = `-- name: GetWorkingGroupProjectOffer :one
+SELECT id, item_id, shop, price::text AS price, file_id FROM working_group_project_offers WHERE id = $1
+`
+
+type GetWorkingGroupProjectOfferRow struct {
+	ID     uuid.UUID
+	ItemID uuid.UUID
+	Shop   string
+	Price  string
+	FileID *uuid.UUID
+}
+
+func (q *Queries) GetWorkingGroupProjectOffer(ctx context.Context, id uuid.UUID) (GetWorkingGroupProjectOfferRow, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupProjectOffer, id)
+	var i GetWorkingGroupProjectOfferRow
+	err := row.Scan(
+		&i.ID,
+		&i.ItemID,
+		&i.Shop,
+		&i.Price,
+		&i.FileID,
+	)
+	return i, err
+}
+
+const getWorkingGroupProjectOfferProject = `-- name: GetWorkingGroupProjectOfferProject :one
+SELECT i.project_id, o.item_id FROM working_group_project_offers o JOIN working_group_project_items i ON i.id = o.item_id WHERE o.id = $1
+`
+
+type GetWorkingGroupProjectOfferProjectRow struct {
+	ProjectID uuid.UUID
+	ItemID    uuid.UUID
+}
+
+func (q *Queries) GetWorkingGroupProjectOfferProject(ctx context.Context, id uuid.UUID) (GetWorkingGroupProjectOfferProjectRow, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupProjectOfferProject, id)
+	var i GetWorkingGroupProjectOfferProjectRow
+	err := row.Scan(&i.ProjectID, &i.ItemID)
+	return i, err
+}
+
 const getWorkingGroupProjectRequest = `-- name: GetWorkingGroupProjectRequest :one
 SELECT id, number, label FROM working_group_project_requests WHERE id = $1
 `
@@ -1017,6 +1353,28 @@ func (q *Queries) GetWorkingGroupProjectRequest(ctx context.Context, id uuid.UUI
 	return i, err
 }
 
+const getWorkingGroupProjectRequestPDF = `-- name: GetWorkingGroupProjectRequestPDF :one
+SELECT request_pdf_file_id FROM working_group_projects WHERE id = $1
+`
+
+func (q *Queries) GetWorkingGroupProjectRequestPDF(ctx context.Context, id uuid.UUID) (*uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupProjectRequestPDF, id)
+	var request_pdf_file_id *uuid.UUID
+	err := row.Scan(&request_pdf_file_id)
+	return request_pdf_file_id, err
+}
+
+const getWorkingGroupProjectSignature = `-- name: GetWorkingGroupProjectSignature :one
+SELECT request_signature_file_id FROM working_group_projects WHERE id = $1
+`
+
+func (q *Queries) GetWorkingGroupProjectSignature(ctx context.Context, id uuid.UUID) (*uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupProjectSignature, id)
+	var request_signature_file_id *uuid.UUID
+	err := row.Scan(&request_signature_file_id)
+	return request_signature_file_id, err
+}
+
 const getWorkingGroupPurchaseFiles = `-- name: GetWorkingGroupPurchaseFiles :one
 SELECT attachment_file_id, receipt_file_id FROM working_group_purchases WHERE id = $1
 `
@@ -1030,6 +1388,45 @@ func (q *Queries) GetWorkingGroupPurchaseFiles(ctx context.Context, id uuid.UUID
 	row := q.db.QueryRow(ctx, getWorkingGroupPurchaseFiles, id)
 	var i GetWorkingGroupPurchaseFilesRow
 	err := row.Scan(&i.AttachmentFileID, &i.ReceiptFileID)
+	return i, err
+}
+
+const getWorkingGroupPurchaseForProject = `-- name: GetWorkingGroupPurchaseForProject :one
+SELECT id, group_id, item, COALESCE(link, '')::text AS link, quantity, unit_price::text AS unit_price, (quantity * unit_price)::text AS total,
+       status, requester_person_id, project_id, (attachment_file_id IS NOT NULL)::boolean AS has_attachment
+FROM working_group_purchases WHERE id = $1 FOR UPDATE
+`
+
+type GetWorkingGroupPurchaseForProjectRow struct {
+	ID                uuid.UUID
+	GroupID           uuid.UUID
+	Item              string
+	Link              string
+	Quantity          int32
+	UnitPrice         string
+	Total             string
+	Status            string
+	RequesterPersonID *uuid.UUID
+	ProjectID         *uuid.UUID
+	HasAttachment     bool
+}
+
+func (q *Queries) GetWorkingGroupPurchaseForProject(ctx context.Context, id uuid.UUID) (GetWorkingGroupPurchaseForProjectRow, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupPurchaseForProject, id)
+	var i GetWorkingGroupPurchaseForProjectRow
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.Item,
+		&i.Link,
+		&i.Quantity,
+		&i.UnitPrice,
+		&i.Total,
+		&i.Status,
+		&i.RequesterPersonID,
+		&i.ProjectID,
+		&i.HasAttachment,
+	)
 	return i, err
 }
 
@@ -1053,6 +1450,41 @@ func (q *Queries) GetWorkingGroupPurchaseOrderInvoice(ctx context.Context, id uu
 	var invoice_file_id *uuid.UUID
 	err := row.Scan(&invoice_file_id)
 	return invoice_file_id, err
+}
+
+const getWorkingGroupRequestDefaults = `-- name: GetWorkingGroupRequestDefaults :one
+SELECT r.request_unit_kind, r.request_unit_name, r.request_add_group_name, r.request_responsible_person_id,
+       COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS responsible_display_name,
+       COALESCE(p.first_name, '')::text AS responsible_first_name, COALESCE(p.last_name, '')::text AS responsible_last_name,
+       r.request_place
+FROM working_group_finance_rules r LEFT JOIN people p ON p.id = r.request_responsible_person_id WHERE r.singleton
+`
+
+type GetWorkingGroupRequestDefaultsRow struct {
+	RequestUnitKind            string
+	RequestUnitName            string
+	RequestAddGroupName        bool
+	RequestResponsiblePersonID *uuid.UUID
+	ResponsibleDisplayName     string
+	ResponsibleFirstName       string
+	ResponsibleLastName        string
+	RequestPlace               string
+}
+
+func (q *Queries) GetWorkingGroupRequestDefaults(ctx context.Context) (GetWorkingGroupRequestDefaultsRow, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupRequestDefaults)
+	var i GetWorkingGroupRequestDefaultsRow
+	err := row.Scan(
+		&i.RequestUnitKind,
+		&i.RequestUnitName,
+		&i.RequestAddGroupName,
+		&i.RequestResponsiblePersonID,
+		&i.ResponsibleDisplayName,
+		&i.ResponsibleFirstName,
+		&i.ResponsibleLastName,
+		&i.RequestPlace,
+	)
+	return i, err
 }
 
 const getWorkingGroupTicketCore = `-- name: GetWorkingGroupTicketCore :one
@@ -1264,6 +1696,38 @@ func (q *Queries) LeadsAnyWorkingGroup(ctx context.Context, personID uuid.UUID) 
 	return exists, err
 }
 
+const linkWorkingGroupPurchaseToProject = `-- name: LinkWorkingGroupPurchaseToProject :exec
+UPDATE working_group_purchases SET status = 'planned', project_id = $1, project_item_id = $2,
+    version = version + 1, updated_at = now() WHERE id = $3
+`
+
+type LinkWorkingGroupPurchaseToProjectParams struct {
+	ProjectID     *uuid.UUID
+	ProjectItemID *uuid.UUID
+	ID            uuid.UUID
+}
+
+func (q *Queries) LinkWorkingGroupPurchaseToProject(ctx context.Context, arg LinkWorkingGroupPurchaseToProjectParams) error {
+	_, err := q.db.Exec(ctx, linkWorkingGroupPurchaseToProject, arg.ProjectID, arg.ProjectItemID, arg.ID)
+	return err
+}
+
+const linkWorkingGroupRunningPurchase = `-- name: LinkWorkingGroupRunningPurchase :exec
+UPDATE working_group_purchases SET project_id = $1, project_item_id = $2 WHERE id = $3
+`
+
+type LinkWorkingGroupRunningPurchaseParams struct {
+	ProjectID     *uuid.UUID
+	ProjectItemID *uuid.UUID
+	ID            uuid.UUID
+}
+
+// A purchase added to a running project keeps its status and only records the project.
+func (q *Queries) LinkWorkingGroupRunningPurchase(ctx context.Context, arg LinkWorkingGroupRunningPurchaseParams) error {
+	_, err := q.db.Exec(ctx, linkWorkingGroupRunningPurchase, arg.ProjectID, arg.ProjectItemID, arg.ID)
+	return err
+}
+
 const listExistingMachineIDs = `-- name: ListExistingMachineIDs :many
 SELECT id FROM machines WHERE id = ANY($1::uuid[])
 `
@@ -1392,8 +1856,18 @@ SELECT g.id AS group_id, g.name AS group_name,
        (COALESCE((SELECT sum(COALESCE(p.receipt_amount, p.quantity * p.unit_price)) FROM working_group_purchases p
                   WHERE p.group_id = g.id AND p.period_id = $1 AND p.status IN ('ordered', 'bought', 'received', 'refunded')), 0)
         + COALESCE((SELECT sum(b.amount) FROM working_group_bookings b WHERE b.group_id = g.id AND b.period_id = $1), 0))::text AS spent,
-       COALESCE((SELECT sum(p.quantity * p.unit_price) FROM working_group_purchases p
-                 WHERE p.group_id = g.id AND p.period_id = $1 AND p.status = 'approved'), 0)::text AS reserved
+       (COALESCE((SELECT sum(p.quantity * p.unit_price) FROM working_group_purchases p
+                  WHERE p.group_id = g.id AND p.period_id = $1 AND p.status = 'approved'), 0)
+        -- A running project paid from the group budget reserves what is still planned beyond its purchases; it counts
+        -- in the period that is open today.
+        + CASE WHEN EXISTS (SELECT 1 FROM working_group_budget_periods bp WHERE bp.id = $1 AND bp.closed_at IS NULL
+                            AND CURRENT_DATE BETWEEN bp.starts_on AND bp.ends_on)
+               THEN COALESCE((SELECT sum(GREATEST(0,
+                        (SELECT COALESCE(sum(i.planned_amount), 0) FROM working_group_project_items i WHERE i.project_id = pr.id)
+                        - (SELECT COALESCE(sum(COALESCE(pu.receipt_amount, pu.quantity * pu.unit_price)), 0) FROM working_group_purchases pu
+                           WHERE pu.project_id = pr.id AND pu.status IN ('approved', 'ordered', 'received', 'bought', 'refunded'))))
+                      FROM working_group_projects pr WHERE pr.group_id = g.id AND pr.status = 'running' AND pr.paid_from = 'group'), 0)
+               ELSE 0 END)::text AS reserved
 FROM working_groups g
 LEFT JOIN working_group_budget_shares s ON s.group_id = g.id AND s.period_id = $1
 WHERE ($2::boolean
@@ -1898,6 +2372,291 @@ func (q *Queries) ListWorkingGroupPlaces(ctx context.Context, groupID uuid.UUID)
 	return items, nil
 }
 
+const listWorkingGroupProjectHistory = `-- name: ListWorkingGroupProjectHistory :many
+SELECT h.status, h.actor_person_id, COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS actor_display_name,
+       COALESCE(h.reason, '')::text AS reason, h.created_at
+FROM working_group_project_history h LEFT JOIN people p ON p.id = h.actor_person_id
+WHERE h.project_id = $1 ORDER BY h.created_at, h.id
+`
+
+type ListWorkingGroupProjectHistoryRow struct {
+	Status           string
+	ActorPersonID    *uuid.UUID
+	ActorDisplayName string
+	Reason           string
+	CreatedAt        time.Time
+}
+
+func (q *Queries) ListWorkingGroupProjectHistory(ctx context.Context, projectID uuid.UUID) ([]ListWorkingGroupProjectHistoryRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupProjectHistory, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupProjectHistoryRow{}
+	for rows.Next() {
+		var i ListWorkingGroupProjectHistoryRow
+		if err := rows.Scan(
+			&i.Status,
+			&i.ActorPersonID,
+			&i.ActorDisplayName,
+			&i.Reason,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupProjectItemFileIDs = `-- name: ListWorkingGroupProjectItemFileIDs :many
+SELECT o.file_id FROM working_group_project_offers o WHERE o.item_id = $1 AND o.file_id IS NOT NULL
+`
+
+func (q *Queries) ListWorkingGroupProjectItemFileIDs(ctx context.Context, itemID uuid.UUID) ([]*uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupProjectItemFileIDs, itemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*uuid.UUID{}
+	for rows.Next() {
+		var file_id *uuid.UUID
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupProjectItems = `-- name: ListWorkingGroupProjectItems :many
+SELECT id, position, text, planned_amount::text AS planned_amount, COALESCE(link, '')::text AS link, COALESCE(note, '')::text AS note, chosen_offer_id
+FROM working_group_project_items WHERE project_id = $1 ORDER BY position, id
+`
+
+type ListWorkingGroupProjectItemsRow struct {
+	ID            uuid.UUID
+	Position      int32
+	Text          string
+	PlannedAmount string
+	Link          string
+	Note          string
+	ChosenOfferID *uuid.UUID
+}
+
+func (q *Queries) ListWorkingGroupProjectItems(ctx context.Context, projectID uuid.UUID) ([]ListWorkingGroupProjectItemsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupProjectItems, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupProjectItemsRow{}
+	for rows.Next() {
+		var i ListWorkingGroupProjectItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Position,
+			&i.Text,
+			&i.PlannedAmount,
+			&i.Link,
+			&i.Note,
+			&i.ChosenOfferID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupProjectOfferFileIDs = `-- name: ListWorkingGroupProjectOfferFileIDs :many
+SELECT o.file_id FROM working_group_project_offers o JOIN working_group_project_items i ON i.id = o.item_id
+WHERE i.project_id = $1 AND o.file_id IS NOT NULL
+`
+
+func (q *Queries) ListWorkingGroupProjectOfferFileIDs(ctx context.Context, projectID uuid.UUID) ([]*uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupProjectOfferFileIDs, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*uuid.UUID{}
+	for rows.Next() {
+		var file_id *uuid.UUID
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupProjectOfferFiles = `-- name: ListWorkingGroupProjectOfferFiles :many
+SELECT o.id, o.item_id, o.shop, o.price::text AS price, o.file_id
+FROM working_group_project_offers o JOIN working_group_project_items i ON i.id = o.item_id
+WHERE i.project_id = $1 ORDER BY i.position, o.created_at, o.id
+`
+
+type ListWorkingGroupProjectOfferFilesRow struct {
+	ID     uuid.UUID
+	ItemID uuid.UUID
+	Shop   string
+	Price  string
+	FileID *uuid.UUID
+}
+
+func (q *Queries) ListWorkingGroupProjectOfferFiles(ctx context.Context, projectID uuid.UUID) ([]ListWorkingGroupProjectOfferFilesRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupProjectOfferFiles, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupProjectOfferFilesRow{}
+	for rows.Next() {
+		var i ListWorkingGroupProjectOfferFilesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ItemID,
+			&i.Shop,
+			&i.Price,
+			&i.FileID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupProjectOffers = `-- name: ListWorkingGroupProjectOffers :many
+SELECT o.id, o.item_id, o.shop, o.price::text AS price, (o.file_id IS NOT NULL)::boolean AS has_file
+FROM working_group_project_offers o JOIN working_group_project_items i ON i.id = o.item_id
+WHERE i.project_id = $1 ORDER BY o.created_at, o.id
+`
+
+type ListWorkingGroupProjectOffersRow struct {
+	ID      uuid.UUID
+	ItemID  uuid.UUID
+	Shop    string
+	Price   string
+	HasFile bool
+}
+
+func (q *Queries) ListWorkingGroupProjectOffers(ctx context.Context, projectID uuid.UUID) ([]ListWorkingGroupProjectOffersRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupProjectOffers, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupProjectOffersRow{}
+	for rows.Next() {
+		var i ListWorkingGroupProjectOffersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ItemID,
+			&i.Shop,
+			&i.Price,
+			&i.HasFile,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupProjectPurchaseFileIDs = `-- name: ListWorkingGroupProjectPurchaseFileIDs :many
+SELECT attachment_file_id FROM working_group_purchases WHERE project_id = $1 AND attachment_file_id IS NOT NULL
+`
+
+func (q *Queries) ListWorkingGroupProjectPurchaseFileIDs(ctx context.Context, projectID *uuid.UUID) ([]*uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupProjectPurchaseFileIDs, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*uuid.UUID{}
+	for rows.Next() {
+		var attachment_file_id *uuid.UUID
+		if err := rows.Scan(&attachment_file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, attachment_file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupProjectPurchases = `-- name: ListWorkingGroupProjectPurchases :many
+SELECT id, project_item_id, item, COALESCE(link, '')::text AS link, quantity, unit_price::text AS unit_price, status,
+       (attachment_file_id IS NOT NULL)::boolean AS has_attachment, attachment_file_id
+FROM working_group_purchases WHERE project_id = $1 ORDER BY created_at, id
+`
+
+type ListWorkingGroupProjectPurchasesRow struct {
+	ID               uuid.UUID
+	ProjectItemID    *uuid.UUID
+	Item             string
+	Link             string
+	Quantity         int32
+	UnitPrice        string
+	Status           string
+	HasAttachment    bool
+	AttachmentFileID *uuid.UUID
+}
+
+func (q *Queries) ListWorkingGroupProjectPurchases(ctx context.Context, projectID *uuid.UUID) ([]ListWorkingGroupProjectPurchasesRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupProjectPurchases, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupProjectPurchasesRow{}
+	for rows.Next() {
+		var i ListWorkingGroupProjectPurchasesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectItemID,
+			&i.Item,
+			&i.Link,
+			&i.Quantity,
+			&i.UnitPrice,
+			&i.Status,
+			&i.HasAttachment,
+			&i.AttachmentFileID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkingGroupProjectRequests = `-- name: ListWorkingGroupProjectRequests :many
 SELECT id, number, label FROM working_group_project_requests ORDER BY lower(number), id
 `
@@ -1918,6 +2677,141 @@ func (q *Queries) ListWorkingGroupProjectRequests(ctx context.Context) ([]ListWo
 	for rows.Next() {
 		var i ListWorkingGroupProjectRequestsRow
 		if err := rows.Scan(&i.ID, &i.Number, &i.Label); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupProjects = `-- name: ListWorkingGroupProjects :many
+SELECT pr.id, pr.group_id, g.name AS group_name, pr.title, pr.goal, pr.benefit, pr.starts_on, pr.ends_on, pr.people,
+       pr.planned_income::text AS planned_income, pr.alcohol, pr.advance_requested, COALESCE(pr.advance_amount::text, '')::text AS advance_amount,
+       COALESCE(pr.advance_status, '')::text AS advance_status, COALESCE(pr.paid_from, '')::text AS paid_from,
+       COALESCE(pr.wiref_number, '')::text AS wiref_number, pr.status, pr.requester_person_id,
+       COALESCE(btrim(rp.first_name || ' ' || rp.last_name), '')::text AS requester_display_name,
+       pr.wiref_request_sent_at, COALESCE(pr.completion_report, '')::text AS completion_report,
+       (pr.request_pdf_file_id IS NOT NULL)::boolean AS has_request_pdf, COALESCE(pr.request_form::text, '')::text AS request_form,
+       (SELECT COALESCE(sum(i.planned_amount), 0) FROM working_group_project_items i WHERE i.project_id = pr.id)::text AS planned_total,
+       (SELECT COALESCE(sum(pu.quantity * pu.unit_price), 0) FROM working_group_purchases pu
+        WHERE pu.project_id = pr.id AND pu.status <> 'declined')::text AS in_purchases,
+       (SELECT COALESCE(sum(COALESCE(pu.receipt_amount, pu.quantity * pu.unit_price)), 0) FROM working_group_purchases pu
+        WHERE pu.project_id = pr.id AND pu.status IN ('ordered', 'received', 'bought', 'refunded'))::text AS spent,
+       (SELECT COALESCE(sum(COALESCE(pu.receipt_amount, pu.quantity * pu.unit_price)), 0) FROM working_group_purchases pu
+        WHERE pu.project_id = pr.id AND pu.status IN ('approved', 'ordered', 'received', 'bought', 'refunded'))::text AS counted,
+       pr.version, pr.created_at, pr.updated_at,
+       EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = pr.group_id AND m.person_id = $1) AS caller_is_member,
+       EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = pr.group_id AND m.person_id = $1 AND m.is_lead) AS caller_is_lead
+FROM working_group_projects pr
+JOIN working_groups g ON g.id = pr.group_id
+LEFT JOIN people rp ON rp.id = pr.requester_person_id
+WHERE ($2::boolean
+       OR EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = pr.group_id AND m.person_id = $1))
+  AND ($3::uuid IS NULL OR pr.id = $3)
+  AND ($4::uuid IS NULL OR pr.group_id = $4)
+  AND ($5::text IS NULL OR pr.status = $5)
+ORDER BY pr.created_at DESC, pr.id DESC
+LIMIT $6
+`
+
+type ListWorkingGroupProjectsParams struct {
+	CallerPersonID uuid.UUID
+	CallerFinance  bool
+	ProjectID      *uuid.UUID
+	GroupID        *uuid.UUID
+	Status         *string
+	RowLimit       int32
+}
+
+type ListWorkingGroupProjectsRow struct {
+	ID                   uuid.UUID
+	GroupID              uuid.UUID
+	GroupName            string
+	Title                string
+	Goal                 string
+	Benefit              string
+	StartsOn             pgtype.Date
+	EndsOn               pgtype.Date
+	People               int32
+	PlannedIncome        string
+	Alcohol              bool
+	AdvanceRequested     bool
+	AdvanceAmount        string
+	AdvanceStatus        string
+	PaidFrom             string
+	WirefNumber          string
+	Status               string
+	RequesterPersonID    *uuid.UUID
+	RequesterDisplayName string
+	WirefRequestSentAt   pgtype.Timestamptz
+	CompletionReport     string
+	HasRequestPdf        bool
+	RequestForm          string
+	PlannedTotal         string
+	InPurchases          string
+	Spent                string
+	Counted              string
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	CallerIsMember       bool
+	CallerIsLead         bool
+}
+
+// Projects the caller may see: every one for a finance manager, otherwise those of the caller's groups.
+func (q *Queries) ListWorkingGroupProjects(ctx context.Context, arg ListWorkingGroupProjectsParams) ([]ListWorkingGroupProjectsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupProjects,
+		arg.CallerPersonID,
+		arg.CallerFinance,
+		arg.ProjectID,
+		arg.GroupID,
+		arg.Status,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupProjectsRow{}
+	for rows.Next() {
+		var i ListWorkingGroupProjectsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.GroupID,
+			&i.GroupName,
+			&i.Title,
+			&i.Goal,
+			&i.Benefit,
+			&i.StartsOn,
+			&i.EndsOn,
+			&i.People,
+			&i.PlannedIncome,
+			&i.Alcohol,
+			&i.AdvanceRequested,
+			&i.AdvanceAmount,
+			&i.AdvanceStatus,
+			&i.PaidFrom,
+			&i.WirefNumber,
+			&i.Status,
+			&i.RequesterPersonID,
+			&i.RequesterDisplayName,
+			&i.WirefRequestSentAt,
+			&i.CompletionReport,
+			&i.HasRequestPdf,
+			&i.RequestForm,
+			&i.PlannedTotal,
+			&i.InPurchases,
+			&i.Spent,
+			&i.Counted,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CallerIsMember,
+			&i.CallerIsLead,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1996,6 +2890,8 @@ SELECT p.id, p.group_id, g.name AS group_name, p.period_id, per.name AS period_n
        p.requester_person_id, COALESCE(btrim(rp.first_name || ' ' || rp.last_name), '')::text AS requester_display_name,
        (p.attachment_file_id IS NOT NULL)::boolean AS has_attachment, (p.receipt_file_id IS NOT NULL)::boolean AS has_receipt,
        p.order_id, p.created_at, p.approved_at, p.declined_at, p.ordered_at, p.received_at, p.bought_at, p.refunded_at, p.version,
+       p.project_id, p.project_item_id,
+       COALESCE((SELECT pr.status = 'running' FROM working_group_projects pr WHERE pr.id = p.project_id), false)::boolean AS project_running,
        EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = p.group_id AND m.person_id = $1) AS caller_is_member,
        EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = p.group_id AND m.person_id = $1 AND m.is_lead) AS caller_is_lead
 FROM working_group_purchases p
@@ -2051,6 +2947,9 @@ type ListWorkingGroupPurchasesRow struct {
 	BoughtAt             pgtype.Timestamptz
 	RefundedAt           pgtype.Timestamptz
 	Version              int64
+	ProjectID            *uuid.UUID
+	ProjectItemID        *uuid.UUID
+	ProjectRunning       bool
 	CallerIsMember       bool
 	CallerIsLead         bool
 }
@@ -2102,6 +3001,9 @@ func (q *Queries) ListWorkingGroupPurchases(ctx context.Context, arg ListWorking
 			&i.BoughtAt,
 			&i.RefundedAt,
 			&i.Version,
+			&i.ProjectID,
+			&i.ProjectItemID,
+			&i.ProjectRunning,
 			&i.CallerIsMember,
 			&i.CallerIsLead,
 		); err != nil {
@@ -2647,10 +3549,81 @@ func (q *Queries) LockWorkingGroupFinanceRules(ctx context.Context) (int64, erro
 	return version, err
 }
 
+const lockWorkingGroupProject = `-- name: LockWorkingGroupProject :one
+SELECT lp.id, lp.group_id, lp.status, lp.requester_person_id, lp.version, COALESCE(lp.paid_from, '')::text AS paid_from,
+       lp.advance_requested, COALESCE(lp.advance_amount::text, '')::text AS advance_amount, COALESCE(lp.advance_status, '')::text AS advance_status,
+       lp.wiref_request_sent_at, lp.request_signature_file_id, lp.request_pdf_file_id,
+       (SELECT COALESCE(sum(i.planned_amount), 0) FROM working_group_project_items i WHERE i.project_id = lp.id)::text AS planned_total
+FROM working_group_projects lp WHERE lp.id = $1 FOR UPDATE
+`
+
+type LockWorkingGroupProjectRow struct {
+	ID                     uuid.UUID
+	GroupID                uuid.UUID
+	Status                 string
+	RequesterPersonID      *uuid.UUID
+	Version                int64
+	PaidFrom               string
+	AdvanceRequested       bool
+	AdvanceAmount          string
+	AdvanceStatus          string
+	WirefRequestSentAt     pgtype.Timestamptz
+	RequestSignatureFileID *uuid.UUID
+	RequestPdfFileID       *uuid.UUID
+	PlannedTotal           string
+}
+
+func (q *Queries) LockWorkingGroupProject(ctx context.Context, id uuid.UUID) (LockWorkingGroupProjectRow, error) {
+	row := q.db.QueryRow(ctx, lockWorkingGroupProject, id)
+	var i LockWorkingGroupProjectRow
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.Status,
+		&i.RequesterPersonID,
+		&i.Version,
+		&i.PaidFrom,
+		&i.AdvanceRequested,
+		&i.AdvanceAmount,
+		&i.AdvanceStatus,
+		&i.WirefRequestSentAt,
+		&i.RequestSignatureFileID,
+		&i.RequestPdfFileID,
+		&i.PlannedTotal,
+	)
+	return i, err
+}
+
+const lockWorkingGroupProjectItem = `-- name: LockWorkingGroupProjectItem :one
+SELECT id, project_id, position, planned_amount::text AS planned_amount, chosen_offer_id FROM working_group_project_items WHERE id = $1 FOR UPDATE
+`
+
+type LockWorkingGroupProjectItemRow struct {
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
+	Position      int32
+	PlannedAmount string
+	ChosenOfferID *uuid.UUID
+}
+
+func (q *Queries) LockWorkingGroupProjectItem(ctx context.Context, id uuid.UUID) (LockWorkingGroupProjectItemRow, error) {
+	row := q.db.QueryRow(ctx, lockWorkingGroupProjectItem, id)
+	var i LockWorkingGroupProjectItemRow
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Position,
+		&i.PlannedAmount,
+		&i.ChosenOfferID,
+	)
+	return i, err
+}
+
 const lockWorkingGroupPurchase = `-- name: LockWorkingGroupPurchase :one
 SELECT id, group_id, period_id, how, status, requester_person_id, version, (quantity * unit_price)::text AS estimated_total,
-       attachment_file_id, receipt_file_id, order_id
-FROM working_group_purchases WHERE id = $1 FOR UPDATE
+       attachment_file_id, receipt_file_id, order_id, project_id,
+       COALESCE((SELECT pr.status = 'running' FROM working_group_projects pr WHERE pr.id = lp.project_id), false)::boolean AS project_running
+FROM working_group_purchases lp WHERE lp.id = $1 FOR UPDATE
 `
 
 type LockWorkingGroupPurchaseRow struct {
@@ -2665,6 +3638,8 @@ type LockWorkingGroupPurchaseRow struct {
 	AttachmentFileID  *uuid.UUID
 	ReceiptFileID     *uuid.UUID
 	OrderID           *uuid.UUID
+	ProjectID         *uuid.UUID
+	ProjectRunning    bool
 }
 
 func (q *Queries) LockWorkingGroupPurchase(ctx context.Context, id uuid.UUID) (LockWorkingGroupPurchaseRow, error) {
@@ -2682,6 +3657,8 @@ func (q *Queries) LockWorkingGroupPurchase(ctx context.Context, id uuid.UUID) (L
 		&i.AttachmentFileID,
 		&i.ReceiptFileID,
 		&i.OrderID,
+		&i.ProjectID,
+		&i.ProjectRunning,
 	)
 	return i, err
 }
@@ -2899,6 +3876,27 @@ func (q *Queries) PersonExists(ctx context.Context, id uuid.UUID) (bool, error) 
 	return exists, err
 }
 
+const personHoldsPermission = `-- name: PersonHoldsPermission :one
+SELECT EXISTS (
+    SELECT 1 FROM person_roles pr JOIN roles r ON r.id = pr.role_id
+    LEFT JOIN role_permission_grants rp ON rp.role_id = r.id AND rp.permission_id = $1
+    WHERE pr.person_id = $2 AND (r.system_key = 'master' OR rp.role_id IS NOT NULL)
+)
+`
+
+type PersonHoldsPermissionParams struct {
+	Permission string
+	PersonID   uuid.UUID
+}
+
+// Whether the person holds the permission through a role (master holds every permission).
+func (q *Queries) PersonHoldsPermission(ctx context.Context, arg PersonHoldsPermissionParams) (bool, error) {
+	row := q.db.QueryRow(ctx, personHoldsPermission, arg.Permission, arg.PersonID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const receiveWorkingGroupOrderPurchases = `-- name: ReceiveWorkingGroupOrderPurchases :many
 UPDATE working_group_purchases SET status = 'received', received_at = now(), version = version + 1, updated_at = now()
 WHERE order_id = $1 AND status = 'ordered'
@@ -3045,6 +4043,141 @@ func (q *Queries) SetWorkingGroupPlaceStatus(ctx context.Context, arg SetWorking
 	return result.RowsAffected(), nil
 }
 
+const setWorkingGroupProjectAdvance = `-- name: SetWorkingGroupProjectAdvance :exec
+UPDATE working_group_projects SET advance_status = $1, version = version + 1, updated_at = now() WHERE id = $2
+`
+
+type SetWorkingGroupProjectAdvanceParams struct {
+	AdvanceStatus *string
+	ID            uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupProjectAdvance(ctx context.Context, arg SetWorkingGroupProjectAdvanceParams) error {
+	_, err := q.db.Exec(ctx, setWorkingGroupProjectAdvance, arg.AdvanceStatus, arg.ID)
+	return err
+}
+
+const setWorkingGroupProjectAdvanceAsked = `-- name: SetWorkingGroupProjectAdvanceAsked :exec
+UPDATE working_group_projects SET advance_status = 'asked', version = version + 1, updated_at = now()
+WHERE id = $1 AND advance_requested AND advance_status IS NULL
+`
+
+func (q *Queries) SetWorkingGroupProjectAdvanceAsked(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, setWorkingGroupProjectAdvanceAsked, id)
+	return err
+}
+
+const setWorkingGroupProjectItemPosition = `-- name: SetWorkingGroupProjectItemPosition :exec
+UPDATE working_group_project_items SET position = $1 WHERE id = $2 AND project_id = $3
+`
+
+type SetWorkingGroupProjectItemPositionParams struct {
+	Position  int32
+	ID        uuid.UUID
+	ProjectID uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupProjectItemPosition(ctx context.Context, arg SetWorkingGroupProjectItemPositionParams) error {
+	_, err := q.db.Exec(ctx, setWorkingGroupProjectItemPosition, arg.Position, arg.ID, arg.ProjectID)
+	return err
+}
+
+const setWorkingGroupProjectOfferFile = `-- name: SetWorkingGroupProjectOfferFile :exec
+UPDATE working_group_project_offers SET file_id = $1 WHERE id = $2
+`
+
+type SetWorkingGroupProjectOfferFileParams struct {
+	FileID *uuid.UUID
+	ID     uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupProjectOfferFile(ctx context.Context, arg SetWorkingGroupProjectOfferFileParams) error {
+	_, err := q.db.Exec(ctx, setWorkingGroupProjectOfferFile, arg.FileID, arg.ID)
+	return err
+}
+
+const setWorkingGroupProjectPaidFrom = `-- name: SetWorkingGroupProjectPaidFrom :exec
+UPDATE working_group_projects SET paid_from = $1, version = version + 1, updated_at = now() WHERE id = $2
+`
+
+type SetWorkingGroupProjectPaidFromParams struct {
+	PaidFrom *string
+	ID       uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupProjectPaidFrom(ctx context.Context, arg SetWorkingGroupProjectPaidFromParams) error {
+	_, err := q.db.Exec(ctx, setWorkingGroupProjectPaidFrom, arg.PaidFrom, arg.ID)
+	return err
+}
+
+const setWorkingGroupProjectRequest = `-- name: SetWorkingGroupProjectRequest :exec
+UPDATE working_group_projects
+SET request_form = $1::text::jsonb, request_signature_file_id = COALESCE($2, request_signature_file_id),
+    paid_from = NULLIF($3::text, ''),
+    version = version + 1, updated_at = now()
+WHERE id = $4
+`
+
+type SetWorkingGroupProjectRequestParams struct {
+	Form            string
+	SignatureFileID *uuid.UUID
+	PaidFrom        string
+	ID              uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupProjectRequest(ctx context.Context, arg SetWorkingGroupProjectRequestParams) error {
+	_, err := q.db.Exec(ctx, setWorkingGroupProjectRequest,
+		arg.Form,
+		arg.SignatureFileID,
+		arg.PaidFrom,
+		arg.ID,
+	)
+	return err
+}
+
+const setWorkingGroupProjectRequestPDF = `-- name: SetWorkingGroupProjectRequestPDF :exec
+UPDATE working_group_projects SET request_pdf_file_id = $1, wiref_request_sent_at = now(), version = version + 1, updated_at = now()
+WHERE id = $2
+`
+
+type SetWorkingGroupProjectRequestPDFParams struct {
+	PdfFileID *uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupProjectRequestPDF(ctx context.Context, arg SetWorkingGroupProjectRequestPDFParams) error {
+	_, err := q.db.Exec(ctx, setWorkingGroupProjectRequestPDF, arg.PdfFileID, arg.ID)
+	return err
+}
+
+const setWorkingGroupProjectStatus = `-- name: SetWorkingGroupProjectStatus :exec
+UPDATE working_group_projects SET status = $1, version = version + 1, updated_at = now() WHERE id = $2
+`
+
+type SetWorkingGroupProjectStatusParams struct {
+	Status string
+	ID     uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupProjectStatus(ctx context.Context, arg SetWorkingGroupProjectStatusParams) error {
+	_, err := q.db.Exec(ctx, setWorkingGroupProjectStatus, arg.Status, arg.ID)
+	return err
+}
+
+const setWorkingGroupProjectWiRef = `-- name: SetWorkingGroupProjectWiRef :exec
+UPDATE working_group_projects SET wiref_number = $1, status = 'running', version = version + 1, updated_at = now() WHERE id = $2
+`
+
+type SetWorkingGroupProjectWiRefParams struct {
+	Number *string
+	ID     uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupProjectWiRef(ctx context.Context, arg SetWorkingGroupProjectWiRefParams) error {
+	_, err := q.db.Exec(ctx, setWorkingGroupProjectWiRef, arg.Number, arg.ID)
+	return err
+}
+
 const setWorkingGroupPurchaseAttachment = `-- name: SetWorkingGroupPurchaseAttachment :exec
 UPDATE working_group_purchases SET attachment_file_id = $1, version = version + 1, updated_at = now()
 WHERE id = $2
@@ -3143,6 +4276,31 @@ func (q *Queries) ShareLockWorkingGroupBudgetPeriod(ctx context.Context, id uuid
 	var i ShareLockWorkingGroupBudgetPeriodRow
 	err := row.Scan(&i.ID, &i.ClosedAt)
 	return i, err
+}
+
+const startWorkingGroupProjectPurchases = `-- name: StartWorkingGroupProjectPurchases :exec
+UPDATE working_group_purchases SET status = 'approved', approved_at = now(), period_id = $1, version = version + 1, updated_at = now()
+WHERE project_id = $2 AND status = 'planned'
+`
+
+type StartWorkingGroupProjectPurchasesParams struct {
+	PeriodID  uuid.UUID
+	ProjectID *uuid.UUID
+}
+
+// A project that starts running turns its planned purchases into approved ones, in the period open today.
+func (q *Queries) StartWorkingGroupProjectPurchases(ctx context.Context, arg StartWorkingGroupProjectPurchasesParams) error {
+	_, err := q.db.Exec(ctx, startWorkingGroupProjectPurchases, arg.PeriodID, arg.ProjectID)
+	return err
+}
+
+const touchWorkingGroupProject = `-- name: TouchWorkingGroupProject :exec
+UPDATE working_group_projects SET version = version + 1, updated_at = now() WHERE id = $1
+`
+
+func (q *Queries) TouchWorkingGroupProject(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, touchWorkingGroupProject, id)
+	return err
 }
 
 const updateWorkingGroup = `-- name: UpdateWorkingGroup :execrows
@@ -3250,6 +4408,71 @@ func (q *Queries) UpdateWorkingGroupFinanceRules(ctx context.Context, arg Update
 	return result.RowsAffected(), nil
 }
 
+const updateWorkingGroupProject = `-- name: UpdateWorkingGroupProject :exec
+UPDATE working_group_projects
+SET title = $1, goal = $2, benefit = $3, starts_on = $4, ends_on = $5,
+    people = $6, planned_income = $7::text::numeric, alcohol = $8,
+    advance_requested = $9, advance_amount = $10::text::numeric,
+    advance_status = CASE WHEN $9 THEN advance_status ELSE NULL END,
+    version = version + 1, updated_at = now()
+WHERE id = $11
+`
+
+type UpdateWorkingGroupProjectParams struct {
+	Title            string
+	Goal             string
+	Benefit          string
+	StartsOn         pgtype.Date
+	EndsOn           pgtype.Date
+	People           int32
+	PlannedIncome    string
+	Alcohol          bool
+	AdvanceRequested bool
+	AdvanceAmount    *string
+	ID               uuid.UUID
+}
+
+func (q *Queries) UpdateWorkingGroupProject(ctx context.Context, arg UpdateWorkingGroupProjectParams) error {
+	_, err := q.db.Exec(ctx, updateWorkingGroupProject,
+		arg.Title,
+		arg.Goal,
+		arg.Benefit,
+		arg.StartsOn,
+		arg.EndsOn,
+		arg.People,
+		arg.PlannedIncome,
+		arg.Alcohol,
+		arg.AdvanceRequested,
+		arg.AdvanceAmount,
+		arg.ID,
+	)
+	return err
+}
+
+const updateWorkingGroupProjectItem = `-- name: UpdateWorkingGroupProjectItem :exec
+UPDATE working_group_project_items SET text = $1, planned_amount = $2::text::numeric,
+    link = $3, note = $4 WHERE id = $5
+`
+
+type UpdateWorkingGroupProjectItemParams struct {
+	Text          string
+	PlannedAmount string
+	Link          *string
+	Note          *string
+	ID            uuid.UUID
+}
+
+func (q *Queries) UpdateWorkingGroupProjectItem(ctx context.Context, arg UpdateWorkingGroupProjectItemParams) error {
+	_, err := q.db.Exec(ctx, updateWorkingGroupProjectItem,
+		arg.Text,
+		arg.PlannedAmount,
+		arg.Link,
+		arg.Note,
+		arg.ID,
+	)
+	return err
+}
+
 const updateWorkingGroupProjectRequest = `-- name: UpdateWorkingGroupProjectRequest :execrows
 UPDATE working_group_project_requests SET number = $1, label = $2 WHERE id = $3
 `
@@ -3266,6 +4489,32 @@ func (q *Queries) UpdateWorkingGroupProjectRequest(ctx context.Context, arg Upda
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const updateWorkingGroupRequestDefaults = `-- name: UpdateWorkingGroupRequestDefaults :exec
+UPDATE working_group_finance_rules
+SET request_unit_kind = $1, request_unit_name = $2, request_add_group_name = $3,
+    request_responsible_person_id = $4, request_place = $5
+WHERE singleton
+`
+
+type UpdateWorkingGroupRequestDefaultsParams struct {
+	UnitKind            string
+	UnitName            string
+	AddGroupName        bool
+	ResponsiblePersonID *uuid.UUID
+	Place               string
+}
+
+func (q *Queries) UpdateWorkingGroupRequestDefaults(ctx context.Context, arg UpdateWorkingGroupRequestDefaultsParams) error {
+	_, err := q.db.Exec(ctx, updateWorkingGroupRequestDefaults,
+		arg.UnitKind,
+		arg.UnitName,
+		arg.AddGroupName,
+		arg.ResponsiblePersonID,
+		arg.Place,
+	)
+	return err
 }
 
 const updateWorkingGroupTodo = `-- name: UpdateWorkingGroupTodo :execrows
@@ -3319,4 +4568,25 @@ type UpsertWorkingGroupBudgetShareParams struct {
 func (q *Queries) UpsertWorkingGroupBudgetShare(ctx context.Context, arg UpsertWorkingGroupBudgetShareParams) error {
 	_, err := q.db.Exec(ctx, upsertWorkingGroupBudgetShare, arg.PeriodID, arg.GroupID, arg.Amount)
 	return err
+}
+
+const upsertWorkingGroupFinanceSignature = `-- name: UpsertWorkingGroupFinanceSignature :one
+WITH old AS (SELECT s.file_id FROM working_group_finance_signatures s WHERE s.person_id = $1),
+     up AS (
+         INSERT INTO working_group_finance_signatures (person_id, file_id) VALUES ($1, $2)
+         ON CONFLICT (person_id) DO UPDATE SET file_id = EXCLUDED.file_id, updated_at = now() RETURNING 1)
+SELECT (SELECT old.file_id FROM old LIMIT 1)::uuid AS replaced_file_id FROM up
+`
+
+type UpsertWorkingGroupFinanceSignatureParams struct {
+	PersonID uuid.UUID
+	FileID   uuid.UUID
+}
+
+// Returns the replaced file, if any.
+func (q *Queries) UpsertWorkingGroupFinanceSignature(ctx context.Context, arg UpsertWorkingGroupFinanceSignatureParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, upsertWorkingGroupFinanceSignature, arg.PersonID, arg.FileID)
+	var replaced_file_id uuid.UUID
+	err := row.Scan(&replaced_file_id)
+	return replaced_file_id, err
 }

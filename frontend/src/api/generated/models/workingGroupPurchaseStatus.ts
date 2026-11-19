@@ -23,6 +23,7 @@ export type WorkingGroupPurchaseStatus = typeof WorkingGroupPurchaseStatus[keyof
 
 
 export const WorkingGroupPurchaseStatus = {
+  planned: 'planned',
   wanted: 'wanted',
   approved: 'approved',
   declined: 'declined',

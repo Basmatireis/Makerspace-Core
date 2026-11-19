@@ -32,6 +32,8 @@ export interface WorkingGroupPurchase {
   periodId: UUIDv7;
   periodName: string;
   periodClosed: boolean;
+  projectId?: UUIDv7 | null;
+  projectItemId?: UUIDv7 | null;
   /**
      * @minLength 1
      * @maxLength 160

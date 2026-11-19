@@ -121,9 +121,13 @@ func loadRules(ctx context.Context, q *workinggroupsdb.Queries) (FinanceRules, e
 	if err != nil {
 		return FinanceRules{}, err
 	}
+	defaults, err := loadRequestDefaults(ctx, q)
+	if err != nil {
+		return FinanceRules{}, err
+	}
 	rules := FinanceRules{
 		ProjectThreshold: moneyText(dbMoney(row.ProjectThreshold)), OffersThreshold: moneyText(dbMoney(row.OffersThreshold)),
-		Version: row.Version, ProjectRequests: make([]ProjectRequest, 0, len(requests)),
+		Request: defaults, Version: row.Version, ProjectRequests: make([]ProjectRequest, 0, len(requests)),
 	}
 	for _, r := range requests {
 		rules.ProjectRequests = append(rules.ProjectRequests, ProjectRequest{ID: r.ID, Number: r.Number, Label: r.Label})
@@ -169,8 +173,21 @@ func (s *Service) SetRules(
 		}); err != nil {
 			return err
 		}
-		if err := auditNoResource(ctx, tx, p, "working_group_finance_rules.updated", "working_group_finance_rules", requestID,
-			[]string{"projectThreshold", "offersThreshold"}); err != nil {
+		fields := []string{"projectThreshold", "offersThreshold"}
+		if input.Request != nil {
+			defaults, err := validateDefaultsInput(ctx, q, *input.Request)
+			if err != nil {
+				return err
+			}
+			if err := q.UpdateWorkingGroupRequestDefaults(ctx, workinggroupsdb.UpdateWorkingGroupRequestDefaultsParams{
+				UnitKind: defaults.UnitKind, UnitName: defaults.UnitName, AddGroupName: defaults.AddGroupName,
+				ResponsiblePersonID: defaults.ResponsiblePersonID, Place: defaults.Place,
+			}); err != nil {
+				return err
+			}
+			fields = append(fields, "requestDefaults")
+		}
+		if err := auditNoResource(ctx, tx, p, "working_group_finance_rules.updated", "working_group_finance_rules", requestID, fields); err != nil {
 			return err
 		}
 		result, err = loadRules(ctx, q)
