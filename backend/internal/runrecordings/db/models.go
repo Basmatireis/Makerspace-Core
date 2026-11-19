@@ -2558,6 +2558,35 @@ type WorkingGroup struct {
 	UpdatedAt   time.Time
 }
 
+type WorkingGroupBooking struct {
+	ID        uuid.UUID
+	GroupID   uuid.UUID
+	PeriodID  uuid.UUID
+	Text      string
+	Amount    pgtype.Numeric
+	BookedOn  pgtype.Date
+	CreatedAt time.Time
+}
+
+type WorkingGroupBudgetPeriod struct {
+	ID          uuid.UUID
+	Name        string
+	StartsOn    pgtype.Date
+	EndsOn      pgtype.Date
+	TotalAmount pgtype.Numeric
+	ClosedAt    pgtype.Timestamptz
+	Version     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type WorkingGroupBudgetShare struct {
+	PeriodID  uuid.UUID
+	GroupID   uuid.UUID
+	Amount    pgtype.Numeric
+	UpdatedAt time.Time
+}
+
 type WorkingGroupColumn struct {
 	ID        uuid.UUID
 	GroupID   uuid.UUID
@@ -2574,6 +2603,14 @@ type WorkingGroupComment struct {
 	Text           string
 	Internal       bool
 	CreatedAt      time.Time
+}
+
+type WorkingGroupFinanceRule struct {
+	Singleton        bool
+	ProjectThreshold pgtype.Numeric
+	OffersThreshold  pgtype.Numeric
+	Version          int64
+	UpdatedAt        time.Time
 }
 
 type WorkingGroupMachine struct {
@@ -2614,14 +2651,62 @@ type WorkingGroupPlace struct {
 	StatusChangedBy *uuid.UUID
 }
 
-type WorkingGroupStatusChange struct {
+type WorkingGroupProjectRequest struct {
+	ID        uuid.UUID
+	Number    string
+	Label     string
+	CreatedAt time.Time
+}
+
+type WorkingGroupPurchase struct {
 	ID                uuid.UUID
 	GroupID           uuid.UUID
-	MachineID         *uuid.UUID
-	PlaceID           *uuid.UUID
+	PeriodID          uuid.UUID
+	Item              string
+	Link              *string
+	Quantity          int32
+	UnitPrice         pgtype.Numeric
+	How               string
+	RequesterPersonID *uuid.UUID
 	Status            string
-	ChangedAt         time.Time
-	ChangedByPersonID *uuid.UUID
+	DeclineReason     *string
+	AttachmentFileID  *uuid.UUID
+	ReceiptFileID     *uuid.UUID
+	ReceiptAmount     pgtype.Numeric
+	OrderID           *uuid.UUID
+	ApprovedAt        pgtype.Timestamptz
+	DeclinedAt        pgtype.Timestamptz
+	OrderedAt         pgtype.Timestamptz
+	ReceivedAt        pgtype.Timestamptz
+	BoughtAt          pgtype.Timestamptz
+	RefundedAt        pgtype.Timestamptz
+	Version           int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type WorkingGroupPurchaseOrder struct {
+	ID               uuid.UUID
+	PeriodID         uuid.UUID
+	Shop             string
+	TotalAmount      pgtype.Numeric
+	Status           string
+	ProjectRequestID *uuid.UUID
+	ProjectNumber    *string
+	InvoiceFileID    *uuid.UUID
+	ArrivedAt        pgtype.Timestamptz
+	Version          int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type WorkingGroupStatusChange struct {
+	ID        uuid.UUID
+	GroupID   uuid.UUID
+	MachineID *uuid.UUID
+	PlaceID   *uuid.UUID
+	Status    string
+	ChangedAt time.Time
 }
 
 type WorkingGroupTicket struct {

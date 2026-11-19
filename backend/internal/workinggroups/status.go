@@ -2,6 +2,7 @@ package workinggroups
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	workinggroupsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/workinggroups/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -47,7 +49,7 @@ func (s *Service) SetMachineStatus(
 				return apperror.NotFound
 			}
 			return q.InsertWorkingGroupStatusChange(ctx, workinggroupsdb.InsertWorkingGroupStatusChangeParams{
-				ID: ids.New(), GroupID: groupID, MachineID: &machineID, Status: next.status, ChangedAt: at, ChangedByPersonID: &by,
+				ID: ids.New(), GroupID: groupID, MachineID: &machineID, Status: next.status, ChangedAt: at,
 			})
 		})
 }
@@ -79,7 +81,7 @@ func (s *Service) SetPlaceStatus(
 				return apperror.NotFound
 			}
 			return q.InsertWorkingGroupStatusChange(ctx, workinggroupsdb.InsertWorkingGroupStatusChangeParams{
-				ID: ids.New(), GroupID: groupID, PlaceID: &placeID, Status: next.status, ChangedAt: at, ChangedByPersonID: &by,
+				ID: ids.New(), GroupID: groupID, PlaceID: &placeID, Status: next.status, ChangedAt: at,
 			})
 		})
 }
@@ -132,6 +134,11 @@ func (s *Service) setItemStatus(
 				fields = append(fields, "until")
 			}
 			if err := store(q, next, time.Now().UTC(), p.PersonID); err != nil {
+				// The machine or place disappeared between the check and the history row.
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+					return apperror.NotFound
+				}
 				return err
 			}
 			if err := writeTaskAudit(ctx, tx, p, resourceType+".status_changed", resourceType, itemID, requestID, fields); err != nil {

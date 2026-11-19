@@ -128,7 +128,7 @@ type Querier interface {
 	EnableOrderItemGuards(ctx context.Context) error
 	ListMasterAccountsWithoutPasswordIdentity(ctx context.Context) ([]ListMasterAccountsWithoutPasswordIdentityRow, error)
 	ListMasterLoginEmails(ctx context.Context) ([]string, error)
-	// Files that belong to people: profile images, event attachments and subject request exports. They are
+	// Files that belong to people: profile images, event attachments, offers, receipts and invoices of working group purchases and subject request exports. They are
 	// collected before the anonymizer unlinks them and deleted at the end; system files keep their metadata.
 	ListPersonalFileIDs(ctx context.Context) ([]uuid.UUID, error)
 	// Task titles often name the person who should do something.
@@ -137,6 +137,8 @@ type Querier interface {
 	NeutralizeInvoiceRequestEvents(ctx context.Context) error
 	NeutralizeLabRulesConfirmations(ctx context.Context) error
 	NeutralizePrivacyRetentionHolds(ctx context.Context) error
+	// Item texts, shop links, decline reasons, shop names and booking texts often name people and shops.
+	NeutralizeWorkingGroupFinances(ctx context.Context) error
 	// Ticket subjects, descriptions, to-do titles, comments, pinboard notes and status notes often name people.
 	NeutralizeWorkingGroupTasks(ctx context.Context) error
 	// The SMTP password is encrypted with production's keys and staging must never reach real inboxes.

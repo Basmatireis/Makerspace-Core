@@ -49,14 +49,12 @@ CREATE TABLE working_group_status_changes (
     place_id uuid REFERENCES working_group_places(id) ON DELETE CASCADE,
     status text NOT NULL CHECK (status IN ('ok', 'limited', 'maintenance', 'out_of_order')),
     changed_at timestamptz NOT NULL,
-    changed_by_person_id uuid REFERENCES people(id) ON DELETE SET NULL,
     CHECK (num_nonnulls(machine_id, place_id) = 1)
 );
 
 CREATE INDEX working_group_status_changes_machine_idx ON working_group_status_changes (machine_id, changed_at) WHERE machine_id IS NOT NULL;
 CREATE INDEX working_group_status_changes_place_idx ON working_group_status_changes (place_id, changed_at) WHERE place_id IS NOT NULL;
 CREATE INDEX working_group_status_changes_group_idx ON working_group_status_changes (group_id);
-CREATE INDEX working_group_status_changes_person_idx ON working_group_status_changes (changed_by_person_id) WHERE changed_by_person_id IS NOT NULL;
 
 -- +goose Down
 -- Destructive: every pinboard note, every machine and place status and the status history are deleted.

@@ -14,6 +14,9 @@ import (
 
 const stagingCanary = "Zebracanary"
 
+// stagingReceiptFile is the receipt of a seeded working group purchase; the anonymizer deletes it.
+var stagingReceiptFile = uuid.MustParse("01900000-0000-7000-8000-00000000f001")
+
 // seedStagingPersonalData fills personal text in as many places as the schema allows. Every personal value
 // contains stagingCanary, so a single schema-wide search finds whatever the anonymizer leaves behind.
 func seedStagingPersonalData(t *testing.T, pool *pgxpool.Pool) (master, plain, oidcMaster seededAccount, profileFile uuid.UUID) {
@@ -156,6 +159,23 @@ func seedStagingPersonalData(t *testing.T, pool *pgxpool.Pool) (master, plain, o
 	wgMachineID := insertWorkingGroupMachine(t, pool, "Seed machine")
 	exec(`INSERT INTO working_group_machines (group_id, machine_id, status, status_note, status_changed_by)
 		VALUES ($1, $2, 'maintenance', 'Zebracanary machine note', $3)`, groupID, wgMachineID, plain.personID)
+	// Working group budget: item texts, links, reasons, shop names, booking texts and the receipt file.
+	periodID, orderID := ids.New(), ids.New()
+	exec(`INSERT INTO working_group_budget_periods (id, name, starts_on, ends_on, total_amount)
+		VALUES ($1, 'Seed period', '2026-01-01', '2026-12-31', 100)`, periodID)
+	exec(`INSERT INTO files (id, storage_key, original_filename, content_type, size_bytes, sha256)
+		VALUES ($1, 'blobs/zebracanary-receipt', 'zebracanary_receipt.pdf', 'application/pdf', 10, decode(repeat('ab', 32), 'hex'))`,
+		stagingReceiptFile)
+	exec(`INSERT INTO working_group_purchases (id, group_id, period_id, item, link, quantity, unit_price, how, requester_person_id,
+		status, receipt_amount, receipt_file_id, bought_at) VALUES ($1, $2, $3, 'Zebracanary item', 'https://zebracanary.example/item',
+		1, 5, 'self', $4, 'bought', 5, $5, now())`, ids.New(), groupID, periodID, plain.personID, stagingReceiptFile)
+	exec(`INSERT INTO working_group_purchases (id, group_id, period_id, item, quantity, unit_price, how, requester_person_id,
+		status, decline_reason, declined_at) VALUES ($1, $2, $3, 'Zebracanary other item', 1, 5, 'central', $4, 'declined',
+		'Zebracanary reason', now())`, ids.New(), groupID, periodID, plain.personID)
+	exec(`INSERT INTO working_group_purchase_orders (id, period_id, shop, total_amount) VALUES ($1, $2, 'Zebracanary shop', 5)`,
+		orderID, periodID)
+	exec(`INSERT INTO working_group_bookings (id, group_id, period_id, text, amount, booked_on)
+		VALUES ($1, $2, $3, 'Zebracanary booking', 5, '2026-02-01')`, ids.New(), groupID, periodID)
 	return master, plain, oidcMaster, profileFile
 }
 
@@ -208,6 +228,9 @@ func TestStagingAnonymizerLeavesNoPersonalData(t *testing.T) {
 	assertCount(t, pool, `SELECT count(*) FROM people WHERE phone IS NOT NULL OR matriculation_number IS NOT NULL`, 0)
 	assertCount(t, pool, `SELECT count(*) FROM people WHERE profile_image_file_id IS NOT NULL`, 0)
 	assertCount(t, pool, `SELECT count(*) FROM files WHERE id = $1`, 0, profileFile)
+	assertCount(t, pool, `SELECT count(*) FROM files WHERE id = $1`, 0, stagingReceiptFile)
+	assertCount(t, pool, `SELECT count(*) FROM working_group_purchases WHERE receipt_file_id IS NOT NULL`, 0)
+	assertCount(t, pool, `SELECT count(*) FROM working_group_purchases WHERE item <> 'Item' OR link IS NOT NULL OR decline_reason IS NOT NULL`, 0)
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities i JOIN accounts a ON a.id = i.account_id
 		JOIN people p ON p.id = a.person_id
 		WHERE i.kind = 'password' AND (i.identifier_display <> p.email OR i.identifier_normalized <> lower(p.email))`, 0)

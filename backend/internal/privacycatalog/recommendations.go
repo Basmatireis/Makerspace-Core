@@ -95,6 +95,11 @@ var recommendations = map[privacy.CategoryID]privacy.Recommendation{
 		Purpose: "Report and track problems, requests and tasks of working groups", LegalBasis: basisLabUse,
 		Reason: "Tickets and to-dos document how machines were looked after; the person links go when the person is deleted, the texts stay. Management can delete a ticket, a comment or a pinboard note that holds personal data; review old tickets for it.",
 	},
+	WorkingGroupFinances: {
+		Trigger: privacy.TriggerCompletedAt, PeriodDays: 0, Action: privacy.ActionRetainWithReview,
+		Purpose: "Plan the budget of working groups and account for purchases and reimbursements", LegalBasis: basisLabUse,
+		Reason: "Purchases, receipts and orders document how the budget was spent; the person links go when the person is deleted, the texts and files stay. Finance managers can delete a purchase that was wanted or declined, and a closed period keeps its record; review old receipts for personal data.",
+	},
 	LabRulesConfirmations: {
 		Trigger: privacy.TriggerAccountClosedAt, PeriodDays: 0, Action: privacy.ActionRetainWithReview,
 		Purpose: "Prove that the Lab Rules were accepted", LegalBasis: basisLabUse,

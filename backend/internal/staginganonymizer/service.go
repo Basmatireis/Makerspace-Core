@@ -133,6 +133,7 @@ func (s *Service) Anonymize(ctx context.Context, baseURL string) (Result, error)
 		{"clear event internal descriptions", q.ClearEventTexts},
 		{"neutralize event tasks", q.NeutralizeEventTasks},
 		{"neutralize working group tasks", q.NeutralizeWorkingGroupTasks},
+		{"neutralize working group finances", q.NeutralizeWorkingGroupFinances},
 		{"clear training notes", q.ClearTrainingRecordNotes},
 		{"neutralize lab rules confirmations", q.NeutralizeLabRulesConfirmations},
 		{"clear open day notes", q.ClearOpenDayNotes},

@@ -414,8 +414,6 @@ func TestPeopleMergeMovesWorkingGroupPinboardReferences(t *testing.T) {
 		f.machine, source)
 	mergeExec(t, f.pool, `UPDATE working_group_places SET status = 'limited', status_changed_by = $2, status_changed_at = now() WHERE id = $1`,
 		f.place, source)
-	mergeExec(t, f.pool, `INSERT INTO working_group_status_changes(id, group_id, machine_id, status, changed_at, changed_by_person_id)
-		VALUES($1, $2, $3, 'limited', now(), $4)`, ids.New(), f.group.ID, f.machine, source)
 
 	result, err := people.NewService(f.pool, nil).Merge(ctx, actor, people.MergeInput{
 		MergeSelection:   people.MergeSelection{TargetPersonID: target, SourcePersonIDs: []uuid.UUID{source}},
@@ -427,15 +425,14 @@ func TestPeopleMergeMovesWorkingGroupPinboardReferences(t *testing.T) {
 	assertCount(t, f.pool, `SELECT count(*) FROM working_group_notes WHERE author_person_id = $1`, 1, target)
 	assertCount(t, f.pool, `SELECT count(*) FROM working_group_machines WHERE status_changed_by = $1`, 1, target)
 	assertCount(t, f.pool, `SELECT count(*) FROM working_group_places WHERE status_changed_by = $1`, 1, target)
-	assertCount(t, f.pool, `SELECT count(*) FROM working_group_status_changes WHERE changed_by_person_id = $1`, 1, target)
 	var moved int64
 	for _, m := range result.Moved {
 		if m.Category == people.MergedWorkingGroupTasks {
 			moved = m.Count
 		}
 	}
-	if moved != 4 {
-		t.Fatalf("working group tasks merged = %d, want 4 (%+v)", moved, result.Moved)
+	if moved != 3 {
+		t.Fatalf("working group tasks merged = %d, want 3 (%+v)", moved, result.Moved)
 	}
 }
 
@@ -449,12 +446,10 @@ func TestSubjectRequestExportHoldsOnlyTheSubjectsNotes(t *testing.T) {
 		ids.New(), f.group.ID, f.memberID)
 	mergeExec(t, f.pool, `UPDATE working_group_places SET status = 'limited', status_note = 'Subject status note', status_changed_by = $2 WHERE id = $1`,
 		f.place, subject)
-	mergeExec(t, f.pool, `INSERT INTO working_group_status_changes(id, group_id, place_id, status, changed_at, changed_by_person_id)
-		VALUES($1, $2, $3, 'limited', now(), $4)`, ids.New(), f.group.ID, f.place, subject)
 
 	queries := requestsdb.New(f.pool)
 	count, err := queries.CountWorkingGroupTasks(ctx, subject)
-	if err != nil || count != 2 { // note + status change
+	if err != nil || count != 2 { // note + status note
 		t.Fatalf("count = %d, %v", count, err)
 	}
 	document, err := queries.ExportWorkingGroupTasks(ctx, subject)
@@ -465,8 +460,75 @@ func TestSubjectRequestExportHoldsOnlyTheSubjectsNotes(t *testing.T) {
 	if err := json.Unmarshal(document, &export); err != nil {
 		t.Fatal(err)
 	}
-	if len(export["notes"]) != 1 || export["notes"][0]["text"] != "Subject wrote this" || len(export["statusChanges"]) != 1 ||
+	if len(export["notes"]) != 1 || export["notes"][0]["text"] != "Subject wrote this" ||
 		len(export["statusNotes"]) != 1 || strings.Contains(string(document), "Colleague wrote this") {
 		t.Fatalf("export = %s", document)
 	}
+}
+
+func TestWorkingGroupNoteDeletionAndStatusStayInsideTheGroup(t *testing.T) {
+	f := newPinFixture(t, "wgp-cross")
+	ctx := testContext(t)
+	group, other := f.group.ID, f.otherGroup.ID
+	public := f.pin(t, f.member, &group, true, "public of group")
+
+	// Neither the lead nor a plain member of another group removes this group's public note.
+	plainOther, seeded := groupPrincipal(t, f.pool, "wgp-cross-plain", "working_groups.read")
+	if _, err := f.service.AddMember(ctx, f.manager, other, seeded.personID, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []authorization.Principal{f.otherMember, plainOther, f.outsider} {
+		requireAppError(t, f.service.DeleteNote(ctx, p, public.ID, nil), http.StatusForbidden, "permission_denied")
+	}
+	// An outsider sees the public note but is not offered to delete it.
+	notes, err := f.service.ListNotes(ctx, f.outsider, &group)
+	if err != nil || len(notes) != 1 || notes[0].CanDelete {
+		t.Fatalf("outsider notes = %+v, %v", notes, err)
+	}
+
+	// Status paths of another group's machine and place answer 404; the other group's people are not inside this one.
+	otherMachine := insertWorkingGroupMachine(t, f.pool, "Saw wgp-cross")
+	if _, err := f.service.SetMachines(ctx, f.manager, other, []uuid.UUID{otherMachine}, nil); err != nil {
+		t.Fatal(err)
+	}
+	withPlace, err := f.service.AddPlace(ctx, f.manager, other, "Wood shop", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherPlace := withPlace.Places[0].ID
+	limited := workinggroups.StatusInput{Usage: workinggroups.UsageLimited}
+	_, err = f.service.SetMachineStatus(ctx, f.member, group, otherMachine, limited, nil)
+	requireAppError(t, err, http.StatusNotFound, "")
+	_, err = f.service.SetPlaceStatus(ctx, f.member, group, otherPlace, limited, nil)
+	requireAppError(t, err, http.StatusNotFound, "")
+	_, err = f.service.SetMachineStatus(ctx, f.otherMember, other, f.machine, limited, nil)
+	requireAppError(t, err, http.StatusNotFound, "")
+	_, err = f.service.SetPlaceStatus(ctx, f.otherMember, other, f.place, limited, nil)
+	requireAppError(t, err, http.StatusNotFound, "")
+	_, err = f.service.SetMachineStatus(ctx, f.otherMember, group, f.machine, limited, nil)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	_, err = f.service.SetPlaceStatus(ctx, f.otherMember, group, f.place, limited, nil)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+}
+
+func TestWorkingGroupFormerMemberLosesTheInsideRights(t *testing.T) {
+	f := newPinFixture(t, "wgp-former")
+	ctx := testContext(t)
+	group := f.group.ID
+	inside := f.pin(t, f.member, &group, false, "inside only")
+	if _, err := f.service.RemoveMember(ctx, f.manager, group, f.memberID, nil); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.service.CreateNote(ctx, f.member, workinggroups.CreateNoteInput{GroupID: &group, Text: "again"}, nil)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	_, err = f.service.SetMachineStatus(ctx, f.member, group, f.machine, workinggroups.StatusInput{Usage: workinggroups.UsageLimited}, nil)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	_, err = f.service.SetPlaceStatus(ctx, f.member, group, f.place, workinggroups.StatusInput{Usage: workinggroups.UsageLimited}, nil)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	notes, err := f.service.ListNotes(ctx, f.member, &group)
+	if err != nil || strings.Contains(noteTexts(notes), "inside only") {
+		t.Fatalf("former member sees %q, %v", noteTexts(notes), err)
+	}
+	// The inside note does not exist for the former member, not even to delete it (the author lost their say).
+	requireAppError(t, f.service.DeleteNote(ctx, f.member, inside.ID, nil), http.StatusNotFound, "")
 }

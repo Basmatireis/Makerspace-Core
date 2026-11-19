@@ -67,7 +67,7 @@ var MergeReferences = []MergeReference{
 	{"working_group_members", "person_id", "people", ruleWorkingGroups},
 	{"working_group_notes", "author_person_id", "people", ruleWorkingTasks},
 	{"working_group_places", "status_changed_by", "people", ruleWorkingTasks},
-	{"working_group_status_changes", "changed_by_person_id", "people", ruleWorkingTasks},
+	{"working_group_purchases", "requester_person_id", "people", ruleWorkingTasks},
 	{"working_group_ticket_followers", "person_id", "people", ruleWorkingTasks},
 	{"working_group_tickets", "assignee_person_id", "people", ruleWorkingTasks},
 	{"working_group_tickets", "author_person_id", "people", ruleWorkingTasks},

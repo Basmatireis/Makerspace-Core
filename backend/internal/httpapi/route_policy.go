@@ -14,6 +14,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/workinggroups"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 )
@@ -34,12 +35,16 @@ const (
 var requestBodyLimits = map[string]int64{
 	routeKey(http.MethodPost, "/notification-rules"): maxNotificationRuleBodyBytes,
 	// 2 MiB asset plus one byte (pdftemplates.MaxAssetBytes in phase 2); the preview and draft documents are JSON up to 256 KiB.
-	routeKey(http.MethodPost, "/pdf-templates/assets"):                          2<<20 + 1,
-	routeKey(http.MethodPut, "/pdf-templates/{export}/draft"):                   maxPDFTemplateBodyBytes,
-	routeKey(http.MethodPost, "/pdf-templates/{export}/preview"):                maxPDFTemplateBodyBytes,
-	routeKey(http.MethodPut, "/notification-rules/{ruleId}"):                    maxNotificationRuleBodyBytes,
-	routeKey(http.MethodPost, "/me/notification-subscriptions"):                 maxNotificationRuleBodyBytes,
-	routeKey(http.MethodPut, "/me/notification-subscriptions/{subscriptionId}"): maxNotificationRuleBodyBytes,
+	routeKey(http.MethodPost, "/pdf-templates/assets"): 2<<20 + 1,
+	// 10 MiB file plus one byte (workinggroups.MaxFinanceFileBytes): offers, receipts and invoices of working group purchases.
+	routeKey(http.MethodPut, "/working-group-purchases/{purchaseId}/attachment"): workinggroups.MaxFinanceFileBytes + 1,
+	routeKey(http.MethodPost, "/working-group-purchases/{purchaseId}/receipt"):   workinggroups.MaxFinanceFileBytes + 1,
+	routeKey(http.MethodPut, "/working-group-purchase-orders/{orderId}/invoice"): workinggroups.MaxFinanceFileBytes + 1,
+	routeKey(http.MethodPut, "/pdf-templates/{export}/draft"):                    maxPDFTemplateBodyBytes,
+	routeKey(http.MethodPost, "/pdf-templates/{export}/preview"):                 maxPDFTemplateBodyBytes,
+	routeKey(http.MethodPut, "/notification-rules/{ruleId}"):                     maxNotificationRuleBodyBytes,
+	routeKey(http.MethodPost, "/me/notification-subscriptions"):                  maxNotificationRuleBodyBytes,
+	routeKey(http.MethodPut, "/me/notification-subscriptions/{subscriptionId}"):  maxNotificationRuleBodyBytes,
 	routeKey(
 		http.MethodPost,
 		"/printer-connector/self/events",

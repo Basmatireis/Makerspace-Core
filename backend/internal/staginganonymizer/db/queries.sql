@@ -310,6 +310,15 @@ WITH tickets AS (
 )
 UPDATE working_group_comments SET text = 'Comment';
 
+-- name: NeutralizeWorkingGroupFinances :exec
+-- Item texts, shop links, decline reasons, shop names and booking texts often name people and shops.
+WITH purchases AS (
+    UPDATE working_group_purchases SET item = 'Item', link = NULL, decline_reason = NULL RETURNING 1
+), orders AS (
+    UPDATE working_group_purchase_orders SET shop = 'Shop' RETURNING 1
+)
+UPDATE working_group_bookings SET text = 'Booking';
+
 -- name: ClearTrainingRecordNotes :exec
 UPDATE training_records SET notes = NULL WHERE notes IS NOT NULL;
 
@@ -448,11 +457,17 @@ UPDATE wiref_delivery_settings SET
     pdf_closing = '';
 
 -- name: ListPersonalFileIDs :many
--- Files that belong to people: profile images, event attachments and subject request exports. They are
+-- Files that belong to people: profile images, event attachments, offers, receipts and invoices of working group purchases and subject request exports. They are
 -- collected before the anonymizer unlinks them and deleted at the end; system files keep their metadata.
 SELECT profile_image_file_id::uuid AS id FROM people WHERE profile_image_file_id IS NOT NULL
 UNION
 SELECT file_id FROM event_files
+UNION
+SELECT attachment_file_id FROM working_group_purchases WHERE attachment_file_id IS NOT NULL
+UNION
+SELECT receipt_file_id FROM working_group_purchases WHERE receipt_file_id IS NOT NULL
+UNION
+SELECT invoice_file_id FROM working_group_purchase_orders WHERE invoice_file_id IS NOT NULL
 UNION
 SELECT export_file_id::uuid FROM privacy_subject_requests WHERE export_file_id IS NOT NULL;
 

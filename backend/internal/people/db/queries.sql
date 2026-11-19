@@ -395,7 +395,7 @@ SELECT
         + (SELECT count(*) FROM working_group_notes WHERE author_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_machines WHERE status_changed_by = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_places WHERE status_changed_by = ANY((sqlc.arg(ids)::text[])::uuid[]))
-        + (SELECT count(*) FROM working_group_status_changes WHERE changed_by_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS working_group_tasks,
+        + (SELECT count(*) FROM working_group_purchases WHERE requester_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS working_group_tasks,
     (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY((sqlc.arg(account_ids)::text[])::uuid[]))::bigint AS notifications,
     ((SELECT count(*) FROM privacy_retention_holds WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM privacy_subject_requests WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS privacy_holds;
@@ -515,7 +515,7 @@ WITH from_source AS (
 SELECT ((SELECT count(*) FROM from_source) + (SELECT count(*) FROM from_target))::bigint AS dropped;
 
 -- name: MoveMergeWorkingGroupTasks :one
--- Moves the source's tickets, assignments, follows, to-dos, comments, pinboard notes and status changes to the target;
+-- Moves the source's tickets, assignments, follows, to-dos, comments, pinboard notes, status notes and purchases to the target;
 -- returns how many rows moved.
 WITH tickets_moved AS (
     UPDATE working_group_tickets AS t SET
@@ -544,14 +544,14 @@ WITH tickets_moved AS (
 ), place_status_moved AS (
     UPDATE working_group_places AS pl SET status_changed_by = sqlc.arg(target_person_id)::uuid
     WHERE pl.status_changed_by = sqlc.arg(source_person_id) RETURNING 1
-), status_changes_moved AS (
-    UPDATE working_group_status_changes AS c SET changed_by_person_id = sqlc.arg(target_person_id)::uuid
-    WHERE c.changed_by_person_id = sqlc.arg(source_person_id) RETURNING 1
+), purchases_moved AS (
+    UPDATE working_group_purchases AS pu SET requester_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE pu.requester_person_id = sqlc.arg(source_person_id) RETURNING 1
 )
 SELECT ((SELECT count(*) FROM tickets_moved) + (SELECT count(*) FROM followers_moved)
       + (SELECT count(*) FROM todos_moved) + (SELECT count(*) FROM comments_moved)
       + (SELECT count(*) FROM notes_moved) + (SELECT count(*) FROM machine_status_moved)
-      + (SELECT count(*) FROM place_status_moved) + (SELECT count(*) FROM status_changes_moved))::bigint AS moved;
+      + (SELECT count(*) FROM place_status_moved) + (SELECT count(*) FROM purchases_moved))::bigint AS moved;
 
 -- name: RepointMergePersonReferences :one
 -- Re-points the person references that carry no uniqueness rule. Conflicting open visits are rejected before this

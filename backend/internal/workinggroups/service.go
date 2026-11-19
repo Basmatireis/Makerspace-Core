@@ -14,6 +14,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -38,6 +39,7 @@ const (
 type Service struct {
 	pool     *pgxpool.Pool
 	location *time.Location
+	files    *files.Service
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
@@ -229,16 +231,29 @@ func (s *Service) Delete(ctx context.Context, p authorization.Principal, id uuid
 	if !p.Has(authorization.WorkingGroupsManage) {
 		return apperror.PermissionDenied
 	}
-	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+	var stored []uuid.UUID
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		q := workinggroupsdb.New(tx)
 		if _, err := q.LockWorkingGroup(ctx, id); err != nil {
 			return noRows(err)
 		}
+		// The purchases of the group go with it; so do their offers and receipts.
+		fileIDs, err := q.ListWorkingGroupFileIDs(ctx, id)
+		if err != nil {
+			return err
+		}
+		stored = fileIDs
 		if _, err := q.DeleteWorkingGroup(ctx, id); err != nil {
 			return err
 		}
 		return writeAudit(ctx, tx, p, "working_group.deleted", id, requestID, nil)
 	})
+	if err == nil {
+		for i := range stored {
+			s.discardFiles(&stored[i])
+		}
+	}
+	return err
 }
 
 // AddMember adds a person to the group; a person already in it answers 409.
@@ -814,4 +829,9 @@ func writeAudit(
 		RequestID:      requestID,
 		ChangedFields:  fields,
 	})
+}
+
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23503"
 }

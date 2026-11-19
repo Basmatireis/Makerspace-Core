@@ -28,6 +28,7 @@ const (
 	TrainingRecords      privacy.CategoryID = "trainings.records"
 	WorkingGroupMembers  privacy.CategoryID = "working_groups.members"
 	WorkingGroupTasks    privacy.CategoryID = "working_groups.tasks"
+	WorkingGroupFinances privacy.CategoryID = "working_groups.finances"
 	// LabRulesConfirmations keeps the identifier it had when confirmations were paper requests: policies,
 	// retention holds and subject requests store category identifiers.
 	LabRulesConfirmations  privacy.CategoryID = "laborordnung.requests"
@@ -281,7 +282,7 @@ func declarations() []privacy.Definition {
 			Subject:        privacy.SubjectPerson,
 		},
 		{
-			ID: WorkingGroupTasks, Owner: WorkingGroups, Name: "Working group tickets and to-dos",
+			ID: WorkingGroupTasks, Owner: WorkingGroups, Name: "Working group tickets, to-dos, notes and status",
 			Description:    "Tickets people wrote for a group, who has the same problem, to-dos of the group, the comments on both, pinboard notes and who last set the status of a machine or place.",
 			Contains:       "Authors, assignees, followers, subjects, descriptions, titles, comments, pinboard notes, status notes and who changed a status",
 			ErasureOutcome: privacy.ErasureUnlinked,
@@ -295,7 +296,21 @@ func declarations() []privacy.Definition {
 				"working_group_notes.author_person_id", "working_group_notes.text",
 				"working_group_machines.status_note", "working_group_machines.status_changed_by",
 				"working_group_places.status_note", "working_group_places.status_changed_by",
-				"working_group_status_changes.changed_by_person_id",
+			},
+			Triggers: []privacy.Trigger{privacy.TriggerCompletedAt},
+			Actions:  []privacy.Action{privacy.ActionRetainWithReview},
+			Subject:  privacy.SubjectPerson,
+		},
+		{
+			ID: WorkingGroupFinances, Owner: WorkingGroups, Name: "Working group purchases and receipts",
+			Description:    "What members asked their group to buy, the offers and receipts they handed in, collective orders with their invoices and costs booked against a group's budget.",
+			Contains:       "Requesters, item texts, shop links, offers, receipts and invoices (files that may show names or addresses), shop names and booking texts",
+			ErasureOutcome: privacy.ErasureUnlinked,
+			Fields: []string{
+				"working_group_purchases.requester_person_id", "working_group_purchases.item", "working_group_purchases.link",
+				"working_group_purchases.decline_reason", "working_group_purchases.attachment_file_id",
+				"working_group_purchases.receipt_file_id", "working_group_purchase_orders.shop",
+				"working_group_purchase_orders.invoice_file_id", "working_group_bookings.text",
 			},
 			Triggers: []privacy.Trigger{privacy.TriggerCompletedAt},
 			Actions:  []privacy.Action{privacy.ActionRetainWithReview},

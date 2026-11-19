@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -17,15 +18,27 @@ type Querier interface {
 	AddWorkingGroupMember(ctx context.Context, arg AddWorkingGroupMemberParams) error
 	AddWorkingGroupPlace(ctx context.Context, arg AddWorkingGroupPlaceParams) error
 	AddWorkingGroupTicketFollower(ctx context.Context, arg AddWorkingGroupTicketFollowerParams) (int64, error)
+	ApproveWorkingGroupPurchase(ctx context.Context, id uuid.UUID) error
 	ClearWorkingGroupLead(ctx context.Context, groupID uuid.UUID) error
 	// A person who leaves a group no longer carries its tickets and to-dos.
 	ClearWorkingGroupTicketAssignments(ctx context.Context, arg ClearWorkingGroupTicketAssignmentsParams) error
 	ClearWorkingGroupTodoAssignments(ctx context.Context, arg ClearWorkingGroupTodoAssignmentsParams) error
+	CloseWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUID) (int64, error)
+	CopyWorkingGroupBudgetShares(ctx context.Context, arg CopyWorkingGroupBudgetSharesParams) error
 	CreateWorkingGroup(ctx context.Context, arg CreateWorkingGroupParams) error
+	CreateWorkingGroupBooking(ctx context.Context, arg CreateWorkingGroupBookingParams) error
+	CreateWorkingGroupBudgetPeriod(ctx context.Context, arg CreateWorkingGroupBudgetPeriodParams) error
 	CreateWorkingGroupNote(ctx context.Context, arg CreateWorkingGroupNoteParams) error
+	CreateWorkingGroupProjectRequest(ctx context.Context, arg CreateWorkingGroupProjectRequestParams) error
+	CreateWorkingGroupPurchase(ctx context.Context, arg CreateWorkingGroupPurchaseParams) error
+	CreateWorkingGroupPurchaseOrder(ctx context.Context, arg CreateWorkingGroupPurchaseOrderParams) error
 	CreateWorkingGroupTicket(ctx context.Context, arg CreateWorkingGroupTicketParams) error
 	CreateWorkingGroupTodo(ctx context.Context, arg CreateWorkingGroupTodoParams) error
+	// The open period that contains today; the one that started last when several do.
+	CurrentWorkingGroupBudgetPeriod(ctx context.Context, today pgtype.Date) (uuid.UUID, error)
+	DeclineWorkingGroupPurchase(ctx context.Context, arg DeclineWorkingGroupPurchaseParams) error
 	DeleteWorkingGroup(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteWorkingGroupBooking(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupColumn(ctx context.Context, arg DeleteWorkingGroupColumnParams) error
 	DeleteWorkingGroupMachine(ctx context.Context, arg DeleteWorkingGroupMachineParams) error
 	// A machine that leaves its group starts again at ok, without history.
@@ -33,6 +46,8 @@ type Querier interface {
 	DeleteWorkingGroupMember(ctx context.Context, arg DeleteWorkingGroupMemberParams) (int64, error)
 	DeleteWorkingGroupNote(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupPlace(ctx context.Context, arg DeleteWorkingGroupPlaceParams) (int64, error)
+	DeleteWorkingGroupProjectRequest(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteWorkingGroupPurchase(ctx context.Context, id uuid.UUID) (DeleteWorkingGroupPurchaseRow, error)
 	DeleteWorkingGroupTicket(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupTicketComment(ctx context.Context, arg DeleteWorkingGroupTicketCommentParams) (int64, error)
 	DeleteWorkingGroupTicketFollower(ctx context.Context, arg DeleteWorkingGroupTicketFollowerParams) (int64, error)
@@ -40,28 +55,50 @@ type Querier interface {
 	DeleteWorkingGroupTodoComment(ctx context.Context, arg DeleteWorkingGroupTodoCommentParams) (int64, error)
 	FindWorkingGroupPeople(ctx context.Context, arg FindWorkingGroupPeopleParams) ([]FindWorkingGroupPeopleRow, error)
 	GetWorkingGroup(ctx context.Context, arg GetWorkingGroupParams) (GetWorkingGroupRow, error)
+	GetWorkingGroupBookingPeriod(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	GetWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUID) (GetWorkingGroupBudgetPeriodRow, error)
+	GetWorkingGroupFinanceRules(ctx context.Context) (GetWorkingGroupFinanceRulesRow, error)
 	GetWorkingGroupMachineStatus(ctx context.Context, arg GetWorkingGroupMachineStatusParams) (GetWorkingGroupMachineStatusRow, error)
 	GetWorkingGroupMember(ctx context.Context, arg GetWorkingGroupMemberParams) (GetWorkingGroupMemberRow, error)
 	GetWorkingGroupNote(ctx context.Context, arg GetWorkingGroupNoteParams) (GetWorkingGroupNoteRow, error)
 	GetWorkingGroupNoteCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupNoteCoreRow, error)
 	GetWorkingGroupPlaceStatus(ctx context.Context, arg GetWorkingGroupPlaceStatusParams) (GetWorkingGroupPlaceStatusRow, error)
+	GetWorkingGroupProjectRequest(ctx context.Context, id uuid.UUID) (GetWorkingGroupProjectRequestRow, error)
+	GetWorkingGroupPurchaseFiles(ctx context.Context, id uuid.UUID) (GetWorkingGroupPurchaseFilesRow, error)
+	GetWorkingGroupPurchaseGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	GetWorkingGroupPurchaseOrderInvoice(ctx context.Context, id uuid.UUID) (*uuid.UUID, error)
 	GetWorkingGroupTicketCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTicketCoreRow, error)
 	GetWorkingGroupTodoCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTodoCoreRow, error)
+	HandInWorkingGroupPurchaseReceipt(ctx context.Context, arg HandInWorkingGroupPurchaseReceiptParams) error
 	InsertWorkingGroupColumn(ctx context.Context, arg InsertWorkingGroupColumnParams) error
 	InsertWorkingGroupStatusChange(ctx context.Context, arg InsertWorkingGroupStatusChangeParams) error
+	// Budget and purchases. Money is carried as exact decimal text between the database and the application:
+	// parameters are cast from text, numeric columns are read as text.
+	IsMemberOfAnyWorkingGroup(ctx context.Context, personID uuid.UUID) (bool, error)
 	IsVisitorPerson(ctx context.Context, personID uuid.UUID) (bool, error)
 	IsWorkingGroupLead(ctx context.Context, arg IsWorkingGroupLeadParams) (bool, error)
 	IsWorkingGroupMember(ctx context.Context, arg IsWorkingGroupMemberParams) (bool, error)
 	LeadsAnyWorkingGroup(ctx context.Context, personID uuid.UUID) (bool, error)
 	ListExistingMachineIDs(ctx context.Context, ids []uuid.UUID) ([]uuid.UUID, error)
 	ListMachineGroupAssignments(ctx context.Context, ids []uuid.UUID) ([]ListMachineGroupAssignmentsRow, error)
+	ListWorkingGroupBookings(ctx context.Context, arg ListWorkingGroupBookingsParams) ([]ListWorkingGroupBookingsRow, error)
+	// The figures of every group (all_groups) or of the groups the caller is a member of, optionally of one group.
+	ListWorkingGroupBudgetFigures(ctx context.Context, arg ListWorkingGroupBudgetFiguresParams) ([]ListWorkingGroupBudgetFiguresRow, error)
+	ListWorkingGroupBudgetPeriods(ctx context.Context) ([]ListWorkingGroupBudgetPeriodsRow, error)
 	ListWorkingGroupColumns(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupColumnsRow, error)
+	// Every stored file of the purchases of a group, collected before the group is deleted.
+	ListWorkingGroupFileIDs(ctx context.Context, targetGroup uuid.UUID) ([]uuid.UUID, error)
 	ListWorkingGroupItemStatuses(ctx context.Context) ([]ListWorkingGroupItemStatusesRow, error)
 	ListWorkingGroupMachineOptions(ctx context.Context) ([]ListWorkingGroupMachineOptionsRow, error)
 	ListWorkingGroupMachines(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupMachinesRow, error)
 	ListWorkingGroupMembers(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupMembersRow, error)
 	ListWorkingGroupNotes(ctx context.Context, arg ListWorkingGroupNotesParams) ([]ListWorkingGroupNotesRow, error)
+	ListWorkingGroupOrderPurchaseIDs(ctx context.Context, orderIds []string) ([]ListWorkingGroupOrderPurchaseIDsRow, error)
 	ListWorkingGroupPlaces(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupPlacesRow, error)
+	ListWorkingGroupProjectRequests(ctx context.Context) ([]ListWorkingGroupProjectRequestsRow, error)
+	ListWorkingGroupPurchaseOrders(ctx context.Context, arg ListWorkingGroupPurchaseOrdersParams) ([]ListWorkingGroupPurchaseOrdersRow, error)
+	// Purchases the caller may see: every one for a finance manager, otherwise those of the caller's groups.
+	ListWorkingGroupPurchases(ctx context.Context, arg ListWorkingGroupPurchasesParams) ([]ListWorkingGroupPurchasesRow, error)
 	// The last change before the window of every item: the status the window starts with.
 	ListWorkingGroupStatusBaselines(ctx context.Context, windowStart time.Time) ([]ListWorkingGroupStatusBaselinesRow, error)
 	ListWorkingGroupStatusChangesSince(ctx context.Context, windowStart time.Time) ([]ListWorkingGroupStatusChangesSinceRow, error)
@@ -75,8 +112,16 @@ type Querier interface {
 	ListWorkingGroups(ctx context.Context, callerPersonID uuid.UUID) ([]ListWorkingGroupsRow, error)
 	// Locks the group row; every mutation takes it first so lead and membership changes of one group are serialized.
 	LockWorkingGroup(ctx context.Context, id uuid.UUID) (LockWorkingGroupRow, error)
+	// Exclusive lock for changes of the period itself (edit, close, shares).
+	LockWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUID) (LockWorkingGroupBudgetPeriodRow, error)
+	LockWorkingGroupFinanceRules(ctx context.Context) (int64, error)
+	LockWorkingGroupPurchase(ctx context.Context, id uuid.UUID) (LockWorkingGroupPurchaseRow, error)
+	LockWorkingGroupPurchaseOrder(ctx context.Context, id uuid.UUID) (LockWorkingGroupPurchaseOrderRow, error)
+	LockWorkingGroupPurchasesForOrder(ctx context.Context, ids []string) ([]LockWorkingGroupPurchasesForOrderRow, error)
 	MachineBelongsToWorkingGroup(ctx context.Context, arg MachineBelongsToWorkingGroupParams) (bool, error)
 	MarkWorkingGroupLead(ctx context.Context, arg MarkWorkingGroupLeadParams) error
+	MarkWorkingGroupPurchaseOrderArrived(ctx context.Context, id uuid.UUID) error
+	MarkWorkingGroupPurchasesOrdered(ctx context.Context, arg MarkWorkingGroupPurchasesOrderedParams) (int64, error)
 	MoveWorkingGroupTicketsToColumn(ctx context.Context, arg MoveWorkingGroupTicketsToColumnParams) error
 	MoveWorkingGroupTodosToColumn(ctx context.Context, arg MoveWorkingGroupTodosToColumnParams) error
 	// Whether an open to-do with the same group, title and repeat interval exists besides the one just done.
@@ -84,13 +129,24 @@ type Querier interface {
 	// Gives a column a name nobody else can want, so renames and swaps never meet the unique name index halfway.
 	ParkWorkingGroupColumnName(ctx context.Context, arg ParkWorkingGroupColumnNameParams) error
 	PersonExists(ctx context.Context, id uuid.UUID) (bool, error)
+	ReceiveWorkingGroupOrderPurchases(ctx context.Context, orderID *uuid.UUID) ([]uuid.UUID, error)
+	ReceiveWorkingGroupPurchase(ctx context.Context, id uuid.UUID) error
+	RefundWorkingGroupPurchase(ctx context.Context, id uuid.UUID) error
 	SetWorkingGroupMachineStatus(ctx context.Context, arg SetWorkingGroupMachineStatusParams) (int64, error)
 	SetWorkingGroupPlaceStatus(ctx context.Context, arg SetWorkingGroupPlaceStatusParams) (int64, error)
+	SetWorkingGroupPurchaseAttachment(ctx context.Context, arg SetWorkingGroupPurchaseAttachmentParams) error
+	SetWorkingGroupPurchaseOrderInvoice(ctx context.Context, arg SetWorkingGroupPurchaseOrderInvoiceParams) error
 	SetWorkingGroupTicketState(ctx context.Context, arg SetWorkingGroupTicketStateParams) (int64, error)
 	SetWorkingGroupTodoDone(ctx context.Context, arg SetWorkingGroupTodoDoneParams) (int64, error)
+	// Shared lock for everything that books into the period, so a period cannot be closed under a running change.
+	ShareLockWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUID) (ShareLockWorkingGroupBudgetPeriodRow, error)
 	UpdateWorkingGroup(ctx context.Context, arg UpdateWorkingGroupParams) (int64, error)
+	UpdateWorkingGroupBudgetPeriod(ctx context.Context, arg UpdateWorkingGroupBudgetPeriodParams) (int64, error)
 	UpdateWorkingGroupColumn(ctx context.Context, arg UpdateWorkingGroupColumnParams) error
+	UpdateWorkingGroupFinanceRules(ctx context.Context, arg UpdateWorkingGroupFinanceRulesParams) (int64, error)
+	UpdateWorkingGroupProjectRequest(ctx context.Context, arg UpdateWorkingGroupProjectRequestParams) (int64, error)
 	UpdateWorkingGroupTodo(ctx context.Context, arg UpdateWorkingGroupTodoParams) (int64, error)
+	UpsertWorkingGroupBudgetShare(ctx context.Context, arg UpsertWorkingGroupBudgetShareParams) error
 }
 
 var _ Querier = (*Queries)(nil)

@@ -110,6 +110,7 @@ const catalog: Catalog = {
   'Working groups': [
     ['working_groups.read', 'View working groups'],
     ['working_groups.manage', 'Manage working groups'],
+    ['working_group_finances.manage', 'Manage working group budgets'],
   ],
   Workshop: [
     ['machines.read', 'View machines'],

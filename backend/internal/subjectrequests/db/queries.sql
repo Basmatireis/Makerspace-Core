@@ -276,7 +276,7 @@ FROM working_group_members m JOIN working_groups g ON g.id = m.group_id WHERE m.
 SELECT count(*)::bigint FROM working_group_members WHERE person_id = sqlc.arg(subject_person)::uuid;
 
 -- name: ExportWorkingGroupTasks :one
--- The subject's own tickets (text only when they wrote them), assignments, to-dos, comments, pinboard notes and status changes. Follows name only the group and the time: the ticket text
+-- The subject's own tickets (text only when they wrote them), assignments, to-dos, comments, pinboard notes and status notes. Follows name only the group and the time: the ticket text
 -- belongs to its author.
 SELECT jsonb_build_object(
     'tickets', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -312,10 +312,6 @@ SELECT jsonb_build_object(
             'group', g.name, 'public', n.is_public, 'text', n.text, 'createdAt', n.created_at) ORDER BY n.created_at), '[]'::jsonb)
         FROM working_group_notes n LEFT JOIN working_groups g ON g.id = n.group_id
         WHERE n.author_person_id = sqlc.arg(subject_person)::uuid),
-    'statusChanges', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
-            'group', g.name, 'status', c.status, 'changedAt', c.changed_at) ORDER BY c.changed_at), '[]'::jsonb)
-        FROM working_group_status_changes c JOIN working_groups g ON g.id = c.group_id
-        WHERE c.changed_by_person_id = sqlc.arg(subject_person)::uuid),
     'statusNotes', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
             'group', s.group_name, 'status', s.status, 'note', s.status_note, 'until', s.status_until, 'changedAt', s.status_changed_at)
             ORDER BY s.status_changed_at), '[]'::jsonb)
@@ -336,7 +332,8 @@ SELECT ((SELECT count(*) FROM working_group_tickets
           WHERE assignee_person_id = sqlc.arg(subject_person)::uuid OR created_by_person_id = sqlc.arg(subject_person)::uuid)
     + (SELECT count(*) FROM working_group_comments WHERE author_person_id = sqlc.arg(subject_person)::uuid)
     + (SELECT count(*) FROM working_group_notes WHERE author_person_id = sqlc.arg(subject_person)::uuid)
-    + (SELECT count(*) FROM working_group_status_changes WHERE changed_by_person_id = sqlc.arg(subject_person)::uuid))::bigint AS total;
+    + (SELECT count(*) FROM working_group_machines WHERE status_changed_by = sqlc.arg(subject_person)::uuid AND status_note IS NOT NULL)
+    + (SELECT count(*) FROM working_group_places WHERE status_changed_by = sqlc.arg(subject_person)::uuid AND status_note IS NOT NULL))::bigint AS total;
 
 -- name: ExportTrainingRecords :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object('training', t.name, 'status', r.status, 'completedOn', r.completed_on, 'notes', r.notes, 'createdAt', r.created_at) ORDER BY t.name), '[]'::jsonb)::jsonb AS document
@@ -344,6 +341,22 @@ FROM training_records r JOIN trainings t ON t.id = r.training_id WHERE r.person_
 
 -- name: CountTrainingRecords :one
 SELECT count(*)::bigint FROM training_records WHERE person_id = sqlc.arg(subject_person)::uuid;
+
+-- name: ExportWorkingGroupFinances :one
+-- The subject's own purchases: what they asked for and the metadata of their receipts (never the receipt files, and
+-- not the reasons other people gave when declining).
+SELECT jsonb_build_object(
+    'purchases', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'item', p.item, 'link', p.link, 'quantity', p.quantity, 'unitPrice', p.unit_price,
+            'how', p.how, 'status', p.status, 'receiptAmount', p.receipt_amount,
+            'hasAttachment', p.attachment_file_id IS NOT NULL, 'hasReceipt', p.receipt_file_id IS NOT NULL,
+            'createdAt', p.created_at) ORDER BY p.created_at), '[]'::jsonb)
+        FROM working_group_purchases p JOIN working_groups g ON g.id = p.group_id
+        WHERE p.requester_person_id = sqlc.arg(subject_person)::uuid)
+)::jsonb AS document;
+
+-- name: CountWorkingGroupFinances :one
+SELECT count(*)::bigint FROM working_group_purchases WHERE requester_person_id = sqlc.arg(subject_person)::uuid;
 
 -- name: ExportLabRulesConfirmations :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object(

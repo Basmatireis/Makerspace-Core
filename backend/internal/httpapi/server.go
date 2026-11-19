@@ -299,7 +299,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		accountPreferences: accountpreferences.NewService(pool),
 		configTransfer:     configTransferService,
 		trainings:          trainingsService,
-		workingGroups:      workinggroups.NewService(pool).WithLocation(makerspaceLocation(cfg)),
+		workingGroups:      workinggroups.NewService(pool).WithLocation(makerspaceLocation(cfg)).WithFiles(fileService),
 		privacy:            privacyService,
 		deviceRates:        newDeviceRateLimits(),
 		surveyLinkViews:    ratelimit.New(surveyLinkViewsPerWindow, surveyLinkWindow),

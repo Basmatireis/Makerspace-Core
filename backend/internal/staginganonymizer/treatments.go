@@ -690,9 +690,20 @@ var Tables = []Table{
 	}},
 	{Name: "working_group_columns", Columns: map[string]Treatment{"name": Catalog}},
 	{Name: "working_group_comments", Columns: map[string]Treatment{"text": Neutral}},
+	{Name: "working_group_bookings", Columns: map[string]Treatment{"text": Neutral}},
+	{Name: "working_group_budget_periods", Columns: map[string]Treatment{"name": Catalog}},
+	{Name: "working_group_budget_shares"},
+	{Name: "working_group_finance_rules"},
 	{Name: "working_group_machines", Columns: map[string]Treatment{"status": System, "status_note": Neutral}},
 	{Name: "working_group_members"},
 	{Name: "working_group_notes", Columns: map[string]Treatment{"text": Neutral}},
+	{Name: "working_group_project_requests", Columns: map[string]Treatment{"number": Catalog, "label": Catalog}},
+	{Name: "working_group_purchase_orders", Columns: map[string]Treatment{
+		"shop": Neutral, "status": System, "project_number": Catalog,
+	}},
+	{Name: "working_group_purchases", Columns: map[string]Treatment{
+		"item": Neutral, "link": Cleared, "how": System, "status": System, "decline_reason": Cleared,
+	}},
 	{Name: "working_group_status_changes", Columns: map[string]Treatment{"status": System}},
 	{Name: "working_group_ticket_followers"},
 	{Name: "working_group_tickets", Columns: map[string]Treatment{

@@ -20,24 +20,43 @@
  */
 import type {
   CloseWorkingGroupTicketRequest,
+  CreateWorkingGroupBookingRequest,
+  CreateWorkingGroupBudgetPeriodRequest,
   CreateWorkingGroupNoteRequest,
+  CreateWorkingGroupPurchaseOrderRequest,
+  CreateWorkingGroupPurchasesRequest,
   CreateWorkingGroupRequest,
   CreateWorkingGroupTicketRequest,
   CreateWorkingGroupTodoRequest,
+  DeclineWorkingGroupPurchaseRequest,
+  GetWorkingGroupBudgetParams,
+  ListWorkingGroupBookingsParams,
   ListWorkingGroupNotesParams,
   ListWorkingGroupPeopleParams,
+  ListWorkingGroupPurchasesParams,
   ListWorkingGroupTicketsParams,
   ListWorkingGroupTodosParams,
   PlanWorkingGroupTicketRequest,
+  SetWorkingGroupBudgetShareRequest,
   SetWorkingGroupColumnsRequest,
+  SetWorkingGroupFinanceRulesRequest,
   SetWorkingGroupMachinesRequest,
   SetWorkingGroupStatusRequest,
   UUIDv7,
+  UpdateWorkingGroupBudgetPeriodRequest,
   UpdateWorkingGroupRequest,
   UpdateWorkingGroupTicketRequest,
   UpdateWorkingGroupTodoRequest,
+  VersionRequest,
   WorkingGroup,
+  WorkingGroupBooking,
+  WorkingGroupBookingList,
+  WorkingGroupBudget,
+  WorkingGroupBudgetPeriod,
+  WorkingGroupBudgetPeriodList,
   WorkingGroupCommentRequest,
+  WorkingGroupFinanceRules,
+  WorkingGroupGroupBudget,
   WorkingGroupList,
   WorkingGroupMachineOptionList,
   WorkingGroupNote,
@@ -45,6 +64,12 @@ import type {
   WorkingGroupPersonOptionList,
   WorkingGroupPersonRequest,
   WorkingGroupPlaceInput,
+  WorkingGroupProjectRequest,
+  WorkingGroupProjectRequestInput,
+  WorkingGroupPurchase,
+  WorkingGroupPurchaseList,
+  WorkingGroupPurchaseOrder,
+  WorkingGroupPurchaseOrderList,
   WorkingGroupStatusList,
   WorkingGroupTicketDetail,
   WorkingGroupTicketList,
@@ -575,6 +600,809 @@ export const getDeleteWorkingGroupNoteUrl = (noteId: UUIDv7,) => {
 export const deleteWorkingGroupNote = async (noteId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
   return apiFetch<void>(getDeleteWorkingGroupNoteUrl(noteId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getListWorkingGroupBudgetPeriodsUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-budget-periods`
+}
+
+/**
+ * Requires `working_groups.read`. Newest first. Members of any working group and holders of `working_group_finances.manage` see the periods; everybody else gets an empty list. `current` marks the open period that contains today in the makerspace time zone.
+ * @summary List budget periods
+ */
+export const listWorkingGroupBudgetPeriods = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupBudgetPeriodList> => {
+
+  return apiFetch<WorkingGroupBudgetPeriodList>(getListWorkingGroupBudgetPeriodsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateWorkingGroupBudgetPeriodUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-budget-periods`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. The group shares of `copySharesFromPeriodId` are copied when given.
+ * @summary Create a budget period
+ */
+export const createWorkingGroupBudgetPeriod = async (createWorkingGroupBudgetPeriodRequest: CreateWorkingGroupBudgetPeriodRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupBudgetPeriod> => {
+
+  return apiFetch<WorkingGroupBudgetPeriod>(getCreateWorkingGroupBudgetPeriodUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(createWorkingGroupBudgetPeriodRequest)
+  }
+);}
+
+
+export const getUpdateWorkingGroupBudgetPeriodUrl = (periodId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-budget-periods/${periodId}`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Name, dates and the total from HTU. A closed period is read-only (409 `budget_period_closed`).
+ * @summary Edit a budget period
+ */
+export const updateWorkingGroupBudgetPeriod = async (periodId: UUIDv7,
+    updateWorkingGroupBudgetPeriodRequest: UpdateWorkingGroupBudgetPeriodRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupBudgetPeriod> => {
+
+  return apiFetch<WorkingGroupBudgetPeriod>(getUpdateWorkingGroupBudgetPeriodUrl(periodId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(updateWorkingGroupBudgetPeriodRequest)
+  }
+);}
+
+
+export const getCloseWorkingGroupBudgetPeriodUrl = (periodId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-budget-periods/${periodId}/close`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. A closed period accepts no new purchases, bookings or share changes and its purchases can no longer change state. Closing cannot be undone.
+ * @summary Close a budget period
+ */
+export const closeWorkingGroupBudgetPeriod = async (periodId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupBudgetPeriod> => {
+
+  return apiFetch<WorkingGroupBudgetPeriod>(getCloseWorkingGroupBudgetPeriodUrl(periodId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getSetWorkingGroupBudgetShareUrl = (periodId: UUIDv7,
+    groupId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-budget-periods/${periodId}/shares/${groupId}`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. The amount given to the group in this period; 0 is allowed. 409 `budget_period_closed` for a closed period.
+ * @summary Set the share of a group
+ */
+export const setWorkingGroupBudgetShare = async (periodId: UUIDv7,
+    groupId: UUIDv7,
+    setWorkingGroupBudgetShareRequest: SetWorkingGroupBudgetShareRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupGroupBudget> => {
+
+  return apiFetch<WorkingGroupGroupBudget>(getSetWorkingGroupBudgetShareUrl(periodId,groupId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(setWorkingGroupBudgetShareRequest)
+  }
+);}
+
+
+export const getGetWorkingGroupBudgetUrl = (params?: GetWorkingGroupBudgetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/working-group-budget?${stringifiedParams}` : `/api/v1/working-group-budget`
+}
+
+/**
+ * Requires `working_groups.read`. `periodId` defaults to the current period. Lists the figures of the groups the caller is a member of; holders of `working_group_finances.manage` see every group and the totals of the period. A caller who is neither a member of a group nor a finance manager gets 404. 404 when no period matches.
+ * @summary Budget overview of a period
+ */
+export const getWorkingGroupBudget = async (params?: GetWorkingGroupBudgetParams, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupBudget> => {
+
+  return apiFetch<WorkingGroupBudget>(getGetWorkingGroupBudgetUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getListWorkingGroupPurchasesUrl = (params?: ListWorkingGroupPurchasesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/working-group-purchases?${stringifiedParams}` : `/api/v1/working-group-purchases`
+}
+
+/**
+ * Requires `working_groups.read`. Only purchases of groups the caller is a member of, and every purchase for holders of `working_group_finances.manage`. Newest first, at most 500 (`truncated` tells when more matched).
+ * @summary List purchases
+ */
+export const listWorkingGroupPurchases = async (params?: ListWorkingGroupPurchasesParams, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchaseList> => {
+
+  return apiFetch<WorkingGroupPurchaseList>(getListWorkingGroupPurchasesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateWorkingGroupPurchasesUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-purchases`
+}
+
+/**
+ * Requires `working_groups.read` and being a member of the group (working_groups.manage is not enough). Creates one purchase per item in the open period that contains today (422 `budget_period_missing` when there is none), all with the same `how` and the caller as requester, status `wanted`.
+ * @summary Add purchases
+ */
+export const createWorkingGroupPurchases = async (createWorkingGroupPurchasesRequest: CreateWorkingGroupPurchasesRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchaseList> => {
+
+  return apiFetch<WorkingGroupPurchaseList>(getCreateWorkingGroupPurchasesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(createWorkingGroupPurchasesRequest)
+  }
+);}
+
+
+export const getGetWorkingGroupPurchaseUrl = (purchaseId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchases/${purchaseId}`
+}
+
+/**
+ * Requires `working_groups.read`. Budget figures and purchases are visible only to the members of the group and to holders of `working_group_finances.manage`; for everybody else the purchase does not exist (404).
+ * @summary Get a purchase
+ */
+export const getWorkingGroupPurchase = async (purchaseId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchase> => {
+
+  return apiFetch<WorkingGroupPurchase>(getGetWorkingGroupPurchaseUrl(purchaseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getDeleteWorkingGroupPurchaseUrl = (purchaseId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchases/${purchaseId}`
+}
+
+/**
+ * Requires `working_groups.read`. The requester deletes their own purchase while it is `wanted`; a holder of `working_group_finances.manage` deletes any purchase that is `wanted` or `declined`. The files of the purchase are deleted with it.
+ * @summary Delete a purchase
+ */
+export const deleteWorkingGroupPurchase = async (purchaseId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteWorkingGroupPurchaseUrl(purchaseId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getApproveWorkingGroupPurchaseUrl = (purchaseId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchases/${purchaseId}/approve`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Only `wanted` purchases. A purchase whose estimated total reaches the project threshold cannot be approved (409 `purchase_needs_project`).
+ * @summary Approve a purchase
+ */
+export const approveWorkingGroupPurchase = async (purchaseId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchase> => {
+
+  return apiFetch<WorkingGroupPurchase>(getApproveWorkingGroupPurchaseUrl(purchaseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getDeclineWorkingGroupPurchaseUrl = (purchaseId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchases/${purchaseId}/decline`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Only `wanted` purchases; the reason is optional.
+ * @summary Decline a purchase
+ */
+export const declineWorkingGroupPurchase = async (purchaseId: UUIDv7,
+    declineWorkingGroupPurchaseRequest: DeclineWorkingGroupPurchaseRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchase> => {
+
+  return apiFetch<WorkingGroupPurchase>(getDeclineWorkingGroupPurchaseUrl(purchaseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(declineWorkingGroupPurchaseRequest)
+  }
+);}
+
+
+export const getArrivedWorkingGroupPurchaseUrl = (purchaseId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchases/${purchaseId}/arrived`
+}
+
+/**
+ * Requires `working_groups.read` and being a member of the group or holding `working_group_finances.manage`. Only `ordered` purchases ('central'); sets `received`.
+ * @summary Mark a collectively ordered purchase as received
+ */
+export const arrivedWorkingGroupPurchase = async (purchaseId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchase> => {
+
+  return apiFetch<WorkingGroupPurchase>(getArrivedWorkingGroupPurchaseUrl(purchaseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getRefundedWorkingGroupPurchaseUrl = (purchaseId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchases/${purchaseId}/refunded`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Only `bought` purchases ('self'); sets `refunded`.
+ * @summary Mark the money of a receipt as returned
+ */
+export const refundedWorkingGroupPurchase = async (purchaseId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchase> => {
+
+  return apiFetch<WorkingGroupPurchase>(getRefundedWorkingGroupPurchaseUrl(purchaseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getHandInWorkingGroupPurchaseReceiptUrl = (purchaseId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchases/${purchaseId}/receipt`
+}
+
+/**
+ * Requires `working_groups.read`, an approved purchase with `how` self and being its requester, the lead of its group or holding `working_group_finances.manage`. The body is the receipt (PDF or image, at most 10 MiB); the actual total goes in `X-Receipt-Amount`. An amount that reaches the project threshold is refused (409 `receipt_needs_project`). Sets `bought`.
+ * @summary Hand in the receipt of a purchase
+ */
+export const handInWorkingGroupPurchaseReceipt = async (purchaseId: UUIDv7,
+    handInWorkingGroupPurchaseReceiptBody: Blob, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchase> => {
+
+  return apiFetch<WorkingGroupPurchase>(getHandInWorkingGroupPurchaseReceiptUrl(purchaseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/octet-stream' }, options?.headers),
+    body: handInWorkingGroupPurchaseReceiptBody
+  }
+);}
+
+
+export const getDownloadWorkingGroupPurchaseReceiptUrl = (purchaseId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchases/${purchaseId}/receipt`
+}
+
+/**
+ * Requires `working_groups.read`. Budget figures and purchases are visible only to the members of the group and to holders of `working_group_finances.manage`; for everybody else the purchase does not exist (404).
+ * @summary Download the receipt
+ */
+export const downloadWorkingGroupPurchaseReceipt = async (purchaseId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getDownloadWorkingGroupPurchaseReceiptUrl(purchaseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUploadWorkingGroupPurchaseAttachmentUrl = (purchaseId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchases/${purchaseId}/attachment`
+}
+
+/**
+ * Requires `working_groups.read` and being the requester, the lead of the group or holding `working_group_finances.manage`; only while the purchase is `wanted` or `approved`. PDF or image, at most 10 MiB. Replaces an earlier file.
+ * @summary Attach the offer or cart
+ */
+export const uploadWorkingGroupPurchaseAttachment = async (purchaseId: UUIDv7,
+    uploadWorkingGroupPurchaseAttachmentBody: Blob, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchase> => {
+
+  return apiFetch<WorkingGroupPurchase>(getUploadWorkingGroupPurchaseAttachmentUrl(purchaseId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/octet-stream' }, options?.headers),
+    body: uploadWorkingGroupPurchaseAttachmentBody
+  }
+);}
+
+
+export const getDownloadWorkingGroupPurchaseAttachmentUrl = (purchaseId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchases/${purchaseId}/attachment`
+}
+
+/**
+ * Requires `working_groups.read`. Budget figures and purchases are visible only to the members of the group and to holders of `working_group_finances.manage`; for everybody else the purchase does not exist (404).
+ * @summary Download the offer or cart
+ */
+export const downloadWorkingGroupPurchaseAttachment = async (purchaseId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getDownloadWorkingGroupPurchaseAttachmentUrl(purchaseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getListWorkingGroupPurchaseOrdersUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-purchase-orders`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Newest first, at most 200.
+ * @summary List collective orders
+ */
+export const listWorkingGroupPurchaseOrders = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchaseOrderList> => {
+
+  return apiFetch<WorkingGroupPurchaseOrderList>(getListWorkingGroupPurchaseOrdersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateWorkingGroupPurchaseOrderUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-purchase-orders`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. All purchases must be `approved` with `how` central and belong to the same period (422 `purchases_mixed_periods`). A total that reaches the project threshold needs `projectRequestId` of a standing project request (422 `project_request_required`). The purchases become `ordered`.
+ * @summary Place a collective order
+ */
+export const createWorkingGroupPurchaseOrder = async (createWorkingGroupPurchaseOrderRequest: CreateWorkingGroupPurchaseOrderRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchaseOrder> => {
+
+  return apiFetch<WorkingGroupPurchaseOrder>(getCreateWorkingGroupPurchaseOrderUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(createWorkingGroupPurchaseOrderRequest)
+  }
+);}
+
+
+export const getGetWorkingGroupPurchaseOrderUrl = (orderId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchase-orders/${orderId}`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`.
+ * @summary Get a collective order
+ */
+export const getWorkingGroupPurchaseOrder = async (orderId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchaseOrder> => {
+
+  return apiFetch<WorkingGroupPurchaseOrder>(getGetWorkingGroupPurchaseOrderUrl(orderId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getArrivedWorkingGroupPurchaseOrderUrl = (orderId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchase-orders/${orderId}/arrived`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Sets the purchases of the order that are still `ordered` to `received`.
+ * @summary Mark a collective order as arrived
+ */
+export const arrivedWorkingGroupPurchaseOrder = async (orderId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchaseOrder> => {
+
+  return apiFetch<WorkingGroupPurchaseOrder>(getArrivedWorkingGroupPurchaseOrderUrl(orderId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getUploadWorkingGroupPurchaseOrderInvoiceUrl = (orderId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchase-orders/${orderId}/invoice`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. PDF or image, at most 10 MiB. Replaces an earlier file.
+ * @summary Attach the invoice of an order
+ */
+export const uploadWorkingGroupPurchaseOrderInvoice = async (orderId: UUIDv7,
+    uploadWorkingGroupPurchaseOrderInvoiceBody: Blob, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchaseOrder> => {
+
+  return apiFetch<WorkingGroupPurchaseOrder>(getUploadWorkingGroupPurchaseOrderInvoiceUrl(orderId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/octet-stream' }, options?.headers),
+    body: uploadWorkingGroupPurchaseOrderInvoiceBody
+  }
+);}
+
+
+export const getDownloadWorkingGroupPurchaseOrderInvoiceUrl = (orderId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchase-orders/${orderId}/invoice`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`.
+ * @summary Download the invoice of an order
+ */
+export const downloadWorkingGroupPurchaseOrderInvoice = async (orderId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getDownloadWorkingGroupPurchaseOrderInvoiceUrl(orderId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getListWorkingGroupBookingsUrl = (params?: ListWorkingGroupBookingsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/working-group-bookings?${stringifiedParams}` : `/api/v1/working-group-bookings`
+}
+
+/**
+ * Requires `working_groups.read`. Members see the bookings of their groups, holders of `working_group_finances.manage` see all. Newest first, at most 500.
+ * @summary List direct bookings
+ */
+export const listWorkingGroupBookings = async (params?: ListWorkingGroupBookingsParams, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupBookingList> => {
+
+  return apiFetch<WorkingGroupBookingList>(getListWorkingGroupBookingsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateWorkingGroupBookingUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-bookings`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Books a cost against the budget of a group in a period; 409 `budget_period_closed` for a closed period.
+ * @summary Book a cost directly
+ */
+export const createWorkingGroupBooking = async (createWorkingGroupBookingRequest: CreateWorkingGroupBookingRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupBooking> => {
+
+  return apiFetch<WorkingGroupBooking>(getCreateWorkingGroupBookingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(createWorkingGroupBookingRequest)
+  }
+);}
+
+
+export const getDeleteWorkingGroupBookingUrl = (bookingId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-bookings/${bookingId}`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. 409 `budget_period_closed` for a closed period.
+ * @summary Delete a direct booking
+ */
+export const deleteWorkingGroupBooking = async (bookingId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteWorkingGroupBookingUrl(bookingId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getGetWorkingGroupFinanceRulesUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-finance-rules`
+}
+
+/**
+ * Requires `working_groups.read` and being a member of a working group or holding `working_group_finances.manage` (404 otherwise). Returns the thresholds and the standing project requests.
+ * @summary Read the finance rules
+ */
+export const getWorkingGroupFinanceRules = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupFinanceRules> => {
+
+  return apiFetch<WorkingGroupFinanceRules>(getGetWorkingGroupFinanceRulesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getSetWorkingGroupFinanceRulesUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-finance-rules`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. The project threshold decides which purchases need a project; the offers threshold is stored for later use.
+ * @summary Set the finance rules
+ */
+export const setWorkingGroupFinanceRules = async (setWorkingGroupFinanceRulesRequest: SetWorkingGroupFinanceRulesRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupFinanceRules> => {
+
+  return apiFetch<WorkingGroupFinanceRules>(getSetWorkingGroupFinanceRulesUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(setWorkingGroupFinanceRulesRequest)
+  }
+);}
+
+
+export const getCreateWorkingGroupProjectRequestUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-project-requests`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. The number is unique (409 `working_group_project_request_exists`).
+ * @summary Add a standing project request
+ */
+export const createWorkingGroupProjectRequest = async (workingGroupProjectRequestInput: WorkingGroupProjectRequestInput, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProjectRequest> => {
+
+  return apiFetch<WorkingGroupProjectRequest>(getCreateWorkingGroupProjectRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectRequestInput)
+  }
+);}
+
+
+export const getUpdateWorkingGroupProjectRequestUrl = (requestId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-project-requests/${requestId}`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`.
+ * @summary Edit a standing project request
+ */
+export const updateWorkingGroupProjectRequest = async (requestId: UUIDv7,
+    workingGroupProjectRequestInput: WorkingGroupProjectRequestInput, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProjectRequest> => {
+
+  return apiFetch<WorkingGroupProjectRequest>(getUpdateWorkingGroupProjectRequestUrl(requestId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(workingGroupProjectRequestInput)
+  }
+);}
+
+
+export const getDeleteWorkingGroupProjectRequestUrl = (requestId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-project-requests/${requestId}`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Orders that used it keep its number.
+ * @summary Delete a standing project request
+ */
+export const deleteWorkingGroupProjectRequest = async (requestId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteWorkingGroupProjectRequestUrl(requestId),
   {
     ...options,
     method: 'DELETE'

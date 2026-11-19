@@ -311,6 +311,17 @@ func (q *Queries) CountVisits(ctx context.Context, subjectPerson uuid.UUID) (int
 	return total, err
 }
 
+const countWorkingGroupFinances = `-- name: CountWorkingGroupFinances :one
+SELECT count(*)::bigint FROM working_group_purchases WHERE requester_person_id = $1::uuid
+`
+
+func (q *Queries) CountWorkingGroupFinances(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkingGroupFinances, subjectPerson)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countWorkingGroupMemberships = `-- name: CountWorkingGroupMemberships :one
 SELECT count(*)::bigint FROM working_group_members WHERE person_id = $1::uuid
 `
@@ -330,7 +341,8 @@ SELECT ((SELECT count(*) FROM working_group_tickets
           WHERE assignee_person_id = $1::uuid OR created_by_person_id = $1::uuid)
     + (SELECT count(*) FROM working_group_comments WHERE author_person_id = $1::uuid)
     + (SELECT count(*) FROM working_group_notes WHERE author_person_id = $1::uuid)
-    + (SELECT count(*) FROM working_group_status_changes WHERE changed_by_person_id = $1::uuid))::bigint AS total
+    + (SELECT count(*) FROM working_group_machines WHERE status_changed_by = $1::uuid AND status_note IS NOT NULL)
+    + (SELECT count(*) FROM working_group_places WHERE status_changed_by = $1::uuid AND status_note IS NOT NULL))::bigint AS total
 `
 
 func (q *Queries) CountWorkingGroupTasks(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
@@ -835,6 +847,27 @@ func (q *Queries) ExportVisits(ctx context.Context, subjectPerson uuid.UUID) ([]
 	return document, err
 }
 
+const exportWorkingGroupFinances = `-- name: ExportWorkingGroupFinances :one
+SELECT jsonb_build_object(
+    'purchases', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'item', p.item, 'link', p.link, 'quantity', p.quantity, 'unitPrice', p.unit_price,
+            'how', p.how, 'status', p.status, 'receiptAmount', p.receipt_amount,
+            'hasAttachment', p.attachment_file_id IS NOT NULL, 'hasReceipt', p.receipt_file_id IS NOT NULL,
+            'createdAt', p.created_at) ORDER BY p.created_at), '[]'::jsonb)
+        FROM working_group_purchases p JOIN working_groups g ON g.id = p.group_id
+        WHERE p.requester_person_id = $1::uuid)
+)::jsonb AS document
+`
+
+// The subject's own purchases: what they asked for and the metadata of their receipts (never the receipt files, and
+// not the reasons other people gave when declining).
+func (q *Queries) ExportWorkingGroupFinances(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, exportWorkingGroupFinances, subjectPerson)
+	var document []byte
+	err := row.Scan(&document)
+	return document, err
+}
+
 const exportWorkingGroupMemberships = `-- name: ExportWorkingGroupMemberships :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object('group', g.name, 'isLead', m.is_lead, 'joinedAt', m.joined_at) ORDER BY g.name), '[]'::jsonb)::jsonb AS document
 FROM working_group_members m JOIN working_groups g ON g.id = m.group_id WHERE m.person_id = $1::uuid
@@ -882,10 +915,6 @@ SELECT jsonb_build_object(
             'group', g.name, 'public', n.is_public, 'text', n.text, 'createdAt', n.created_at) ORDER BY n.created_at), '[]'::jsonb)
         FROM working_group_notes n LEFT JOIN working_groups g ON g.id = n.group_id
         WHERE n.author_person_id = $1::uuid),
-    'statusChanges', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
-            'group', g.name, 'status', c.status, 'changedAt', c.changed_at) ORDER BY c.changed_at), '[]'::jsonb)
-        FROM working_group_status_changes c JOIN working_groups g ON g.id = c.group_id
-        WHERE c.changed_by_person_id = $1::uuid),
     'statusNotes', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
             'group', s.group_name, 'status', s.status, 'note', s.status_note, 'until', s.status_until, 'changedAt', s.status_changed_at)
             ORDER BY s.status_changed_at), '[]'::jsonb)
@@ -899,7 +928,7 @@ SELECT jsonb_build_object(
 )::jsonb AS document
 `
 
-// The subject's own tickets (text only when they wrote them), assignments, to-dos, comments, pinboard notes and status changes. Follows name only the group and the time: the ticket text
+// The subject's own tickets (text only when they wrote them), assignments, to-dos, comments, pinboard notes and status notes. Follows name only the group and the time: the ticket text
 // belongs to its author.
 func (q *Queries) ExportWorkingGroupTasks(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
 	row := q.db.QueryRow(ctx, exportWorkingGroupTasks, subjectPerson)
