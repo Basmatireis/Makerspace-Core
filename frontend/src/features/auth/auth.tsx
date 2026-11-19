@@ -87,10 +87,14 @@ export function useLogout(returnTo?: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => logout(),
-    onSuccess: () => {
+    onSuccess: async () => {
       const currentUser = queryClient.getQueryData<CurrentUser>(authQueryKey);
+      const destination = sessionDestination(currentUser);
+      // The login page is its own chunk. Load it before leaving, so the signed-out page is not left
+      // mounted while the session query reloads and redirects to the login page without the return path.
+      if (destination === '/login') await import('./LoginPage').catch(() => undefined);
       clearPrivateQueryData();
-      void navigate(sessionDestination(currentUser), {
+      void navigate(destination, {
         replace: true,
         state: returnTo ? { from: returnTo } : undefined,
       });
