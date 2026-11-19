@@ -72,6 +72,8 @@ import {
   TrainingsSettingsPage,
   WorkingGroupsPage,
   WorkingGroupTasksPage,
+  PurchasesPage,
+  BudgetPage,
   WorkingGroupsSettingsPage,
   SettingsPage,
   SingleSignOnPage,
@@ -548,6 +550,22 @@ export function App() {
               element={
                 <PermissionRoute allOf={['working_groups.read']}>
                   <WorkingGroupTasksPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="working-groups/purchases"
+              element={
+                <PermissionRoute allOf={['working_groups.read']}>
+                  <PurchasesPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="working-groups/budget"
+              element={
+                <PermissionRoute allOf={['working_groups.read', 'working_group_finances.manage']}>
+                  <BudgetPage />
                 </PermissionRoute>
               }
             />

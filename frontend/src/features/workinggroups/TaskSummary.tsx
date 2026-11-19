@@ -113,7 +113,7 @@ export function TaskSummary({ tasks, today, me, status, scope, onStatus, onScope
   );
 }
 
-function Tile({
+export function Tile({
   title,
   count,
   pressed,
@@ -121,13 +121,14 @@ function Tile({
   rows,
 }: {
   title: string;
-  count: number;
-  pressed: boolean;
-  onClick: () => void;
+  count: number | string;
+  /** Without a click handler the tile only shows figures. */
+  pressed?: boolean;
+  onClick?: () => void;
   rows: [string, string][];
 }) {
-  return (
-    <button type="button" className="wg-minetile" aria-pressed={pressed} onClick={onClick}>
+  const body = (
+    <>
       <span className="wg-minetile__head">
         <span className="wg-minetile__title">{title}</span>
         <span className="wg-minetile__n">{count}</span>
@@ -138,6 +139,13 @@ function Tile({
           <span>{value}</span>
         </span>
       ))}
+    </>
+  );
+  return onClick ? (
+    <button type="button" className="wg-minetile" aria-pressed={pressed} onClick={onClick}>
+      {body}
     </button>
+  ) : (
+    <div className="wg-minetile wg-minetile--static">{body}</div>
   );
 }

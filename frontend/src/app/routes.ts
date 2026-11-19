@@ -152,6 +152,16 @@ export const WorkingGroupTasksPage = lazy(() =>
     default: WorkingGroupTasksPage,
   })),
 );
+export const PurchasesPage = lazy(() =>
+  import('../features/workinggroups/PurchasesPage').then(({ PurchasesPage }) => ({
+    default: PurchasesPage,
+  })),
+);
+export const BudgetPage = lazy(() =>
+  import('../features/workinggroups/BudgetPage').then(({ BudgetPage }) => ({
+    default: BudgetPage,
+  })),
+);
 export const WorkingGroupsSettingsPage = lazy(() =>
   import('../features/workinggroups/WorkingGroupsSettingsPage').then(({ WorkingGroupsSettingsPage }) => ({
     default: WorkingGroupsSettingsPage,

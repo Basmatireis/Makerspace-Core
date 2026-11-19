@@ -15,7 +15,9 @@ import {
   UserMultiple,
 } from '@carbon/icons-react';
 import type { CurrentUser, PublicLegalLinks } from '../api/generated/models';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
+import { workingGroupsOptions } from '../features/workinggroups/queries';
 import { canAccessOpenDays, canAccessSettings, hasAnyPermission, hasPermission } from '../features/auth/permissions';
 
 type NavigationGroupId = 'operations' | 'people' | 'workshop' | 'sales' | 'signage' | 'working-groups';
@@ -102,6 +104,8 @@ function activeGroupForPath(pathname: string): NavigationGroupId | null {
 export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationProps) {
   const { pathname } = useLocation();
   const activeGroup = activeGroupForPath(pathname);
+  const canReadWorkingGroups = hasPermission(currentUser, 'working_groups.read');
+  const workingGroupList = useQuery({ ...workingGroupsOptions, enabled: canReadWorkingGroups });
 
   const operations: NavigationItem[] = [];
   if (canAccessOpenDays(currentUser)) {
@@ -206,6 +210,22 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
       to: '/working-groups/tasks',
       active: pathname.startsWith('/working-groups/tasks'),
     });
+    const financeManager = hasPermission(currentUser, 'working_group_finances.manage');
+    const inAGroup = (workingGroupList.data?.items ?? []).some((group) => group.isMember || group.isLead);
+    if (financeManager || inAGroup) {
+      workingGroups.push({
+        label: 'Purchases',
+        to: '/working-groups/purchases',
+        active: pathname.startsWith('/working-groups/purchases'),
+      });
+    }
+    if (financeManager) {
+      workingGroups.push({
+        label: 'Budget',
+        to: '/working-groups/budget',
+        active: pathname.startsWith('/working-groups/budget'),
+      });
+    }
   }
 
   const canReadAuditLog = hasPermission(currentUser, 'audit.read');

@@ -1053,3 +1053,202 @@
   gap: $spacing-02;
   block-size: 100%;
 }
+
+// Purchases and budget.
+.wg-summary--two {
+  @media (min-width: 66rem) {
+    grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr);
+  }
+}
+
+.wg-minetile--static {
+  cursor: default;
+}
+
+.wg-sbar__period {
+  min-inline-size: 10rem;
+}
+
+.wg-sbar__cols--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wg-sbar__ch {
+  @include type-style('helper-text-01');
+  color: theme.$text-secondary;
+}
+
+.wg-fin-spent {
+  --wg-st: #{theme.$support-info};
+}
+
+.wg-fin-reserved {
+  --wg-st: #{theme.$support-warning};
+}
+
+.wg-fin-free {
+  --wg-st: #{theme.$support-success};
+}
+
+.wg-fin-kept {
+  --wg-st: #{theme.$border-strong-01};
+}
+
+.wg-subhead {
+  margin: 0 0 $spacing-03;
+  @include type-style('heading-compact-01');
+}
+
+.wg-subhead--pad {
+  padding: $spacing-05 $spacing-05 0;
+}
+
+.wg-pamount {
+  display: grid;
+  min-inline-size: 0;
+
+  small {
+    @include type-style('helper-text-01');
+    color: theme.$text-secondary;
+  }
+}
+
+.wg-prow--static {
+  cursor: default;
+}
+
+.wg-bused {
+  display: grid;
+  gap: $spacing-02;
+  min-inline-size: 0;
+
+  small {
+    @include type-style('helper-text-01');
+    color: theme.$text-secondary;
+  }
+}
+
+.wg-brow--total {
+  cursor: default;
+  font-weight: 600;
+}
+
+@media (min-width: 66rem) {
+  .wg-prow {
+    grid-template-columns: 7.5rem minmax(10rem, 2.4fr) 7.5rem;
+  }
+
+  .wg-prow--group {
+    grid-template-columns: 7.5rem minmax(10rem, 2.4fr) minmax(6rem, 1fr) 7.5rem;
+  }
+
+  .wg-brow {
+    grid-template-columns: 7.5rem minmax(10rem, 2fr) 7.5rem minmax(10rem, 2fr);
+  }
+}
+
+@media (max-width: 65.98rem) {
+  .wg-prow,
+  .wg-brow {
+    grid-template-columns: 6rem minmax(0, 1fr) auto;
+  }
+}
+
+.wg-buyrow {
+  display: grid;
+  grid-template-columns: minmax(8rem, 2fr) minmax(8rem, 2fr) 5rem 6rem auto auto;
+  gap: $spacing-03;
+  align-items: end;
+}
+
+@media (max-width: 65.98rem) {
+  .wg-buyrow {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.wg-buyrow__file {
+  display: grid;
+}
+
+.wg-buyrow__error {
+  margin: 0;
+  @include type-style('helper-text-01');
+  color: theme.$text-error;
+}
+
+.wg-buytotal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.wg-preview {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: 70vh;
+  margin-inline: auto;
+}
+
+.wg-preview--pdf {
+  inline-size: 100%;
+  block-size: 70vh;
+  border: 0;
+}
+
+.wg-receipt {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+}
+
+.wg-collective {
+  display: grid;
+  gap: $spacing-05;
+}
+
+.wg-collective__top {
+  display: grid;
+  gap: $spacing-05;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 66rem) {
+  .wg-collective__top {
+    grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr);
+  }
+}
+
+.wg-order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.wg-rules-list {
+  display: grid;
+  gap: $spacing-03;
+  margin: 0 0 $spacing-04;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-rules-list__row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+
+  > span {
+    flex: 1 1 auto;
+  }
+}
+
+.wg-rules-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: $spacing-03;
+}

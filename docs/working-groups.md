@@ -11,13 +11,13 @@ A working group is a team of members that looks after machines and places of the
 
 ## Who may do what
 
-| Operation                                                      | `working_groups.read` only | Lead of the group | `working_groups.manage` |
-| -------------------------------------------------------------- | -------------------------- | ----------------- | ----------------------- |
-| See groups, leads, member names, machines and places           | yes                        | yes               | yes                     |
-| See the chat link                                              | only as a member           | yes (is a member) | yes                     |
-| Edit description and chat link                                 | no                         | own group         | any group               |
-| Add and remove members, set machines, add and remove places    | no                         | own group         | any group               |
-| Create, rename and delete a group, choose the lead             | no                         | no                | yes                     |
+| Operation                                                   | `working_groups.read` only | Lead of the group | `working_groups.manage` |
+| ----------------------------------------------------------- | -------------------------- | ----------------- | ----------------------- |
+| See groups, leads, member names, machines and places        | yes                        | yes               | yes                     |
+| See the chat link                                           | only as a member           | yes (is a member) | yes                     |
+| Edit description and chat link                              | no                         | own group         | any group               |
+| Add and remove members, set machines, add and remove places | no                         | own group         | any group               |
+| Create, rename and delete a group, choose the lead          | no                         | no                | yes                     |
 
 Being the lead is data scope, not a permission: it only counts for people who also hold `working_groups.read`. The system grants `working_groups.read` to every role except master and the Visitor membership role (migration 00148); `working_groups.manage` is granted to no role, the master role holds every registered permission. Every operation answers 403 without `working_groups.read`, and an unknown group answers 404.
 
@@ -41,11 +41,11 @@ A ticket is a problem, request or question for a group (`kind` `problem`, `reque
 
 A person is **inside** a group when they are a member of it or hold `working_groups.manage`; everybody else with read is **outside**.
 
-| Operation                                                              | Outside | Inside |
-| ---------------------------------------------------------------------- | ------- | ------ |
-| Write a ticket, comment publicly, follow and unfollow (not their own)  | yes     | yes    |
-| Write an internal comment ("only the group and management see it")     | no      | yes    |
-| Plan, change, close, decline and reopen a ticket                       | no      | yes    |
+| Operation                                                             | Outside | Inside |
+| --------------------------------------------------------------------- | ------- | ------ |
+| Write a ticket, comment publicly, follow and unfollow (not their own) | yes     | yes    |
+| Write an internal comment ("only the group and management see it")    | no      | yes    |
+| Plan, change, close, decline and reopen a ticket                      | no      | yes    |
 
 - Status: `new` (the group's inbox) → `planned` → `done` or `declined`. **Plan** moves a new ticket into one of the group's columns with an assignee (a member of the group, optional), a due date (optional) and the column, all in one call. A planned ticket's assignee, due date and column are changed with `PATCH` under optimistic locking (`expectedVersion`, 409 `stale_write`). **Close** (`done` or `declined`, from `new` or `planned`) takes an optional answer that is stored as a public comment in the same transaction; declining requires one (422). **Reopen** sends a planned, done or declined ticket back to the inbox and clears assignee, due date and column. A call that does not fit the ticket's status answers 409 `working_group_task_state`.
 - Following ("I have this too") is idempotent: following twice or unfollowing when not following changes nothing and is not audited. The author cannot follow their own ticket (409 `working_group_ticket_own`). The author is not listed among the followers.
@@ -75,6 +75,22 @@ A note is a short text (up to 500 characters) with an author. There are three ki
 
 Every machine and place has a status: `ok` (shown as "Working"), `limited`, `maintenance` or `out_of_order`, with an optional note (up to 200 characters) and an optional "back around" date. People inside the owning group (members and management) change it; `ok` clears the note and the date. The change history feeds "days not ok in the last 90". A machine that leaves its group starts at `ok` again with no history.
 
+## Budget
+
+HTU gives the makerspace a budget per **budget period** (name, from, until, amount). Management shares it out: every group has a **share** ("Given") per period, and what is not given out is "kept back". Each group's figures are **Spent** (ordered, bought or booked), **Reserved** (approved, not paid yet) and **Free** (given minus both). A period can be closed; a closed period can no longer be changed, and a new period can start with the shares of the previous one. The figures and the purchases are visible only to the members of the group and to holders of `working_group_finances.manage` ("finance managers"; the budget of all groups and the kept-back amount: finance managers only). Members can also read the direct bookings of their groups; bookings are entries management made without a purchase.
+
+## Purchases
+
+Members write down what the group wants as one or more items (item, link to the shop, amount, price each, optionally an offer or cart file) and say who buys it: **management** (a collective order) or **the requester** (buys it and gets the money back). A purchase moves from Waiting for approval to Approved (reserved), then to Ordered or Bought (spent) and to Arrived or Money returned; it can be declined with a reason. A purchase that reaches the **project threshold** "needs a project" and can only be declined or deleted. Whoever may act is told by the `can*` flags of the purchase: management approves and declines; the requester (or the group's lead) hands in the receipt of a purchase they bought themselves, with the actual amount (an amount that reaches the project threshold is refused); finance managers mark the money as returned. Offer, cart and receipt files are PDF, JPEG, PNG, GIF or WebP up to 10 MiB.
+
+## Collective orders
+
+Finance managers combine approved purchases of one period into a **collective order** (shop, optional invoice file, a project request when the total reaches the project threshold) and mark it as ordered; the purchases become ordered and count as spent. The invoice can be uploaded afterwards, and "It arrived" marks the order and its purchases as arrived.
+
+## Rules
+
+Finance managers set two limits: the **project threshold** (from this amount a purchase or order needs a project) and the **offers threshold**, and keep the standing **project requests** (number and label) an order can refer to. Writes are guarded by a version (`expectedVersion`), so a stale save is refused.
+
 ## Data protection
 
 Tickets, to-dos and comments are one privacy category ("Working group tickets and to-dos"): the person links are unlinked when the person is deleted, the texts stay; subject requests export the subject's own tickets, assignments, to-dos, comments and follows (follows name only the group and the time). Audit events name ids and changed fields, never subjects, descriptions, titles, comments or answers. People merge moves tickets, assignments, to-dos and comments to the surviving person and drops follows that would duplicate or follow the merged person's own ticket. The staging anonymizer replaces subjects, descriptions, titles and comments with neutral text. Do not put personal data in tickets.
@@ -85,51 +101,74 @@ Tickets, to-dos and comments are one privacy category ("Working group tickets an
 - **Dashboard** (people with `working_groups.read`): a lazily loaded **Pinboard** at the top of the dashboard lists what is yours (open tickets and to-dos assigned to the signed-in person that are overdue or due within 7 days), then every machine and place that is not ok (click a row for status since, who changed it and days not ok in the last 90; people inside the group change the status there), then makerspace notes, public notes and the group notes of the person's own groups. Below it, **All machines and places** shows every machine and place, not-ok first.
 - **Working groups → Tickets & to-dos** (`/working-groups/tasks`, needs `working_groups.read`): one combined list of tickets and to-dos with the tabs "All groups" and one per group (`?group=<id>`, default the caller's first own group). The top row counts the open items (inbox, overdue, due this week, later) and shows the unassigned and the caller's own items; each of its columns and tiles filters the list. The list groups items by Inbox, Overdue, This week, Next week, Later, No due date and Done; on a group tab `?view=board` shows the board (Inbox, the group's columns, Done) whose cards people inside the group drag between columns (the detail panel's Column field does the same without dragging). The side panel plans, answers, closes and reopens tickets, edits assignee, due date and column inline (`expectedVersion`), shows comments and, for people outside, follows a ticket. Anybody writes a ticket; "New to-do" and the to-do list appear only for people inside a group; the lead and management edit the columns of a group.
 - **Settings → Working groups** (`/settings/working-groups`, needs `working_groups.read`): the tile appears only for people who can edit at least one group, which are those with `working_groups.manage` and the leads of a group. Leads see a tab for each group they lead and reach it with "Manage group" on the overview; management sees every group and can also create a group, rename it, choose the lead and delete it. Each tab edits the description and chat link, the members, the machines and the places.
+- **Working groups → Purchases** (`/working-groups/purchases`, for members of a group and for finance managers): tabs "All groups" (finance managers only) and one per group (`?group=<id>`); a budget card (free of given, period, Spent | Reserved | Free, Kept back on All groups) whose Spent and Reserved columns filter the list, the tiles "Waiting for approval" and "Your turn" (finance managers on All groups: "Collective order"), a searchable and filterable list grouped by stage with a detail panel, "Add purchases" and, for finance managers on All groups, "Rules and limits".
+- **Working groups → Budget** (`/working-groups/budget`, finance managers only): the budget of the period, the tile "From HTU", the list of groups with their share and use, a panel to change a share, "Edit period" (with "Close this period") and "New budget period".
 - The screens only hide what the person cannot do; the API enforces every rule above again.
 
 ## API
 
-| Operation                                    | Method and path                                  | Needs                       |
-| -------------------------------------------- | ------------------------------------------------ | --------------------------- |
-| `listWorkingGroups`                          | `GET /working-groups`                            | read                        |
-| `createWorkingGroup`                         | `POST /working-groups`                           | manage                      |
-| `getWorkingGroup`                            | `GET /working-groups/{groupId}`                  | read                        |
-| `updateWorkingGroup`                         | `PATCH /working-groups/{groupId}`                | name: manage; rest: lead or manage |
-| `deleteWorkingGroup`                         | `DELETE /working-groups/{groupId}`               | manage                      |
-| `addWorkingGroupMember`                      | `POST /working-groups/{groupId}/members`         | lead or manage              |
-| `removeWorkingGroupMember`                   | `DELETE /working-groups/{groupId}/members/{personId}` | lead or manage         |
-| `setWorkingGroupLead`                        | `PUT /working-groups/{groupId}/lead`             | manage                      |
-| `setWorkingGroupMachines`                    | `PUT /working-groups/{groupId}/machines`         | lead or manage              |
-| `addWorkingGroupPlace`                       | `POST /working-groups/{groupId}/places`          | lead or manage              |
-| `removeWorkingGroupPlace`                    | `DELETE /working-groups/{groupId}/places/{placeId}` | lead or manage           |
-| `listWorkingGroupPeople`                     | `GET /working-groups/people?search=`             | manage or lead of any group |
-| `listWorkingGroupMachines`                   | `GET /working-groups/machines`                   | manage or lead of any group |
+| Operation                  | Method and path                                       | Needs                              |
+| -------------------------- | ----------------------------------------------------- | ---------------------------------- |
+| `listWorkingGroups`        | `GET /working-groups`                                 | read                               |
+| `createWorkingGroup`       | `POST /working-groups`                                | manage                             |
+| `getWorkingGroup`          | `GET /working-groups/{groupId}`                       | read                               |
+| `updateWorkingGroup`       | `PATCH /working-groups/{groupId}`                     | name: manage; rest: lead or manage |
+| `deleteWorkingGroup`       | `DELETE /working-groups/{groupId}`                    | manage                             |
+| `addWorkingGroupMember`    | `POST /working-groups/{groupId}/members`              | lead or manage                     |
+| `removeWorkingGroupMember` | `DELETE /working-groups/{groupId}/members/{personId}` | lead or manage                     |
+| `setWorkingGroupLead`      | `PUT /working-groups/{groupId}/lead`                  | manage                             |
+| `setWorkingGroupMachines`  | `PUT /working-groups/{groupId}/machines`              | lead or manage                     |
+| `addWorkingGroupPlace`     | `POST /working-groups/{groupId}/places`               | lead or manage                     |
+| `removeWorkingGroupPlace`  | `DELETE /working-groups/{groupId}/places/{placeId}`   | lead or manage                     |
+| `listWorkingGroupPeople`   | `GET /working-groups/people?search=`                  | manage or lead of any group        |
+| `listWorkingGroupMachines` | `GET /working-groups/machines`                        | manage or lead of any group        |
 
-| `setWorkingGroupColumns`                     | `PUT /working-groups/{groupId}/columns`          | lead or manage              |
-| `listWorkingGroupTickets`                    | `GET /working-group-tickets?groupId=&status=`    | read                        |
-| `createWorkingGroupTicket`                   | `POST /working-group-tickets`                    | read                        |
-| `getWorkingGroupTicket`                      | `GET /working-group-tickets/{ticketId}`          | read (internal comments: inside) |
-| `updateWorkingGroupTicket`                   | `PATCH /working-group-tickets/{ticketId}`        | inside                      |
-| `planWorkingGroupTicket`                     | `POST /working-group-tickets/{ticketId}/plan`    | inside                      |
-| `closeWorkingGroupTicket`                    | `POST /working-group-tickets/{ticketId}/close`   | inside                      |
-| `reopenWorkingGroupTicket`                   | `POST /working-group-tickets/{ticketId}/reopen`  | inside                      |
-| `followWorkingGroupTicket`                   | `PUT /working-group-tickets/{ticketId}/follow`   | read                        |
-| `unfollowWorkingGroupTicket`                 | `DELETE /working-group-tickets/{ticketId}/follow` | read                       |
-| `addWorkingGroupTicketComment`               | `POST /working-group-tickets/{ticketId}/comments` | read (internal: inside)    |
-| `listWorkingGroupTodos`                      | `GET /working-group-todos?groupId=`              | inside (others: empty list) |
-| `createWorkingGroupTodo`                     | `POST /working-group-todos`                      | inside                      |
-| `getWorkingGroupTodo`                        | `GET /working-group-todos/{todoId}`              | inside (others: 404)        |
-| `updateWorkingGroupTodo`                     | `PATCH /working-group-todos/{todoId}`            | inside (others: 404)        |
-| `deleteWorkingGroupTodo`                     | `DELETE /working-group-todos/{todoId}`           | inside (others: 404)        |
-| `markWorkingGroupTodoDone`                   | `POST /working-group-todos/{todoId}/done`        | inside (others: 404)        |
-| `reopenWorkingGroupTodo`                     | `POST /working-group-todos/{todoId}/reopen`      | inside (others: 404)        |
-| `addWorkingGroupTodoComment`                 | `POST /working-group-todos/{todoId}/comments`    | inside (others: 404)        |
+| `setWorkingGroupColumns` | `PUT /working-groups/{groupId}/columns` | lead or manage |
+| `listWorkingGroupTickets` | `GET /working-group-tickets?groupId=&status=` | read |
+| `createWorkingGroupTicket` | `POST /working-group-tickets` | read |
+| `getWorkingGroupTicket` | `GET /working-group-tickets/{ticketId}` | read (internal comments: inside) |
+| `updateWorkingGroupTicket` | `PATCH /working-group-tickets/{ticketId}` | inside |
+| `planWorkingGroupTicket` | `POST /working-group-tickets/{ticketId}/plan` | inside |
+| `closeWorkingGroupTicket` | `POST /working-group-tickets/{ticketId}/close` | inside |
+| `reopenWorkingGroupTicket` | `POST /working-group-tickets/{ticketId}/reopen` | inside |
+| `followWorkingGroupTicket` | `PUT /working-group-tickets/{ticketId}/follow` | read |
+| `unfollowWorkingGroupTicket` | `DELETE /working-group-tickets/{ticketId}/follow` | read |
+| `addWorkingGroupTicketComment` | `POST /working-group-tickets/{ticketId}/comments` | read (internal: inside) |
+| `listWorkingGroupTodos` | `GET /working-group-todos?groupId=` | inside (others: empty list) |
+| `createWorkingGroupTodo` | `POST /working-group-todos` | inside |
+| `getWorkingGroupTodo` | `GET /working-group-todos/{todoId}` | inside (others: 404) |
+| `updateWorkingGroupTodo` | `PATCH /working-group-todos/{todoId}` | inside (others: 404) |
+| `deleteWorkingGroupTodo` | `DELETE /working-group-todos/{todoId}` | inside (others: 404) |
+| `markWorkingGroupTodoDone` | `POST /working-group-todos/{todoId}/done` | inside (others: 404) |
+| `reopenWorkingGroupTodo` | `POST /working-group-todos/{todoId}/reopen` | inside (others: 404) |
+| `addWorkingGroupTodoComment` | `POST /working-group-todos/{todoId}/comments` | inside (others: 404) |
 
-| `listWorkingGroupNotes`                      | `GET /working-group-notes?groupId=`              | read (group notes: inside)  |
-| `createWorkingGroupNote`                     | `POST /working-group-notes`                      | inside; makerspace note: manage |
-| `deleteWorkingGroupNote`                     | `DELETE /working-group-notes/{noteId}`           | author, group lead or manage |
-| `setWorkingGroupMachineStatus`               | `PUT /working-groups/{groupId}/machines/{machineId}/status` | inside          |
-| `setWorkingGroupPlaceStatus`                 | `PUT /working-groups/{groupId}/places/{placeId}/status` | inside              |
-| `listWorkingGroupStatus`                     | `GET /working-group-status`                      | read                        |
+| `listWorkingGroupNotes` | `GET /working-group-notes?groupId=` | read (group notes: inside) |
+| `createWorkingGroupNote` | `POST /working-group-notes` | inside; makerspace note: manage |
+| `deleteWorkingGroupNote` | `DELETE /working-group-notes/{noteId}` | author, group lead or manage |
+| `setWorkingGroupMachineStatus` | `PUT /working-groups/{groupId}/machines/{machineId}/status` | inside |
+| `setWorkingGroupPlaceStatus` | `PUT /working-groups/{groupId}/places/{placeId}/status` | inside |
+| `listWorkingGroupStatus` | `GET /working-group-status` | read |
+| `listWorkingGroupBudgetPeriods` | `GET /working-group-budget-periods` | finance manager or member |
+| `createWorkingGroupBudgetPeriod` | `POST /working-group-budget-periods` | finance manager |
+| `updateWorkingGroupBudgetPeriod` | `PATCH /working-group-budget-periods/{periodId}` | finance manager |
+| `closeWorkingGroupBudgetPeriod` | `POST /working-group-budget-periods/{periodId}/close` | finance manager |
+| `setWorkingGroupBudgetShare` | `PUT /working-group-budget-periods/{periodId}/shares/{groupId}` | finance manager |
+| `getWorkingGroupBudget` | `GET /working-group-budget?periodId=` | member (own groups), finance manager (all, totals) |
+| `listWorkingGroupPurchases` | `GET /working-group-purchases?groupId=&periodId=&status=` | member, finance manager |
+| `createWorkingGroupPurchases` | `POST /working-group-purchases` | member of the group |
+| `getWorkingGroupPurchase` | `GET /working-group-purchases/{purchaseId}` | member, finance manager |
+| `deleteWorkingGroupPurchase` | `DELETE /working-group-purchases/{purchaseId}` | `canDelete` |
+| `approveWorkingGroupPurchase`, `declineWorkingGroupPurchase` | `POST /working-group-purchases/{purchaseId}/approve`, `/decline` | `canApprove`, `canDecline` |
+| `arrivedWorkingGroupPurchase`, `refundedWorkingGroupPurchase` | `POST /working-group-purchases/{purchaseId}/arrived`, `/refunded` | `canMarkArrived`, `canMarkRefunded` |
+| `handInWorkingGroupPurchaseReceipt` | `POST /working-group-purchases/{purchaseId}/receipt` (raw body, `X-Receipt-Amount`, `X-Expected-Version`) | `canHandInReceipt` |
+| `downloadWorkingGroupPurchaseReceipt` | `GET /working-group-purchases/{purchaseId}/receipt` | member, finance manager |
+| `uploadWorkingGroupPurchaseAttachment`, `downloadWorkingGroupPurchaseAttachment` | `PUT`, `GET /working-group-purchases/{purchaseId}/attachment` | requester, lead or finance manager; member |
+| `listWorkingGroupPurchaseOrders`, `createWorkingGroupPurchaseOrder` | `GET`, `POST /working-group-purchase-orders` | finance manager |
+| `getWorkingGroupPurchaseOrder`, `arrivedWorkingGroupPurchaseOrder` | `GET /working-group-purchase-orders/{orderId}`, `POST .../arrived` | finance manager |
+| `uploadWorkingGroupPurchaseOrderInvoice`, `downloadWorkingGroupPurchaseOrderInvoice` | `PUT`, `GET /working-group-purchase-orders/{orderId}/invoice` | finance manager |
+| `listWorkingGroupBookings`, `createWorkingGroupBooking`, `deleteWorkingGroupBooking` | `GET`, `POST /working-group-bookings`, `DELETE /working-group-bookings/{bookingId}` | list: member, finance manager; write: finance manager |
+| `getWorkingGroupFinanceRules`, `setWorkingGroupFinanceRules` | `GET`, `PUT /working-group-finance-rules` | read: finance manager; write: finance manager |
+| `createWorkingGroupProjectRequest`, `updateWorkingGroupProjectRequest`, `deleteWorkingGroupProjectRequest` | `POST /working-group-project-requests`, `PUT`, `DELETE .../{requestId}` | finance manager |
 
 All operations also need `working_groups.read`. The two picker lists return the minimum: people as id and display name (no e-mail, no matriculation number), machines with the group they already belong to.
