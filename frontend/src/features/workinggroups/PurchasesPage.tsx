@@ -14,6 +14,8 @@ import { formatCents, toCents } from '../orders/money';
 import { BudgetCard, type Figures, type MoneyFocus } from './BudgetParts';
 import { CollectiveOrder } from './CollectiveOrder';
 import { FinanceRulesDialog } from './FinanceRulesDialog';
+import { BookingPanel } from './BookingPanel';
+import { BookCostDialog } from './FinanceExtraDialogs';
 import { AddPurchasesDialog } from './PurchaseDialogs';
 import { PurchaseList } from './PurchaseList';
 import { PurchasePanel } from './PurchasePanel';
@@ -76,6 +78,7 @@ export function PurchasesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const add = useDialogOpener();
   const rules = useDialogOpener();
+  const book = useDialogOpener();
   const rowOpener = useRef<HTMLElement | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const panelFits = useListPanelLayout();
@@ -122,13 +125,14 @@ export function PurchasesPage() {
   }, [purchases, bookings, needle, filters, focus]);
 
   const selected = purchases.find((purchase) => purchase.id === selectedId) ?? null;
+  const selectedBooking = bookings.find((booking) => booking.id === selectedId) ?? null;
   const loaded = purchasesQuery.isSuccess;
   useEffect(() => {
-    if (loaded && selectedId !== null && selected === null) {
+    if (loaded && selectedId !== null && selected === null && selectedBooking === null) {
       setSelectedId(null);
       listRef.current?.focus();
     }
-  }, [loaded, selectedId, selected]);
+  }, [loaded, selectedId, selected, selectedBooking]);
 
   const setGroup = (id: string) => {
     setSelectedId(null);
@@ -162,7 +166,7 @@ export function PurchasesPage() {
   if (visibleGroups.length === 0) {
     return (
       <PageShell title={TITLE} breadcrumbs={CRUMBS}>
-        <EmptyState title="No working group" description="Purchases belong to the working groups you are in." />
+        <EmptyState title="Purchases are for the members of a working group." />
       </PageShell>
     );
   }
@@ -227,9 +231,18 @@ export function PurchasesPage() {
   ];
 
   const addGroups = selectedGroup ? [selectedGroup] : visibleGroups;
-  const panel = selected ? (
+  const goneAfterDelete = () => {
+    setSelectedId(null);
+    listRef.current?.focus();
+  };
+  const panel = selectedBooking ? (
+    <BookingPanel key={selectedBooking.id} booking={selectedBooking} finance={finance} onGone={goneAfterDelete} />
+  ) : selected ? (
     <PurchasePanel
       key={selected.id}
+      me={currentUser.person.id}
+      isLead={groups.find((group) => group.id === selected.groupId)?.isLead ?? false}
+      finance={finance}
       purchase={selected}
       onGone={() => {
         setSelectedId(null);
@@ -362,6 +375,11 @@ export function PurchasesPage() {
                     Rules and limits
                   </Button>
                 )}
+                {finance && (
+                  <Button kind="tertiary" size="md" onClick={() => book.open(true)}>
+                    Book a cost
+                  </Button>
+                )}
                 <Button kind="primary" size="md" onClick={() => add.open(true)}>
                   Add purchases
                 </Button>
@@ -394,7 +412,7 @@ export function PurchasesPage() {
         </ListWithPanel>
       )}
 
-      {view === 'list' && !panelFits && selected && (
+      {view === 'list' && !panelFits && (selected || selectedBooking) && (
         <Modal
           open
           passiveModal
@@ -411,6 +429,14 @@ export function PurchasesPage() {
 
       {add.value && (
         <AddPurchasesDialog groups={addGroups} initialGroupId={selectedGroup?.id ?? ''} onClose={add.close} />
+      )}
+      {book.value && (
+        <BookCostDialog
+          groups={addGroups}
+          initialGroupId={selectedGroup?.id ?? ''}
+          periodId={period.id}
+          onClose={book.close}
+        />
       )}
       {rules.value && <FinanceRulesDialog onClose={rules.close} />}
     </PageShell>

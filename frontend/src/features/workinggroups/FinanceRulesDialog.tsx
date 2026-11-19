@@ -11,7 +11,7 @@ import {
 } from '../../api/generated/working-groups/working-groups';
 import { fromCents, moneyInputText, parseMoneyInput, toCents } from '../orders/money';
 import { financeRulesOptions } from './financeQueries';
-import { useWgMutation } from './useWgMutation';
+import { taskErrorText, useWgMutation } from './useWgMutation';
 
 /** Project and offers thresholds and the standing project requests. */
 export function FinanceRulesDialog({ onClose }: { onClose: () => void }) {
@@ -66,7 +66,7 @@ function Rules({ rules }: { rules: WorkingGroupFinanceRules }) {
             lowContrast
             hideCloseButton
             title="Not saved"
-            subtitle="Reload and try again."
+            subtitle={taskErrorText(save.error, 'Reload and try again.')}
           />
         )}
         <div>
@@ -142,7 +142,7 @@ function ProjectRequests({ requests }: { requests: readonly WorkingGroupProjectR
           lowContrast
           hideCloseButton
           title="Not removed"
-          subtitle="It may be used by an order."
+          subtitle={taskErrorText(remove.error, 'Try again.')}
         />
       )}
       {editing === null && (
@@ -170,7 +170,7 @@ function ProjectRequests({ requests }: { requests: readonly WorkingGroupProjectR
         <Button kind="ghost" size="md" onClick={() => setEditing(null)}>
           Cancel
         </Button>
-        {save.isError && <p className="wg-buyrow__error">Not saved. The number may be taken.</p>}
+        {save.isError && <p className="wg-buyrow__error">{taskErrorText(save.error, 'Not saved.')}</p>}
       </div>
     );
   }

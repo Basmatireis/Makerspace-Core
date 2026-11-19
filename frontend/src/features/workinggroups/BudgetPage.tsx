@@ -34,7 +34,7 @@ import { budgetOptions, budgetPeriodsOptions } from './financeQueries';
 import { workingGroupsOptions } from './queries';
 import { plural } from './taskModel';
 import { useDialogOpener } from './useDialogOpener';
-import { saveErrorText, useWgMutation } from './useWgMutation';
+import { saveErrorText, taskErrorText, useWgMutation } from './useWgMutation';
 import './workinggroups.scss';
 
 const TITLE = 'Budget';
@@ -279,7 +279,13 @@ function SharePanel({ period, entry }: { period: WorkingGroupBudgetPeriod; entry
     <DetailPanel>
       <DetailPanelHead title={entry.groupName} meta={`Budget · ${period.name}`} />
       {save.isError && (
-        <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle="Try again." />
+        <InlineNotification
+          kind="error"
+          lowContrast
+          hideCloseButton
+          title="Not saved"
+          subtitle={taskErrorText(save.error, 'Try again.')}
+        />
       )}
       <Stack gap={4}>
         <TextInput
@@ -478,7 +484,9 @@ function PeriodDialog({
                   Close this period
                 </Button>
               )}
-              {close.isError && <p className="wg-buyrow__error">It could not be closed.</p>}
+              {close.isError && (
+                <p className="wg-buyrow__error">{taskErrorText(close.error, 'It could not be closed.')}</p>
+              )}
             </div>
           )}
         </Stack>

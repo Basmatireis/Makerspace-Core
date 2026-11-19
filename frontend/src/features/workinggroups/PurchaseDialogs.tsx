@@ -4,6 +4,7 @@ import {
   FormGroup,
   IconButton,
   InlineNotification,
+  Link,
   Modal,
   RadioButton,
   RadioButtonGroup,
@@ -16,22 +17,20 @@ import {
 import { Add, Attachment, TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
-import { apiErrorCode } from '../../api/http-client';
 import type { WorkingGroupPurchase, WorkingGroupPurchaseHow, WorkingGroupSummary } from '../../api/generated/models';
 import {
   createWorkingGroupPurchases,
   declineWorkingGroupPurchase,
-  downloadWorkingGroupPurchaseReceipt,
   handInWorkingGroupPurchaseReceipt,
   uploadWorkingGroupPurchaseAttachment,
 } from '../../api/generated/working-groups/working-groups';
 import { useNotify } from '../../app/toasts';
 import { formatCents, fromCents, parseMoneyInput } from '../orders/money';
-import { ACCEPTED_FILES, MAX_FILE_BYTES, fileHeaders } from './financeModel';
+import { ACCEPTED_FILES, fileHeaders, fileProblem, previewKind } from './financeModel';
 import { workingGroupKeys } from './queries';
-import { useWgMutation } from './useWgMutation';
+import { taskErrorText, useWgMutation } from './useWgMutation';
 
-function Shell({
+export function Shell({
   heading,
   primary,
   pending,
@@ -79,9 +78,6 @@ function Shell({
     </Modal>
   );
 }
-
-const fileProblem = (file: File | null | undefined) =>
-  file && file.size > MAX_FILE_BYTES ? 'The file is larger than 10 MiB.' : undefined;
 
 interface ItemValues {
   item: string;
@@ -163,7 +159,7 @@ export function AddPurchasesDialog({
       heading="Add purchases"
       primary={items.length > 1 ? `Add ${items.length} items` : 'Add'}
       pending={create.isPending}
-      error={create.isError ? 'Check the fields and try again.' : undefined}
+      error={create.isError ? taskErrorText(create.error, 'Check the fields and try again.') : undefined}
       size="lg"
       onClose={onClose}
       onSubmit={() => void submit()}
@@ -306,7 +302,9 @@ export function DeclineDialog({ purchase, onClose }: { purchase: WorkingGroupPur
       heading="Decline purchase"
       primary="Decline"
       pending={decline.isPending}
-      error={decline.isError ? 'It could not be declined. Reload and try again.' : undefined}
+      error={
+        decline.isError ? taskErrorText(decline.error, 'It could not be declined. Reload and try again.') : undefined
+      }
       onClose={onClose}
       onSubmit={() => decline.mutate(undefined, { onSuccess: onClose })}
     >
@@ -347,11 +345,7 @@ export function ReceiptDialog({ purchase, onClose }: { purchase: WorkingGroupPur
       primary="Hand in"
       pending={handIn.isPending}
       error={
-        handIn.isError
-          ? apiErrorCode(handIn.error) === 'receipt_needs_project'
-            ? 'This amount needs a project. Ask management.'
-            : 'The receipt was not saved. Check it and try again.'
-          : undefined
+        handIn.isError ? taskErrorText(handIn.error, 'The receipt was not saved. Check it and try again.') : undefined
       }
       onClose={onClose}
       onSubmit={() => {
@@ -388,33 +382,51 @@ export function ReceiptDialog({ purchase, onClose }: { purchase: WorkingGroupPur
   );
 }
 
-/** The receipt as an image or a PDF; the type is the one the server sent. */
-export function ReceiptPreview({ purchaseId, onClose }: { purchaseId: string; onClose: () => void }) {
+/** A stored file in a dialog: a PDF in a frame, an image as such, anything else only as a download. */
+export function FilePreview({
+  title,
+  cacheKey,
+  load,
+  downloadUrl,
+  onClose,
+}: {
+  title: string;
+  cacheKey: string;
+  load: (signal: AbortSignal) => Promise<Blob>;
+  downloadUrl: string;
+  onClose: () => void;
+}) {
   const query = useQuery({
-    queryKey: [...workingGroupKeys.all, 'receipt', purchaseId],
-    queryFn: ({ signal }) => downloadWorkingGroupPurchaseReceipt(purchaseId, { signal }),
+    queryKey: [...workingGroupKeys.all, 'file', cacheKey],
+    queryFn: ({ signal }) => load(signal),
     staleTime: 60_000,
   });
   const blob = query.data;
+  const kind = blob ? previewKind(blob.type) : null;
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!blob || typeof URL.createObjectURL !== 'function') return;
+    if (!blob || !kind || typeof URL.createObjectURL !== 'function') return;
     const created = URL.createObjectURL(blob);
     setUrl(created);
     return () => URL.revokeObjectURL(created);
-  }, [blob]);
+  }, [blob, kind]);
   return (
-    <Modal open passiveModal size="lg" modalHeading="Receipt" onRequestClose={onClose}>
+    <Modal open passiveModal size="lg" modalHeading={title} onRequestClose={onClose}>
       {query.isError ? (
-        <InlineNotification kind="error" lowContrast hideCloseButton title="The receipt could not be loaded" />
-      ) : url && blob ? (
-        blob.type.startsWith('image/') ? (
-          <img className="wg-preview" src={url} alt="Receipt" />
-        ) : (
-          <iframe className="wg-preview wg-preview--pdf" src={url} title="Receipt" />
-        )
-      ) : (
+        <InlineNotification kind="error" lowContrast hideCloseButton title="The file could not be loaded" />
+      ) : !blob ? (
         <p className="wg-muted">Loading…</p>
+      ) : kind === 'image' && url ? (
+        <img className="wg-preview" src={url} alt={title} />
+      ) : kind === 'pdf' && url ? (
+        <iframe className="wg-preview wg-preview--pdf" src={url} title={title} />
+      ) : (
+        <p>
+          This file cannot be shown here.{' '}
+          <Link href={downloadUrl} download>
+            Download it
+          </Link>
+        </p>
       )}
     </Modal>
   );

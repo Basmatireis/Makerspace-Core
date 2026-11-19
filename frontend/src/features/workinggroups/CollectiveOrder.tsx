@@ -19,17 +19,19 @@ import { useQuery } from '@tanstack/react-query';
 import type { WorkingGroupBudgetPeriod, WorkingGroupPurchase } from '../../api/generated/models';
 import {
   arrivedWorkingGroupPurchaseOrder,
+  deleteWorkingGroupPurchaseOrderInvoice,
   createWorkingGroupPurchaseOrder,
   getDownloadWorkingGroupPurchaseOrderInvoiceUrl,
   uploadWorkingGroupPurchaseOrderInvoice,
 } from '../../api/generated/working-groups/working-groups';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { formatDate } from '../../app/dateTime';
 import { useNotify } from '../../app/toasts';
 import { formatCents, toCents } from '../orders/money';
-import { ACCEPTED_FILES, MAX_FILE_BYTES, amountCents, fileHeaders } from './financeModel';
+import { ACCEPTED_FILES, amountCents, fileHeaders, fileProblem } from './financeModel';
 import { financeRulesOptions, purchaseOrdersOptions } from './financeQueries';
 import { plural } from './taskModel';
-import { useWgMutation } from './useWgMutation';
+import { taskErrorText, useWgMutation } from './useWgMutation';
 
 /** Finance managers: pick approved central purchases of the period, mark them as ordered, follow the orders placed. */
 export function CollectiveOrder({
@@ -55,6 +57,7 @@ export function CollectiveOrder({
       purchase.periodId === period?.id,
   );
   const chosen = waiting.filter((purchase) => picked.has(purchase.id));
+  const allChecked = waiting.length > 0 && chosen.length === waiting.length;
   const total = chosen.reduce((sum, purchase) => sum + amountCents(purchase), 0);
   const threshold = rules.data ? toCents(rules.data.projectThreshold) : null;
   const needsProject = threshold !== null && threshold > 0 && total >= threshold;
@@ -94,6 +97,8 @@ export function CollectiveOrder({
   );
   const invoiceTarget = useRef<string | null>(null);
   const invoiceInput = useRef<HTMLInputElement>(null);
+  const [removeInvoiceFor, setRemoveInvoiceFor] = useState<string | null>(null);
+  const removeInvoice = useWgMutation((id: string) => deleteWorkingGroupPurchaseOrderInvoice(id));
   const invoice = useWgMutation((args: { id: string; file: File }) =>
     uploadWorkingGroupPurchaseOrderInvoice(args.id, args.file, { headers: fileHeaders(args.file) }),
   );
@@ -106,7 +111,15 @@ export function CollectiveOrder({
             <TableHead>
               <TableRow>
                 <TableHeader>
-                  <span className="wg-visually-hidden">Select</span>
+                  <Checkbox
+                    id="wg-pick-all"
+                    labelText="Select all"
+                    hideLabel
+                    checked={allChecked}
+                    indeterminate={chosen.length > 0 && !allChecked}
+                    disabled={waiting.length === 0}
+                    onChange={(_, { checked }) => setPicked(checked ? new Set(waiting.map((p) => p.id)) : new Set())}
+                  />
                 </TableHeader>
                 <TableHeader>Item</TableHeader>
                 <TableHeader>Group</TableHeader>
@@ -180,7 +193,7 @@ export function CollectiveOrder({
               lowContrast
               hideCloseButton
               title="Not ordered"
-              subtitle="Reload and check the items."
+              subtitle={taskErrorText(place.error, 'Reload and check the items.')}
             />
           )}
           <Button kind="primary" size="md" disabled={chosen.length === 0 || place.isPending} onClick={submit}>
@@ -204,15 +217,25 @@ export function CollectiveOrder({
             const file = event.target.files?.[0];
             event.target.value = '';
             if (!file || !invoiceTarget.current) return;
-            if (file.size > MAX_FILE_BYTES) {
-              notify({ kind: 'error', title: 'The file is larger than 10 MiB' });
+            const problem = fileProblem(file);
+            if (problem) {
+              notify({ kind: 'error', title: problem });
               return;
             }
             invoice.mutate({ id: invoiceTarget.current, file });
           }}
         />
-        {(invoice.isError || arrived.isError) && (
-          <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle="Try again." />
+        {orders.data?.truncated && (
+          <InlineNotification kind="warning" lowContrast hideCloseButton title="Not all orders are shown." />
+        )}
+        {(invoice.isError || arrived.isError || removeInvoice.isError) && (
+          <InlineNotification
+            kind="error"
+            lowContrast
+            hideCloseButton
+            title="Not saved"
+            subtitle={taskErrorText(invoice.error ?? arrived.error ?? removeInvoice.error, 'Try again.')}
+          />
         )}
         <Table size="md" aria-label="Orders placed">
           <TableHead>
@@ -268,6 +291,11 @@ export function CollectiveOrder({
                           Upload invoice
                         </Button>
                       )}
+                      {order.hasInvoice && (
+                        <Button kind="ghost" size="sm" onClick={() => setRemoveInvoiceFor(order.id)}>
+                          Remove the invoice
+                        </Button>
+                      )}
                       {order.status === 'ordered' && (
                         <Button
                           kind="tertiary"
@@ -291,6 +319,18 @@ export function CollectiveOrder({
           </TableBody>
         </Table>
       </section>
+      <DestructiveActionDialog
+        open={removeInvoiceFor !== null}
+        title="Remove the invoice"
+        fate="permanent"
+        confirmLabel="Remove the invoice"
+        pending={removeInvoice.isPending}
+        error={removeInvoice.isError ? taskErrorText(removeInvoice.error, 'It could not be removed.') : undefined}
+        onClose={() => setRemoveInvoiceFor(null)}
+        onConfirm={() => removeInvoice.mutate(removeInvoiceFor ?? '', { onSuccess: () => setRemoveInvoiceFor(null) })}
+      >
+        <p>The invoice file is deleted for good.</p>
+      </DestructiveActionDialog>
     </div>
   );
 }

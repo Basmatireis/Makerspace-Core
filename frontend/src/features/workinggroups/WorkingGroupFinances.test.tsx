@@ -146,6 +146,18 @@ function serve(
       await record('order', request);
       return HttpResponse.json({});
     }),
+    http.post('*/api/v1/working-group-bookings', async ({ request }) => {
+      await record('book', request);
+      return HttpResponse.json({});
+    }),
+    http.put('*/api/v1/working-group-purchases/:id/attachment', async ({ request }) => {
+      await record('attach', request, false);
+      return HttpResponse.json(purchase(1, {}));
+    }),
+    http.post('*/api/v1/working-group-purchases/:id/redact', async ({ request }) => {
+      await record('redact', request);
+      return HttpResponse.json(purchase(1, {}));
+    }),
     http.put('*/api/v1/working-group-budget-periods/:id/shares/:groupId', async ({ request }) => {
       await record('share', request);
       return HttpResponse.json(budget.groups[0]);
@@ -185,13 +197,13 @@ describe('working group purchases', () => {
     expect(screen.getByRole('region', { name: 'Budget' })).toHaveTextContent('€320.00');
   });
 
-  it('offers no Purchases navigation to a group manager who is neither member nor finance manager', async () => {
-    serve([...member, PermissionId.working_groupsmanage], { member: false });
-    renderRoute(<App />, '/working-groups/tasks');
+  it('offers Purchases to every reader and tells a non-member what it is for', async () => {
+    serve(member, { member: false });
+    renderRoute(<App />, '/working-groups/purchases');
 
-    expect(await screen.findByRole('heading', { name: 'Tickets & to-dos' })).toBeInTheDocument();
-    await screen.findAllByRole('link', { name: 'Overview' });
-    expect(screen.queryAllByRole('link', { name: 'Purchases' })).toHaveLength(0);
+    expect(await screen.findByText('Purchases are for the members of a working group.')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Purchases' }).length).toBeGreaterThan(0);
+    expect(screen.queryAllByRole('link', { name: 'Budget' })).toHaveLength(0);
   });
 
   it('shows finance managers the All groups tab and the Budget navigation', async () => {
@@ -343,6 +355,111 @@ describe('working group purchases', () => {
       purchaseIds: [pid(1), pid(2)],
       projectRequestId: requestId,
     });
+  });
+
+  it('refuses a receipt that is not a PDF or an image', async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    const served = serve(member, {
+      purchases: [purchase(1, { how: 'self', status: 'approved', canHandInReceipt: true })],
+    });
+    renderRoute(<App />, '/working-groups/purchases');
+
+    await user.click(await rowOf(/Item 1/));
+    await user.click(screen.getByRole('button', { name: 'Hand in the receipt' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Amount on the receipt'), '18,40');
+    await user.upload(
+      within(dialog).getByLabelText('Receipt file'),
+      new File(['x'], 'notes.txt', { type: 'text/plain' }),
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Hand in' }));
+
+    expect(await within(dialog).findByText(/Only PDF or images/)).toBeInTheDocument();
+    expect(served.headers.receipt).toBeUndefined();
+  });
+
+  it('explains a refused action with the wording of its error code', async () => {
+    const user = userEvent.setup();
+    serve(financeManager, { purchases: [purchase(1, { canApprove: true })] });
+    server.use(
+      http.post('*/api/v1/working-group-purchases/:id/approve', () =>
+        HttpResponse.json({ code: 'budget_period_closed', message: 'closed' }, { status: 409 }),
+      ),
+    );
+    renderRoute(<App />, '/working-groups/purchases?group=all');
+
+    await user.click(await rowOf(/Item 1/));
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText('The budget period is closed.')).toBeInTheDocument();
+  });
+
+  it('selects all approved purchases of the collective order at once', async () => {
+    const user = userEvent.setup();
+    serve(financeManager, {
+      member: false,
+      purchases: [purchase(1, { status: 'approved' }), purchase(2, { status: 'approved' })],
+    });
+    renderRoute(<App />, '/working-groups/purchases');
+
+    await user.click(await screen.findByRole('button', { name: /Collective order/ }));
+    const all = await screen.findByRole('checkbox', { name: 'Select all' });
+    await user.click(await screen.findByRole('checkbox', { name: 'Select Item 1' }));
+    expect(all).toHaveProperty('indeterminate', true);
+    await user.click(all);
+    expect(screen.getByRole('checkbox', { name: 'Select Item 1' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Select Item 2' })).toBeChecked();
+    await user.click(all);
+    expect(screen.getByRole('checkbox', { name: 'Select Item 2' })).not.toBeChecked();
+  });
+
+  it('books a cost directly for finance managers', async () => {
+    const user = userEvent.setup();
+    const served = serve(financeManager, { member: false });
+    renderRoute(<App />, '/working-groups/purchases');
+
+    await user.click(await screen.findByRole('button', { name: 'Book a cost' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Text'), 'Bench fee');
+    await user.type(within(dialog).getByLabelText('Amount'), '12,5');
+    await user.click(within(dialog).getByRole('button', { name: 'Book' }));
+
+    await waitFor(() => expect(served.bodies.book).toHaveLength(1));
+    expect(served.bodies.book[0]).toMatchObject({ groupId: printId, periodId, text: 'Bench fee', amount: '12.50' });
+  });
+
+  it('offers to attach a file only while the purchase is wanted and the caller is its requester', async () => {
+    const user = userEvent.setup();
+    const served = serve(member, {
+      purchases: [purchase(1, {}), purchase(2, { status: 'approved' }), purchase(3, { requester: grace })],
+    });
+    renderRoute(<App />, '/working-groups/purchases');
+
+    await user.click(await rowOf(/Item 1/));
+    expect(screen.getByRole('button', { name: 'Attach a file' })).toBeInTheDocument();
+    await user.upload(
+      screen.getByLabelText('Offer or cart file'),
+      new File(['offer'], 'offer.pdf', { type: 'application/pdf' }),
+    );
+    await waitFor(() => expect(served.headers.attach).toHaveLength(1));
+    expect(served.headers.attach[0].get('x-file-name')).toBe('offer.pdf');
+
+    await user.click(await rowOf(/Item 2/));
+    expect(screen.queryByRole('button', { name: 'Attach a file' })).not.toBeInTheDocument();
+    await user.click(await rowOf(/Item 3/));
+    expect(screen.queryByRole('button', { name: 'Attach a file' })).not.toBeInTheDocument();
+  });
+
+  it('removes the personal data of a purchase for finance managers only', async () => {
+    const user = userEvent.setup();
+    const served = serve(financeManager, { purchases: [purchase(1, {})] });
+    renderRoute(<App />, '/working-groups/purchases?group=all');
+
+    await user.click(await rowOf(/Item 1/));
+    await user.click(screen.getByRole('button', { name: 'Remove personal data…' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Item text and link' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(served.bodies.redact).toEqual([{ expectedVersion: 3, text: true, files: false }]));
   });
 
   it('warns when the list is truncated', async () => {

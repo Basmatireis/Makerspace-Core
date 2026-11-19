@@ -18,6 +18,7 @@ export const PURCHASE_BUCKETS: { key: PurchaseBucket; label: string }[] = [
 export function bucketOf(purchase: WorkingGroupPurchase): PurchaseBucket {
   switch (purchase.status) {
     case 'wanted':
+    case 'planned':
       return 'wanted';
     case 'approved':
       return 'approved';
@@ -30,6 +31,7 @@ export function bucketOf(purchase: WorkingGroupPurchase): PurchaseBucket {
 }
 
 export const PURCHASE_STATUS_LABEL: Record<WorkingGroupPurchaseStatus, string> = {
+  planned: 'Planned in a project',
   wanted: 'Waiting for approval',
   approved: 'Approved',
   declined: 'Declined',
@@ -40,6 +42,7 @@ export const PURCHASE_STATUS_LABEL: Record<WorkingGroupPurchaseStatus, string> =
 };
 
 export const PURCHASE_STATUS_TAG: Record<WorkingGroupPurchaseStatus, 'blue' | 'teal' | 'gray' | 'purple' | 'green'> = {
+  planned: 'blue',
   wanted: 'blue',
   approved: 'teal',
   declined: 'gray',
@@ -98,7 +101,7 @@ export function stageOf(purchase: WorkingGroupPurchase): PurchaseStage {
       ? ['Requested', 'Approved', 'Bought', 'Money back']
       : ['Requested', 'Approved', 'Ordered', 'Arrived'];
   if (purchase.status === 'declined') return { steps, index: 0, label: 'Declined', declined: true };
-  const index = { wanted: 0, approved: 1, ordered: 2, bought: 2, received: 3, refunded: 3, declined: 0 }[
+  const index = { planned: 0, wanted: 0, approved: 1, ordered: 2, bought: 2, received: 3, refunded: 3, declined: 0 }[
     purchase.status
   ];
   return { steps, index, label: steps[index], declined: false };
@@ -109,6 +112,22 @@ export type FinanceRow =
   | { kind: 'booking'; id: string; booking: WorkingGroupBooking };
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const ACCEPTED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+/** Why a file may not be uploaded: only PDF and images, at most 10 MB. */
+export function fileProblem(file: File | null | undefined): string | undefined {
+  if (!file) return undefined;
+  if (!ACCEPTED_TYPES.includes(file.type)) return 'Only PDF or images (JPEG, PNG, GIF, WebP).';
+  if (file.size > MAX_FILE_BYTES) return 'At most 10 MB.';
+  return undefined;
+}
+
+/** What the preview may show: a PDF in a frame, an image as such; anything else is only downloaded. */
+export function previewKind(type: string): 'pdf' | 'image' | null {
+  const media = type.split(';')[0].trim().toLowerCase();
+  if (media === 'application/pdf') return 'pdf';
+  return /^image\/(jpeg|png|gif|webp)$/.test(media) ? 'image' : null;
+}
 export const ACCEPTED_FILES = 'application/pdf,image/jpeg,image/png,image/gif,image/webp';
 
 /** The headers that carry a raw file body, like the event files. */

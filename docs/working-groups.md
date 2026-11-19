@@ -77,15 +77,15 @@ Every machine and place has a status: `ok` (shown as "Working"), `limited`, `mai
 
 ## Budget
 
-HTU gives the makerspace a budget per **budget period** (name, from, until, amount). Management shares it out: every group has a **share** ("Given") per period, and what is not given out is "kept back". Each group's figures are **Spent** (ordered, bought or booked), **Reserved** (approved, not paid yet) and **Free** (given minus both). A period can be closed; a closed period can no longer be changed, and a new period can start with the shares of the previous one. The figures and the purchases are visible only to the members of the group and to holders of `working_group_finances.manage` ("finance managers"; the budget of all groups and the kept-back amount: finance managers only). Members can also read the direct bookings of their groups; bookings are entries management made without a purchase.
+HTU gives the makerspace a budget per **budget period** (name, from, until, amount). Management shares it out: every group has a **share** ("Given") per period, and what is not given out is "kept back". Each group's figures are **Spent** (ordered, bought or booked), **Reserved** (approved, not paid yet) and **Free** (given minus both). A period can be closed; a closed period can no longer be changed, and a new period can start with the shares of the previous one. The figures and the purchases are visible only to the members of the group and to holders of `working_group_finances.manage` ("finance managers"; the budget of all groups and the kept-back amount: finance managers only). Members can also read the direct bookings of their groups; bookings are costs a finance manager booked directly against a group's budget (group, text, amount, date). A finance manager can delete a booking or replace its text with "Removed" (`redactWorkingGroupBooking`); both are allowed only in an open period, except the text removal, which also works in a closed one.
 
 ## Purchases
 
-Members write down what the group wants as one or more items (item, link to the shop, amount, price each, optionally an offer or cart file) and say who buys it: **management** (a collective order) or **the requester** (buys it and gets the money back). A purchase moves from Waiting for approval to Approved (reserved), then to Ordered or Bought (spent) and to Arrived or Money returned; it can be declined with a reason. A purchase that reaches the **project threshold** "needs a project" and can only be declined or deleted. Whoever may act is told by the `can*` flags of the purchase: management approves and declines; the requester (or the group's lead) hands in the receipt of a purchase they bought themselves, with the actual amount (an amount that reaches the project threshold is refused); finance managers mark the money as returned. Offer, cart and receipt files are PDF, JPEG, PNG, GIF or WebP up to 10 MiB.
+Members write down what the group wants as one or more items (item, link to the shop, amount, price each, optionally an offer or cart file) and say who buys it: **management** (a collective order) or **the requester** (buys it and gets the money back). A purchase moves from Waiting for approval to Approved (reserved), then to Ordered or Bought (spent) and to Arrived or Money returned; it can be declined with a reason. A purchase that reaches the **project threshold** "needs a project" and can only be declined or deleted. Whoever may act is told by the `can*` flags of the purchase: management approves and declines; the requester (or the group's lead) hands in the receipt of a purchase they bought themselves, with the actual amount (an amount that reaches the project threshold is refused); finance managers mark the money as returned. Offer, cart and receipt files are PDF, JPEG, PNG, GIF or WebP up to 10 MiB. While a purchase is waiting, its requester or the group's lead can attach or replace the offer or cart file. A finance manager can remove a purchase's personal data (`redactWorkingGroupPurchase`: the item text and link, the files, or both) in any status and in closed periods; no figure changes.
 
 ## Collective orders
 
-Finance managers combine approved purchases of one period into a **collective order** (shop, optional invoice file, a project request when the total reaches the project threshold) and mark it as ordered; the purchases become ordered and count as spent. The invoice can be uploaded afterwards, and "It arrived" marks the order and its purchases as arrived.
+Finance managers combine approved purchases of one period into a **collective order** (shop, optional invoice file, a project request when the total reaches the project threshold) and mark it as ordered; the purchases become ordered and count as spent. The invoice can be uploaded afterwards and deleted for good (`deleteWorkingGroupPurchaseOrderInvoice`, also in a closed period), and "It arrived" marks the order and its purchases as arrived.
 
 ## Rules
 
@@ -149,26 +149,40 @@ Tickets, to-dos and comments are one privacy category ("Working group tickets an
 | `setWorkingGroupMachineStatus` | `PUT /working-groups/{groupId}/machines/{machineId}/status` | inside |
 | `setWorkingGroupPlaceStatus` | `PUT /working-groups/{groupId}/places/{placeId}/status` | inside |
 | `listWorkingGroupStatus` | `GET /working-group-status` | read |
-| `listWorkingGroupBudgetPeriods` | `GET /working-group-budget-periods` | finance manager or member |
+| `listWorkingGroupBudgetPeriods` | `GET /working-group-budget-periods` | read (members of a group and finance managers; others: empty list) |
 | `createWorkingGroupBudgetPeriod` | `POST /working-group-budget-periods` | finance manager |
-| `updateWorkingGroupBudgetPeriod` | `PATCH /working-group-budget-periods/{periodId}` | finance manager |
+| `updateWorkingGroupBudgetPeriod` | `PATCH /working-group-budget-periods/{periodId}` | finance manager (closed: 409) |
 | `closeWorkingGroupBudgetPeriod` | `POST /working-group-budget-periods/{periodId}/close` | finance manager |
 | `setWorkingGroupBudgetShare` | `PUT /working-group-budget-periods/{periodId}/shares/{groupId}` | finance manager |
-| `getWorkingGroupBudget` | `GET /working-group-budget?periodId=` | member (own groups), finance manager (all, totals) |
-| `listWorkingGroupPurchases` | `GET /working-group-purchases?groupId=&periodId=&status=` | member, finance manager |
-| `createWorkingGroupPurchases` | `POST /working-group-purchases` | member of the group |
-| `getWorkingGroupPurchase` | `GET /working-group-purchases/{purchaseId}` | member, finance manager |
-| `deleteWorkingGroupPurchase` | `DELETE /working-group-purchases/{purchaseId}` | `canDelete` |
-| `approveWorkingGroupPurchase`, `declineWorkingGroupPurchase` | `POST /working-group-purchases/{purchaseId}/approve`, `/decline` | `canApprove`, `canDecline` |
-| `arrivedWorkingGroupPurchase`, `refundedWorkingGroupPurchase` | `POST /working-group-purchases/{purchaseId}/arrived`, `/refunded` | `canMarkArrived`, `canMarkRefunded` |
-| `handInWorkingGroupPurchaseReceipt` | `POST /working-group-purchases/{purchaseId}/receipt` (raw body, `X-Receipt-Amount`, `X-Expected-Version`) | `canHandInReceipt` |
+| `getWorkingGroupBudget` | `GET /working-group-budget?periodId=` | member (own groups), finance manager (all groups and totals); others: 404 |
+| `listWorkingGroupPurchases` | `GET /working-group-purchases?groupId=&periodId=&status=` | member (own groups), finance manager (all) |
+| `createWorkingGroupPurchases` | `POST /working-group-purchases` | member of the group (`working_groups.manage` is not enough) |
+| `getWorkingGroupPurchase` | `GET /working-group-purchases/{purchaseId}` | member, finance manager; others: 404 |
+| `deleteWorkingGroupPurchase` | `DELETE /working-group-purchases/{purchaseId}` | requester while wanted; finance manager while wanted or declined |
+| `approveWorkingGroupPurchase` | `POST /working-group-purchases/{purchaseId}/approve` | finance manager (wanted; not above the project threshold) |
+| `declineWorkingGroupPurchase` | `POST /working-group-purchases/{purchaseId}/decline` | finance manager (wanted) |
+| `arrivedWorkingGroupPurchase` | `POST /working-group-purchases/{purchaseId}/arrived` | member of the group or finance manager (ordered) |
+| `refundedWorkingGroupPurchase` | `POST /working-group-purchases/{purchaseId}/refunded` | finance manager (bought) |
+| `handInWorkingGroupPurchaseReceipt` | `POST /working-group-purchases/{purchaseId}/receipt` (raw body, `X-Receipt-Amount`, `X-Expected-Version`) | requester of an approved purchase bought by themselves, lead or finance manager |
 | `downloadWorkingGroupPurchaseReceipt` | `GET /working-group-purchases/{purchaseId}/receipt` | member, finance manager |
-| `uploadWorkingGroupPurchaseAttachment`, `downloadWorkingGroupPurchaseAttachment` | `PUT`, `GET /working-group-purchases/{purchaseId}/attachment` | requester, lead or finance manager; member |
-| `listWorkingGroupPurchaseOrders`, `createWorkingGroupPurchaseOrder` | `GET`, `POST /working-group-purchase-orders` | finance manager |
-| `getWorkingGroupPurchaseOrder`, `arrivedWorkingGroupPurchaseOrder` | `GET /working-group-purchase-orders/{orderId}`, `POST .../arrived` | finance manager |
-| `uploadWorkingGroupPurchaseOrderInvoice`, `downloadWorkingGroupPurchaseOrderInvoice` | `PUT`, `GET /working-group-purchase-orders/{orderId}/invoice` | finance manager |
-| `listWorkingGroupBookings`, `createWorkingGroupBooking`, `deleteWorkingGroupBooking` | `GET`, `POST /working-group-bookings`, `DELETE /working-group-bookings/{bookingId}` | list: member, finance manager; write: finance manager |
-| `getWorkingGroupFinanceRules`, `setWorkingGroupFinanceRules` | `GET`, `PUT /working-group-finance-rules` | read: finance manager; write: finance manager |
-| `createWorkingGroupProjectRequest`, `updateWorkingGroupProjectRequest`, `deleteWorkingGroupProjectRequest` | `POST /working-group-project-requests`, `PUT`, `DELETE .../{requestId}` | finance manager |
+| `uploadWorkingGroupPurchaseAttachment` | `PUT /working-group-purchases/{purchaseId}/attachment` | requester, lead or finance manager (wanted or approved) |
+| `downloadWorkingGroupPurchaseAttachment` | `GET /working-group-purchases/{purchaseId}/attachment` | member, finance manager |
+| `redactWorkingGroupPurchase` | `POST /working-group-purchases/{purchaseId}/redact` | finance manager (any status, also closed periods) |
+| `listWorkingGroupPurchaseOrders` | `GET /working-group-purchase-orders` | finance manager |
+| `createWorkingGroupPurchaseOrder` | `POST /working-group-purchase-orders` | finance manager |
+| `getWorkingGroupPurchaseOrder` | `GET /working-group-purchase-orders/{orderId}` | finance manager |
+| `arrivedWorkingGroupPurchaseOrder` | `POST /working-group-purchase-orders/{orderId}/arrived` | finance manager |
+| `uploadWorkingGroupPurchaseOrderInvoice` | `PUT /working-group-purchase-orders/{orderId}/invoice` | finance manager |
+| `downloadWorkingGroupPurchaseOrderInvoice` | `GET /working-group-purchase-orders/{orderId}/invoice` | finance manager |
+| `deleteWorkingGroupPurchaseOrderInvoice` | `DELETE /working-group-purchase-orders/{orderId}/invoice` | finance manager (also in a closed period) |
+| `listWorkingGroupBookings` | `GET /working-group-bookings?groupId=&periodId=` | member (own groups), finance manager (all) |
+| `createWorkingGroupBooking` | `POST /working-group-bookings` | finance manager |
+| `deleteWorkingGroupBooking` | `DELETE /working-group-bookings/{bookingId}` | finance manager |
+| `redactWorkingGroupBooking` | `POST /working-group-bookings/{bookingId}/redact` | finance manager (also in a closed period) |
+| `getWorkingGroupFinanceRules` | `GET /working-group-finance-rules` | member of a group or finance manager |
+| `setWorkingGroupFinanceRules` | `PUT /working-group-finance-rules` | finance manager |
+| `createWorkingGroupProjectRequest` | `POST /working-group-project-requests` | finance manager |
+| `updateWorkingGroupProjectRequest` | `PUT /working-group-project-requests/{requestId}` | finance manager |
+| `deleteWorkingGroupProjectRequest` | `DELETE /working-group-project-requests/{requestId}` | finance manager |
 
 All operations also need `working_groups.read`. The two picker lists return the minimum: people as id and display name (no e-mail, no matriculation number), machines with the group they already belong to.

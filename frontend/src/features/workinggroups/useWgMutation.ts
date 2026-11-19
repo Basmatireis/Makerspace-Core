@@ -13,9 +13,26 @@ export function useWgMutation<Variables>(run: (variables: Variables) => Promise<
 
 export const TASK_CHANGED = 'This was changed by someone else.';
 
-/** The message for a failed action: a state conflict (409 `working_group_task_state`) has its own wording. */
+const ERROR_TEXT: Record<string, string> = {
+  working_group_task_state: TASK_CHANGED,
+  working_group_purchase_state: 'This purchase was changed by someone else.',
+  stale_write: 'Someone else changed this just now. The latest version is shown; try again.',
+  purchase_needs_project: 'This purchase reaches the project limit and needs a project.',
+  receipt_needs_project: 'This amount needs a project. Ask management.',
+  budget_period_closed: 'The budget period is closed.',
+  budget_period_missing: 'There is no open budget period today.',
+  project_request_required: 'Choose a project request.',
+  project_request_unknown: 'This project request does not exist any more.',
+  purchase_not_orderable: 'Only approved purchases of a collective order can be ordered.',
+  purchases_mixed_periods: 'Choose purchases of one period only.',
+  working_group_has_finances: 'The group has purchases or budget shares and cannot be deleted.',
+  working_group_project_request_exists: 'This project number exists already.',
+};
+
+/** The message for a failed action: known error codes (state conflicts, finance rules) have their own wording. */
 export function taskErrorText(error: unknown, fallback: string): string {
-  return apiErrorCode(error) === 'working_group_task_state' ? TASK_CHANGED : fallback;
+  const code = apiErrorCode(error);
+  return (code && ERROR_TEXT[code]) || fallback;
 }
 
 /** The inline message for a failed save: a stale write has its own wording. */

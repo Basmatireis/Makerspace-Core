@@ -6,9 +6,12 @@ import {
   approveWorkingGroupPurchase,
   arrivedWorkingGroupPurchase,
   deleteWorkingGroupPurchase,
+  downloadWorkingGroupPurchaseAttachment,
+  downloadWorkingGroupPurchaseReceipt,
   getDownloadWorkingGroupPurchaseAttachmentUrl,
   getDownloadWorkingGroupPurchaseReceiptUrl,
   refundedWorkingGroupPurchase,
+  uploadWorkingGroupPurchaseAttachment,
 } from '../../api/generated/working-groups/working-groups';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { DetailPanel, DetailPanelHead, DetailPanelSection } from '../../app/components/DetailPanel';
@@ -16,18 +19,22 @@ import { Fact, FactsGrid } from '../../app/components/Facts';
 import { formatDate } from '../../app/dateTime';
 import { formatMoney } from '../orders/formatting';
 import { formatCents } from '../orders/money';
-import { DeclineDialog, ReceiptDialog, ReceiptPreview } from './PurchaseDialogs';
+import { RedactPurchaseDialog } from './FinanceExtraDialogs';
+import { DeclineDialog, FilePreview, ReceiptDialog } from './PurchaseDialogs';
 import {
+  ACCEPTED_FILES,
   COUNTS_LABEL,
   PURCHASE_STATUS_LABEL,
   PURCHASE_STATUS_TAG,
   amountCents,
+  fileHeaders,
+  fileProblem,
   countsAs,
   stageOf,
 } from './financeModel';
 import { firstName, personName } from './taskModel';
 import { useDialogOpener } from './useDialogOpener';
-import { saveErrorText, useWgMutation } from './useWgMutation';
+import { saveErrorText, taskErrorText, useWgMutation } from './useWgMutation';
 
 function sentence(purchase: WorkingGroupPurchase): string {
   switch (purchase.status) {
@@ -53,19 +60,39 @@ function sentence(purchase: WorkingGroupPurchase): string {
 }
 
 /** The detail panel of a purchase: head, one sentence, one action row, facts, receipt. Keyed by the purchase. */
-export function PurchasePanel({ purchase, onGone }: { purchase: WorkingGroupPurchase; onGone: () => void }) {
+export function PurchasePanel({
+  purchase,
+  me,
+  isLead,
+  finance,
+  onGone,
+}: {
+  purchase: WorkingGroupPurchase;
+  me: string;
+  isLead: boolean;
+  finance: boolean;
+  onGone: () => void;
+}) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const deleteButton = useRef<HTMLButtonElement>(null);
   const decline = useDialogOpener();
   const receipt = useDialogOpener();
   const preview = useDialogOpener();
+  const offer = useDialogOpener();
+  const redact = useDialogOpener();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [fileError, setFileError] = useState<string | undefined>();
+  const canAttach = purchase.status === 'wanted' && (purchase.requester?.personId === me || isLead);
+  const attach = useWgMutation((file: File) =>
+    uploadWorkingGroupPurchaseAttachment(purchase.id, file, { headers: fileHeaders(file) }),
+  );
   const approve = useWgMutation(() => approveWorkingGroupPurchase(purchase.id, { expectedVersion: purchase.version }));
   const arrived = useWgMutation(() => arrivedWorkingGroupPurchase(purchase.id, { expectedVersion: purchase.version }));
   const refunded = useWgMutation(() =>
     refundedWorkingGroupPurchase(purchase.id, { expectedVersion: purchase.version }),
   );
   const remove = useWgMutation(() => deleteWorkingGroupPurchase(purchase.id));
-  const error = saveErrorText(approve.error ?? arrived.error ?? refunded.error);
+  const error = fileError ?? saveErrorText(approve.error ?? arrived.error ?? refunded.error ?? attach.error);
   const stage = stageOf(purchase);
   const counts = countsAs(purchase);
   const busy = approve.isPending || arrived.isPending || refunded.isPending;
@@ -107,6 +134,34 @@ export function PurchasePanel({ purchase, onGone }: { purchase: WorkingGroupPurc
           >
             Delete
           </Button>
+        )}
+        {finance && (
+          <Button kind="ghost" size="md" onClick={() => redact.open(true)}>
+            Remove personal data…
+          </Button>
+        )}
+        {canAttach && (
+          <>
+            <input
+              ref={fileInput}
+              type="file"
+              className="wg-visually-hidden"
+              tabIndex={-1}
+              accept={ACCEPTED_FILES}
+              aria-label="Offer or cart file"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (!file) return;
+                const problem = fileProblem(file);
+                setFileError(problem);
+                if (!problem) attach.mutate(file);
+              }}
+            />
+            <Button kind="tertiary" size="md" disabled={attach.isPending} onClick={() => fileInput.current?.click()}>
+              {purchase.hasAttachment ? 'Replace the file' : 'Attach a file'}
+            </Button>
+          </>
         )}
         {purchase.canDecline && (
           <Button kind="tertiary" size="md" onClick={() => decline.open(true)}>
@@ -151,9 +206,24 @@ export function PurchasePanel({ purchase, onGone }: { purchase: WorkingGroupPurc
         )}
         {purchase.hasAttachment && (
           <Fact label="Offer or cart">
-            <Link href={getDownloadWorkingGroupPurchaseAttachmentUrl(purchase.id)} target="_blank" rel="noopener">
-              Open the file
-            </Link>
+            <div className="wg-receipt">
+              <Link
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault();
+                  offer.open(true);
+                }}
+              >
+                Show the file
+              </Link>
+              <Link
+                href={getDownloadWorkingGroupPurchaseAttachmentUrl(purchase.id)}
+                download
+                aria-label="Download offer or cart"
+              >
+                <Download size={16} />
+              </Link>
+            </div>
           </Fact>
         )}
       </FactsGrid>
@@ -188,7 +258,7 @@ export function PurchasePanel({ purchase, onGone }: { purchase: WorkingGroupPurc
         fate="permanent"
         confirmLabel="Delete purchase"
         pending={remove.isPending}
-        error={remove.isError ? 'It could not be deleted.' : undefined}
+        error={remove.isError ? taskErrorText(remove.error, 'It could not be deleted.') : undefined}
         launcherButtonRef={deleteButton}
         onClose={() => setConfirmDelete(false)}
         onConfirm={() =>
@@ -204,7 +274,25 @@ export function PurchasePanel({ purchase, onGone }: { purchase: WorkingGroupPurc
       </DestructiveActionDialog>
       {decline.value && <DeclineDialog purchase={purchase} onClose={decline.close} />}
       {receipt.value && <ReceiptDialog purchase={purchase} onClose={receipt.close} />}
-      {preview.value && <ReceiptPreview purchaseId={purchase.id} onClose={preview.close} />}
+      {preview.value && (
+        <FilePreview
+          title="Receipt"
+          cacheKey={`receipt-${purchase.id}`}
+          load={(signal) => downloadWorkingGroupPurchaseReceipt(purchase.id, { signal })}
+          downloadUrl={getDownloadWorkingGroupPurchaseReceiptUrl(purchase.id)}
+          onClose={preview.close}
+        />
+      )}
+      {offer.value && (
+        <FilePreview
+          title="Offer or cart"
+          cacheKey={`offer-${purchase.id}`}
+          load={(signal) => downloadWorkingGroupPurchaseAttachment(purchase.id, { signal })}
+          downloadUrl={getDownloadWorkingGroupPurchaseAttachmentUrl(purchase.id)}
+          onClose={offer.close}
+        />
+      )}
+      {redact.value && <RedactPurchaseDialog purchase={purchase} onClose={redact.close} />}
     </DetailPanel>
   );
 }

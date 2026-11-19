@@ -65,7 +65,12 @@ export function PurchaseList({ rows, showGroup, selectedId, onSelect }: Props) {
                     onSelect={onSelect}
                   />
                 ) : (
-                  <BookingRow booking={row.booking} showGroup={showGroup} />
+                  <BookingRow
+                    booking={row.booking}
+                    showGroup={showGroup}
+                    selected={row.id === selectedId}
+                    onSelect={onSelect}
+                  />
                 )}
               </li>
             ))}
@@ -130,9 +135,24 @@ function PurchaseRow({
   );
 }
 
-function BookingRow({ booking, showGroup }: { booking: WorkingGroupBooking; showGroup: boolean }) {
+function BookingRow({
+  booking,
+  showGroup,
+  selected,
+  onSelect,
+}: {
+  booking: WorkingGroupBooking;
+  showGroup: boolean;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}) {
   return (
-    <div className={`wg-lrow wg-prow wg-prow--static${showGroup ? ' wg-prow--group' : ''} wg-bk-done`}>
+    <button
+      type="button"
+      className={`wg-lrow wg-prow${showGroup ? ' wg-prow--group' : ''} wg-bk-done${selected ? ' is-selected' : ''}`}
+      aria-pressed={selected}
+      onClick={() => onSelect(booking.id)}
+    >
       <span className="wg-pamount">
         <strong>{formatCents(toCents(booking.amount))}</strong>
         <small>{COUNTS_LABEL.spent}</small>
@@ -143,6 +163,6 @@ function BookingRow({ booking, showGroup }: { booking: WorkingGroupBooking; show
       </span>
       {showGroup && <span className="wg-lfrom">{booking.groupName}</span>}
       <span className="wg-muted">–</span>
-    </div>
+    </button>
   );
 }
