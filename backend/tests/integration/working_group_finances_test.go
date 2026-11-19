@@ -159,7 +159,7 @@ func TestWorkingGroupFinancesRefuseWithoutReadAndWithoutTheFinancePermission(t *
 	_, _, e4 := svc.ListPurchases(ctx, noRead, workinggroups.PurchaseFilter{})
 	_, e5 := svc.CreatePurchases(ctx, noRead, workinggroups.CreatePurchasesInput{GroupID: group}, nil)
 	_, e6 := svc.ApprovePurchase(ctx, noRead, id, 1, nil)
-	_, e7 := svc.ListOrders(ctx, noRead)
+	_, _, e7 := svc.ListOrders(ctx, noRead)
 	_, e8 := svc.GetRules(ctx, noRead)
 	_, e9 := svc.SetRules(ctx, noRead, workinggroups.FinanceRulesInput{}, nil)
 	_, _, e10 := svc.ListBookings(ctx, noRead, nil, nil)
@@ -177,7 +177,7 @@ func TestWorkingGroupFinancesRefuseWithoutReadAndWithoutTheFinancePermission(t *
 		_, a6 := svc.CreateProjectRequest(ctx, p, "PA-1", "x", nil)
 		_, a7 := svc.UpdateProjectRequest(ctx, p, id, "PA-1", "x", nil)
 		a8 := svc.DeleteProjectRequest(ctx, p, id, nil)
-		_, a9 := svc.ListOrders(ctx, p)
+		_, _, a9 := svc.ListOrders(ctx, p)
 		_, a10 := svc.GetOrder(ctx, p, id)
 		_, a11 := svc.CreateOrder(ctx, p, workinggroups.CreateOrderInput{Shop: "x", PurchaseIDs: []uuid.UUID{id}}, nil)
 		_, a12 := svc.MarkOrderArrived(ctx, p, id, 1, nil)
@@ -452,7 +452,7 @@ func TestWorkingGroupCentralPurchaseFlowWithCollectiveOrder(t *testing.T) {
 	}
 	_, err = f.service.MarkOrderArrived(ctx, f.finance, placed.ID, arrived.Version, nil)
 	requireAppError(t, err, http.StatusConflict, "working_group_order_state")
-	listed, err := f.service.ListOrders(ctx, f.finance)
+	listed, _, err := f.service.ListOrders(ctx, f.finance)
 	if err != nil || len(listed) == 0 || listed[0].ID != placed.ID {
 		t.Fatalf("orders = %+v, %v", listed, err)
 	}
@@ -776,7 +776,10 @@ func TestWorkingGroupPurchaseDeleteRulesAndFiles(t *testing.T) {
 	if err := f.pool.QueryRow(ctx, `SELECT receipt_file_id FROM working_group_purchases WHERE id = $1`, last.ID).Scan(&receiptFile); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.service.Delete(ctx, f.manager, f.group.ID, nil); err != nil {
+	// A group with budget records is not deleted by working_groups.manage alone, and not at all with closed records.
+	requireAppError(t, f.service.Delete(ctx, f.manager, f.group.ID, nil), http.StatusConflict, "working_group_has_finances")
+	both, _ := groupPrincipal(t, f.pool, "wgf-delete-both", "working_groups.read", "working_groups.manage", "working_group_finances.manage")
+	if err := f.service.Delete(ctx, both, f.group.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(t, f.pool, `SELECT count(*) FROM working_group_purchases WHERE group_id = $1`, 0, f.group.ID)
@@ -878,5 +881,256 @@ func TestSubjectRequestExportHoldsOnlyTheSubjectsPurchases(t *testing.T) {
 	if len(export["purchases"]) != 1 || export["purchases"][0]["item"] != "Subject item" || export["purchases"][0]["hasReceipt"] != false ||
 		strings.Contains(string(document), "Colleague item") || strings.Contains(string(document), "Reason written by finance") {
 		t.Fatalf("export = %s", document)
+	}
+}
+
+func (f financeFixture) newGroup(t *testing.T, name string) workinggroups.Group {
+	t.Helper()
+	group, err := f.service.Create(testContext(t), f.manager, workinggroups.CreateInput{Name: name, LeadPersonID: f.leadID}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return group
+}
+
+func TestWorkingGroupPeriodTotalIsForFinanceManagersOnly(t *testing.T) {
+	f := newFinanceFixture(t, "wgf-total")
+	ctx := testContext(t)
+	periods, err := f.service.ListPeriods(ctx, f.member)
+	if err != nil || len(periods) == 0 {
+		t.Fatalf("periods = %+v, %v", periods, err)
+	}
+	for _, p := range periods {
+		if p.TotalAmount != "" {
+			t.Fatalf("member sees a total: %+v", p)
+		}
+	}
+	if budget := f.budgetOf(t, f.member); budget.Period.TotalAmount != "" || budget.Totals != nil {
+		t.Fatalf("member budget = %+v", budget)
+	}
+	if budget := f.budgetOf(t, f.finance); budget.Period.TotalAmount != "5000.00" {
+		t.Fatalf("finance budget = %+v", budget.Period)
+	}
+}
+
+func TestWorkingGroupDeleteKeepsBudgetRecords(t *testing.T) {
+	f := newFinanceFixture(t, "wgf-gdel")
+	ctx := testContext(t)
+	both, _ := groupPrincipal(t, f.pool, "wgf-gdel-both", "working_groups.read", "working_groups.manage", "working_group_finances.manage")
+	// A share alone is a record: the manage-only holder is refused, a finance manager may delete.
+	open := f.newGroup(t, "Open records wgf-gdel")
+	if _, err := f.service.SetShare(ctx, f.finance, f.period.ID, open.ID, "10.00", nil); err != nil {
+		t.Fatal(err)
+	}
+	requireAppError(t, f.service.Delete(ctx, f.manager, open.ID, nil), http.StatusConflict, "working_group_has_finances")
+	if err := f.service.Delete(ctx, both, open.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	// Records in a closed period are never deleted with the group.
+	closedGroup := f.newGroup(t, "Closed records wgf-gdel")
+	if _, err := f.service.SetShare(ctx, f.finance, f.period.ID, closedGroup.ID, "10.00", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.ClosePeriod(ctx, f.finance, f.period.ID, f.period.Version, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []authorization.Principal{f.manager, both} {
+		requireAppError(t, f.service.Delete(ctx, p, closedGroup.ID, nil), http.StatusConflict, "working_group_has_finances")
+	}
+	// A group without any record is deleted by the manager as before.
+	empty := f.newGroup(t, "Empty wgf-gdel")
+	if err := f.service.Delete(ctx, f.manager, empty.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The first share of a group and the first purchase of a member run at the same time without a deadlock.
+func TestWorkingGroupFirstShareAndPurchaseDoNotDeadlock(t *testing.T) {
+	f := newFinanceFixture(t, "wgf-dead")
+	ctx := testContext(t)
+	for i := 0; i < 8; i++ {
+		group := f.newGroup(t, "Race "+strings.Repeat("x", i)+" wgf-dead")
+		if _, err := f.service.AddMember(ctx, f.manager, group.ID, f.memberID, nil); err != nil {
+			t.Fatal(err)
+		}
+		errs := make(chan error, 2)
+		start := make(chan struct{})
+		go func() {
+			<-start
+			_, err := f.service.SetShare(ctx, f.finance, f.period.ID, group.ID, "20.00", nil)
+			errs <- err
+		}()
+		go func() {
+			<-start
+			_, err := f.service.CreatePurchases(ctx, f.member, workinggroups.CreatePurchasesInput{
+				GroupID: group.ID, How: workinggroups.HowSelf, Items: []workinggroups.PurchaseItemInput{{Item: "Race", Quantity: 1, UnitPrice: "1.00"}},
+			}, nil)
+			errs <- err
+		}()
+		close(start)
+		for j := 0; j < 2; j++ {
+			if err := <-errs; err != nil {
+				t.Fatalf("round %d: %v", i, err)
+			}
+		}
+	}
+}
+
+func TestWorkingGroupRedactionRemovesPersonalDataInAnyStatusAndPeriod(t *testing.T) {
+	f := newFinanceFixture(t, "wgf-redact")
+	ctx := testContext(t)
+	link := "https://shop.example/personal"
+	items, err := f.service.CreatePurchases(ctx, f.member, workinggroups.CreatePurchasesInput{
+		GroupID: f.group.ID, How: workinggroups.HowSelf, Items: []workinggroups.PurchaseItemInput{{Item: "Name on it", Link: &link, Quantity: 1, UnitPrice: "9.00"}},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := items[0].ID
+	if _, err := f.service.SetAttachment(ctx, f.member, id, pdfUpload("offer.pdf"), nil); err != nil {
+		t.Fatal(err)
+	}
+	f.approve(t, id)
+	if _, err := f.service.HandInReceipt(ctx, f.member, id, workinggroups.ReceiptInput{ExpectedVersion: f.get(t, id).Version, Amount: "8.00", File: pdfUpload("r.pdf")}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var attachment, receipt uuid.UUID
+	if err := f.pool.QueryRow(ctx, `SELECT attachment_file_id, receipt_file_id FROM working_group_purchases WHERE id = $1`, id).Scan(&attachment, &receipt); err != nil {
+		t.Fatal(err)
+	}
+	version := f.get(t, id).Version
+	// Denials: a member of the group, and the manage-only holder (for whom the purchase does not exist).
+	_, err = f.service.RedactPurchase(ctx, f.member, id, version, true, true, nil)
+	requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	_, err = f.service.RedactPurchase(ctx, f.manager, id, version, true, true, nil)
+	requireAppError(t, err, http.StatusNotFound, "")
+	_, err = f.service.RedactPurchase(ctx, f.finance, id, version, false, false, nil)
+	requireAppError(t, err, http.StatusUnprocessableEntity, "")
+	_, err = f.service.RedactPurchase(ctx, f.finance, id, version+4, true, false, nil)
+	requireAppError(t, err, http.StatusConflict, "stale_write")
+	before := f.groupFigures(t)
+
+	// Close the period: redaction still works and changes no figure.
+	var periodVersion int64
+	if err := f.pool.QueryRow(ctx, `SELECT version FROM working_group_budget_periods WHERE id = $1`, f.period.ID).Scan(&periodVersion); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.ClosePeriod(ctx, f.finance, f.period.ID, periodVersion, nil); err != nil {
+		t.Fatal(err)
+	}
+	textOnly, err := f.service.RedactPurchase(ctx, f.finance, id, version, true, false, nil)
+	if err != nil || textOnly.Item != "Removed" || textOnly.Link != nil || !textOnly.HasAttachment || !textOnly.HasReceipt {
+		t.Fatalf("text redaction = %+v, %v", textOnly, err)
+	}
+	both, err := f.service.RedactPurchase(ctx, f.finance, id, textOnly.Version, false, true, nil)
+	if err != nil || both.HasAttachment || both.HasReceipt || both.ActualTotal == nil || *both.ActualTotal != "8.00" {
+		t.Fatalf("file redaction = %+v, %v", both, err)
+	}
+	assertCount(t, f.pool, `SELECT count(*) FROM files WHERE id = ANY($1)`, 0, []uuid.UUID{attachment, receipt})
+	if after := f.groupFigures(t); after != before {
+		t.Fatalf("figures changed: %+v -> %+v", before, after)
+	}
+	assertCount(t, f.pool, `SELECT count(*) FROM audit_events WHERE action = 'working_group_purchase.redacted' AND resource_id = $1`, 2, id)
+}
+
+func TestWorkingGroupInvoiceAndBookingRedaction(t *testing.T) {
+	f := newFinanceFixture(t, "wgf-redact2")
+	ctx := testContext(t)
+	purchase := f.buy(t, f.member, workinggroups.HowCentral, "Parts", 1, "10.00")
+	f.approve(t, purchase.ID)
+	order, err := f.service.CreateOrder(ctx, f.finance, workinggroups.CreateOrderInput{Shop: "ACME", PurchaseIDs: []uuid.UUID{purchase.ID}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.SetOrderInvoice(ctx, f.finance, order.ID, pdfUpload("i.pdf"), nil); err != nil {
+		t.Fatal(err)
+	}
+	var invoice uuid.UUID
+	if err := f.pool.QueryRow(ctx, `SELECT invoice_file_id FROM working_group_purchase_orders WHERE id = $1`, order.ID).Scan(&invoice); err != nil {
+		t.Fatal(err)
+	}
+	booking, err := f.service.CreateBooking(ctx, f.finance, workinggroups.CreateBookingInput{
+		GroupID: f.group.ID, PeriodID: f.period.ID, Text: "Personal text", Amount: "2.00", BookedOn: time.Now(),
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []authorization.Principal{f.member, f.manager} {
+		requireAppError(t, f.service.RemoveOrderInvoice(ctx, p, order.ID, nil), http.StatusForbidden, "permission_denied")
+		_, err := f.service.RedactBooking(ctx, p, booking.ID, nil)
+		requireAppError(t, err, http.StatusForbidden, "permission_denied")
+	}
+	if err := f.service.RemoveOrderInvoice(ctx, f.finance, order.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	assertCount(t, f.pool, `SELECT count(*) FROM files WHERE id = $1`, 0, invoice)
+	requireAppError(t, f.service.RemoveOrderInvoice(ctx, f.finance, order.ID, nil), http.StatusNotFound, "")
+	redacted, err := f.service.RedactBooking(ctx, f.finance, booking.ID, nil)
+	if err != nil || redacted.Text != "Removed" || redacted.Amount != "2.00" {
+		t.Fatalf("redacted = %+v, %v", redacted, err)
+	}
+	_, err = f.service.RedactBooking(ctx, f.finance, ids.New(), nil)
+	requireAppError(t, err, http.StatusNotFound, "")
+	// Deleting a booking twice: the second time nothing was deleted.
+	if err := f.service.DeleteBooking(ctx, f.finance, booking.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	requireAppError(t, f.service.DeleteBooking(ctx, f.finance, booking.ID, nil), http.StatusNotFound, "")
+	assertCount(t, f.pool, `SELECT count(*) FROM audit_events WHERE action = 'working_group_booking.deleted' AND resource_id = $1`, 1, booking.ID)
+}
+
+func TestWorkingGroupAttachmentOnlyWhileWantedAndOrdersAreCapped(t *testing.T) {
+	f := newFinanceFixture(t, "wgf-cap")
+	ctx := testContext(t)
+	purchase := f.buy(t, f.member, workinggroups.HowCentral, "Parts", 1, "10.00")
+	f.approve(t, purchase.ID)
+	_, err := f.service.SetAttachment(ctx, f.member, purchase.ID, pdfUpload("late.pdf"), nil)
+	requireAppError(t, err, http.StatusConflict, "working_group_purchase_state")
+
+	mergeExec(t, f.pool, `INSERT INTO working_group_purchase_orders (id, period_id, shop, total_amount, created_at)
+		SELECT uuidv7(), $1, 'bulk', 1, now() + make_interval(secs => g) FROM generate_series(1, 201) g`, f.period.ID)
+	t.Cleanup(func() { _, _ = f.pool.Exec(ctx, `DELETE FROM working_group_purchase_orders WHERE shop = 'bulk'`) })
+	listed, truncated, err := f.service.ListOrders(ctx, f.finance)
+	if err != nil || len(listed) != workinggroups.MaxOrderListRows || !truncated {
+		t.Fatalf("orders = %d truncated %v, %v", len(listed), truncated, err)
+	}
+}
+
+// A malformed receipt header is refused before anything is read, and a well-formed one for an unknown purchase is a 404.
+func TestWorkingGroupReceiptHeadersOverHTTP(t *testing.T) {
+	h := newCashRegisterHTTP(t)
+	send := func(amount, version string, withName bool) int {
+		t.Helper()
+		request, err := http.NewRequestWithContext(testContext(t), http.MethodPost,
+			h.server.URL+"/api/v1/working-group-purchases/"+ids.New().String()+"/receipt", strings.NewReader("%PDF-1.4"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Origin", h.origin)
+		request.Header.Set("X-CSRF-Token", h.csrf)
+		request.Header.Set("Content-Type", "application/octet-stream")
+		if withName {
+			request.Header.Set("X-File-Name", "r.pdf")
+		}
+		request.Header.Set("X-File-Content-Type", "application/pdf")
+		request.Header.Set("X-Receipt-Amount", amount)
+		request.Header.Set("X-Expected-Version", version)
+		response, err := h.client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		return response.StatusCode
+	}
+	for _, bad := range [][2]string{{"12,5", "1"}, {"-1", "1"}, {"1.234", "1"}, {"10", "abc"}, {"10", "0"}} {
+		if status := send(bad[0], bad[1], true); status != http.StatusBadRequest && status != http.StatusUnprocessableEntity {
+			t.Fatalf("amount %q version %q: status %d", bad[0], bad[1], status)
+		}
+	}
+	if status := send("10.00", "1", false); status != http.StatusBadRequest {
+		t.Fatalf("missing file name: status %d", status)
+	}
+	if status := send("10.00", "1", true); status != http.StatusNotFound {
+		t.Fatalf("unknown purchase: status %d", status)
 	}
 }

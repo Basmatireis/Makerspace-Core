@@ -907,6 +907,7 @@ export * from './recurrenceOccurrenceDisposition';
 export * from './recurrencePreview';
 export * from './recurrencePreviewRequest';
 export * from './recycleBin';
+export * from './redactWorkingGroupPurchaseRequest';
 export * from './releaseVersion';
 export * from './removeOwnPasswordRequest';
 export * from './renamePasskeyRequest';

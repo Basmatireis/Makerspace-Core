@@ -9070,6 +9070,19 @@ paths:
         "413": {$ref: "#/components/responses/PayloadTooLarge"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupPurchaseOrderInvoice
+      summary: Delete the invoice of an order
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Deletes the invoice file for good, also in a closed period. 404 when the order has no invoice.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Invoice deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
     get:
       tags: [Working groups]
       operationId: downloadWorkingGroupPurchaseOrderInvoice
@@ -9212,6 +9225,44 @@ paths:
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
         "204": {description: Done.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchases/{purchaseId}/redact:
+    parameters:
+      - {name: purchaseId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: redactWorkingGroupPurchase
+      summary: Remove personal data from a purchase
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Allowed in every status and in closed periods; no figure changes. At least one of `text` and `files`
+        must be true (422). The files are deleted for good.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RedactWorkingGroupPurchaseRequest"}}}}
+      responses:
+        "200": {description: Redacted purchase., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchase"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-bookings/{bookingId}/redact:
+    parameters:
+      - {name: bookingId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: redactWorkingGroupBooking
+      summary: Remove personal data from a booking
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Replaces the text with `Removed`; allowed in closed periods.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Redacted booking., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupBooking"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -21378,13 +21429,13 @@ components:
     WorkingGroupBudgetPeriod:
       type: object
       additionalProperties: false
-      required: [id, name, startsOn, endsOn, totalAmount, closed, current, version, createdAt]
+      required: [id, name, startsOn, endsOn, closed, current, version, createdAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 80}
         startsOn: {type: string, format: date}
         endsOn: {type: string, format: date}
-        totalAmount: {$ref: "#/components/schemas/Money"}
+        totalAmount: {allOf: [{$ref: "#/components/schemas/Money"}], description: "The total from HTU. Only returned to holders of `working_group_finances.manage`."}
         closed: {type: boolean}
         closedAt: {type: string, format: date-time}
         current: {type: boolean, description: "True for the open period that contains today in the makerspace time zone; new purchases go into it."}
@@ -21569,6 +21620,7 @@ components:
       required: [items]
       properties:
         items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupPurchaseOrder"}}
+        truncated: {type: boolean, description: "True when more orders matched than the 200 returned."}
 
     CreateWorkingGroupPurchaseOrderRequest:
       type: object
@@ -21647,6 +21699,15 @@ components:
         expectedVersion: {$ref: "#/components/schemas/Version"}
         projectThreshold: {$ref: "#/components/schemas/Money"}
         offersThreshold: {$ref: "#/components/schemas/Money"}
+
+    RedactWorkingGroupPurchaseRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, text, files]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        text: {type: boolean, description: "Replace the item with `Removed` and clear link and decline reason."}
+        files: {type: boolean, description: "Delete the offer and the receipt file; the receipt amount stays."}
 
     WorkingGroupTicketList:
       type: object

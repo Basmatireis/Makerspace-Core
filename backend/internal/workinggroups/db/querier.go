@@ -25,6 +25,8 @@ type Querier interface {
 	ClearWorkingGroupTodoAssignments(ctx context.Context, arg ClearWorkingGroupTodoAssignmentsParams) error
 	CloseWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUID) (int64, error)
 	CopyWorkingGroupBudgetShares(ctx context.Context, arg CopyWorkingGroupBudgetSharesParams) error
+	// Purchases, bookings and shares of a group, and how many of them lie in a closed period.
+	CountWorkingGroupFinanceRecords(ctx context.Context, targetGroup uuid.UUID) (CountWorkingGroupFinanceRecordsRow, error)
 	CreateWorkingGroup(ctx context.Context, arg CreateWorkingGroupParams) error
 	CreateWorkingGroupBooking(ctx context.Context, arg CreateWorkingGroupBookingParams) error
 	CreateWorkingGroupBudgetPeriod(ctx context.Context, arg CreateWorkingGroupBudgetPeriodParams) error
@@ -36,6 +38,8 @@ type Querier interface {
 	CreateWorkingGroupTodo(ctx context.Context, arg CreateWorkingGroupTodoParams) error
 	// The open period that contains today; the one that started last when several do.
 	CurrentWorkingGroupBudgetPeriod(ctx context.Context, today pgtype.Date) (uuid.UUID, error)
+	// Like CurrentWorkingGroupBudgetPeriod, without the lock, for reads.
+	CurrentWorkingGroupBudgetPeriodRead(ctx context.Context, today pgtype.Date) (uuid.UUID, error)
 	DeclineWorkingGroupPurchase(ctx context.Context, arg DeclineWorkingGroupPurchaseParams) error
 	DeleteWorkingGroup(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupBooking(ctx context.Context, id uuid.UUID) (int64, error)
@@ -131,6 +135,8 @@ type Querier interface {
 	PersonExists(ctx context.Context, id uuid.UUID) (bool, error)
 	ReceiveWorkingGroupOrderPurchases(ctx context.Context, orderID *uuid.UUID) ([]uuid.UUID, error)
 	ReceiveWorkingGroupPurchase(ctx context.Context, id uuid.UUID) error
+	RedactWorkingGroupBooking(ctx context.Context, id uuid.UUID) (int64, error)
+	RedactWorkingGroupPurchase(ctx context.Context, arg RedactWorkingGroupPurchaseParams) error
 	RefundWorkingGroupPurchase(ctx context.Context, id uuid.UUID) error
 	SetWorkingGroupMachineStatus(ctx context.Context, arg SetWorkingGroupMachineStatusParams) (int64, error)
 	SetWorkingGroupPlaceStatus(ctx context.Context, arg SetWorkingGroupPlaceStatusParams) (int64, error)

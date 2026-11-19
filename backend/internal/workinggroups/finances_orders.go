@@ -78,14 +78,22 @@ func (s *Service) loadOrder(ctx context.Context, q *workinggroupsdb.Queries, id 
 }
 
 // ListOrders lists the collective orders, newest first. Finance managers only.
-func (s *Service) ListOrders(ctx context.Context, p authorization.Principal) ([]PurchaseOrder, error) {
+func (s *Service) ListOrders(ctx context.Context, p authorization.Principal) ([]PurchaseOrder, bool, error) {
 	if err := requireRead(p); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if err := requireFinance(p); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return s.queryOrders(ctx, workinggroupsdb.New(s.pool), nil, MaxOrderListRows)
+	items, err := s.queryOrders(ctx, workinggroupsdb.New(s.pool), nil, MaxOrderListRows+1)
+	if err != nil {
+		return nil, false, err
+	}
+	truncated := len(items) > MaxOrderListRows
+	if truncated {
+		items = items[:MaxOrderListRows]
+	}
+	return items, truncated, nil
 }
 
 // GetOrder returns one collective order. Finance managers only.
@@ -171,6 +179,9 @@ func (s *Service) CreateOrder(
 			ID: id, PeriodID: periodID, Shop: shop, TotalAmount: moneyText(total),
 			ProjectRequestID: input.ProjectRequestID, ProjectNumber: number,
 		}); err != nil {
+			if isForeignKeyViolation(err) {
+				return apperror.New(http.StatusUnprocessableEntity, "project_request_unknown", "The project request does not exist")
+			}
 			return err
 		}
 		if _, err := q.MarkWorkingGroupPurchasesOrdered(ctx, workinggroupsdb.MarkWorkingGroupPurchasesOrderedParams{
@@ -438,9 +449,85 @@ func (s *Service) DeleteBooking(ctx context.Context, p authorization.Principal, 
 		if period.ClosedAt.Valid {
 			return periodClosedError()
 		}
-		if _, err := q.DeleteWorkingGroupBooking(ctx, id); err != nil {
+		removed, err := q.DeleteWorkingGroupBooking(ctx, id)
+		if err != nil {
 			return err
+		}
+		if removed == 0 {
+			return apperror.NotFound
 		}
 		return writeTaskAudit(ctx, tx, p, "working_group_booking.deleted", "working_group_booking", id, requestID, nil)
 	})
+}
+
+// CheckOrderUpload is the refusal an upload handler runs before it reads the body.
+func (s *Service) CheckOrderUpload(ctx context.Context, p authorization.Principal, id uuid.UUID) error {
+	if err := requireRead(p); err != nil {
+		return err
+	}
+	if err := requireFinance(p); err != nil {
+		return err
+	}
+	_, err := s.loadOrder(ctx, workinggroupsdb.New(s.pool), id)
+	return err
+}
+
+// RemoveOrderInvoice deletes the invoice file of an order, in any period. Finance managers only.
+func (s *Service) RemoveOrderInvoice(ctx context.Context, p authorization.Principal, id uuid.UUID, requestID *uuid.UUID) error {
+	if err := requireRead(p); err != nil {
+		return err
+	}
+	if err := requireFinance(p); err != nil {
+		return err
+	}
+	var replaced *uuid.UUID
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		q := workinggroupsdb.New(tx)
+		order, err := q.LockWorkingGroupPurchaseOrder(ctx, id)
+		if err != nil {
+			return noRows(err)
+		}
+		if order.InvoiceFileID == nil {
+			return apperror.NotFound
+		}
+		replaced = order.InvoiceFileID
+		if err := q.SetWorkingGroupPurchaseOrderInvoice(ctx, workinggroupsdb.SetWorkingGroupPurchaseOrderInvoiceParams{ID: id}); err != nil {
+			return err
+		}
+		return writeTaskAudit(ctx, tx, p, "working_group_purchase_order.invoice_removed", "working_group_purchase_order", id, requestID, []string{"invoice"})
+	})
+	if err == nil {
+		s.discardFiles(replaced)
+	}
+	return err
+}
+
+// RedactBooking replaces the text of a direct booking with "Removed", in any period. Finance managers only.
+func (s *Service) RedactBooking(ctx context.Context, p authorization.Principal, id uuid.UUID, requestID *uuid.UUID) (result Booking, err error) {
+	if err := requireRead(p); err != nil {
+		return Booking{}, err
+	}
+	if err := requireFinance(p); err != nil {
+		return Booking{}, err
+	}
+	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		q := workinggroupsdb.New(tx)
+		changed, err := q.RedactWorkingGroupBooking(ctx, id)
+		if err != nil {
+			return err
+		}
+		if changed == 0 {
+			return apperror.NotFound
+		}
+		if err := writeTaskAudit(ctx, tx, p, "working_group_booking.redacted", "working_group_booking", id, requestID, []string{"text"}); err != nil {
+			return err
+		}
+		items, err := s.queryBookings(ctx, q, p, &id, nil, nil, 1)
+		if err != nil || len(items) == 0 {
+			return err
+		}
+		result = items[0]
+		return nil
+	})
+	return result, err
 }

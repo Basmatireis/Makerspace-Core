@@ -186,6 +186,31 @@ func (q *Queries) CopyWorkingGroupBudgetShares(ctx context.Context, arg CopyWork
 	return err
 }
 
+const countWorkingGroupFinanceRecords = `-- name: CountWorkingGroupFinanceRecords :one
+SELECT ((SELECT count(*) FROM working_group_purchases WHERE group_id = $1::uuid)
+      + (SELECT count(*) FROM working_group_bookings WHERE group_id = $1::uuid)
+      + (SELECT count(*) FROM working_group_budget_shares WHERE group_id = $1::uuid))::bigint AS total,
+     ((SELECT count(*) FROM working_group_purchases x JOIN working_group_budget_periods per ON per.id = x.period_id
+        WHERE x.group_id = $1::uuid AND per.closed_at IS NOT NULL)
+      + (SELECT count(*) FROM working_group_bookings x JOIN working_group_budget_periods per ON per.id = x.period_id
+        WHERE x.group_id = $1::uuid AND per.closed_at IS NOT NULL)
+      + (SELECT count(*) FROM working_group_budget_shares x JOIN working_group_budget_periods per ON per.id = x.period_id
+        WHERE x.group_id = $1::uuid AND per.closed_at IS NOT NULL))::bigint AS in_closed
+`
+
+type CountWorkingGroupFinanceRecordsRow struct {
+	Total    int64
+	InClosed int64
+}
+
+// Purchases, bookings and shares of a group, and how many of them lie in a closed period.
+func (q *Queries) CountWorkingGroupFinanceRecords(ctx context.Context, targetGroup uuid.UUID) (CountWorkingGroupFinanceRecordsRow, error) {
+	row := q.db.QueryRow(ctx, countWorkingGroupFinanceRecords, targetGroup)
+	var i CountWorkingGroupFinanceRecordsRow
+	err := row.Scan(&i.Total, &i.InClosed)
+	return i, err
+}
+
 const createWorkingGroup = `-- name: CreateWorkingGroup :exec
 INSERT INTO working_groups (id, name, description) VALUES ($1, $2, $3)
 `
@@ -423,6 +448,21 @@ FOR SHARE
 // The open period that contains today; the one that started last when several do.
 func (q *Queries) CurrentWorkingGroupBudgetPeriod(ctx context.Context, today pgtype.Date) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, currentWorkingGroupBudgetPeriod, today)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const currentWorkingGroupBudgetPeriodRead = `-- name: CurrentWorkingGroupBudgetPeriodRead :one
+SELECT id FROM working_group_budget_periods
+WHERE closed_at IS NULL AND starts_on <= $1::date AND ends_on >= $1::date
+ORDER BY starts_on DESC, id DESC
+LIMIT 1
+`
+
+// Like CurrentWorkingGroupBudgetPeriod, without the lock, for reads.
+func (q *Queries) CurrentWorkingGroupBudgetPeriodRead(ctx context.Context, today pgtype.Date) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, currentWorkingGroupBudgetPeriodRead, today)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
@@ -2892,6 +2932,40 @@ WHERE id = $1
 
 func (q *Queries) ReceiveWorkingGroupPurchase(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, receiveWorkingGroupPurchase, id)
+	return err
+}
+
+const redactWorkingGroupBooking = `-- name: RedactWorkingGroupBooking :execrows
+UPDATE working_group_bookings SET text = 'Removed' WHERE id = $1
+`
+
+func (q *Queries) RedactWorkingGroupBooking(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, redactWorkingGroupBooking, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const redactWorkingGroupPurchase = `-- name: RedactWorkingGroupPurchase :exec
+UPDATE working_group_purchases SET
+    item = CASE WHEN $1::boolean THEN 'Removed' ELSE item END,
+    link = CASE WHEN $1::boolean THEN NULL ELSE link END,
+    decline_reason = CASE WHEN $1::boolean THEN NULL ELSE decline_reason END,
+    attachment_file_id = CASE WHEN $2::boolean THEN NULL ELSE attachment_file_id END,
+    receipt_file_id = CASE WHEN $2::boolean THEN NULL ELSE receipt_file_id END,
+    version = version + 1, updated_at = now()
+WHERE id = $3
+`
+
+type RedactWorkingGroupPurchaseParams struct {
+	RedactText  bool
+	RedactFiles bool
+	ID          uuid.UUID
+}
+
+func (q *Queries) RedactWorkingGroupPurchase(ctx context.Context, arg RedactWorkingGroupPurchaseParams) error {
+	_, err := q.db.Exec(ctx, redactWorkingGroupPurchase, arg.RedactText, arg.RedactFiles, arg.ID)
 	return err
 }
 

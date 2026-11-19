@@ -37,6 +37,7 @@ import type {
   ListWorkingGroupTicketsParams,
   ListWorkingGroupTodosParams,
   PlanWorkingGroupTicketRequest,
+  RedactWorkingGroupPurchaseRequest,
   SetWorkingGroupBudgetShareRequest,
   SetWorkingGroupColumnsRequest,
   SetWorkingGroupFinanceRulesRequest,
@@ -1188,6 +1189,30 @@ export const uploadWorkingGroupPurchaseOrderInvoice = async (orderId: UUIDv7,
 );}
 
 
+export const getDeleteWorkingGroupPurchaseOrderInvoiceUrl = (orderId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchase-orders/${orderId}/invoice`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Deletes the invoice file for good, also in a closed period. 404 when the order has no invoice.
+ * @summary Delete the invoice of an order
+ */
+export const deleteWorkingGroupPurchaseOrderInvoice = async (orderId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteWorkingGroupPurchaseOrderInvoiceUrl(orderId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
 export const getDownloadWorkingGroupPurchaseOrderInvoiceUrl = (orderId: UUIDv7,) => {
 
 
@@ -1406,6 +1431,55 @@ export const deleteWorkingGroupProjectRequest = async (requestId: UUIDv7, option
   {
     ...options,
     method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getRedactWorkingGroupPurchaseUrl = (purchaseId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-purchases/${purchaseId}/redact`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Allowed in every status and in closed periods; no figure changes. At least one of `text` and `files` must be true (422). The files are deleted for good.
+ * @summary Remove personal data from a purchase
+ */
+export const redactWorkingGroupPurchase = async (purchaseId: UUIDv7,
+    redactWorkingGroupPurchaseRequest: RedactWorkingGroupPurchaseRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupPurchase> => {
+
+  return apiFetch<WorkingGroupPurchase>(getRedactWorkingGroupPurchaseUrl(purchaseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(redactWorkingGroupPurchaseRequest)
+  }
+);}
+
+
+export const getRedactWorkingGroupBookingUrl = (bookingId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-bookings/${bookingId}/redact`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Replaces the text with `Removed`; allowed in closed periods.
+ * @summary Remove personal data from a booking
+ */
+export const redactWorkingGroupBooking = async (bookingId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupBooking> => {
+
+  return apiFetch<WorkingGroupBooking>(getRedactWorkingGroupBookingUrl(bookingId),
+  {
+    ...options,
+    method: 'POST'
 
 
   }

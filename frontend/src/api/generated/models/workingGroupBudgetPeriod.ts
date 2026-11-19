@@ -31,7 +31,8 @@ export interface WorkingGroupBudgetPeriod {
   name: string;
   startsOn: string;
   endsOn: string;
-  totalAmount: Money;
+  /** The total from HTU. Only returned to holders of `working_group_finances.manage`. */
+  totalAmount?: Money;
   closed: boolean;
   closedAt?: string;
   /** True for the open period that contains today in the makerspace time zone; new purchases go into it. */

@@ -331,6 +331,8 @@ type purchaseChange struct {
 	reload bool
 	// noVersion skips the optimistic lock for a change that only replaces a file.
 	noVersion bool
+	// allowClosed lets a change through in a closed period (redaction touches no figures).
+	allowClosed bool
 }
 
 // changePurchase runs a change in one transaction. The order of refusals: unknown or invisible (404), not allowed to
@@ -355,7 +357,7 @@ func (s *Service) changePurchase(
 		if expected < 1 && !c.noVersion {
 			return apperror.Invalid("expectedVersion must be positive")
 		}
-		if pc.closed {
+		if pc.closed && !c.allowClosed {
 			return periodClosedError()
 		}
 		if pc.core.Version != expected && !c.noVersion {
@@ -582,7 +584,7 @@ func (s *Service) HandInReceipt(
 	return result, err
 }
 
-// SetAttachment attaches the offer or cart to a wanted or approved purchase, replacing an earlier file.
+// SetAttachment attaches the offer or cart to a wanted purchase, replacing an earlier file.
 func (s *Service) SetAttachment(
 	ctx context.Context,
 	p authorization.Principal,
@@ -603,9 +605,7 @@ func (s *Service) SetAttachment(
 	result, err := s.changePurchase(ctx, p, id, 0, purchaseChange{
 		noVersion: true,
 		role:      roleRequesterLeadFinance, reload: true,
-		state: func(pc *purchaseCtx) bool {
-			return pc.core.Status == PurchaseWanted || pc.core.Status == PurchaseApproved
-		},
+		state: stateIs(PurchaseWanted),
 		change: func(tx pgx.Tx, pc *purchaseCtx) ([]*uuid.UUID, error) {
 			fileID := stored.ID
 			if err := pc.q.SetWorkingGroupPurchaseAttachment(
@@ -642,4 +642,53 @@ func (s *Service) OpenPurchaseFile(ctx context.Context, p authorization.Principa
 		return s.openFile(ctx, core.ReceiptFileID)
 	}
 	return s.openFile(ctx, core.AttachmentFileID)
+}
+
+// CheckPurchaseUpload is the refusal an upload handler runs before it reads the body: unknown or invisible purchase
+// (404), a caller who may not hand in files for it (403).
+func (s *Service) CheckPurchaseUpload(ctx context.Context, p authorization.Principal, id uuid.UUID) error {
+	if err := requireRead(p); err != nil {
+		return err
+	}
+	return s.precheck(ctx, p, id, roleRequesterLeadFinance)
+}
+
+// RedactPurchase removes personal data from a purchase of any status, also in a closed period: the texts become
+// "Removed" (link and decline reason are cleared) and/or the offer and receipt files are deleted. The receipt amount
+// stays, so no figure changes. Finance managers only.
+func (s *Service) RedactPurchase(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	text, files bool,
+	requestID *uuid.UUID,
+) (Purchase, error) {
+	if err := requireRead(p); err != nil {
+		return Purchase{}, err
+	}
+	return s.changePurchase(ctx, p, id, expected, purchaseChange{
+		role: roleFinance, allowClosed: true, reload: true,
+		state: func(*purchaseCtx) bool { return true },
+		change: func(tx pgx.Tx, pc *purchaseCtx) ([]*uuid.UUID, error) {
+			if !text && !files {
+				return nil, apperror.InvalidField("text")
+			}
+			if err := pc.q.RedactWorkingGroupPurchase(ctx, workinggroupsdb.RedactWorkingGroupPurchaseParams{
+				ID: id, RedactText: text, RedactFiles: files,
+			}); err != nil {
+				return nil, err
+			}
+			var fields []string
+			var discard []*uuid.UUID
+			if text {
+				fields = append(fields, "item", "link", "declineReason")
+			}
+			if files {
+				fields = append(fields, "attachment", "receiptFile")
+				discard = []*uuid.UUID{pc.core.AttachmentFileID, pc.core.ReceiptFileID}
+			}
+			return discard, writeTaskAudit(ctx, tx, p, "working_group_purchase.redacted", "working_group_purchase", id, requestID, fields)
+		},
+	})
 }

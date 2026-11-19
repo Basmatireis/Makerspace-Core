@@ -10,10 +10,14 @@ import (
 )
 
 func periodDTO(v workinggroups.Period) openapi.WorkingGroupBudgetPeriod {
-	return openapi.WorkingGroupBudgetPeriod{
+	out := openapi.WorkingGroupBudgetPeriod{
 		Id: v.ID, Name: v.Name, StartsOn: openapi_types.Date{Time: v.StartsOn}, EndsOn: openapi_types.Date{Time: v.EndsOn},
-		TotalAmount: v.TotalAmount, Closed: v.Closed, ClosedAt: v.ClosedAt, Current: v.Current, Version: v.Version, CreatedAt: v.CreatedAt,
+		Closed: v.Closed, ClosedAt: v.ClosedAt, Current: v.Current, Version: v.Version, CreatedAt: v.CreatedAt,
 	}
+	if v.TotalAmount != "" {
+		out.TotalAmount = &v.TotalAmount
+	}
+	return out
 }
 
 func groupBudgetDTO(v workinggroups.GroupBudget) openapi.WorkingGroupGroupBudget {
@@ -360,6 +364,9 @@ func (s *Server) HandInWorkingGroupPurchaseReceipt(
 	if err != nil {
 		return nil, err
 	}
+	if err := s.workingGroups.CheckPurchaseUpload(ctx, p, r.PurchaseId); err != nil {
+		return nil, err
+	}
 	upload, err := readFinanceFile(r.Body, r.Params.XFileName, r.Params.XFileContentType)
 	if err != nil {
 		return nil, err
@@ -402,6 +409,9 @@ func (s *Server) UploadWorkingGroupPurchaseAttachment(
 	if err != nil {
 		return nil, err
 	}
+	if err := s.workingGroups.CheckPurchaseUpload(ctx, p, r.PurchaseId); err != nil {
+		return nil, err
+	}
 	upload, err := readFinanceFile(r.Body, r.Params.XFileName, r.Params.XFileContentType)
 	if err != nil {
 		return nil, err
@@ -442,7 +452,7 @@ func (s *Server) ListWorkingGroupPurchaseOrders(
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.workingGroups.ListOrders(ctx, p)
+	items, truncated, err := s.workingGroups.ListOrders(ctx, p)
 	if err != nil {
 		return nil, err
 	}
@@ -450,7 +460,7 @@ func (s *Server) ListWorkingGroupPurchaseOrders(
 	for _, item := range items {
 		out = append(out, orderDTO(item))
 	}
-	return openapi.ListWorkingGroupPurchaseOrders200JSONResponse{Items: out}, nil
+	return openapi.ListWorkingGroupPurchaseOrders200JSONResponse{Items: out, Truncated: &truncated}, nil
 }
 
 func (s *Server) CreateWorkingGroupPurchaseOrder(
@@ -512,6 +522,9 @@ func (s *Server) UploadWorkingGroupPurchaseOrderInvoice(
 ) (openapi.UploadWorkingGroupPurchaseOrderInvoiceResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.workingGroups.CheckOrderUpload(ctx, p, r.OrderId); err != nil {
 		return nil, err
 	}
 	upload, err := readFinanceFile(r.Body, r.Params.XFileName, r.Params.XFileContentType)
@@ -682,4 +695,51 @@ func (s *Server) DeleteWorkingGroupProjectRequest(
 		return nil, err
 	}
 	return openapi.DeleteWorkingGroupProjectRequest204Response{}, nil
+}
+
+func (s *Server) RedactWorkingGroupPurchase(
+	ctx context.Context,
+	r openapi.RedactWorkingGroupPurchaseRequestObject,
+) (openapi.RedactWorkingGroupPurchaseResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.workingGroups.RedactPurchase(ctx, p, r.PurchaseId, r.Body.ExpectedVersion, r.Body.Text, r.Body.Files, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.RedactWorkingGroupPurchase200JSONResponse(purchaseDTO(item)), nil
+}
+
+func (s *Server) DeleteWorkingGroupPurchaseOrderInvoice(
+	ctx context.Context,
+	r openapi.DeleteWorkingGroupPurchaseOrderInvoiceRequestObject,
+) (openapi.DeleteWorkingGroupPurchaseOrderInvoiceResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.workingGroups.RemoveOrderInvoice(ctx, p, r.OrderId, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteWorkingGroupPurchaseOrderInvoice204Response{}, nil
+}
+
+func (s *Server) RedactWorkingGroupBooking(
+	ctx context.Context,
+	r openapi.RedactWorkingGroupBookingRequestObject,
+) (openapi.RedactWorkingGroupBookingResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	booking, err := s.workingGroups.RedactBooking(ctx, p, r.BookingId, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.RedactWorkingGroupBooking200JSONResponse(bookingDTO(booking)), nil
 }

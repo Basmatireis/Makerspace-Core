@@ -70,7 +70,11 @@ func (s *Service) ListPeriods(ctx context.Context, p authorization.Principal) ([
 	}
 	items := make([]Period, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, s.newPeriod(row.ID, row.Name, row.StartsOn, row.EndsOn, row.TotalAmount, row.ClosedAt, row.Version, row.CreatedAt))
+		period := s.newPeriod(row.ID, row.Name, row.StartsOn, row.EndsOn, row.TotalAmount, row.ClosedAt, row.Version, row.CreatedAt)
+		if !isFinance(p) {
+			period.TotalAmount = "" // the total from HTU is for finance managers
+		}
+		items = append(items, period)
 	}
 	return items, nil
 }
@@ -287,17 +291,17 @@ func (s *Service) SetShare(
 	}
 	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		q := workinggroupsdb.New(tx)
+		// Group before period, like every change that books into a period; the share's foreign key to the group
+		// would otherwise wait for a purchase that holds the group and waits for this period.
+		if _, err := q.LockWorkingGroup(ctx, groupID); err != nil {
+			return noRows(err)
+		}
 		locked, err := q.LockWorkingGroupBudgetPeriod(ctx, periodID)
 		if err != nil {
 			return noRows(err)
 		}
 		if locked.ClosedAt.Valid {
 			return periodClosedError()
-		}
-		// The group is not locked here (purchases lock the group before the period); a group deleted meanwhile
-		// fails the foreign key below.
-		if _, err := q.GetWorkingGroup(ctx, workinggroupsdb.GetWorkingGroupParams{CallerPersonID: p.PersonID, ID: groupID}); err != nil {
-			return noRows(err)
 		}
 		if err := q.UpsertWorkingGroupBudgetShare(ctx, workinggroupsdb.UpsertWorkingGroupBudgetShareParams{
 			PeriodID: periodID, GroupID: groupID, Amount: moneyText(given),
@@ -344,7 +348,7 @@ func (s *Service) GetBudget(ctx context.Context, p authorization.Principal, peri
 		id = *periodID
 	} else {
 		today := s.today()
-		if id, err = q.CurrentWorkingGroupBudgetPeriod(ctx, dateParam(&today)); err != nil {
+		if id, err = q.CurrentWorkingGroupBudgetPeriodRead(ctx, dateParam(&today)); err != nil {
 			return Budget{}, noRows(err)
 		}
 	}
@@ -372,6 +376,9 @@ func (s *Service) GetBudget(ctx context.Context, p authorization.Principal, peri
 			TotalAmount: moneyText(total), GivenSum: moneyText(givenSum), KeptBack: moneyText(total.Sub(givenSum)),
 			SpentSum: moneyText(spentSum), ReservedSum: moneyText(reservedSum), FreeSum: moneyText(givenSum.Sub(spentSum).Sub(reservedSum)),
 		}
+	}
+	if !finance {
+		budget.Period.TotalAmount = ""
 	}
 	return budget, nil
 }

@@ -98,7 +98,7 @@ var recommendations = map[privacy.CategoryID]privacy.Recommendation{
 	WorkingGroupFinances: {
 		Trigger: privacy.TriggerCompletedAt, PeriodDays: 0, Action: privacy.ActionRetainWithReview,
 		Purpose: "Plan the budget of working groups and account for purchases and reimbursements", LegalBasis: basisLabUse,
-		Reason: "Purchases, receipts and orders document how the budget was spent; the person links go when the person is deleted, the texts and files stay. Finance managers can delete a purchase that was wanted or declined, and a closed period keeps its record; review old receipts for personal data.",
+		Reason: "Purchases, receipts and orders document how the budget was spent; the person links go when the person is deleted, the texts and files stay. Finance managers can delete a purchase that was wanted or declined, and can redact any purchase, booking or invoice (texts replaced by the word Removed, offer, receipt and invoice files deleted), also in a closed period; review old receipts for personal data.",
 	},
 	LabRulesConfirmations: {
 		Trigger: privacy.TriggerAccountClosedAt, PeriodDays: 0, Action: privacy.ActionRetainWithReview,

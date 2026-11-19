@@ -237,6 +237,15 @@ func (s *Service) Delete(ctx context.Context, p authorization.Principal, id uuid
 		if _, err := q.LockWorkingGroup(ctx, id); err != nil {
 			return noRows(err)
 		}
+		// Records of the budget are kept: only a finance manager deletes a group with records, and never one whose
+		// records lie in a closed period.
+		records, err := q.CountWorkingGroupFinanceRecords(ctx, id)
+		if err != nil {
+			return err
+		}
+		if records.InClosed > 0 || (records.Total > 0 && !isFinance(p)) {
+			return apperror.Conflicting("working_group_has_finances", "The group has budget records and cannot be deleted")
+		}
 		// The purchases of the group go with it; so do their offers and receipts.
 		fileIDs, err := q.ListWorkingGroupFileIDs(ctx, id)
 		if err != nil {

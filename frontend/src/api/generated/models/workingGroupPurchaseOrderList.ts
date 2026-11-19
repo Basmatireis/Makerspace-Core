@@ -22,4 +22,6 @@ import type { WorkingGroupPurchaseOrder } from './workingGroupPurchaseOrder';
 
 export interface WorkingGroupPurchaseOrderList {
   items: WorkingGroupPurchaseOrder[];
+  /** True when more orders matched than the 200 returned. */
+  truncated?: boolean;
 }

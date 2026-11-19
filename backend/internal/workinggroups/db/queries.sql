@@ -686,3 +686,35 @@ SELECT attachment_file_id, receipt_file_id FROM working_group_purchases WHERE id
 
 -- name: GetWorkingGroupPurchaseOrderInvoice :one
 SELECT invoice_file_id FROM working_group_purchase_orders WHERE id = sqlc.arg(id);
+
+-- name: CountWorkingGroupFinanceRecords :one
+-- Purchases, bookings and shares of a group, and how many of them lie in a closed period.
+SELECT ((SELECT count(*) FROM working_group_purchases WHERE group_id = sqlc.arg(target_group)::uuid)
+      + (SELECT count(*) FROM working_group_bookings WHERE group_id = sqlc.arg(target_group)::uuid)
+      + (SELECT count(*) FROM working_group_budget_shares WHERE group_id = sqlc.arg(target_group)::uuid))::bigint AS total,
+     ((SELECT count(*) FROM working_group_purchases x JOIN working_group_budget_periods per ON per.id = x.period_id
+        WHERE x.group_id = sqlc.arg(target_group)::uuid AND per.closed_at IS NOT NULL)
+      + (SELECT count(*) FROM working_group_bookings x JOIN working_group_budget_periods per ON per.id = x.period_id
+        WHERE x.group_id = sqlc.arg(target_group)::uuid AND per.closed_at IS NOT NULL)
+      + (SELECT count(*) FROM working_group_budget_shares x JOIN working_group_budget_periods per ON per.id = x.period_id
+        WHERE x.group_id = sqlc.arg(target_group)::uuid AND per.closed_at IS NOT NULL))::bigint AS in_closed;
+
+-- name: CurrentWorkingGroupBudgetPeriodRead :one
+-- Like CurrentWorkingGroupBudgetPeriod, without the lock, for reads.
+SELECT id FROM working_group_budget_periods
+WHERE closed_at IS NULL AND starts_on <= sqlc.arg(today)::date AND ends_on >= sqlc.arg(today)::date
+ORDER BY starts_on DESC, id DESC
+LIMIT 1;
+
+-- name: RedactWorkingGroupPurchase :exec
+UPDATE working_group_purchases SET
+    item = CASE WHEN sqlc.arg(redact_text)::boolean THEN 'Removed' ELSE item END,
+    link = CASE WHEN sqlc.arg(redact_text)::boolean THEN NULL ELSE link END,
+    decline_reason = CASE WHEN sqlc.arg(redact_text)::boolean THEN NULL ELSE decline_reason END,
+    attachment_file_id = CASE WHEN sqlc.arg(redact_files)::boolean THEN NULL ELSE attachment_file_id END,
+    receipt_file_id = CASE WHEN sqlc.arg(redact_files)::boolean THEN NULL ELSE receipt_file_id END,
+    version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id);
+
+-- name: RedactWorkingGroupBooking :execrows
+UPDATE working_group_bookings SET text = 'Removed' WHERE id = sqlc.arg(id);
