@@ -1,12 +1,11 @@
-import { useState, type ReactNode } from 'react';
-import { Button, Link as CarbonLink, ListItem, Tag, Tile, UnorderedList } from '@carbon/react';
+import type { ReactNode } from 'react';
+import { Button, Link as CarbonLink, ListItem, ProgressBar, Tag, Tile, UnorderedList } from '@carbon/react';
 import { Add, ArrowRight, Launch, TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { WorkingGroup, WorkingGroupNote, WorkingGroupSummary } from '../../api/generated/models';
-import { deleteWorkingGroupNote } from '../../api/generated/working-groups/working-groups';
 import { DetailPanel, DetailPanelSection } from '../../app/components/DetailPanel';
-import { useNotify } from '../../app/toasts';
+import { formatDate } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { DirectoryTable, type Column } from '../machinelogbook/shared/DirectoryTable';
 import { QueryBoundary } from '../machinelogbook/shared/QueryBoundary';
@@ -28,7 +27,6 @@ import {
   dateParts,
   dueHint,
   firstName,
-  formatDate,
   initials,
   isOpen,
   personName,
@@ -38,7 +36,8 @@ import {
   todoTask,
   type Task,
 } from './taskModel';
-import { useWgMutation } from './useWgMutation';
+import { useDialogOpener } from './useDialogOpener';
+import { useNoteRemoval } from './useNoteRemoval';
 
 function isHttps(url: string | undefined): url is string {
   try {
@@ -179,8 +178,7 @@ function PinboardTable({
   inside: boolean;
   toolbarAction: ReactNode;
 }) {
-  const notify = useNotify();
-  const remove = useWgMutation((id: string) => deleteWorkingGroupNote(id));
+  const removal = useNoteRemoval();
   const label = inside ? 'Group pinboard' : 'Notes from this group';
   const columns: Column<PinRow>[] = [
     { key: 'kind', header: 'Kind', render: (row) => <PinTag kind={row.kind} /> },
@@ -215,7 +213,7 @@ function PinboardTable({
               tooltipPosition="left"
             />
           )}
-          {row.note?.canDelete && (
+          {row.note && row.note.canDelete && (
             <Button
               kind="ghost"
               size="sm"
@@ -223,13 +221,8 @@ function PinboardTable({
               renderIcon={TrashCan}
               iconDescription="Remove note"
               tooltipPosition="left"
-              disabled={remove.isPending}
-              onClick={() =>
-                remove.mutate(row.note?.id ?? '', {
-                  onSuccess: () => notify({ kind: 'success', title: 'Note removed' }),
-                  onError: () => notify({ kind: 'error', title: 'Note not removed' }),
-                })
-              }
+              disabled={removal.pending}
+              onClick={() => row.note && removal.request(row.note)}
             />
           )}
         </span>
@@ -237,19 +230,22 @@ function PinboardTable({
     },
   ];
   return (
-    <DirectoryTable
-      id={`wg-pinboard-${groupId}`}
-      urlPrefix="pin"
-      label={label}
-      columns={columns}
-      rows={rows}
-      totalCount={rows.length}
-      searchText={(row) => `${PIN_LABEL[row.kind]} ${row.text} ${row.from}`}
-      defaultSort={{ key: '', direction: 'ASC' }}
-      pageSizes={[10, 20, 50, 100]}
-      toolbarAction={toolbarAction}
-      empty={{ title: 'Nothing pinned', description: 'Notes and open items of the group show up here.' }}
-    />
+    <div id={removal.frameId} tabIndex={-1} className="wg-focus">
+      <DirectoryTable
+        id={`wg-pinboard-${groupId}`}
+        urlPrefix="pin"
+        label={label}
+        columns={columns}
+        rows={rows}
+        totalCount={rows.length}
+        searchText={(row) => `${PIN_LABEL[row.kind]} ${row.text} ${row.from}`}
+        defaultSort={{ key: '', direction: 'ASC' }}
+        pageSizes={[10, 20, 50, 100]}
+        toolbarAction={toolbarAction}
+        empty={{ title: 'Nothing pinned', description: 'Notes and open items of the group show up here.' }}
+      />
+      {removal.dialog}
+    </div>
   );
 }
 
@@ -433,8 +429,8 @@ function InsideOverview({ summary, group }: { summary: WorkingGroupSummary; grou
   const todos = useQuery(workingGroupTodosOptions);
   const notes = useQuery(workingGroupNotesOptions(group.id));
   const status = useQuery(workingGroupStatusOptions);
-  const [pinning, setPinning] = useState(false);
-  const [changing, setChanging] = useState<StatusTarget | null>(null);
+  const pin = useDialogOpener();
+  const change = useDialogOpener<StatusTarget>();
 
   const groupTickets = (tickets.data?.items ?? [])
     .filter((ticket) => ticket.groupId === group.id)
@@ -498,15 +494,14 @@ function InsideOverview({ summary, group }: { summary: WorkingGroupSummary; grou
               {machines.map((item) => (
                 <li key={item.id}>
                   <span className="wg-usage__name">{item.name}</span>
-                  <span
-                    className="wg-bar"
-                    role="img"
-                    aria-label={`${plural(item.daysNotOkLast90, 'day')} of ${STATUS_WINDOW_DAYS} not working`}
-                  >
-                    <span
-                      style={{ inlineSize: `${Math.min(100, (item.daysNotOkLast90 / STATUS_WINDOW_DAYS) * 100)}%` }}
-                    />
-                  </span>
+                  <ProgressBar
+                    className="wg-usage__bar"
+                    size="small"
+                    hideLabel
+                    label={`${item.name}: ${plural(item.daysNotOkLast90, 'day')} of ${STATUS_WINDOW_DAYS} not working`}
+                    value={item.daysNotOkLast90}
+                    max={STATUS_WINDOW_DAYS}
+                  />
                   <StatusTag status={item.status} />
                 </li>
               ))}
@@ -521,16 +516,16 @@ function InsideOverview({ summary, group }: { summary: WorkingGroupSummary; grou
             rows={rows}
             inside
             toolbarAction={
-              <Button renderIcon={Add} onClick={() => setPinning(true)}>
+              <Button renderIcon={Add} onClick={() => pin.open(true)}>
                 Pin a note
               </Button>
             }
           />
         </Card>
-        <SideColumn group={group} todos={groupTodos} today={today} onChangeStatus={setChanging} />
+        <SideColumn group={group} todos={groupTodos} today={today} onChangeStatus={change.open} />
       </div>
-      {pinning && <PinNoteDialog groupId={group.id} onClose={() => setPinning(false)} />}
-      {changing && <ChangeStatusDialog target={changing} onClose={() => setChanging(null)} />}
+      {pin.value && <PinNoteDialog groupId={group.id} onClose={pin.close} />}
+      {change.value && <ChangeStatusDialog target={change.value} onClose={change.close} />}
     </>
   );
 }
@@ -541,7 +536,7 @@ function InsideOverview({ summary, group }: { summary: WorkingGroupSummary; grou
 
 function OutsideOverview({ summary, group }: { summary: WorkingGroupSummary; group: WorkingGroup }) {
   const notes = useQuery(workingGroupNotesOptions(group.id));
-  const [writing, setWriting] = useState(false);
+  const write = useDialogOpener();
   const rows = [...(notes.data?.items ?? [])]
     .filter((note) => note.public)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -554,12 +549,12 @@ function OutsideOverview({ summary, group }: { summary: WorkingGroupSummary; gro
             groupId={group.id}
             rows={rows}
             inside={false}
-            toolbarAction={<Button onClick={() => setWriting(true)}>Write a ticket</Button>}
+            toolbarAction={<Button onClick={() => write.open(true)}>Write a ticket</Button>}
           />
         </Card>
         <SideColumn group={group} today={todayOn()} />
       </div>
-      {writing && <WriteTicketDialog groups={[summary]} initialGroupId={group.id} onClose={() => setWriting(false)} />}
+      {write.value && <WriteTicketDialog groups={[summary]} initialGroupId={group.id} onClose={write.close} />}
     </>
   );
 }

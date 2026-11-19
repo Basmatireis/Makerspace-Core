@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { PermissionId } from '../../api/generated/models';
@@ -14,7 +14,7 @@ const woodId = '0192f6f8-743e-7c77-a349-cd07c3e8e002';
 const ada = { personId: fixturePersonId, displayName: 'Ada Lovelace' };
 const grace = { personId: otherPersonId, displayName: 'Grace Hopper' };
 
-function serve(permissions: PermissionId[]) {
+function serve(permissions: PermissionId[], ownNote = false) {
   const summary = (id: string, name: string, isMember: boolean) => ({
     id,
     name,
@@ -39,6 +39,7 @@ function serve(permissions: PermissionId[]) {
         latestConfirmedAt: null,
       }),
     ),
+    http.get('*/api/v1/public/open-days', () => HttpResponse.json({ items: [] })),
     http.get('*/api/v1/working-groups', () =>
       HttpResponse.json({ items: [summary(printId, 'Printing', true), summary(woodId, 'Woodworking', false)] }),
     ),
@@ -80,6 +81,18 @@ function serve(permissions: PermissionId[]) {
             author: grace,
             canDelete: false,
           },
+          ...(ownNote
+            ? [
+                {
+                  id: '0192f6f8-743e-7c77-a349-cd07c3e8b002',
+                  public: true,
+                  text: 'Makerspace closed on 24 December',
+                  createdAt: '2026-02-01T10:00:00Z',
+                  author: ada,
+                  canDelete: true,
+                },
+              ]
+            : []),
         ],
       }),
     ),
@@ -108,6 +121,10 @@ function serve(permissions: PermissionId[]) {
   );
 }
 
+/** Icon-only buttons are named by their tooltip text; the button sits next to it. */
+const removeButton = (label: HTMLElement) =>
+  label.closest('.cds--popover-container')?.querySelector('button') as HTMLButtonElement;
+
 describe('dashboard pinboard', () => {
   it('lists what is yours, then what is not ok, then notes, and expands a machine row', async () => {
     const user = userEvent.setup();
@@ -131,6 +148,8 @@ describe('dashboard pinboard', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await user.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const controlled = toggle.getAttribute('aria-controls') ?? '';
+    expect(document.getElementById(controlled)).toHaveTextContent('Status since');
     expect(within(table).getByText('Status since')).toBeInTheDocument();
     expect(within(table).getByText('Changed by')).toBeInTheDocument();
     expect(within(table).getAllByText('Grace Hopper').length).toBeGreaterThan(1);
@@ -143,6 +162,44 @@ describe('dashboard pinboard', () => {
       .map((item) => item.textContent ?? '');
     expect(names[0]).toContain('Table saw');
     expect(names[1]).toContain('Prusa CORE One');
+  });
+
+  it('lets management pin a makerspace note and remove a note with the trash button', async () => {
+    const user = userEvent.setup();
+    serve([PermissionId.working_groupsread, PermissionId.working_groupsmanage], true);
+    let posted: unknown;
+    let removed = 0;
+    server.use(
+      http.post('*/api/v1/working-group-notes', async ({ request }) => {
+        posted = await request.json();
+        return HttpResponse.json({}, { status: 201 });
+      }),
+      http.delete('*/api/v1/working-group-notes/:id', () => {
+        removed += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderRoute(<App />, '/dashboard');
+    const table = await screen.findByRole('table', { name: 'Pinboard' });
+    await user.click(screen.getByRole('button', { name: 'Pin a note' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByLabelText('Everyone')).not.toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText('Note'), 'Closed for cleaning');
+    await user.click(within(dialog).getByRole('button', { name: 'Pin' }));
+    await waitFor(() => expect(posted).toEqual({ public: true, text: 'Closed for cleaning' }));
+
+    // Only the note with canDelete has the button; it is the author's own, so it goes without a question.
+    const labels = within(table).getAllByText('Remove note');
+    expect(labels).toHaveLength(1);
+    await user.click(removeButton(labels[0]));
+    await waitFor(() => expect(removed).toBe(1));
+  });
+
+  it('shows no Pin a note without working_groups.manage', async () => {
+    serve([PermissionId.working_groupsread]);
+    renderRoute(<App />, '/dashboard');
+    await screen.findByRole('table', { name: 'Pinboard' });
+    expect(screen.queryByRole('button', { name: 'Pin a note' })).not.toBeInTheDocument();
   });
 
   it('is hidden without working_groups.read', async () => {

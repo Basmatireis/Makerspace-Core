@@ -26,7 +26,8 @@ import { Fact, FactsGrid } from '../../app/components/Facts';
 import { Avatar } from './TaskList';
 import { useCurrentUser } from '../auth/auth';
 import { canManageWorkingGroups, workingGroupTicketOptions, workingGroupTodoOptions } from './queries';
-import { firstName, formatDate, kindLine, personName, repeatLabel, type Task } from './taskModel';
+import { formatDate } from '../../app/dateTime';
+import { firstName, formatDateOnly, kindLine, personName, repeatLabel, type Task } from './taskModel';
 import { saveErrorText, taskErrorText, useWgMutation } from './useWgMutation';
 
 interface Props {
@@ -233,7 +234,7 @@ export function TaskPanel({ task, group, me, onPlan, onAnswer, onGone }: Props) 
                   }}
                 />
               ) : task.dueOn ? (
-                formatDate(task.dueOn)
+                formatDateOnly(task.dueOn)
               ) : (
                 'No due date'
               )}

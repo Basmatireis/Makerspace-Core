@@ -1,5 +1,6 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/components/progress-bar';
 @use '@carbon/styles/scss/theme' as theme;
 
 // Application-specific layout for the working-group pages; every control is a Carbon component.
@@ -695,7 +696,176 @@
 
   li {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 4rem auto;
+    grid-template-columns: minmax(0, 1fr) 6rem auto;
+    align-items: center;
+    gap: $spacing-03;
+  }
+}
+
+.wg-usage__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wg-focus:focus {
+  outline: none;
+}
+
+.wg-card {
+  display: grid;
+  gap: $spacing-03;
+  padding: $spacing-04;
+  background: theme.$background;
+  cursor: pointer;
+}
+
+.wg-card[draggable='true'] {
+  cursor: grab;
+}
+
+.wg-card:hover {
+  background: theme.$layer-hover-01;
+}
+
+.wg-card.is-sel {
+  background: theme.$layer-selected-01;
+}
+
+.wg-card__top {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  color: theme.$text-secondary;
+}
+
+.wg-card__title {
+  font-weight: 600;
+}
+
+.wg-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.wg-card__who {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  @include type-style('helper-text-01');
+}
+
+// Detail panel.
+.wg-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: $spacing-03;
+  margin-block: $spacing-04;
+}
+
+.wg-panel-body {
+  margin-block: $spacing-04;
+  white-space: pre-wrap;
+}
+
+.wg-panel-blocks {
+  color: theme.$support-error;
+}
+
+.wg-comments {
+  list-style: none;
+  display: grid;
+  gap: $spacing-04;
+  margin: 0 0 $spacing-04;
+  padding: 0;
+}
+
+.wg-comment {
+  display: flex;
+  gap: $spacing-03;
+}
+
+.wg-comment p {
+  margin: 0;
+}
+
+.wg-comment__meta {
+  @include type-style('helper-text-01');
+  color: theme.$text-secondary;
+}
+
+.wg-comment__text {
+  white-space: pre-wrap;
+}
+
+.wg-colform {
+  list-style: none;
+  display: grid;
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+}
+
+.wg-colform__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: $spacing-02;
+  align-items: start;
+}
+
+// ---- Overview and dashboard pinboard ------------------------------------------------------------------------
+
+.wg-layout--stats {
+  margin-block-end: $spacing-05;
+}
+
+.wg-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: $spacing-05;
+}
+
+.wg-stat.cds--tile {
+  display: grid;
+  align-content: start;
+  gap: $spacing-02;
+}
+
+.wg-stat__label {
+  @include type-style('heading-compact-01');
+}
+
+.wg-stat__value {
+  @include type-style('productive-heading-04');
+}
+
+.wg-stat__detail,
+.wg-muted {
+  display: block;
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+
+.wg-stat__row {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-03;
+  @include type-style('body-compact-01');
+}
+
+.wg-usage {
+  display: grid;
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 6rem auto;
     align-items: center;
     gap: $spacing-03;
   }

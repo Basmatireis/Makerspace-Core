@@ -172,8 +172,11 @@ export function dateParts(date: string) {
   return { weekday: format({ weekday: 'short' }), day: format({ day: 'numeric' }), month: format({ month: 'short' }) };
 }
 
-export const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+/** A plain `YYYY-MM-DD` date as DD.MM.YYYY, without a `Date` that the browser time zone could shift. */
+export function formatDateOnly(date: string): string {
+  const [year, month, day] = date.slice(0, 10).split('-');
+  return `${day}.${month}.${year}`;
+}
 
 export const TICKET_KIND_LABEL: Record<WorkingGroupTicketKind, string> = {
   problem: 'Problem',

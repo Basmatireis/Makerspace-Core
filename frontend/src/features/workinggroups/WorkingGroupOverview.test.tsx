@@ -177,6 +177,10 @@ function serve(options: { group?: WorkingGroup; notes?: WorkingGroupNote[]; perm
   return bodies;
 }
 
+/** Icon-only buttons are named by their tooltip text; the button sits next to it. */
+const removeButton = (label: HTMLElement) =>
+  label.closest('.cds--popover-container')?.querySelector('button') as HTMLButtonElement;
+
 describe('working group overview for people inside', () => {
   it('shows the stat tiles and the pinboard in order, with the last comments under a row', async () => {
     serve();
@@ -218,7 +222,7 @@ describe('working group overview for people inside', () => {
     expect(screen.getByText('Open tickets')).toBeInTheDocument();
     expect(screen.getByText('Open to-dos')).toBeInTheDocument();
     expect(screen.getByText('Machines, last 90 days')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: '9 days of 90 not working' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /9 days of 90 not working/ })).toBeInTheDocument();
     expect(screen.getByText('Lead: Grace Hopper')).toBeInTheDocument();
     expect(screen.getByText(/back around 3 Dec/)).toBeInTheDocument();
   });
@@ -229,6 +233,43 @@ describe('working group overview for people inside', () => {
     const table = await screen.findByRole('table', { name: 'Group pinboard' });
     await within(table).findByText('Team meeting on Friday');
     expect(within(table).getAllByText('Remove note')).toHaveLength(1);
+  });
+
+  it('asks before removing the note of somebody else', async () => {
+    const user = userEvent.setup();
+    serve();
+    let removed = 0;
+    server.use(
+      http.delete('*/api/v1/working-group-notes/:id', () => {
+        removed += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderRoute(<App />, '/working-groups');
+    const table = await screen.findByRole('table', { name: 'Group pinboard' });
+    await user.click(removeButton(await within(table).findByText('Remove note')));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Team meeting on Friday');
+    expect(removed).toBe(0);
+    await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(removed).toBe(1));
+  });
+
+  it('removes the own note without asking', async () => {
+    const user = userEvent.setup();
+    serve({ notes: [note({ author: ada })] });
+    let removed = 0;
+    server.use(
+      http.delete('*/api/v1/working-group-notes/:id', () => {
+        removed += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderRoute(<App />, '/working-groups');
+    const table = await screen.findByRole('table', { name: 'Group pinboard' });
+    await user.click(removeButton(await within(table).findByText('Remove note')));
+    await waitFor(() => expect(removed).toBe(1));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('pins a note for everyone', async () => {

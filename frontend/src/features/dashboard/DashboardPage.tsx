@@ -14,6 +14,7 @@ import { ComingUpPanel } from './ComingUpPanel';
 import { NextOpenDayTile, UpcomingOpenDaysList } from './GuestOpenDays';
 import { LabRulesNotice, LabRulesTile } from './LabRules';
 import { JobsPerMonth } from './JobsPerMonth';
+import PinboardSkeleton from '../workinggroups/PinboardSkeleton';
 import { NextUpTile } from './NextUpTile';
 import { PayDialog } from './PayDialog';
 import { RecentJobsPanel, RecentOrdersPanel } from './RecentPanels';
@@ -105,7 +106,7 @@ export function DashboardPage() {
       )}
       <div className="db-grid">
         {hasPermission(currentUser, PermissionId.working_groupsread) && (
-          <Suspense fallback={null}>
+          <Suspense fallback={<PinboardSkeleton />}>
             <DashboardPinboard />
           </Suspense>
         )}

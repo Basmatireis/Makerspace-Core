@@ -82,12 +82,16 @@ interface NoteValues {
   audience: 'group' | 'public';
 }
 
-/** Pins a note to a group's board: for the group only, or for everyone. */
-export function PinNoteDialog({ groupId, onClose }: { groupId: string; onClose: () => void }) {
+/** Pins a note to a group's board (for the group or for everyone); without a group it is a makerspace note for everyone. */
+export function PinNoteDialog({ groupId, onClose }: { groupId?: string; onClose: () => void }) {
   const notify = useNotify();
   const { control, handleSubmit } = useForm<NoteValues>({ defaultValues: { text: '', audience: 'group' } });
   const create = useWgMutation((values: NoteValues) =>
-    createWorkingGroupNote({ groupId, public: values.audience === 'public', text: values.text.trim() }),
+    createWorkingGroupNote({
+      groupId,
+      public: !groupId || values.audience === 'public',
+      text: values.text.trim(),
+    }),
   );
   const submit = handleSubmit((values) =>
     create.mutate(values, {
@@ -125,22 +129,24 @@ export function PinNoteDialog({ groupId, onClose }: { groupId: string; onClose: 
           />
         )}
       />
-      <Controller
-        control={control}
-        name="audience"
-        render={({ field }) => (
-          <RadioButtonGroup
-            legendText="Who sees it"
-            name="wg-note-audience"
-            orientation="vertical"
-            valueSelected={field.value}
-            onChange={(value) => field.onChange(value)}
-          >
-            <RadioButton id="wg-note-group" labelText="The group" value="group" />
-            <RadioButton id="wg-note-public" labelText="Everyone" value="public" />
-          </RadioButtonGroup>
-        )}
-      />
+      {groupId && (
+        <Controller
+          control={control}
+          name="audience"
+          render={({ field }) => (
+            <RadioButtonGroup
+              legendText="Who sees it"
+              name="wg-note-audience"
+              orientation="vertical"
+              valueSelected={field.value}
+              onChange={(value) => field.onChange(value)}
+            >
+              <RadioButton id="wg-note-group" labelText="The group" value="group" />
+              <RadioButton id="wg-note-public" labelText="Everyone" value="public" />
+            </RadioButtonGroup>
+          )}
+        />
+      )}
     </FormModal>
   );
 }

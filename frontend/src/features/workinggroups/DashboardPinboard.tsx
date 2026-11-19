@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { Button, Link as CarbonLink, Tag, Tile } from '@carbon/react';
-import { ArrowRight, ChevronDown, ChevronUp } from '@carbon/icons-react';
+import { Add, ArrowRight, ChevronDown, ChevronUp, TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { WorkingGroupNote, WorkingGroupStatusItem } from '../../api/generated/models';
+import { formatDate } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { DirectoryTable, type Column } from '../machinelogbook/shared/DirectoryTable';
-import { ChangeStatusDialog, StatusTag } from './StatusParts';
+import PinboardSkeleton from './PinboardSkeleton';
+import { ChangeStatusDialog, PinNoteDialog, StatusTag } from './StatusParts';
+import { useDialogOpener } from './useDialogOpener';
+import { useNoteRemoval } from './useNoteRemoval';
 import {
   canManageWorkingGroups,
   workingGroupNotesOptions,
@@ -26,7 +30,7 @@ import {
 import {
   bucketOf,
   dueHint,
-  formatDate,
+  formatDateOnly,
   isOpen,
   personName,
   ticketTask,
@@ -67,8 +71,11 @@ export default function DashboardPinboard() {
   const tickets = useQuery(workingGroupTicketsOptions);
   const todos = useQuery(workingGroupTodosOptions);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const [changing, setChanging] = useState<StatusTarget | null>(null);
+  const change = useDialogOpener<StatusTarget>();
+  const pin = useDialogOpener();
+  const removal = useNoteRemoval();
 
+  if (groups.isPending || status.isPending || notes.isPending) return <PinboardSkeleton />;
   if (!groups.data || !status.data || !notes.data) return null;
   const today = todayOn();
   const items = [...status.data.items].sort(notOkFirst);
@@ -146,28 +153,31 @@ export default function DashboardPinboard() {
               size="sm"
               renderIcon={open ? ChevronUp : ChevronDown}
               aria-expanded={open}
+              aria-controls={`wg-status-${item.id}`}
               onClick={() => toggle(row.id)}
             >
               {item.name}
             </Button>
             {(item.note || until) && <span className="wg-muted">{[item.note, until].filter(Boolean).join(' · ')}</span>}
-            {open && (
-              <dl className="wg-facts">
-                <dt>Status since</dt>
-                <dd>{item.changedAt ? formatDate(item.changedAt) : 'Not recorded'}</dd>
-                <dt>Changed by</dt>
-                <dd>{personName(item.changedBy)}</dd>
-                <dt>Days not ok, last {STATUS_WINDOW_DAYS}</dt>
-                <dd>{item.daysNotOkLast90}</dd>
-                {insideGroup(item.group.id) && (
-                  <dd className="wg-facts__action">
-                    <Button kind="tertiary" size="sm" onClick={() => setChanging(target(item))}>
+            <div id={`wg-status-${item.id}`} hidden={!open}>
+              {open && (
+                <>
+                  <dl className="wg-facts">
+                    <dt>Status since</dt>
+                    <dd>{item.changedAt ? formatDate(item.changedAt) : 'Not recorded'}</dd>
+                    <dt>Changed by</dt>
+                    <dd>{personName(item.changedBy)}</dd>
+                    <dt>Days not ok, last {STATUS_WINDOW_DAYS}</dt>
+                    <dd>{item.daysNotOkLast90}</dd>
+                  </dl>
+                  {insideGroup(item.group.id) && (
+                    <Button kind="tertiary" size="sm" onClick={() => change.open(target(item))}>
                       Change status
                     </Button>
-                  </dd>
-                )}
-              </dl>
-            )}
+                  )}
+                </>
+              )}
+            </div>
           </>
         );
       },
@@ -194,7 +204,7 @@ export default function DashboardPinboard() {
       render: (row) =>
         row.type === 'yours'
           ? row.task.dueOn
-            ? formatDate(`${row.task.dueOn}T00:00:00Z`)
+            ? formatDateOnly(row.task.dueOn)
             : ''
           : row.type === 'status'
             ? row.item.changedAt
@@ -208,7 +218,20 @@ export default function DashboardPinboard() {
       hiddenHeader: true,
       className: 'wg-actions-cell',
       render: (row) =>
-        row.type === 'yours' ? (
+        row.type === 'note' ? (
+          row.note.canDelete ? (
+            <Button
+              kind="ghost"
+              size="sm"
+              hasIconOnly
+              renderIcon={TrashCan}
+              iconDescription="Remove note"
+              tooltipPosition="left"
+              disabled={removal.pending}
+              onClick={() => removal.request(row.note)}
+            />
+          ) : null
+        ) : row.type === 'yours' ? (
           <Button
             as={Link}
             to={taskLink(row.task)}
@@ -232,27 +255,36 @@ export default function DashboardPinboard() {
             Working groups
           </CarbonLink>
         </header>
-        <DirectoryTable
-          id="wg-dashboard-pinboard"
-          urlPrefix="pb"
-          label="Pinboard"
-          columns={columns}
-          rows={rows}
-          totalCount={rows.length}
-          searchText={(row) =>
-            row.type === 'yours'
-              ? `Yours ${row.task.title} ${row.task.groupName}`
-              : row.type === 'status'
-                ? `${STATUS_LABEL[row.item.status]} ${row.item.name} ${row.item.note ?? ''} ${row.item.group.name}`
-                : `${row.note.text} ${personName(row.note.author)} ${row.note.groupName ?? ''}`
-          }
-          defaultSort={{ key: '', direction: 'ASC' }}
-          pageSizes={[10, 20, 50, 100]}
-          onRowClick={(row) => {
-            if (row.type === 'status') toggle(row.id);
-          }}
-          empty={{ title: 'Nothing pinned', description: 'Everything is working and nothing is pinned.' }}
-        />
+        <div id={removal.frameId} tabIndex={-1} className="wg-focus">
+          <DirectoryTable
+            id="wg-dashboard-pinboard"
+            urlPrefix="pb"
+            label="Pinboard"
+            columns={columns}
+            rows={rows}
+            totalCount={rows.length}
+            searchText={(row) =>
+              row.type === 'yours'
+                ? `Yours ${row.task.title} ${row.task.groupName}`
+                : row.type === 'status'
+                  ? `${STATUS_LABEL[row.item.status]} ${row.item.name} ${row.item.note ?? ''} ${row.item.group.name}`
+                  : `${row.note.text} ${personName(row.note.author)} ${row.note.groupName ?? ''}`
+            }
+            defaultSort={{ key: '', direction: 'ASC' }}
+            pageSizes={[10, 20, 50, 100]}
+            toolbarAction={
+              manage ? (
+                <Button renderIcon={Add} onClick={() => pin.open(true)}>
+                  Pin a note
+                </Button>
+              ) : undefined
+            }
+            onRowClick={(row) => {
+              if (row.type === 'status') toggle(row.id);
+            }}
+            empty={{ title: 'Nothing pinned', description: 'Everything is working and nothing is pinned.' }}
+          />
+        </div>
       </section>
       {items.length > 0 && (
         <section className="wg-all" aria-labelledby="wg-all-title">
@@ -274,7 +306,9 @@ export default function DashboardPinboard() {
           </ul>
         </section>
       )}
-      {changing && <ChangeStatusDialog target={changing} onClose={() => setChanging(null)} />}
+      {change.value && <ChangeStatusDialog target={change.value} onClose={change.close} />}
+      {pin.value && <PinNoteDialog onClose={pin.close} />}
+      {removal.dialog}
     </>
   );
 }
