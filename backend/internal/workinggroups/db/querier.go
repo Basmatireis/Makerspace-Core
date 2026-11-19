@@ -6,6 +6,7 @@ package workinggroupsdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -21,12 +22,16 @@ type Querier interface {
 	ClearWorkingGroupTicketAssignments(ctx context.Context, arg ClearWorkingGroupTicketAssignmentsParams) error
 	ClearWorkingGroupTodoAssignments(ctx context.Context, arg ClearWorkingGroupTodoAssignmentsParams) error
 	CreateWorkingGroup(ctx context.Context, arg CreateWorkingGroupParams) error
+	CreateWorkingGroupNote(ctx context.Context, arg CreateWorkingGroupNoteParams) error
 	CreateWorkingGroupTicket(ctx context.Context, arg CreateWorkingGroupTicketParams) error
 	CreateWorkingGroupTodo(ctx context.Context, arg CreateWorkingGroupTodoParams) error
 	DeleteWorkingGroup(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupColumn(ctx context.Context, arg DeleteWorkingGroupColumnParams) error
-	DeleteWorkingGroupMachines(ctx context.Context, groupID uuid.UUID) error
+	DeleteWorkingGroupMachine(ctx context.Context, arg DeleteWorkingGroupMachineParams) error
+	// A machine that leaves its group starts again at ok, without history.
+	DeleteWorkingGroupMachineStatusChanges(ctx context.Context, arg DeleteWorkingGroupMachineStatusChangesParams) error
 	DeleteWorkingGroupMember(ctx context.Context, arg DeleteWorkingGroupMemberParams) (int64, error)
+	DeleteWorkingGroupNote(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupPlace(ctx context.Context, arg DeleteWorkingGroupPlaceParams) (int64, error)
 	DeleteWorkingGroupTicket(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupTicketComment(ctx context.Context, arg DeleteWorkingGroupTicketCommentParams) (int64, error)
@@ -35,10 +40,15 @@ type Querier interface {
 	DeleteWorkingGroupTodoComment(ctx context.Context, arg DeleteWorkingGroupTodoCommentParams) (int64, error)
 	FindWorkingGroupPeople(ctx context.Context, arg FindWorkingGroupPeopleParams) ([]FindWorkingGroupPeopleRow, error)
 	GetWorkingGroup(ctx context.Context, arg GetWorkingGroupParams) (GetWorkingGroupRow, error)
+	GetWorkingGroupMachineStatus(ctx context.Context, arg GetWorkingGroupMachineStatusParams) (GetWorkingGroupMachineStatusRow, error)
 	GetWorkingGroupMember(ctx context.Context, arg GetWorkingGroupMemberParams) (GetWorkingGroupMemberRow, error)
+	GetWorkingGroupNote(ctx context.Context, arg GetWorkingGroupNoteParams) (GetWorkingGroupNoteRow, error)
+	GetWorkingGroupNoteCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupNoteCoreRow, error)
+	GetWorkingGroupPlaceStatus(ctx context.Context, arg GetWorkingGroupPlaceStatusParams) (GetWorkingGroupPlaceStatusRow, error)
 	GetWorkingGroupTicketCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTicketCoreRow, error)
 	GetWorkingGroupTodoCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTodoCoreRow, error)
 	InsertWorkingGroupColumn(ctx context.Context, arg InsertWorkingGroupColumnParams) error
+	InsertWorkingGroupStatusChange(ctx context.Context, arg InsertWorkingGroupStatusChangeParams) error
 	IsVisitorPerson(ctx context.Context, personID uuid.UUID) (bool, error)
 	IsWorkingGroupLead(ctx context.Context, arg IsWorkingGroupLeadParams) (bool, error)
 	IsWorkingGroupMember(ctx context.Context, arg IsWorkingGroupMemberParams) (bool, error)
@@ -46,10 +56,15 @@ type Querier interface {
 	ListExistingMachineIDs(ctx context.Context, ids []uuid.UUID) ([]uuid.UUID, error)
 	ListMachineGroupAssignments(ctx context.Context, ids []uuid.UUID) ([]ListMachineGroupAssignmentsRow, error)
 	ListWorkingGroupColumns(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupColumnsRow, error)
+	ListWorkingGroupItemStatuses(ctx context.Context) ([]ListWorkingGroupItemStatusesRow, error)
 	ListWorkingGroupMachineOptions(ctx context.Context) ([]ListWorkingGroupMachineOptionsRow, error)
 	ListWorkingGroupMachines(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupMachinesRow, error)
 	ListWorkingGroupMembers(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupMembersRow, error)
+	ListWorkingGroupNotes(ctx context.Context, arg ListWorkingGroupNotesParams) ([]ListWorkingGroupNotesRow, error)
 	ListWorkingGroupPlaces(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupPlacesRow, error)
+	// The last change before the window of every item: the status the window starts with.
+	ListWorkingGroupStatusBaselines(ctx context.Context, windowStart time.Time) ([]ListWorkingGroupStatusBaselinesRow, error)
+	ListWorkingGroupStatusChangesSince(ctx context.Context, windowStart time.Time) ([]ListWorkingGroupStatusChangesSinceRow, error)
 	ListWorkingGroupTicketComments(ctx context.Context, arg ListWorkingGroupTicketCommentsParams) ([]ListWorkingGroupTicketCommentsRow, error)
 	ListWorkingGroupTicketFollowers(ctx context.Context, ticketID uuid.UUID) ([]ListWorkingGroupTicketFollowersRow, error)
 	// One query for the list and the single ticket: id, group and status are optional filters.
@@ -69,6 +84,8 @@ type Querier interface {
 	// Gives a column a name nobody else can want, so renames and swaps never meet the unique name index halfway.
 	ParkWorkingGroupColumnName(ctx context.Context, arg ParkWorkingGroupColumnNameParams) error
 	PersonExists(ctx context.Context, id uuid.UUID) (bool, error)
+	SetWorkingGroupMachineStatus(ctx context.Context, arg SetWorkingGroupMachineStatusParams) (int64, error)
+	SetWorkingGroupPlaceStatus(ctx context.Context, arg SetWorkingGroupPlaceStatusParams) (int64, error)
 	SetWorkingGroupTicketState(ctx context.Context, arg SetWorkingGroupTicketStateParams) (int64, error)
 	SetWorkingGroupTodoDone(ctx context.Context, arg SetWorkingGroupTodoDoneParams) (int64, error)
 	UpdateWorkingGroup(ctx context.Context, arg UpdateWorkingGroupParams) (int64, error)

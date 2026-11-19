@@ -253,7 +253,11 @@ SELECT
         + (SELECT count(*) FROM working_group_ticket_followers WHERE person_id = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_todos
             WHERE assignee_person_id = ANY(($1::text[])::uuid[]) OR created_by_person_id = ANY(($1::text[])::uuid[]))
-        + (SELECT count(*) FROM working_group_comments WHERE author_person_id = ANY(($1::text[])::uuid[])))::bigint AS working_group_tasks,
+        + (SELECT count(*) FROM working_group_comments WHERE author_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_notes WHERE author_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_machines WHERE status_changed_by = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_places WHERE status_changed_by = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_status_changes WHERE changed_by_person_id = ANY(($1::text[])::uuid[])))::bigint AS working_group_tasks,
     (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY(($2::text[])::uuid[]))::bigint AS notifications,
     ((SELECT count(*) FROM privacy_retention_holds WHERE subject_person_id = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM privacy_subject_requests WHERE subject_person_id = ANY(($1::text[])::uuid[])))::bigint AS privacy_holds
@@ -1907,9 +1911,23 @@ WITH tickets_moved AS (
 ), comments_moved AS (
     UPDATE working_group_comments AS c SET author_person_id = $2::uuid
     WHERE c.author_person_id = $1 RETURNING 1
+), notes_moved AS (
+    UPDATE working_group_notes AS n SET author_person_id = $2::uuid
+    WHERE n.author_person_id = $1 RETURNING 1
+), machine_status_moved AS (
+    UPDATE working_group_machines AS m SET status_changed_by = $2::uuid
+    WHERE m.status_changed_by = $1 RETURNING 1
+), place_status_moved AS (
+    UPDATE working_group_places AS pl SET status_changed_by = $2::uuid
+    WHERE pl.status_changed_by = $1 RETURNING 1
+), status_changes_moved AS (
+    UPDATE working_group_status_changes AS c SET changed_by_person_id = $2::uuid
+    WHERE c.changed_by_person_id = $1 RETURNING 1
 )
 SELECT ((SELECT count(*) FROM tickets_moved) + (SELECT count(*) FROM followers_moved)
-      + (SELECT count(*) FROM todos_moved) + (SELECT count(*) FROM comments_moved))::bigint AS moved
+      + (SELECT count(*) FROM todos_moved) + (SELECT count(*) FROM comments_moved)
+      + (SELECT count(*) FROM notes_moved) + (SELECT count(*) FROM machine_status_moved)
+      + (SELECT count(*) FROM place_status_moved) + (SELECT count(*) FROM status_changes_moved))::bigint AS moved
 `
 
 type MoveMergeWorkingGroupTasksParams struct {
@@ -1917,7 +1935,8 @@ type MoveMergeWorkingGroupTasksParams struct {
 	TargetPersonID uuid.UUID
 }
 
-// Moves the source's tickets, assignments, follows, to-dos and comments to the target; returns how many rows moved.
+// Moves the source's tickets, assignments, follows, to-dos, comments, pinboard notes and status changes to the target;
+// returns how many rows moved.
 func (q *Queries) MoveMergeWorkingGroupTasks(ctx context.Context, arg MoveMergeWorkingGroupTasksParams) (int64, error) {
 	row := q.db.QueryRow(ctx, moveMergeWorkingGroupTasks, arg.SourcePersonID, arg.TargetPersonID)
 	var moved int64

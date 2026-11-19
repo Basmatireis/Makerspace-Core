@@ -163,6 +163,30 @@ func (q *Queries) CreateWorkingGroup(ctx context.Context, arg CreateWorkingGroup
 	return err
 }
 
+const createWorkingGroupNote = `-- name: CreateWorkingGroupNote :exec
+INSERT INTO working_group_notes (id, group_id, is_public, text, author_person_id)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type CreateWorkingGroupNoteParams struct {
+	ID             uuid.UUID
+	GroupID        *uuid.UUID
+	IsPublic       bool
+	Text           string
+	AuthorPersonID *uuid.UUID
+}
+
+func (q *Queries) CreateWorkingGroupNote(ctx context.Context, arg CreateWorkingGroupNoteParams) error {
+	_, err := q.db.Exec(ctx, createWorkingGroupNote,
+		arg.ID,
+		arg.GroupID,
+		arg.IsPublic,
+		arg.Text,
+		arg.AuthorPersonID,
+	)
+	return err
+}
+
 const createWorkingGroupTicket = `-- name: CreateWorkingGroupTicket :exec
 INSERT INTO working_group_tickets (id, group_id, machine_id, kind, subject, body, blocks_use, author_person_id)
 VALUES ($1, $2, $3, $4, $5, $6,
@@ -251,12 +275,32 @@ func (q *Queries) DeleteWorkingGroupColumn(ctx context.Context, arg DeleteWorkin
 	return err
 }
 
-const deleteWorkingGroupMachines = `-- name: DeleteWorkingGroupMachines :exec
-DELETE FROM working_group_machines WHERE group_id = $1
+const deleteWorkingGroupMachine = `-- name: DeleteWorkingGroupMachine :exec
+DELETE FROM working_group_machines WHERE group_id = $1 AND machine_id = $2
 `
 
-func (q *Queries) DeleteWorkingGroupMachines(ctx context.Context, groupID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteWorkingGroupMachines, groupID)
+type DeleteWorkingGroupMachineParams struct {
+	GroupID   uuid.UUID
+	MachineID uuid.UUID
+}
+
+func (q *Queries) DeleteWorkingGroupMachine(ctx context.Context, arg DeleteWorkingGroupMachineParams) error {
+	_, err := q.db.Exec(ctx, deleteWorkingGroupMachine, arg.GroupID, arg.MachineID)
+	return err
+}
+
+const deleteWorkingGroupMachineStatusChanges = `-- name: DeleteWorkingGroupMachineStatusChanges :exec
+DELETE FROM working_group_status_changes WHERE group_id = $1 AND machine_id = $2
+`
+
+type DeleteWorkingGroupMachineStatusChangesParams struct {
+	GroupID   uuid.UUID
+	MachineID *uuid.UUID
+}
+
+// A machine that leaves its group starts again at ok, without history.
+func (q *Queries) DeleteWorkingGroupMachineStatusChanges(ctx context.Context, arg DeleteWorkingGroupMachineStatusChangesParams) error {
+	_, err := q.db.Exec(ctx, deleteWorkingGroupMachineStatusChanges, arg.GroupID, arg.MachineID)
 	return err
 }
 
@@ -271,6 +315,18 @@ type DeleteWorkingGroupMemberParams struct {
 
 func (q *Queries) DeleteWorkingGroupMember(ctx context.Context, arg DeleteWorkingGroupMemberParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteWorkingGroupMember, arg.GroupID, arg.PersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteWorkingGroupNote = `-- name: DeleteWorkingGroupNote :execrows
+DELETE FROM working_group_notes WHERE id = $1
+`
+
+func (q *Queries) DeleteWorkingGroupNote(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWorkingGroupNote, id)
 	if err != nil {
 		return 0, err
 	}
@@ -424,7 +480,9 @@ SELECT g.id, g.name, g.description, g.chat_url, g.version,
        EXISTS (
            SELECT 1 FROM working_group_members me
            WHERE me.group_id = g.id AND me.person_id = $1 AND me.is_lead
-       ) AS is_lead
+       ) AS is_lead,
+       (SELECT count(*) FROM working_group_tickets t WHERE t.group_id = g.id AND t.status IN ('new', 'planned'))::bigint AS open_ticket_count,
+       (SELECT count(*) FROM working_group_todos d WHERE d.group_id = g.id AND d.done_at IS NULL)::bigint AS open_todo_count
 FROM working_groups g
 LEFT JOIN working_group_members lead ON lead.group_id = g.id AND lead.is_lead
 LEFT JOIN people lead_person ON lead_person.id = lead.person_id
@@ -448,6 +506,8 @@ type GetWorkingGroupRow struct {
 	MachineCount    int64
 	IsMember        bool
 	IsLead          bool
+	OpenTicketCount int64
+	OpenTodoCount   int64
 }
 
 func (q *Queries) GetWorkingGroup(ctx context.Context, arg GetWorkingGroupParams) (GetWorkingGroupRow, error) {
@@ -465,7 +525,32 @@ func (q *Queries) GetWorkingGroup(ctx context.Context, arg GetWorkingGroupParams
 		&i.MachineCount,
 		&i.IsMember,
 		&i.IsLead,
+		&i.OpenTicketCount,
+		&i.OpenTodoCount,
 	)
+	return i, err
+}
+
+const getWorkingGroupMachineStatus = `-- name: GetWorkingGroupMachineStatus :one
+SELECT status, status_note, status_until FROM working_group_machines
+WHERE group_id = $1 AND machine_id = $2
+`
+
+type GetWorkingGroupMachineStatusParams struct {
+	GroupID   uuid.UUID
+	MachineID uuid.UUID
+}
+
+type GetWorkingGroupMachineStatusRow struct {
+	Status      string
+	StatusNote  *string
+	StatusUntil pgtype.Date
+}
+
+func (q *Queries) GetWorkingGroupMachineStatus(ctx context.Context, arg GetWorkingGroupMachineStatusParams) (GetWorkingGroupMachineStatusRow, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupMachineStatus, arg.GroupID, arg.MachineID)
+	var i GetWorkingGroupMachineStatusRow
+	err := row.Scan(&i.Status, &i.StatusNote, &i.StatusUntil)
 	return i, err
 }
 
@@ -488,6 +573,94 @@ func (q *Queries) GetWorkingGroupMember(ctx context.Context, arg GetWorkingGroup
 	row := q.db.QueryRow(ctx, getWorkingGroupMember, arg.GroupID, arg.PersonID)
 	var i GetWorkingGroupMemberRow
 	err := row.Scan(&i.PersonID, &i.IsLead)
+	return i, err
+}
+
+const getWorkingGroupNote = `-- name: GetWorkingGroupNote :one
+SELECT n.id, n.group_id, COALESCE(g.name, '')::text AS group_name, n.is_public, n.text, n.created_at,
+       n.author_person_id, COALESCE(btrim(ap.first_name || ' ' || ap.last_name), '')::text AS author_display_name,
+       (COALESCE(n.author_person_id = $1::uuid, false)
+           OR $2::boolean
+           OR EXISTS (SELECT 1 FROM working_group_members le
+                      WHERE le.group_id = n.group_id AND le.person_id = $1::uuid AND le.is_lead)) AS can_delete
+FROM working_group_notes n
+LEFT JOIN working_groups g ON g.id = n.group_id
+LEFT JOIN people ap ON ap.id = n.author_person_id
+WHERE n.id = $3
+`
+
+type GetWorkingGroupNoteParams struct {
+	CallerPersonID uuid.UUID
+	CallerManage   bool
+	ID             uuid.UUID
+}
+
+type GetWorkingGroupNoteRow struct {
+	ID                uuid.UUID
+	GroupID           *uuid.UUID
+	GroupName         string
+	IsPublic          bool
+	Text              string
+	CreatedAt         time.Time
+	AuthorPersonID    *uuid.UUID
+	AuthorDisplayName string
+	CanDelete         *bool
+}
+
+func (q *Queries) GetWorkingGroupNote(ctx context.Context, arg GetWorkingGroupNoteParams) (GetWorkingGroupNoteRow, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupNote, arg.CallerPersonID, arg.CallerManage, arg.ID)
+	var i GetWorkingGroupNoteRow
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.GroupName,
+		&i.IsPublic,
+		&i.Text,
+		&i.CreatedAt,
+		&i.AuthorPersonID,
+		&i.AuthorDisplayName,
+		&i.CanDelete,
+	)
+	return i, err
+}
+
+const getWorkingGroupNoteCore = `-- name: GetWorkingGroupNoteCore :one
+SELECT group_id, is_public, author_person_id FROM working_group_notes WHERE id = $1
+`
+
+type GetWorkingGroupNoteCoreRow struct {
+	GroupID        *uuid.UUID
+	IsPublic       bool
+	AuthorPersonID *uuid.UUID
+}
+
+func (q *Queries) GetWorkingGroupNoteCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupNoteCoreRow, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupNoteCore, id)
+	var i GetWorkingGroupNoteCoreRow
+	err := row.Scan(&i.GroupID, &i.IsPublic, &i.AuthorPersonID)
+	return i, err
+}
+
+const getWorkingGroupPlaceStatus = `-- name: GetWorkingGroupPlaceStatus :one
+SELECT status, status_note, status_until FROM working_group_places
+WHERE group_id = $1 AND id = $2
+`
+
+type GetWorkingGroupPlaceStatusParams struct {
+	GroupID uuid.UUID
+	PlaceID uuid.UUID
+}
+
+type GetWorkingGroupPlaceStatusRow struct {
+	Status      string
+	StatusNote  *string
+	StatusUntil pgtype.Date
+}
+
+func (q *Queries) GetWorkingGroupPlaceStatus(ctx context.Context, arg GetWorkingGroupPlaceStatusParams) (GetWorkingGroupPlaceStatusRow, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupPlaceStatus, arg.GroupID, arg.PlaceID)
+	var i GetWorkingGroupPlaceStatusRow
+	err := row.Scan(&i.Status, &i.StatusNote, &i.StatusUntil)
 	return i, err
 }
 
@@ -577,6 +750,35 @@ func (q *Queries) InsertWorkingGroupColumn(ctx context.Context, arg InsertWorkin
 		arg.GroupID,
 		arg.Name,
 		arg.Position,
+	)
+	return err
+}
+
+const insertWorkingGroupStatusChange = `-- name: InsertWorkingGroupStatusChange :exec
+INSERT INTO working_group_status_changes (id, group_id, machine_id, place_id, status, changed_at, changed_by_person_id)
+VALUES ($1, $2, $3, $4, $5,
+        $6, $7)
+`
+
+type InsertWorkingGroupStatusChangeParams struct {
+	ID                uuid.UUID
+	GroupID           uuid.UUID
+	MachineID         *uuid.UUID
+	PlaceID           *uuid.UUID
+	Status            string
+	ChangedAt         time.Time
+	ChangedByPersonID *uuid.UUID
+}
+
+func (q *Queries) InsertWorkingGroupStatusChange(ctx context.Context, arg InsertWorkingGroupStatusChangeParams) error {
+	_, err := q.db.Exec(ctx, insertWorkingGroupStatusChange,
+		arg.ID,
+		arg.GroupID,
+		arg.MachineID,
+		arg.PlaceID,
+		arg.Status,
+		arg.ChangedAt,
+		arg.ChangedByPersonID,
 	)
 	return err
 }
@@ -724,6 +926,71 @@ func (q *Queries) ListWorkingGroupColumns(ctx context.Context, groupID uuid.UUID
 	return items, nil
 }
 
+const listWorkingGroupItemStatuses = `-- name: ListWorkingGroupItemStatuses :many
+SELECT 'machine'::text AS kind, mc.id AS item_id, mc.name AS item_name, g.id AS group_id, g.name AS group_name,
+       wm.status, wm.status_note, wm.status_until, wm.status_changed_at,
+       wm.status_changed_by AS changed_by_person_id,
+       COALESCE(btrim(cp.first_name || ' ' || cp.last_name), '')::text AS changed_by_display_name
+FROM working_group_machines wm
+JOIN machines mc ON mc.id = wm.machine_id
+JOIN working_groups g ON g.id = wm.group_id
+LEFT JOIN people cp ON cp.id = wm.status_changed_by
+UNION ALL
+SELECT 'place'::text, pl.id, pl.name, g.id, g.name,
+       pl.status, pl.status_note, pl.status_until, pl.status_changed_at,
+       pl.status_changed_by,
+       COALESCE(btrim(cp.first_name || ' ' || cp.last_name), '')::text
+FROM working_group_places pl
+JOIN working_groups g ON g.id = pl.group_id
+LEFT JOIN people cp ON cp.id = pl.status_changed_by
+`
+
+type ListWorkingGroupItemStatusesRow struct {
+	Kind                 string
+	ItemID               uuid.UUID
+	ItemName             string
+	GroupID              uuid.UUID
+	GroupName            string
+	Status               string
+	StatusNote           *string
+	StatusUntil          pgtype.Date
+	StatusChangedAt      pgtype.Timestamptz
+	ChangedByPersonID    *uuid.UUID
+	ChangedByDisplayName string
+}
+
+func (q *Queries) ListWorkingGroupItemStatuses(ctx context.Context) ([]ListWorkingGroupItemStatusesRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupItemStatuses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupItemStatusesRow{}
+	for rows.Next() {
+		var i ListWorkingGroupItemStatusesRow
+		if err := rows.Scan(
+			&i.Kind,
+			&i.ItemID,
+			&i.ItemName,
+			&i.GroupID,
+			&i.GroupName,
+			&i.Status,
+			&i.StatusNote,
+			&i.StatusUntil,
+			&i.StatusChangedAt,
+			&i.ChangedByPersonID,
+			&i.ChangedByDisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkingGroupMachineOptions = `-- name: ListWorkingGroupMachineOptions :many
 SELECT mc.id, mc.name, wm.group_id AS working_group_id, g.name AS working_group_name
 FROM machines mc
@@ -765,16 +1032,25 @@ func (q *Queries) ListWorkingGroupMachineOptions(ctx context.Context) ([]ListWor
 }
 
 const listWorkingGroupMachines = `-- name: ListWorkingGroupMachines :many
-SELECT mc.id, mc.name
+SELECT mc.id, mc.name, wm.status, wm.status_note, wm.status_until, wm.status_changed_at,
+       wm.status_changed_by AS changed_by_person_id,
+       COALESCE(btrim(cp.first_name || ' ' || cp.last_name), '')::text AS changed_by_display_name
 FROM working_group_machines wm
 JOIN machines mc ON mc.id = wm.machine_id
+LEFT JOIN people cp ON cp.id = wm.status_changed_by
 WHERE wm.group_id = $1
 ORDER BY lower(mc.name), mc.id
 `
 
 type ListWorkingGroupMachinesRow struct {
-	ID   uuid.UUID
-	Name string
+	ID                   uuid.UUID
+	Name                 string
+	Status               string
+	StatusNote           *string
+	StatusUntil          pgtype.Date
+	StatusChangedAt      pgtype.Timestamptz
+	ChangedByPersonID    *uuid.UUID
+	ChangedByDisplayName string
 }
 
 func (q *Queries) ListWorkingGroupMachines(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupMachinesRow, error) {
@@ -786,7 +1062,16 @@ func (q *Queries) ListWorkingGroupMachines(ctx context.Context, groupID uuid.UUI
 	items := []ListWorkingGroupMachinesRow{}
 	for rows.Next() {
 		var i ListWorkingGroupMachinesRow
-		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Status,
+			&i.StatusNote,
+			&i.StatusUntil,
+			&i.StatusChangedAt,
+			&i.ChangedByPersonID,
+			&i.ChangedByDisplayName,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -837,13 +1122,96 @@ func (q *Queries) ListWorkingGroupMembers(ctx context.Context, groupID uuid.UUID
 	return items, nil
 }
 
+const listWorkingGroupNotes = `-- name: ListWorkingGroupNotes :many
+SELECT n.id, n.group_id, COALESCE(g.name, '')::text AS group_name, n.is_public, n.text, n.created_at,
+       n.author_person_id, COALESCE(btrim(ap.first_name || ' ' || ap.last_name), '')::text AS author_display_name,
+       (COALESCE(n.author_person_id = $1::uuid, false)
+           OR $2::boolean
+           OR EXISTS (SELECT 1 FROM working_group_members le
+                      WHERE le.group_id = n.group_id AND le.person_id = $1::uuid AND le.is_lead)) AS can_delete
+FROM working_group_notes n
+LEFT JOIN working_groups g ON g.id = n.group_id
+LEFT JOIN people ap ON ap.id = n.author_person_id
+WHERE (n.group_id IS NULL OR n.is_public OR $2::boolean
+       OR EXISTS (SELECT 1 FROM working_group_members me WHERE me.group_id = n.group_id AND me.person_id = $1::uuid))
+  AND ($3::uuid IS NULL OR n.group_id = $3::uuid)
+ORDER BY n.created_at DESC, n.id DESC
+LIMIT $4
+`
+
+type ListWorkingGroupNotesParams struct {
+	CallerPersonID uuid.UUID
+	CallerManage   bool
+	GroupID        *uuid.UUID
+	RowLimit       int32
+}
+
+type ListWorkingGroupNotesRow struct {
+	ID                uuid.UUID
+	GroupID           *uuid.UUID
+	GroupName         string
+	IsPublic          bool
+	Text              string
+	CreatedAt         time.Time
+	AuthorPersonID    *uuid.UUID
+	AuthorDisplayName string
+	CanDelete         *bool
+}
+
+func (q *Queries) ListWorkingGroupNotes(ctx context.Context, arg ListWorkingGroupNotesParams) ([]ListWorkingGroupNotesRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupNotes,
+		arg.CallerPersonID,
+		arg.CallerManage,
+		arg.GroupID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupNotesRow{}
+	for rows.Next() {
+		var i ListWorkingGroupNotesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.GroupID,
+			&i.GroupName,
+			&i.IsPublic,
+			&i.Text,
+			&i.CreatedAt,
+			&i.AuthorPersonID,
+			&i.AuthorDisplayName,
+			&i.CanDelete,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkingGroupPlaces = `-- name: ListWorkingGroupPlaces :many
-SELECT id, name FROM working_group_places WHERE group_id = $1 ORDER BY lower(name), id
+SELECT pl.id, pl.name, pl.status, pl.status_note, pl.status_until, pl.status_changed_at,
+       pl.status_changed_by AS changed_by_person_id,
+       COALESCE(btrim(cp.first_name || ' ' || cp.last_name), '')::text AS changed_by_display_name
+FROM working_group_places pl
+LEFT JOIN people cp ON cp.id = pl.status_changed_by
+WHERE pl.group_id = $1
+ORDER BY lower(pl.name), pl.id
 `
 
 type ListWorkingGroupPlacesRow struct {
-	ID   uuid.UUID
-	Name string
+	ID                   uuid.UUID
+	Name                 string
+	Status               string
+	StatusNote           *string
+	StatusUntil          pgtype.Date
+	StatusChangedAt      pgtype.Timestamptz
+	ChangedByPersonID    *uuid.UUID
+	ChangedByDisplayName string
 }
 
 func (q *Queries) ListWorkingGroupPlaces(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupPlacesRow, error) {
@@ -855,7 +1223,83 @@ func (q *Queries) ListWorkingGroupPlaces(ctx context.Context, groupID uuid.UUID)
 	items := []ListWorkingGroupPlacesRow{}
 	for rows.Next() {
 		var i ListWorkingGroupPlacesRow
-		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Status,
+			&i.StatusNote,
+			&i.StatusUntil,
+			&i.StatusChangedAt,
+			&i.ChangedByPersonID,
+			&i.ChangedByDisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupStatusBaselines = `-- name: ListWorkingGroupStatusBaselines :many
+SELECT DISTINCT ON (COALESCE(machine_id, place_id)) COALESCE(machine_id, place_id)::uuid AS item_id, status, changed_at
+FROM working_group_status_changes
+WHERE changed_at < $1::timestamptz
+ORDER BY COALESCE(machine_id, place_id), changed_at DESC, id DESC
+`
+
+type ListWorkingGroupStatusBaselinesRow struct {
+	ItemID    uuid.UUID
+	Status    string
+	ChangedAt time.Time
+}
+
+// The last change before the window of every item: the status the window starts with.
+func (q *Queries) ListWorkingGroupStatusBaselines(ctx context.Context, windowStart time.Time) ([]ListWorkingGroupStatusBaselinesRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupStatusBaselines, windowStart)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupStatusBaselinesRow{}
+	for rows.Next() {
+		var i ListWorkingGroupStatusBaselinesRow
+		if err := rows.Scan(&i.ItemID, &i.Status, &i.ChangedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupStatusChangesSince = `-- name: ListWorkingGroupStatusChangesSince :many
+SELECT COALESCE(machine_id, place_id)::uuid AS item_id, status, changed_at
+FROM working_group_status_changes
+WHERE changed_at >= $1::timestamptz
+ORDER BY changed_at, id
+`
+
+type ListWorkingGroupStatusChangesSinceRow struct {
+	ItemID    uuid.UUID
+	Status    string
+	ChangedAt time.Time
+}
+
+func (q *Queries) ListWorkingGroupStatusChangesSince(ctx context.Context, windowStart time.Time) ([]ListWorkingGroupStatusChangesSinceRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupStatusChangesSince, windowStart)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupStatusChangesSinceRow{}
+	for rows.Next() {
+		var i ListWorkingGroupStatusChangesSinceRow
+		if err := rows.Scan(&i.ItemID, &i.Status, &i.ChangedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1221,7 +1665,9 @@ SELECT g.id, g.name, g.description,
        EXISTS (
            SELECT 1 FROM working_group_members me
            WHERE me.group_id = g.id AND me.person_id = $1 AND me.is_lead
-       ) AS is_lead
+       ) AS is_lead,
+       (SELECT count(*) FROM working_group_tickets t WHERE t.group_id = g.id AND t.status IN ('new', 'planned'))::bigint AS open_ticket_count,
+       (SELECT count(*) FROM working_group_todos d WHERE d.group_id = g.id AND d.done_at IS NULL)::bigint AS open_todo_count
 FROM working_groups g
 LEFT JOIN working_group_members lead ON lead.group_id = g.id AND lead.is_lead
 LEFT JOIN people lead_person ON lead_person.id = lead.person_id
@@ -1238,6 +1684,8 @@ type ListWorkingGroupsRow struct {
 	MachineCount    int64
 	IsMember        bool
 	IsLead          bool
+	OpenTicketCount int64
+	OpenTodoCount   int64
 }
 
 func (q *Queries) ListWorkingGroups(ctx context.Context, callerPersonID uuid.UUID) ([]ListWorkingGroupsRow, error) {
@@ -1259,6 +1707,8 @@ func (q *Queries) ListWorkingGroups(ctx context.Context, callerPersonID uuid.UUI
 			&i.MachineCount,
 			&i.IsMember,
 			&i.IsLead,
+			&i.OpenTicketCount,
+			&i.OpenTodoCount,
 		); err != nil {
 			return nil, err
 		}
@@ -1412,6 +1862,72 @@ func (q *Queries) PersonExists(ctx context.Context, id uuid.UUID) (bool, error) 
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const setWorkingGroupMachineStatus = `-- name: SetWorkingGroupMachineStatus :execrows
+UPDATE working_group_machines
+SET status = $1, status_note = $2, status_until = $3,
+    status_changed_at = $4, status_changed_by = $5
+WHERE group_id = $6 AND machine_id = $7
+`
+
+type SetWorkingGroupMachineStatusParams struct {
+	Status      string
+	StatusNote  *string
+	StatusUntil pgtype.Date
+	ChangedAt   pgtype.Timestamptz
+	ChangedBy   *uuid.UUID
+	GroupID     uuid.UUID
+	MachineID   uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupMachineStatus(ctx context.Context, arg SetWorkingGroupMachineStatusParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setWorkingGroupMachineStatus,
+		arg.Status,
+		arg.StatusNote,
+		arg.StatusUntil,
+		arg.ChangedAt,
+		arg.ChangedBy,
+		arg.GroupID,
+		arg.MachineID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setWorkingGroupPlaceStatus = `-- name: SetWorkingGroupPlaceStatus :execrows
+UPDATE working_group_places
+SET status = $1, status_note = $2, status_until = $3,
+    status_changed_at = $4, status_changed_by = $5
+WHERE group_id = $6 AND id = $7
+`
+
+type SetWorkingGroupPlaceStatusParams struct {
+	Status      string
+	StatusNote  *string
+	StatusUntil pgtype.Date
+	ChangedAt   pgtype.Timestamptz
+	ChangedBy   *uuid.UUID
+	GroupID     uuid.UUID
+	PlaceID     uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupPlaceStatus(ctx context.Context, arg SetWorkingGroupPlaceStatusParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setWorkingGroupPlaceStatus,
+		arg.Status,
+		arg.StatusNote,
+		arg.StatusUntil,
+		arg.ChangedAt,
+		arg.ChangedBy,
+		arg.GroupID,
+		arg.PlaceID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setWorkingGroupTicketState = `-- name: SetWorkingGroupTicketState :execrows

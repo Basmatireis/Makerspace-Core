@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -73,6 +74,7 @@ func (s *Service) List(ctx context.Context, p authorization.Principal) ([]Summar
 			row.ID, row.Name, row.Description, row.LeadPersonID, row.LeadDisplayName,
 			row.MemberCount, row.MachineCount, row.IsMember, row.IsLead,
 		))
+		withOpenCounts(&items[len(items)-1], row.OpenTicketCount, row.OpenTodoCount, p)
 	}
 	return items, nil
 }
@@ -394,10 +396,27 @@ func (s *Service) SetMachines(
 		if unchanged {
 			return nil
 		}
-		if err := q.DeleteWorkingGroupMachines(ctx, groupID); err != nil {
-			return err
+		// Only machines that leave or join change: a machine that stays keeps its status. A machine that leaves loses
+		// its status and history, so it starts at ok in whatever group takes it next.
+		for _, machine := range current {
+			if slices.Contains(wanted, machine.ID) {
+				continue
+			}
+			if err := q.DeleteWorkingGroupMachine(ctx, workinggroupsdb.DeleteWorkingGroupMachineParams{
+				GroupID: groupID, MachineID: machine.ID,
+			}); err != nil {
+				return err
+			}
+			if err := q.DeleteWorkingGroupMachineStatusChanges(ctx, workinggroupsdb.DeleteWorkingGroupMachineStatusChangesParams{
+				GroupID: groupID, MachineID: &machine.ID,
+			}); err != nil {
+				return err
+			}
 		}
 		for _, id := range wanted {
+			if slices.ContainsFunc(current, func(m workinggroupsdb.ListWorkingGroupMachinesRow) bool { return m.ID == id }) {
+				continue
+			}
 			if err := q.AddWorkingGroupMachine(ctx, workinggroupsdb.AddWorkingGroupMachineParams{
 				GroupID: groupID, MachineID: id,
 			}); err != nil {
@@ -627,6 +646,7 @@ func loadGroup(ctx context.Context, q *workinggroupsdb.Queries, p authorization.
 		CanEdit:   canManage || row.IsLead,
 		CanManage: canManage,
 	}
+	withOpenCounts(&group.Summary, row.OpenTicketCount, row.OpenTodoCount, p)
 	if row.IsMember || canManage {
 		group.ChatURL = row.ChatUrl
 	}
@@ -636,15 +656,43 @@ func loadGroup(ctx context.Context, q *workinggroupsdb.Queries, p authorization.
 		})
 	}
 	for _, m := range machines {
-		group.Machines = append(group.Machines, Machine{ID: m.ID, Name: m.Name})
+		group.Machines = append(group.Machines, Machine{
+			ID: m.ID, Name: m.Name,
+			ItemState: itemState(m.Status, m.StatusNote, m.StatusUntil, m.StatusChangedAt, m.ChangedByPersonID, m.ChangedByDisplayName),
+		})
 	}
 	for _, place := range places {
-		group.Places = append(group.Places, Place{ID: place.ID, Name: place.Name})
+		group.Places = append(group.Places, Place{
+			ID: place.ID, Name: place.Name,
+			ItemState: itemState(place.Status, place.StatusNote, place.StatusUntil, place.StatusChangedAt, place.ChangedByPersonID, place.ChangedByDisplayName),
+		})
 	}
 	for _, column := range columns {
 		group.Columns = append(group.Columns, Column{ID: column.ID, Name: column.Name})
 	}
 	return group, nil
+}
+
+// withOpenCounts adds the open ticket count for every reader and the open to-do count for people inside the group.
+func withOpenCounts(summary *Summary, tickets, todos int64, p authorization.Principal) {
+	summary.OpenTicketCount = tickets
+	if summary.IsMember || p.Has(authorization.WorkingGroupsManage) {
+		summary.OpenTodoCount = &todos
+	}
+}
+
+func itemState(
+	status string,
+	note *string,
+	until pgtype.Date,
+	changedAt pgtype.Timestamptz,
+	changedBy *uuid.UUID,
+	changedByName string,
+) ItemState {
+	return ItemState{
+		Usage: Usage(status), Note: note, Until: dateValue(until), ChangedAt: timeValue(changedAt),
+		ChangedBy: personRef(changedBy, changedByName),
+	}
 }
 
 func summaryFromRow(

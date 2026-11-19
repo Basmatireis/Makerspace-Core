@@ -8538,6 +8538,120 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /working-groups/{groupId}/machines/{machineId}/status:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+      - {name: machineId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupMachineStatus
+      summary: Set the status of a machine
+      description: >-
+        Requires being inside the group (a member or `working_groups.manage`). A machine that does not belong to this
+        group answers 404. `ok` clears note and date (they are not allowed with it). Setting the values the machine
+        already has changes nothing and records nothing. A machine that leaves its group starts at `ok` again, without
+        history.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupStatusRequest"}}}}
+      responses:
+        "200": {description: Working group with the new status., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/places/{placeId}/status:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+      - {name: placeId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupPlaceStatus
+      summary: Set the status of a place
+      description: >-
+        Requires being inside the group (a member or `working_groups.manage`). A place that does not belong to this
+        group answers 404. `ok` clears note and date. Setting the values the place already has changes nothing.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupStatusRequest"}}}}
+      responses:
+        "200": {description: Working group with the new status., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-status:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupStatus
+      summary: List the status of every machine and place
+      description: >-
+        Requires `working_groups.read`. Every machine and place of every group with its status, items that are not `ok`
+        first, then by name. `daysNotOkLast90` counts the calendar days (makerspace time zone) among the last 90,
+        today included, on which the item was not `ok` at any time.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Statuses., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupStatusList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-notes:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupNotes
+      summary: List pinboard notes
+      description: >-
+        Requires `working_groups.read`. Newest first, at most 200. A group note is only returned to people inside its
+        group; public notes of a group and makerspace notes (no `groupId`) are returned to everybody. With `groupId`
+        only that group's notes the caller may see are returned (a group the caller is not inside yields its public
+        notes only).
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: groupId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      responses:
+        "200": {description: Notes., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupNoteList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupNote
+      summary: Pin a note
+      description: >-
+        Requires `working_groups.read` and being inside the group for a note with `groupId` (a member or
+        `working_groups.manage`); a makerspace note (no `groupId`) requires `working_groups.manage` and is always public
+        (422 when `public` is false). Notes cannot be edited.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupNoteRequest"}}}}
+      responses:
+        "201": {description: Note pinned., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupNote"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-notes/{noteId}:
+    parameters:
+      - {name: noteId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupNote
+      summary: Remove a note
+      description: >-
+        Requires `working_groups.read` and being the author, the lead of the note's group or holding
+        `working_groups.manage`. A group note the caller is not inside does not exist for them (404).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Note removed.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /working-group-tickets:
     get:
       tags: [Working groups]
@@ -20447,6 +20561,8 @@ components:
         machineCount: {type: integer, format: int64, minimum: 0}
         isMember: {type: boolean, description: Whether the caller is a member of this group.}
         isLead: {type: boolean, description: Whether the caller leads this group.}
+        openTicketCount: {type: integer, format: int64, minimum: 0, description: Tickets of this group that are new or planned.}
+        openTodoCount: {type: integer, format: int64, minimum: 0, description: To-dos of this group that are not done. Only present when the caller is inside the group.}
 
     WorkingGroupList:
       type: object
@@ -20472,6 +20588,11 @@ components:
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
+        status: {$ref: "#/components/schemas/WorkingGroupStatus"}
+        note: {type: string, maxLength: 200, description: "Why the status is not ok. Absent for ok."}
+        until: {type: string, format: date, description: "Back around. Absent for ok."}
+        changedAt: {type: string, format: date-time, description: "When the status was last set. Absent while it was never set."}
+        changedBy: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: "Who set it last. Absent when never set or when that person was deleted."}
 
     WorkingGroupPlace:
       type: object
@@ -20480,6 +20601,11 @@ components:
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
+        status: {$ref: "#/components/schemas/WorkingGroupStatus"}
+        note: {type: string, maxLength: 200, description: "Why the status is not ok. Absent for ok."}
+        until: {type: string, format: date, description: "Back around. Absent for ok."}
+        changedAt: {type: string, format: date-time, description: "When the status was last set. Absent while it was never set."}
+        changedBy: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: "Who set it last. Absent when never set or when that person was deleted."}
 
     WorkingGroup:
       type: object
@@ -20494,6 +20620,8 @@ components:
         machineCount: {type: integer, format: int64, minimum: 0}
         isMember: {type: boolean}
         isLead: {type: boolean}
+        openTicketCount: {type: integer, format: int64, minimum: 0}
+        openTodoCount: {type: integer, format: int64, minimum: 0, description: Only present when the caller is inside the group.}
         version: {$ref: "#/components/schemas/Version"}
         chatUrl: {type: string, description: "Only present for members of the group and holders of `working_groups.manage`; omitted when no link is set."}
         members: {type: array, description: "Lead first, then by name.", items: {$ref: "#/components/schemas/WorkingGroupMember"}}
@@ -20602,6 +20730,78 @@ components:
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
         closedAt: {type: string, format: date-time}
+
+    WorkingGroupStatus:
+      type: string
+      enum: [ok, limited, maintenance, out_of_order]
+
+    SetWorkingGroupStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {$ref: "#/components/schemas/WorkingGroupStatus"}
+        note: {type: string, maxLength: 200, description: "Optional; ignored for ok. Blank counts as none."}
+        until: {type: string, format: date, description: "Optional back-around date; ignored for ok."}
+
+    WorkingGroupStatusItem:
+      type: object
+      additionalProperties: false
+      required: [kind, id, name, group, status, daysNotOkLast90]
+      properties:
+        kind: {type: string, enum: [machine, place]}
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        group:
+          type: object
+          additionalProperties: false
+          required: [id, name]
+          properties:
+            id: {$ref: "#/components/schemas/UUIDv7"}
+            name: {type: string}
+        status: {$ref: "#/components/schemas/WorkingGroupStatus"}
+        note: {type: string}
+        until: {type: string, format: date}
+        changedAt: {type: string, format: date-time}
+        changedBy: {$ref: "#/components/schemas/WorkingGroupPerson"}
+        daysNotOkLast90: {type: integer, minimum: 0, maximum: 90}
+
+    WorkingGroupStatusList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupStatusItem"}}
+
+    WorkingGroupNote:
+      type: object
+      additionalProperties: false
+      required: [id, public, text, createdAt, canDelete]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: "Absent for a makerspace note."}
+        groupName: {type: string}
+        public: {type: boolean, description: "Visible to everybody with `working_groups.read`; false means inside the group only."}
+        text: {type: string, minLength: 1, maxLength: 500}
+        createdAt: {type: string, format: date-time}
+        author: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: "Absent when the author's person record was deleted (shown as former member)."}
+        canDelete: {type: boolean, description: "Whether the caller may remove the note."}
+
+    WorkingGroupNoteList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupNote"}}
+
+    CreateWorkingGroupNoteRequest:
+      type: object
+      additionalProperties: false
+      required: [public, text]
+      properties:
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        public: {type: boolean}
+        text: {type: string, minLength: 1, maxLength: 500}
 
     WorkingGroupTicketList:
       type: object

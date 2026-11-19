@@ -35,4 +35,14 @@ export interface WorkingGroupSummary {
   isMember: boolean;
   /** Whether the caller leads this group. */
   isLead: boolean;
+  /**
+     * Tickets of this group that are new or planned.
+     * @minimum 0
+     */
+  openTicketCount?: number;
+  /**
+     * To-dos of this group that are not done. Only present when the caller is inside the group.
+     * @minimum 0
+     */
+  openTodoCount?: number;
 }

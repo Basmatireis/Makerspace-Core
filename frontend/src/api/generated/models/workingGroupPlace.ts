@@ -19,8 +19,22 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { WorkingGroupPerson } from './workingGroupPerson';
+import type { WorkingGroupStatus } from './workingGroupStatus';
 
 export interface WorkingGroupPlace {
   id: UUIDv7;
   name: string;
+  status?: WorkingGroupStatus;
+  /**
+     * Why the status is not ok. Absent for ok.
+     * @maxLength 200
+     */
+  note?: string;
+  /** Back around. Absent for ok. */
+  until?: string;
+  /** When the status was last set. Absent while it was never set. */
+  changedAt?: string;
+  /** Who set it last. Absent when never set or when that person was deleted. */
+  changedBy?: WorkingGroupPerson;
 }

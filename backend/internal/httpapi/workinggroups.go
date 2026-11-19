@@ -258,6 +258,9 @@ func workingGroupSummaryDTO(item workinggroups.Summary) openapi.WorkingGroupSumm
 		MachineCount: item.MachineCount,
 		IsMember:     item.IsMember,
 		IsLead:       item.IsLead,
+
+		OpenTicketCount: &item.OpenTicketCount,
+		OpenTodoCount:   item.OpenTodoCount,
 	}
 	if item.Lead != nil {
 		result.Lead = &openapi.WorkingGroupPerson{PersonId: item.Lead.ID, DisplayName: item.Lead.DisplayName}
@@ -276,14 +279,17 @@ func workingGroupDTO(item workinggroups.Group) openapi.WorkingGroup {
 		MachineCount: summary.MachineCount,
 		IsMember:     summary.IsMember,
 		IsLead:       summary.IsLead,
-		Version:      item.Version,
-		ChatUrl:      item.ChatURL,
-		Members:      make([]openapi.WorkingGroupMember, 0, len(item.Members)),
-		Machines:     make([]openapi.WorkingGroupMachine, 0, len(item.Machines)),
-		Places:       make([]openapi.WorkingGroupPlace, 0, len(item.Places)),
-		Columns:      make([]openapi.WorkingGroupColumn, 0, len(item.Columns)),
-		CanEdit:      item.CanEdit,
-		CanManage:    item.CanManage,
+
+		OpenTicketCount: summary.OpenTicketCount,
+		OpenTodoCount:   summary.OpenTodoCount,
+		Version:         item.Version,
+		ChatUrl:         item.ChatURL,
+		Members:         make([]openapi.WorkingGroupMember, 0, len(item.Members)),
+		Machines:        make([]openapi.WorkingGroupMachine, 0, len(item.Machines)),
+		Places:          make([]openapi.WorkingGroupPlace, 0, len(item.Places)),
+		Columns:         make([]openapi.WorkingGroupColumn, 0, len(item.Columns)),
+		CanEdit:         item.CanEdit,
+		CanManage:       item.CanManage,
 	}
 	for _, m := range item.Members {
 		result.Members = append(result.Members, openapi.WorkingGroupMember{
@@ -291,10 +297,18 @@ func workingGroupDTO(item workinggroups.Group) openapi.WorkingGroup {
 		})
 	}
 	for _, m := range item.Machines {
-		result.Machines = append(result.Machines, openapi.WorkingGroupMachine{Id: m.ID, Name: m.Name})
+		state := workingGroupStateDTO(m.ItemState)
+		result.Machines = append(result.Machines, openapi.WorkingGroupMachine{
+			Id: m.ID, Name: m.Name, Status: &state.status, Note: state.note, Until: state.until,
+			ChangedAt: state.changedAt, ChangedBy: state.changedBy,
+		})
 	}
 	for _, place := range item.Places {
-		result.Places = append(result.Places, openapi.WorkingGroupPlace{Id: place.ID, Name: place.Name})
+		state := workingGroupStateDTO(place.ItemState)
+		result.Places = append(result.Places, openapi.WorkingGroupPlace{
+			Id: place.ID, Name: place.Name, Status: &state.status, Note: state.note, Until: state.until,
+			ChangedAt: state.changedAt, ChangedBy: state.changedBy,
+		})
 	}
 	for _, column := range item.Columns {
 		result.Columns = append(result.Columns, openapi.WorkingGroupColumn{Id: column.ID, Name: column.Name})

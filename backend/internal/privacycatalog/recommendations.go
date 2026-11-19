@@ -93,7 +93,7 @@ var recommendations = map[privacy.CategoryID]privacy.Recommendation{
 	WorkingGroupTasks: {
 		Trigger: privacy.TriggerCompletedAt, PeriodDays: 0, Action: privacy.ActionRetainWithReview,
 		Purpose: "Report and track problems, requests and tasks of working groups", LegalBasis: basisLabUse,
-		Reason: "Tickets and to-dos document how machines were looked after; the person links go when the person is deleted, the texts stay. Management can delete a ticket or a comment that holds personal data; review old tickets for it.",
+		Reason: "Tickets and to-dos document how machines were looked after; the person links go when the person is deleted, the texts stay. Management can delete a ticket, a comment or a pinboard note that holds personal data; review old tickets for it.",
 	},
 	LabRulesConfirmations: {
 		Trigger: privacy.TriggerAccountClosedAt, PeriodDays: 0, Action: privacy.ActionRetainWithReview,

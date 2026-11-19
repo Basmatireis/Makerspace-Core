@@ -690,13 +690,15 @@ var Tables = []Table{
 	}},
 	{Name: "working_group_columns", Columns: map[string]Treatment{"name": Catalog}},
 	{Name: "working_group_comments", Columns: map[string]Treatment{"text": Neutral}},
-	{Name: "working_group_machines"},
+	{Name: "working_group_machines", Columns: map[string]Treatment{"status": System, "status_note": Neutral}},
 	{Name: "working_group_members"},
+	{Name: "working_group_notes", Columns: map[string]Treatment{"text": Neutral}},
+	{Name: "working_group_status_changes", Columns: map[string]Treatment{"status": System}},
 	{Name: "working_group_ticket_followers"},
 	{Name: "working_group_tickets", Columns: map[string]Treatment{
 		"kind": System, "status": System, "subject": Neutral, "body": Neutral,
 	}},
 	{Name: "working_group_todos", Columns: map[string]Treatment{"title": Neutral}},
-	{Name: "working_group_places", Columns: map[string]Treatment{"name": Catalog}},
+	{Name: "working_group_places", Columns: map[string]Treatment{"name": Catalog, "status": System, "status_note": Neutral}},
 	{Name: "working_groups", Columns: map[string]Treatment{"name": Catalog, "description": Catalog, "chat_url": Cleared}},
 }

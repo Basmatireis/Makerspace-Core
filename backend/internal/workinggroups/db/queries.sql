@@ -10,7 +10,9 @@ SELECT g.id, g.name, g.description,
        EXISTS (
            SELECT 1 FROM working_group_members me
            WHERE me.group_id = g.id AND me.person_id = sqlc.arg(caller_person_id) AND me.is_lead
-       ) AS is_lead
+       ) AS is_lead,
+       (SELECT count(*) FROM working_group_tickets t WHERE t.group_id = g.id AND t.status IN ('new', 'planned'))::bigint AS open_ticket_count,
+       (SELECT count(*) FROM working_group_todos d WHERE d.group_id = g.id AND d.done_at IS NULL)::bigint AS open_todo_count
 FROM working_groups g
 LEFT JOIN working_group_members lead ON lead.group_id = g.id AND lead.is_lead
 LEFT JOIN people lead_person ON lead_person.id = lead.person_id
@@ -28,7 +30,9 @@ SELECT g.id, g.name, g.description, g.chat_url, g.version,
        EXISTS (
            SELECT 1 FROM working_group_members me
            WHERE me.group_id = g.id AND me.person_id = sqlc.arg(caller_person_id) AND me.is_lead
-       ) AS is_lead
+       ) AS is_lead,
+       (SELECT count(*) FROM working_group_tickets t WHERE t.group_id = g.id AND t.status IN ('new', 'planned'))::bigint AS open_ticket_count,
+       (SELECT count(*) FROM working_group_todos d WHERE d.group_id = g.id AND d.done_at IS NULL)::bigint AS open_todo_count
 FROM working_groups g
 LEFT JOIN working_group_members lead ON lead.group_id = g.id AND lead.is_lead
 LEFT JOIN people lead_person ON lead_person.id = lead.person_id
@@ -61,14 +65,23 @@ WHERE m.group_id = sqlc.arg(group_id)
 ORDER BY m.is_lead DESC, lower(p.last_name), lower(p.first_name), m.person_id;
 
 -- name: ListWorkingGroupMachines :many
-SELECT mc.id, mc.name
+SELECT mc.id, mc.name, wm.status, wm.status_note, wm.status_until, wm.status_changed_at,
+       wm.status_changed_by AS changed_by_person_id,
+       COALESCE(btrim(cp.first_name || ' ' || cp.last_name), '')::text AS changed_by_display_name
 FROM working_group_machines wm
 JOIN machines mc ON mc.id = wm.machine_id
+LEFT JOIN people cp ON cp.id = wm.status_changed_by
 WHERE wm.group_id = sqlc.arg(group_id)
 ORDER BY lower(mc.name), mc.id;
 
 -- name: ListWorkingGroupPlaces :many
-SELECT id, name FROM working_group_places WHERE group_id = sqlc.arg(group_id) ORDER BY lower(name), id;
+SELECT pl.id, pl.name, pl.status, pl.status_note, pl.status_until, pl.status_changed_at,
+       pl.status_changed_by AS changed_by_person_id,
+       COALESCE(btrim(cp.first_name || ' ' || cp.last_name), '')::text AS changed_by_display_name
+FROM working_group_places pl
+LEFT JOIN people cp ON cp.id = pl.status_changed_by
+WHERE pl.group_id = sqlc.arg(group_id)
+ORDER BY lower(pl.name), pl.id;
 
 -- name: IsWorkingGroupLead :one
 SELECT EXISTS (
@@ -129,8 +142,12 @@ SELECT id FROM machines WHERE id = ANY(sqlc.arg(ids)::uuid[]);
 -- name: ListMachineGroupAssignments :many
 SELECT machine_id, group_id FROM working_group_machines WHERE machine_id = ANY(sqlc.arg(ids)::uuid[]);
 
--- name: DeleteWorkingGroupMachines :exec
-DELETE FROM working_group_machines WHERE group_id = sqlc.arg(group_id);
+-- name: DeleteWorkingGroupMachine :exec
+DELETE FROM working_group_machines WHERE group_id = sqlc.arg(group_id) AND machine_id = sqlc.arg(machine_id);
+
+-- name: DeleteWorkingGroupMachineStatusChanges :exec
+-- A machine that leaves its group starts again at ok, without history.
+DELETE FROM working_group_status_changes WHERE group_id = sqlc.arg(group_id) AND machine_id = sqlc.arg(machine_id);
 
 -- name: AddWorkingGroupMachine :exec
 INSERT INTO working_group_machines (group_id, machine_id) VALUES (sqlc.arg(group_id), sqlc.arg(machine_id));
@@ -335,3 +352,97 @@ WHERE (sqlc.arg(caller_manage)::boolean OR EXISTS (
   AND (sqlc.narg(group_id)::uuid IS NULL OR t.group_id = sqlc.narg(group_id)::uuid)
 ORDER BY (t.done_at IS NOT NULL), t.due_on, t.created_at, t.id
 LIMIT sqlc.arg(row_limit);
+
+-- name: ListWorkingGroupNotes :many
+SELECT n.id, n.group_id, COALESCE(g.name, '')::text AS group_name, n.is_public, n.text, n.created_at,
+       n.author_person_id, COALESCE(btrim(ap.first_name || ' ' || ap.last_name), '')::text AS author_display_name,
+       (COALESCE(n.author_person_id = sqlc.arg(caller_person_id)::uuid, false)
+           OR sqlc.arg(caller_manage)::boolean
+           OR EXISTS (SELECT 1 FROM working_group_members le
+                      WHERE le.group_id = n.group_id AND le.person_id = sqlc.arg(caller_person_id)::uuid AND le.is_lead)) AS can_delete
+FROM working_group_notes n
+LEFT JOIN working_groups g ON g.id = n.group_id
+LEFT JOIN people ap ON ap.id = n.author_person_id
+WHERE (n.group_id IS NULL OR n.is_public OR sqlc.arg(caller_manage)::boolean
+       OR EXISTS (SELECT 1 FROM working_group_members me WHERE me.group_id = n.group_id AND me.person_id = sqlc.arg(caller_person_id)::uuid))
+  AND (sqlc.narg(group_id)::uuid IS NULL OR n.group_id = sqlc.narg(group_id)::uuid)
+ORDER BY n.created_at DESC, n.id DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: GetWorkingGroupNote :one
+SELECT n.id, n.group_id, COALESCE(g.name, '')::text AS group_name, n.is_public, n.text, n.created_at,
+       n.author_person_id, COALESCE(btrim(ap.first_name || ' ' || ap.last_name), '')::text AS author_display_name,
+       (COALESCE(n.author_person_id = sqlc.arg(caller_person_id)::uuid, false)
+           OR sqlc.arg(caller_manage)::boolean
+           OR EXISTS (SELECT 1 FROM working_group_members le
+                      WHERE le.group_id = n.group_id AND le.person_id = sqlc.arg(caller_person_id)::uuid AND le.is_lead)) AS can_delete
+FROM working_group_notes n
+LEFT JOIN working_groups g ON g.id = n.group_id
+LEFT JOIN people ap ON ap.id = n.author_person_id
+WHERE n.id = sqlc.arg(id);
+
+-- name: GetWorkingGroupNoteCore :one
+SELECT group_id, is_public, author_person_id FROM working_group_notes WHERE id = sqlc.arg(id);
+
+-- name: CreateWorkingGroupNote :exec
+INSERT INTO working_group_notes (id, group_id, is_public, text, author_person_id)
+VALUES (sqlc.arg(id), sqlc.narg(group_id), sqlc.arg(is_public), sqlc.arg(text), sqlc.arg(author_person_id));
+
+-- name: DeleteWorkingGroupNote :execrows
+DELETE FROM working_group_notes WHERE id = sqlc.arg(id);
+
+-- name: GetWorkingGroupMachineStatus :one
+SELECT status, status_note, status_until FROM working_group_machines
+WHERE group_id = sqlc.arg(group_id) AND machine_id = sqlc.arg(machine_id);
+
+-- name: GetWorkingGroupPlaceStatus :one
+SELECT status, status_note, status_until FROM working_group_places
+WHERE group_id = sqlc.arg(group_id) AND id = sqlc.arg(place_id);
+
+-- name: SetWorkingGroupMachineStatus :execrows
+UPDATE working_group_machines
+SET status = sqlc.arg(status), status_note = sqlc.narg(status_note), status_until = sqlc.narg(status_until),
+    status_changed_at = sqlc.arg(changed_at), status_changed_by = sqlc.arg(changed_by)
+WHERE group_id = sqlc.arg(group_id) AND machine_id = sqlc.arg(machine_id);
+
+-- name: SetWorkingGroupPlaceStatus :execrows
+UPDATE working_group_places
+SET status = sqlc.arg(status), status_note = sqlc.narg(status_note), status_until = sqlc.narg(status_until),
+    status_changed_at = sqlc.arg(changed_at), status_changed_by = sqlc.arg(changed_by)
+WHERE group_id = sqlc.arg(group_id) AND id = sqlc.arg(place_id);
+
+-- name: InsertWorkingGroupStatusChange :exec
+INSERT INTO working_group_status_changes (id, group_id, machine_id, place_id, status, changed_at, changed_by_person_id)
+VALUES (sqlc.arg(id), sqlc.arg(group_id), sqlc.narg(machine_id), sqlc.narg(place_id), sqlc.arg(status),
+        sqlc.arg(changed_at), sqlc.arg(changed_by_person_id));
+
+-- name: ListWorkingGroupItemStatuses :many
+SELECT 'machine'::text AS kind, mc.id AS item_id, mc.name AS item_name, g.id AS group_id, g.name AS group_name,
+       wm.status, wm.status_note, wm.status_until, wm.status_changed_at,
+       wm.status_changed_by AS changed_by_person_id,
+       COALESCE(btrim(cp.first_name || ' ' || cp.last_name), '')::text AS changed_by_display_name
+FROM working_group_machines wm
+JOIN machines mc ON mc.id = wm.machine_id
+JOIN working_groups g ON g.id = wm.group_id
+LEFT JOIN people cp ON cp.id = wm.status_changed_by
+UNION ALL
+SELECT 'place'::text, pl.id, pl.name, g.id, g.name,
+       pl.status, pl.status_note, pl.status_until, pl.status_changed_at,
+       pl.status_changed_by,
+       COALESCE(btrim(cp.first_name || ' ' || cp.last_name), '')::text
+FROM working_group_places pl
+JOIN working_groups g ON g.id = pl.group_id
+LEFT JOIN people cp ON cp.id = pl.status_changed_by;
+
+-- name: ListWorkingGroupStatusChangesSince :many
+SELECT COALESCE(machine_id, place_id)::uuid AS item_id, status, changed_at
+FROM working_group_status_changes
+WHERE changed_at >= sqlc.arg(window_start)::timestamptz
+ORDER BY changed_at, id;
+
+-- name: ListWorkingGroupStatusBaselines :many
+-- The last change before the window of every item: the status the window starts with.
+SELECT DISTINCT ON (COALESCE(machine_id, place_id)) COALESCE(machine_id, place_id)::uuid AS item_id, status, changed_at
+FROM working_group_status_changes
+WHERE changed_at < sqlc.arg(window_start)::timestamptz
+ORDER BY COALESCE(machine_id, place_id), changed_at DESC, id DESC;

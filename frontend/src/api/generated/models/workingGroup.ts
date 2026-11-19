@@ -38,6 +38,13 @@ export interface WorkingGroup {
   machineCount: number;
   isMember: boolean;
   isLead: boolean;
+  /** @minimum 0 */
+  openTicketCount?: number;
+  /**
+     * Only present when the caller is inside the group.
+     * @minimum 0
+     */
+  openTodoCount?: number;
   version: Version;
   /** Only present for members of the group and holders of `working_groups.manage`; omitted when no link is set. */
   chatUrl?: string;

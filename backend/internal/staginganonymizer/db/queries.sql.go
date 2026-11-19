@@ -1117,11 +1117,17 @@ WITH tickets AS (
     UPDATE working_group_tickets SET subject = 'Ticket', body = '' RETURNING 1
 ), todos AS (
     UPDATE working_group_todos SET title = 'To-do' RETURNING 1
+), notes AS (
+    UPDATE working_group_notes SET text = 'Note' RETURNING 1
+), machine_status AS (
+    UPDATE working_group_machines SET status_note = 'Status note' WHERE status_note IS NOT NULL RETURNING 1
+), place_status AS (
+    UPDATE working_group_places SET status_note = 'Status note' WHERE status_note IS NOT NULL RETURNING 1
 )
 UPDATE working_group_comments SET text = 'Comment'
 `
 
-// Ticket subjects, descriptions, to-do titles and comments often name people.
+// Ticket subjects, descriptions, to-do titles, comments, pinboard notes and status notes often name people.
 func (q *Queries) NeutralizeWorkingGroupTasks(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, neutralizeWorkingGroupTasks)
 	return err

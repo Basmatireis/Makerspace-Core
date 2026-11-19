@@ -100,7 +100,8 @@ type Querier interface {
 	MoveMergeShiftAssignments(ctx context.Context, arg MoveMergeShiftAssignmentsParams) (int64, error)
 	MoveMergeTrainingRecords(ctx context.Context, arg MoveMergeTrainingRecordsParams) (int64, error)
 	MoveMergeWorkingGroupMembers(ctx context.Context, arg MoveMergeWorkingGroupMembersParams) (int64, error)
-	// Moves the source's tickets, assignments, follows, to-dos and comments to the target; returns how many rows moved.
+	// Moves the source's tickets, assignments, follows, to-dos, comments, pinboard notes and status changes to the target;
+	// returns how many rows moved.
 	MoveMergeWorkingGroupTasks(ctx context.Context, arg MoveMergeWorkingGroupTasksParams) (int64, error)
 	// Keeps the highest membership (supervisor > trainee > visitor) after roles of several people were united.
 	NormalizePersonMembership(ctx context.Context, personID uuid.UUID) error

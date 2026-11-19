@@ -276,7 +276,7 @@ FROM working_group_members m JOIN working_groups g ON g.id = m.group_id WHERE m.
 SELECT count(*)::bigint FROM working_group_members WHERE person_id = sqlc.arg(subject_person)::uuid;
 
 -- name: ExportWorkingGroupTasks :one
--- The subject's own tickets (text only when they wrote them), assignments, to-dos and comments. Follows name only the group and the time: the ticket text
+-- The subject's own tickets (text only when they wrote them), assignments, to-dos, comments, pinboard notes and status changes. Follows name only the group and the time: the ticket text
 -- belongs to its author.
 SELECT jsonb_build_object(
     'tickets', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -307,7 +307,25 @@ SELECT jsonb_build_object(
         LEFT JOIN working_group_tickets ct ON ct.id = c.ticket_id
         LEFT JOIN working_group_todos cd ON cd.id = c.todo_id
         JOIN working_groups g ON g.id = COALESCE(ct.group_id, cd.group_id)
-        WHERE c.author_person_id = sqlc.arg(subject_person)::uuid)
+        WHERE c.author_person_id = sqlc.arg(subject_person)::uuid),
+    'notes', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'public', n.is_public, 'text', n.text, 'createdAt', n.created_at) ORDER BY n.created_at), '[]'::jsonb)
+        FROM working_group_notes n LEFT JOIN working_groups g ON g.id = n.group_id
+        WHERE n.author_person_id = sqlc.arg(subject_person)::uuid),
+    'statusChanges', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'status', c.status, 'changedAt', c.changed_at) ORDER BY c.changed_at), '[]'::jsonb)
+        FROM working_group_status_changes c JOIN working_groups g ON g.id = c.group_id
+        WHERE c.changed_by_person_id = sqlc.arg(subject_person)::uuid),
+    'statusNotes', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', s.group_name, 'status', s.status, 'note', s.status_note, 'until', s.status_until, 'changedAt', s.status_changed_at)
+            ORDER BY s.status_changed_at), '[]'::jsonb)
+        FROM (SELECT g.name AS group_name, m.status, m.status_note, m.status_until, m.status_changed_at
+              FROM working_group_machines m JOIN working_groups g ON g.id = m.group_id
+              WHERE m.status_changed_by = sqlc.arg(subject_person)::uuid AND m.status_note IS NOT NULL
+              UNION ALL
+              SELECT g.name, pl.status, pl.status_note, pl.status_until, pl.status_changed_at
+              FROM working_group_places pl JOIN working_groups g ON g.id = pl.group_id
+              WHERE pl.status_changed_by = sqlc.arg(subject_person)::uuid AND pl.status_note IS NOT NULL) s)
 )::jsonb AS document;
 
 -- name: CountWorkingGroupTasks :one
@@ -316,7 +334,9 @@ SELECT ((SELECT count(*) FROM working_group_tickets
     + (SELECT count(*) FROM working_group_ticket_followers WHERE person_id = sqlc.arg(subject_person)::uuid)
     + (SELECT count(*) FROM working_group_todos
           WHERE assignee_person_id = sqlc.arg(subject_person)::uuid OR created_by_person_id = sqlc.arg(subject_person)::uuid)
-    + (SELECT count(*) FROM working_group_comments WHERE author_person_id = sqlc.arg(subject_person)::uuid))::bigint AS total;
+    + (SELECT count(*) FROM working_group_comments WHERE author_person_id = sqlc.arg(subject_person)::uuid)
+    + (SELECT count(*) FROM working_group_notes WHERE author_person_id = sqlc.arg(subject_person)::uuid)
+    + (SELECT count(*) FROM working_group_status_changes WHERE changed_by_person_id = sqlc.arg(subject_person)::uuid))::bigint AS total;
 
 -- name: ExportTrainingRecords :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object('training', t.name, 'status', r.status, 'completedOn', r.completed_on, 'notes', r.notes, 'createdAt', r.created_at) ORDER BY t.name), '[]'::jsonb)::jsonb AS document

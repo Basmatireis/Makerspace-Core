@@ -146,6 +146,16 @@ func seedStagingPersonalData(t *testing.T, pool *pgxpool.Pool) (master, plain, o
 			check_out_method, check_in_assurance, admission_decision, correction_reason)
 		VALUES ($1, $2, now() - interval '3 hours', now() - interval '2 hours', 'checked_out', 'supervisor',
 			'supervisor', 'normal', 'admitted', 'Zebracanary forgot to check out')`, ids.New(), plain.personID)
+	// Working group pinboard note and status notes.
+	groupID, placeID := ids.New(), ids.New()
+	exec(`INSERT INTO working_groups (id, name) VALUES ($1, 'Seed group')`, groupID)
+	exec(`INSERT INTO working_group_notes (id, group_id, is_public, text, author_person_id)
+		VALUES ($1, $2, false, 'Zebracanary pinned this', $3)`, ids.New(), groupID, plain.personID)
+	exec(`INSERT INTO working_group_places (id, group_id, name, status, status_note, status_changed_by)
+		VALUES ($1, $2, 'Seed place', 'limited', 'Zebracanary status note', $3)`, placeID, groupID, plain.personID)
+	wgMachineID := insertWorkingGroupMachine(t, pool, "Seed machine")
+	exec(`INSERT INTO working_group_machines (group_id, machine_id, status, status_note, status_changed_by)
+		VALUES ($1, $2, 'maintenance', 'Zebracanary machine note', $3)`, groupID, wgMachineID, plain.personID)
 	return master, plain, oidcMaster, profileFile
 }
 

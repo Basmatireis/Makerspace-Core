@@ -296,11 +296,17 @@ UPDATE events SET internal_description = NULL WHERE internal_description IS NOT 
 UPDATE event_tasks SET title = 'Task', description = NULL;
 
 -- name: NeutralizeWorkingGroupTasks :exec
--- Ticket subjects, descriptions, to-do titles and comments often name people.
+-- Ticket subjects, descriptions, to-do titles, comments, pinboard notes and status notes often name people.
 WITH tickets AS (
     UPDATE working_group_tickets SET subject = 'Ticket', body = '' RETURNING 1
 ), todos AS (
     UPDATE working_group_todos SET title = 'To-do' RETURNING 1
+), notes AS (
+    UPDATE working_group_notes SET text = 'Note' RETURNING 1
+), machine_status AS (
+    UPDATE working_group_machines SET status_note = 'Status note' WHERE status_note IS NOT NULL RETURNING 1
+), place_status AS (
+    UPDATE working_group_places SET status_note = 'Status note' WHERE status_note IS NOT NULL RETURNING 1
 )
 UPDATE working_group_comments SET text = 'Comment';
 

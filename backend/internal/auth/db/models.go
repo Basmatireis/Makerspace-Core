@@ -2577,8 +2577,13 @@ type WorkingGroupComment struct {
 }
 
 type WorkingGroupMachine struct {
-	GroupID   uuid.UUID
-	MachineID uuid.UUID
+	GroupID         uuid.UUID
+	MachineID       uuid.UUID
+	Status          string
+	StatusNote      *string
+	StatusUntil     pgtype.Date
+	StatusChangedAt pgtype.Timestamptz
+	StatusChangedBy *uuid.UUID
 }
 
 type WorkingGroupMember struct {
@@ -2588,11 +2593,35 @@ type WorkingGroupMember struct {
 	JoinedAt time.Time
 }
 
+type WorkingGroupNote struct {
+	ID             uuid.UUID
+	GroupID        *uuid.UUID
+	IsPublic       bool
+	Text           string
+	AuthorPersonID *uuid.UUID
+	CreatedAt      time.Time
+}
+
 type WorkingGroupPlace struct {
-	ID        uuid.UUID
-	GroupID   uuid.UUID
-	Name      string
-	CreatedAt time.Time
+	ID              uuid.UUID
+	GroupID         uuid.UUID
+	Name            string
+	CreatedAt       time.Time
+	Status          string
+	StatusNote      *string
+	StatusUntil     pgtype.Date
+	StatusChangedAt pgtype.Timestamptz
+	StatusChangedBy *uuid.UUID
+}
+
+type WorkingGroupStatusChange struct {
+	ID                uuid.UUID
+	GroupID           uuid.UUID
+	MachineID         *uuid.UUID
+	PlaceID           *uuid.UUID
+	Status            string
+	ChangedAt         time.Time
+	ChangedByPersonID *uuid.UUID
 }
 
 type WorkingGroupTicket struct {

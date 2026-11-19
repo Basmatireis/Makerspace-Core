@@ -282,8 +282,8 @@ func declarations() []privacy.Definition {
 		},
 		{
 			ID: WorkingGroupTasks, Owner: WorkingGroups, Name: "Working group tickets and to-dos",
-			Description:    "Tickets people wrote for a group, who has the same problem, to-dos of the group and the comments on both.",
-			Contains:       "Authors, assignees, followers, subjects, descriptions, titles and comments",
+			Description:    "Tickets people wrote for a group, who has the same problem, to-dos of the group, the comments on both, pinboard notes and who last set the status of a machine or place.",
+			Contains:       "Authors, assignees, followers, subjects, descriptions, titles, comments, pinboard notes, status notes and who changed a status",
 			ErasureOutcome: privacy.ErasureUnlinked,
 			Fields: []string{
 				"working_group_tickets.author_person_id", "working_group_tickets.assignee_person_id",
@@ -292,6 +292,10 @@ func declarations() []privacy.Definition {
 				"working_group_todos.assignee_person_id", "working_group_todos.created_by_person_id",
 				"working_group_todos.title",
 				"working_group_comments.author_person_id", "working_group_comments.text",
+				"working_group_notes.author_person_id", "working_group_notes.text",
+				"working_group_machines.status_note", "working_group_machines.status_changed_by",
+				"working_group_places.status_note", "working_group_places.status_changed_by",
+				"working_group_status_changes.changed_by_person_id",
 			},
 			Triggers: []privacy.Trigger{privacy.TriggerCompletedAt},
 			Actions:  []privacy.Action{privacy.ActionRetainWithReview},

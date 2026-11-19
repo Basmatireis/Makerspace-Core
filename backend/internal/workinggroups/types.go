@@ -22,6 +22,10 @@ type Summary struct {
 	MachineCount int64
 	IsMember     bool
 	IsLead       bool
+	// OpenTicketCount counts the new and planned tickets. OpenTodoCount counts the to-dos not done and is only set
+	// for people inside the group.
+	OpenTicketCount int64
+	OpenTodoCount   *int64
 }
 
 // Member is one member of a group.
@@ -36,12 +40,14 @@ type Member struct {
 type Machine struct {
 	ID   uuid.UUID
 	Name string
+	ItemState
 }
 
 // Place is a free-text place a group looks after.
 type Place struct {
 	ID   uuid.UUID
 	Name string
+	ItemState
 }
 
 // Group is a working group with everything the caller may see. ChatURL is only filled for members of the group and

@@ -20,15 +20,18 @@
  */
 import type {
   CloseWorkingGroupTicketRequest,
+  CreateWorkingGroupNoteRequest,
   CreateWorkingGroupRequest,
   CreateWorkingGroupTicketRequest,
   CreateWorkingGroupTodoRequest,
+  ListWorkingGroupNotesParams,
   ListWorkingGroupPeopleParams,
   ListWorkingGroupTicketsParams,
   ListWorkingGroupTodosParams,
   PlanWorkingGroupTicketRequest,
   SetWorkingGroupColumnsRequest,
   SetWorkingGroupMachinesRequest,
+  SetWorkingGroupStatusRequest,
   UUIDv7,
   UpdateWorkingGroupRequest,
   UpdateWorkingGroupTicketRequest,
@@ -37,9 +40,12 @@ import type {
   WorkingGroupCommentRequest,
   WorkingGroupList,
   WorkingGroupMachineOptionList,
+  WorkingGroupNote,
+  WorkingGroupNoteList,
   WorkingGroupPersonOptionList,
   WorkingGroupPersonRequest,
   WorkingGroupPlaceInput,
+  WorkingGroupStatusList,
   WorkingGroupTicketDetail,
   WorkingGroupTicketList,
   WorkingGroupTodoDetail,
@@ -417,6 +423,163 @@ export const setWorkingGroupColumns = async (groupId: string,
     method: 'PUT',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(setWorkingGroupColumnsRequest)
+  }
+);}
+
+
+export const getSetWorkingGroupMachineStatusUrl = (groupId: string,
+    machineId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-groups/${groupId}/machines/${machineId}/status`
+}
+
+/**
+ * Requires being inside the group (a member or `working_groups.manage`). A machine that does not belong to this group answers 404. `ok` clears note and date (they are not allowed with it). Setting the values the machine already has changes nothing and records nothing. A machine that leaves its group starts at `ok` again, without history.
+ * @summary Set the status of a machine
+ */
+export const setWorkingGroupMachineStatus = async (groupId: string,
+    machineId: UUIDv7,
+    setWorkingGroupStatusRequest: SetWorkingGroupStatusRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroup> => {
+
+  return apiFetch<WorkingGroup>(getSetWorkingGroupMachineStatusUrl(groupId,machineId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(setWorkingGroupStatusRequest)
+  }
+);}
+
+
+export const getSetWorkingGroupPlaceStatusUrl = (groupId: string,
+    placeId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-groups/${groupId}/places/${placeId}/status`
+}
+
+/**
+ * Requires being inside the group (a member or `working_groups.manage`). A place that does not belong to this group answers 404. `ok` clears note and date. Setting the values the place already has changes nothing.
+ * @summary Set the status of a place
+ */
+export const setWorkingGroupPlaceStatus = async (groupId: string,
+    placeId: UUIDv7,
+    setWorkingGroupStatusRequest: SetWorkingGroupStatusRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroup> => {
+
+  return apiFetch<WorkingGroup>(getSetWorkingGroupPlaceStatusUrl(groupId,placeId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(setWorkingGroupStatusRequest)
+  }
+);}
+
+
+export const getListWorkingGroupStatusUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-status`
+}
+
+/**
+ * Requires `working_groups.read`. Every machine and place of every group with its status, items that are not `ok` first, then by name. `daysNotOkLast90` counts the calendar days (makerspace time zone) among the last 90, today included, on which the item was not `ok` at any time.
+ * @summary List the status of every machine and place
+ */
+export const listWorkingGroupStatus = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupStatusList> => {
+
+  return apiFetch<WorkingGroupStatusList>(getListWorkingGroupStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getListWorkingGroupNotesUrl = (params?: ListWorkingGroupNotesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/working-group-notes?${stringifiedParams}` : `/api/v1/working-group-notes`
+}
+
+/**
+ * Requires `working_groups.read`. Newest first, at most 200. A group note is only returned to people inside its group; public notes of a group and makerspace notes (no `groupId`) are returned to everybody. With `groupId` only that group's notes the caller may see are returned (a group the caller is not inside yields its public notes only).
+ * @summary List pinboard notes
+ */
+export const listWorkingGroupNotes = async (params?: ListWorkingGroupNotesParams, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupNoteList> => {
+
+  return apiFetch<WorkingGroupNoteList>(getListWorkingGroupNotesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateWorkingGroupNoteUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-notes`
+}
+
+/**
+ * Requires `working_groups.read` and being inside the group for a note with `groupId` (a member or `working_groups.manage`); a makerspace note (no `groupId`) requires `working_groups.manage` and is always public (422 when `public` is false). Notes cannot be edited.
+ * @summary Pin a note
+ */
+export const createWorkingGroupNote = async (createWorkingGroupNoteRequest: CreateWorkingGroupNoteRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupNote> => {
+
+  return apiFetch<WorkingGroupNote>(getCreateWorkingGroupNoteUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(createWorkingGroupNoteRequest)
+  }
+);}
+
+
+export const getDeleteWorkingGroupNoteUrl = (noteId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-notes/${noteId}`
+}
+
+/**
+ * Requires `working_groups.read` and being the author, the lead of the note's group or holding `working_groups.manage`. A group note the caller is not inside does not exist for them (404).
+ * @summary Remove a note
+ */
+export const deleteWorkingGroupNote = async (noteId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteWorkingGroupNoteUrl(noteId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
   }
 );}
 
