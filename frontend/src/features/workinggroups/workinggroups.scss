@@ -645,3 +645,241 @@
   gap: $spacing-02;
   align-items: start;
 }
+
+// ---- Overview and dashboard pinboard ------------------------------------------------------------------------
+
+.wg-layout--stats {
+  margin-block-end: $spacing-05;
+}
+
+.wg-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: $spacing-05;
+}
+
+.wg-stat.cds--tile {
+  display: grid;
+  align-content: start;
+  gap: $spacing-02;
+}
+
+.wg-stat__label {
+  @include type-style('heading-compact-01');
+}
+
+.wg-stat__value {
+  @include type-style('productive-heading-04');
+}
+
+.wg-stat__detail,
+.wg-muted {
+  display: block;
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+
+.wg-stat__row {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-03;
+  @include type-style('body-compact-01');
+}
+
+.wg-usage {
+  display: grid;
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 4rem auto;
+    align-items: center;
+    gap: $spacing-03;
+  }
+}
+
+.wg-usage__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wg-bar {
+  display: block;
+  block-size: 0.5rem;
+  background: theme.$layer-accent;
+
+  > span {
+    display: block;
+    block-size: 100%;
+    background: theme.$support-error;
+  }
+}
+
+.wg-card {
+  display: grid;
+  gap: $spacing-03;
+  min-inline-size: 0;
+}
+
+.wg-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.wg-card__title {
+  margin: 0;
+  @include type-style('productive-heading-03');
+}
+
+.wg-card__sub {
+  flex-basis: 100%;
+  margin: 0;
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+
+.wg-message {
+  display: block;
+}
+
+.wg-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+}
+
+.wg-comments {
+  display: grid;
+  gap: $spacing-02;
+  margin: $spacing-03 0 0;
+  padding: 0;
+  list-style: none;
+  @include type-style('body-compact-01');
+}
+
+.wg-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-03;
+}
+
+.wg-initials {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: 50%;
+  background: theme.$layer-accent;
+  @include type-style('label-01');
+}
+
+.wg-side {
+  min-inline-size: 0;
+}
+
+.wg-todos,
+.wg-items {
+  display: grid;
+  gap: $spacing-04;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-todo {
+  display: flex;
+  gap: $spacing-04;
+  align-items: flex-start;
+}
+
+.wg-date {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  align-content: center;
+  inline-size: 3rem;
+  padding-block: $spacing-02;
+  border: 1px solid theme.$border-subtle;
+  @include type-style('label-01');
+}
+
+.wg-date__day {
+  @include type-style('productive-heading-03');
+}
+
+.wg-date--error {
+  border-color: theme.$support-error;
+  color: theme.$support-error;
+}
+
+.wg-date--warning {
+  border-color: theme.$support-warning;
+}
+
+.wg-hint--error {
+  color: theme.$support-error;
+}
+
+.wg-item {
+  display: grid;
+  gap: $spacing-02;
+  justify-items: start;
+}
+
+.wg-item__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.wg-item__name {
+  @include type-style('heading-compact-01');
+}
+
+.wg-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: $spacing-02 $spacing-05;
+  margin: $spacing-03 0 0;
+  @include type-style('body-compact-01');
+
+  dt {
+    color: theme.$text-secondary;
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.wg-facts__action {
+  grid-column: 1 / -1;
+}
+
+.wg-all {
+  display: grid;
+  gap: $spacing-04;
+}
+
+.wg-all__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-all__tile.cds--tile {
+  display: grid;
+  gap: $spacing-02;
+  block-size: 100%;
+}

@@ -77,7 +77,7 @@ export function WorkingGroupTasksPage() {
   const [scope, setScope] = useState<ScopeFilter>(null);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FilterValues>({});
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(() => params.get('item'));
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const opener = useRef<HTMLElement | null>(null);
   const rowOpener = useRef<HTMLElement | null>(null);

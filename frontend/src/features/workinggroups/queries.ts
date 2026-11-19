@@ -5,6 +5,8 @@ import {
   getWorkingGroupTicket,
   getWorkingGroupTodo,
   listWorkingGroupMachines,
+  listWorkingGroupNotes,
+  listWorkingGroupStatus,
   listWorkingGroupPeople,
   listWorkingGroups,
   listWorkingGroupTickets,
@@ -20,6 +22,8 @@ export const workingGroupKeys = {
   machines: () => [...workingGroupKeys.all, 'machines'] as const,
   tickets: () => [...workingGroupKeys.all, 'tickets'] as const,
   todos: () => [...workingGroupKeys.all, 'todos'] as const,
+  notes: (groupId: string | undefined) => [...workingGroupKeys.all, 'notes', groupId ?? 'all'] as const,
+  status: () => [...workingGroupKeys.all, 'status'] as const,
   ticket: (id: string) => [...workingGroupKeys.all, 'ticket', id] as const,
   todo: (id: string) => [...workingGroupKeys.all, 'todo', id] as const,
 };
@@ -85,3 +89,16 @@ export function editableWorkingGroups(currentUser: CurrentUser, groups: readonly
   if (!hasPermission(currentUser, PermissionId.working_groupsread)) return [];
   return canManageWorkingGroups(currentUser) ? [...groups] : groups.filter((group) => group.isLead);
 }
+
+/** Pinned notes the caller may see; with a group, only that group's (inside: group and public notes; outside: public). */
+export const workingGroupNotesOptions = (groupId?: string) =>
+  queryOptions({
+    queryKey: workingGroupKeys.notes(groupId),
+    queryFn: ({ signal }) => listWorkingGroupNotes(groupId ? { groupId } : undefined, { signal }),
+  });
+
+/** Every machine and place with its status and the days it was not ok in the last 90. */
+export const workingGroupStatusOptions = queryOptions({
+  queryKey: workingGroupKeys.status(),
+  queryFn: ({ signal }) => listWorkingGroupStatus({ signal }),
+});

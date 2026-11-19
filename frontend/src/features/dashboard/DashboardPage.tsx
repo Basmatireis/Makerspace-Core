@@ -1,7 +1,7 @@
 import { Button } from '@carbon/react';
 import { UserMultiple } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
@@ -23,6 +23,9 @@ import { jobItems, orderItems, payableOrders } from './balance';
 import { pickGreeting, replayRandom, upcomingOpenDays } from './format';
 import { ownLabRulesOptions, personalDashboardOptions, publicOpenDaysOptions } from './queries';
 import './dashboard.scss';
+
+// The working-groups part is its own chunk: the first paint of the dashboard does not wait for it.
+const DashboardPinboard = lazy(() => import('../workinggroups/DashboardPinboard'));
 
 /**
  * The landing page. Sections follow what the API returns and what the person may do: a person with a staffing level
@@ -101,6 +104,11 @@ export function DashboardPage() {
         </div>
       )}
       <div className="db-grid">
+        {hasPermission(currentUser, PermissionId.working_groupsread) && (
+          <Suspense fallback={null}>
+            <DashboardPinboard />
+          </Suspense>
+        )}
         <div className="db-row">
           {data.staffing ? (
             <>

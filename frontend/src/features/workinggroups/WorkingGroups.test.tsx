@@ -78,6 +78,10 @@ function serve(permissions: PermissionId[], groups: WorkingGroup[]) {
       }),
     ),
     http.get('*/api/v1/working-groups/people', () => HttpResponse.json({ items: [] })),
+    http.get('*/api/v1/working-group-tickets', () => HttpResponse.json({ items: [] })),
+    http.get('*/api/v1/working-group-todos', () => HttpResponse.json({ items: [] })),
+    http.get('*/api/v1/working-group-notes', () => HttpResponse.json({ items: [] })),
+    http.get('*/api/v1/working-group-status', () => HttpResponse.json({ items: [] })),
     ...groups.map((group) => http.get(`*/api/v1/working-groups/${group.id}`, () => HttpResponse.json(group))),
   );
 }
@@ -110,6 +114,7 @@ describe('working groups overview', () => {
     expect(screen.getByText('Looks after the 3D printers. You are a member.')).toBeInTheDocument();
     expect(await screen.findByText('Prusa CORE One')).toBeInTheDocument();
     expect(screen.getByText('Filament shelf')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Group pinboard' })).toBeInTheDocument();
     const people = screen.getAllByRole('listitem').map((item) => item.textContent ?? '');
     const leadAt = people.findIndex((text) => text.startsWith('Grace Hopper'));
     expect(leadAt).toBeGreaterThanOrEqual(0);

@@ -1,34 +1,16 @@
-import { Button, Link as CarbonLink, ListItem, Tag, UnorderedList } from '@carbon/react';
-import { Launch } from '@carbon/icons-react';
+import { Button } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import type { WorkingGroup, WorkingGroupSummary } from '../../api/generated/models';
-import { DetailPanel, DetailPanelSection } from '../../app/components/DetailPanel';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { PageSectionTabs } from '../machinelogbook/components/machineParts';
 import { QueryBoundary } from '../machinelogbook/shared/QueryBoundary';
-import {
-  canManageWorkingGroups,
-  editableWorkingGroups,
-  orderGroups,
-  workingGroupOptions,
-  workingGroupsOptions,
-} from './queries';
+import { GroupOverview } from './GroupOverview';
+import { canManageWorkingGroups, editableWorkingGroups, orderGroups, workingGroupsOptions } from './queries';
 import './workinggroups.scss';
 
-function isHttps(url: string | undefined): url is string {
-  try {
-    return url !== undefined && new URL(url).protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
-
-/** Working groups → Overview: who looks after which machines and places. */
+/** Working groups → Overview: one tab per group with its pinboard, people, machines and places. */
 export function WorkingGroupsPage() {
   const currentUser = useCurrentUser();
   const [params, setParams] = useSearchParams();
@@ -60,6 +42,7 @@ export function WorkingGroupsPage() {
   return (
     <PageShell
       title={selected.name}
+      width="wide"
       breadcrumbs={[{ label: 'Working groups', to: '/working-groups' }]}
       actions={
         editableWorkingGroups(currentUser, [selected]).length > 0 && (
@@ -86,83 +69,7 @@ export function WorkingGroupsPage() {
         />
       }
     >
-      <GroupDetail summary={selected} />
+      <GroupOverview summary={selected} />
     </PageShell>
-  );
-}
-
-function GroupDetail({ summary }: { summary: WorkingGroupSummary }) {
-  const detail = useQuery(workingGroupOptions(summary.id));
-  const relation = summary.isLead ? 'You lead this group.' : summary.isMember ? 'You are a member.' : null;
-  return (
-    <>
-      {(summary.description || relation) && (
-        <p className="wg-description">{[summary.description, relation].filter(Boolean).join(' ')}</p>
-      )}
-      <QueryBoundary query={detail} errorMessage="The working group could not be loaded.">
-        {(group) => <GroupColumns group={group} />}
-      </QueryBoundary>
-    </>
-  );
-}
-
-function GroupColumns({ group }: { group: WorkingGroup }) {
-  const members = [...group.members].sort(
-    (a, b) => Number(b.isLead) - Number(a.isLead) || a.displayName.localeCompare(b.displayName),
-  );
-  const machines = [...group.machines].sort(byName);
-  const places = [...group.places].sort(byName);
-  return (
-    <div className="wg-layout">
-      <DetailPanel>
-        <DetailPanelSection title="Machines and places">
-          {machines.length + places.length === 0 ? (
-            <p>This group looks after no machines or places yet.</p>
-          ) : (
-            <UnorderedList nested={false}>
-              {machines.map((machine) => (
-                <ListItem key={machine.id}>
-                  {machine.name} <Tag size="sm">Machine</Tag>
-                </ListItem>
-              ))}
-              {places.map((place) => (
-                <ListItem key={place.id}>
-                  {place.name} <Tag size="sm">Place</Tag>
-                </ListItem>
-              ))}
-            </UnorderedList>
-          )}
-        </DetailPanelSection>
-      </DetailPanel>
-      <aside aria-label="People and chat">
-        <DetailPanel>
-          <DetailPanelSection title="People">
-            {members.length === 0 ? (
-              <p>This group has no members.</p>
-            ) : (
-              <UnorderedList nested={false}>
-                {members.map((member) => (
-                  <ListItem key={member.personId}>
-                    {member.displayName}{' '}
-                    {member.isLead && (
-                      <Tag size="sm" type="purple">
-                        Group lead
-                      </Tag>
-                    )}
-                  </ListItem>
-                ))}
-              </UnorderedList>
-            )}
-          </DetailPanelSection>
-          {isHttps(group.chatUrl) && (
-            <DetailPanelSection title="Group chat">
-              <CarbonLink href={group.chatUrl} target="_blank" rel="noreferrer noopener" renderIcon={Launch}>
-                Open the group chat
-              </CarbonLink>
-            </DetailPanelSection>
-          )}
-        </DetailPanel>
-      </aside>
-    </div>
   );
 }
