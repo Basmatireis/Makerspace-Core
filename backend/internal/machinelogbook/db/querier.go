@@ -248,6 +248,11 @@ type Querier interface {
 	ListOrganizations(ctx context.Context, arg ListOrganizationsParams) ([]ListOrganizationsRow, error)
 	// The person's jobs per calendar month (UTC, by first run start) from from_time's month up to now's month.
 	ListOwnJobsPerMonth(ctx context.Context, arg ListOwnJobsPerMonthParams) ([]ListOwnJobsPerMonthRow, error)
+	// The machines with the most run time of the person's jobs; ties go to the one used last.
+	ListOwnMachineTimes(ctx context.Context, arg ListOwnMachineTimesParams) ([]ListOwnMachineTimesRow, error)
+	// Active usage of the person's jobs per material type, in the base unit of the type's dimension, most jobs first.
+	// Usages without a material, of replaced runs or in a unit of another dimension than the type's are left out.
+	ListOwnMaterialUses(ctx context.Context, arg ListOwnMaterialUsesParams) ([]ListOwnMaterialUsesRow, error)
 	// The latest jobs the person is the customer or the operator of. Order details only for their own jobs.
 	ListOwnRecentJobs(ctx context.Context, arg ListOwnRecentJobsParams) ([]ListOwnRecentJobsRow, error)
 	// The person's own ended jobs that are priced completely, cost something and are on no order: what they still owe

@@ -60,6 +60,8 @@ The dashboard (`/dashboard`, the landing page) is about the signed-in person and
 
 People without these see their lab-rules status and the next open days. Statistics cover all time; time spent in the space cannot be tracked, so there is no statistic based on it.
 
+The statistics hold the person's membership role with the time it was assigned (`membership`; earlier roles are not kept), the open days and event shifts they worked with their scheduled hours and the start of the latest one (`lastStaffedAt`), and, with `machine_jobs.read`, figures of the jobs they are the customer of: jobs, came out right, failed (fully or in part), machine time in total and for the three machines with the most of it, material in grams (Benchys) and the five material types used in the most jobs with their active usage in the base unit of the type (g, mm, cm², ml or pieces), and jobs per month. Nothing in the statistics is about other people.
+
 The page title greets the person by the time of day ("Good morning, Lena"). In `funGreetingShare` of a hundred visits a playful greeting from the branding configuration (Settings › Communication & appearance › Branding & legal, "Playful greetings", English, up to 50 lines of 120 characters) replaces it: a greeting containing `{name}` gets the first name in its place and stands alone; one without stands alone too. The choice is made once per visit in the browser; nothing is stored.
 
 ### Open balance and paying

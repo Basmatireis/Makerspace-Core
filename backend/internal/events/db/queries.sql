@@ -507,7 +507,8 @@ ORDER BY s.starts_at, a.id;
 -- name: GetOwnShiftStatistics :one
 -- Ended shifts the person was actively assigned to, all time, with their scheduled duration in seconds.
 SELECT count(*)::bigint AS shifts,
-       COALESCE(sum(extract(epoch FROM s.ends_at - s.starts_at)), 0)::float8 AS scheduled_seconds
+       COALESCE(sum(extract(epoch FROM s.ends_at - s.starts_at)), 0)::float8 AS scheduled_seconds,
+       max(s.starts_at) AS last_started_at
 FROM event_shift_assignments a
 JOIN event_shifts s ON s.id = a.shift_id AND s.status <> 'cancelled'
 WHERE a.person_id = sqlc.arg(person_id) AND a.status = 'active' AND s.ends_at <= sqlc.arg(now);

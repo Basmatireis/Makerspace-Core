@@ -84,11 +84,14 @@ function jobStats(overrides: Partial<PersonalJobStatistics> = {}): PersonalJobSt
   return {
     jobs: 4,
     successfulJobs: 3,
+    failedJobs: 1,
     finishedJobs: 4,
     successRate: 75,
     materialGrams: 47,
     machineSeconds: 9000,
     favouriteMachine: { name: 'Prusa MK4', jobs: 3 },
+    machines: [],
+    materials: [],
     jobsPerMonth: months,
     ...overrides,
   };
@@ -392,7 +395,9 @@ describe('job statistics', () => {
     openDayHours: 0,
     eventShifts: 0,
     eventShiftHours: 0,
+    lastStaffedAt: null,
     memberSince: '2025-01-01T00:00:00Z',
+    membership: null,
     jobs,
   });
 

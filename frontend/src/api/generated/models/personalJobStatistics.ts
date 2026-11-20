@@ -20,6 +20,8 @@
  */
 import type { PersonalFavouriteMachine } from './personalFavouriteMachine';
 import type { PersonalJobMonth } from './personalJobMonth';
+import type { PersonalMachineTime } from './personalMachineTime';
+import type { PersonalMaterialUse } from './personalMaterialUse';
 
 /**
  * All-time figures of the jobs the person is the customer of. Jobs without a run are not counted.
@@ -30,6 +32,11 @@ export interface PersonalJobStatistics {
   jobs: number;
   /** @minimum 0 */
   successfulJobs: number;
+  /**
+     * Jobs that failed completely or in part.
+     * @minimum 0
+     */
+  failedJobs: number;
   /**
      * Jobs with a known outcome.
      * @minimum 0
@@ -47,6 +54,16 @@ export interface PersonalJobStatistics {
   /** @minimum 0 */
   machineSeconds: number;
   favouriteMachine: PersonalFavouriteMachine | null;
+  /**
+     * The machines with the most machine time of the person's jobs, most first.
+     * @maxItems 3
+     */
+  machines: PersonalMachineTime[];
+  /**
+     * The material types the person's jobs used most, by number of jobs. Usages without a material are left out.
+     * @maxItems 5
+     */
+  materials: PersonalMaterialUse[];
   /**
      * The last twelve calendar months (UTC), oldest first, including the current one.
      * @minItems 12

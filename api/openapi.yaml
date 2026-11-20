@@ -18103,15 +18103,31 @@ components:
     PersonalStatistics:
       type: object
       additionalProperties: false
-      required: [openDaysStaffed, openDayHours, eventShifts, eventShiftHours, memberSince]
+      required: [openDaysStaffed, openDayHours, eventShifts, eventShiftHours, lastStaffedAt, memberSince, membership]
       description: All-time figures from scheduled durations of ended assignments.
       properties:
         openDaysStaffed: {type: integer, minimum: 0}
         openDayHours: {type: number, format: double, minimum: 0}
         eventShifts: {type: integer, minimum: 0}
         eventShiftHours: {type: number, format: double, minimum: 0}
+        lastStaffedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Start of the latest ended open-day timeslot or event shift the person worked; null before the first.
         memberSince: {type: string, format: date}
+        membership:
+          allOf: [{$ref: "#/components/schemas/PersonalMembership"}]
+          nullable: true
+          description: The person's current membership role and when it was assigned; null without one.
         jobs: {$ref: "#/components/schemas/PersonalJobStatistics"}
+    PersonalMembership:
+      type: object
+      additionalProperties: false
+      required: [membership, since]
+      properties:
+        membership: {$ref: "#/components/schemas/Membership"}
+        since: {type: string, format: date-time, description: "When the role was assigned to the person."}
     OwnPaymentRequest:
       type: object
       additionalProperties: false
@@ -18159,13 +18175,14 @@ components:
     PersonalJobStatistics:
       type: object
       additionalProperties: false
-      required: [jobs, successfulJobs, finishedJobs, successRate, materialGrams, machineSeconds, favouriteMachine, jobsPerMonth]
+      required: [jobs, successfulJobs, failedJobs, finishedJobs, successRate, materialGrams, machineSeconds, favouriteMachine, machines, materials, jobsPerMonth]
       description: |
         All-time figures of the jobs the person is the customer of. Jobs without a run are not counted.
         Material is the active usage in grams of their runs; machine time is the duration of their runs.
       properties:
         jobs: {type: integer, minimum: 0}
         successfulJobs: {type: integer, minimum: 0}
+        failedJobs: {type: integer, minimum: 0, description: "Jobs that failed completely or in part."}
         finishedJobs: {type: integer, minimum: 0, description: "Jobs with a known outcome."}
         successRate:
           type: integer
@@ -18178,6 +18195,17 @@ components:
         favouriteMachine:
           allOf: [{$ref: "#/components/schemas/PersonalFavouriteMachine"}]
           nullable: true
+        machines:
+          type: array
+          maxItems: 3
+          items: {$ref: "#/components/schemas/PersonalMachineTime"}
+          description: The machines with the most machine time of the person's jobs, most first.
+        materials:
+          type: array
+          maxItems: 5
+          items: {$ref: "#/components/schemas/PersonalMaterialUse"}
+          description: |
+            The material types the person's jobs used most, by number of jobs. Usages without a material are left out.
         jobsPerMonth:
           type: array
           minItems: 12
@@ -18191,6 +18219,27 @@ components:
       description: The machine with the most of the person's jobs.
       properties:
         name: {type: string}
+        jobs: {type: integer, minimum: 1}
+    PersonalMachineTime:
+      type: object
+      additionalProperties: false
+      required: [name, machineSeconds, jobs]
+      properties:
+        name: {type: string}
+        machineSeconds: {type: integer, format: int64, minimum: 1}
+        jobs: {type: integer, minimum: 1}
+    PersonalMaterialUse:
+      type: object
+      additionalProperties: false
+      required: [name, dimension, amount, jobs]
+      properties:
+        name: {type: string, description: "Name of the material type."}
+        dimension: {$ref: "#/components/schemas/MaterialDimension"}
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          description: Active usage in the base unit of the dimension (g, mm, cm2, ml or pieces).
         jobs: {type: integer, minimum: 1}
     PersonalJobMonth:
       type: object

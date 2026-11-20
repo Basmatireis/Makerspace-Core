@@ -7,6 +7,7 @@ package dashboarddb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -25,5 +26,27 @@ func (q *Queries) GetOwnDashboardPerson(ctx context.Context, id uuid.UUID) (GetO
 	row := q.db.QueryRow(ctx, getOwnDashboardPerson, id)
 	var i GetOwnDashboardPersonRow
 	err := row.Scan(&i.FirstName, &i.MemberSince)
+	return i, err
+}
+
+const getOwnMembership = `-- name: GetOwnMembership :one
+SELECT r.system_key::text AS membership, pr.assigned_at
+FROM person_roles pr
+JOIN roles r ON r.id = pr.role_id
+WHERE pr.person_id = $1 AND r.system_key IN ('supervisor', 'trainee', 'visitor')
+ORDER BY CASE r.system_key WHEN 'supervisor' THEN 0 WHEN 'trainee' THEN 1 ELSE 2 END
+LIMIT 1
+`
+
+type GetOwnMembershipRow struct {
+	Membership string
+	AssignedAt time.Time
+}
+
+// The person's membership role and when it was assigned.
+func (q *Queries) GetOwnMembership(ctx context.Context, personID uuid.UUID) (GetOwnMembershipRow, error) {
+	row := q.db.QueryRow(ctx, getOwnMembership, personID)
+	var i GetOwnMembershipRow
+	err := row.Scan(&i.Membership, &i.AssignedAt)
 	return i, err
 }

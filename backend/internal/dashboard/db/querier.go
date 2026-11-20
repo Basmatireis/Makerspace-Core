@@ -12,6 +12,8 @@ import (
 
 type Querier interface {
 	GetOwnDashboardPerson(ctx context.Context, id uuid.UUID) (GetOwnDashboardPersonRow, error)
+	// The person's membership role and when it was assigned.
+	GetOwnMembership(ctx context.Context, personID uuid.UUID) (GetOwnMembershipRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

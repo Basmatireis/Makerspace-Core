@@ -55,7 +55,18 @@ func (s *Server) GetPersonalDashboard(
 			OpenDayHours:    result.Statistics.OpenDayHours,
 			EventShifts:     result.Statistics.EventShifts,
 			EventShiftHours: result.Statistics.EventShiftHours,
+			LastStaffedAt:   nullable.NewNullNullable[time.Time](),
 			MemberSince:     openapi_types.Date{Time: result.Statistics.MemberSince},
+			Membership:      nullable.NewNullNullable[openapi.PersonalMembership](),
+		}
+		if last := result.Statistics.LastStaffedAt; last != nil {
+			response.Statistics.LastStaffedAt = nullable.NewNullableWithValue(*last)
+		}
+		if membership := result.Statistics.Membership; membership != nil {
+			response.Statistics.Membership = nullable.NewNullableWithValue(openapi.PersonalMembership{
+				Membership: openapi.Membership(membership.Membership),
+				Since:      membership.Since,
+			})
 		}
 		if jobs := result.Statistics.Jobs; jobs != nil {
 			response.Statistics.Jobs = jobStatisticsDTO(jobs)
@@ -151,12 +162,26 @@ func jobStatisticsDTO(jobs *machinelogbook.OwnJobStatistics) *openapi.PersonalJo
 	dto := &openapi.PersonalJobStatistics{
 		Jobs:             jobs.Jobs,
 		SuccessfulJobs:   jobs.SuccessfulJobs,
+		FailedJobs:       jobs.FailedJobs,
 		FinishedJobs:     jobs.FinishedJobs,
 		SuccessRate:      nullable.NewNullNullable[int](),
 		MaterialGrams:    jobs.MaterialGrams,
 		MachineSeconds:   jobs.MachineSeconds,
 		FavouriteMachine: nullable.NewNullNullable[openapi.PersonalFavouriteMachine](),
+		Machines:         make([]openapi.PersonalMachineTime, 0, len(jobs.Machines)),
+		Materials:        make([]openapi.PersonalMaterialUse, 0, len(jobs.Materials)),
 		JobsPerMonth:     make([]openapi.PersonalJobMonth, 0, len(jobs.JobsPerMonth)),
+	}
+	for _, machine := range jobs.Machines {
+		dto.Machines = append(dto.Machines, openapi.PersonalMachineTime{
+			Name: machine.Name, MachineSeconds: machine.MachineSeconds, Jobs: machine.Jobs,
+		})
+	}
+	for _, material := range jobs.Materials {
+		dto.Materials = append(dto.Materials, openapi.PersonalMaterialUse{
+			Name: material.Name, Dimension: openapi.MaterialDimension(material.Dimension), Amount: material.Amount,
+			Jobs: material.Jobs,
+		})
 	}
 	if jobs.SuccessRate != nil {
 		dto.SuccessRate = nullable.NewNullableWithValue(*jobs.SuccessRate)

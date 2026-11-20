@@ -19,6 +19,12 @@ const OwnRecentJobsLimit = 5
 // OwnStatisticsMonths is how many calendar months the personal jobs-per-month figure covers.
 const OwnStatisticsMonths = 12
 
+// OwnMachineTimesLimit and OwnMaterialUsesLimit are how many machines and material types the personal figures rank.
+const (
+	OwnMachineTimesLimit = 3
+	OwnMaterialUsesLimit = 5
+)
+
 // OwnUnbilledJob is one of the principal's own jobs that they still owe because it is on no order.
 type OwnUnbilledJob struct {
 	ID          uuid.UUID
@@ -56,15 +62,33 @@ type OwnFavouriteMachine struct {
 	Jobs int
 }
 
+// OwnMachineTime is the run time of the principal's jobs on one machine.
+type OwnMachineTime struct {
+	Name           string
+	MachineSeconds int64
+	Jobs           int
+}
+
+// OwnMaterialUse is the active usage of the principal's jobs of one material type, in the base unit of its dimension.
+type OwnMaterialUse struct {
+	Name      string
+	Dimension string
+	Amount    float64
+	Jobs      int
+}
+
 // OwnJobStatistics are the all-time figures of the principal's own jobs.
 type OwnJobStatistics struct {
 	Jobs             int
 	SuccessfulJobs   int
+	FailedJobs       int
 	FinishedJobs     int
 	SuccessRate      *int
 	MaterialGrams    float64
 	MachineSeconds   int64
 	FavouriteMachine *OwnFavouriteMachine
+	Machines         []OwnMachineTime
+	Materials        []OwnMaterialUse
 	JobsPerMonth     []OwnJobMonth
 }
 
@@ -146,9 +170,12 @@ func (s *Service) OwnStatistics(ctx context.Context, p authorization.Principal) 
 	result := OwnJobStatistics{
 		Jobs:           int(totals.Jobs),
 		SuccessfulJobs: int(totals.SuccessfulJobs),
+		FailedJobs:     int(totals.FailedJobs),
 		FinishedJobs:   int(totals.FinishedJobs),
 		MaterialGrams:  math.Round(totals.MaterialGrams*10) / 10,
 		MachineSeconds: totals.MachineSeconds,
+		Machines:       []OwnMachineTime{},
+		Materials:      []OwnMaterialUse{},
 		JobsPerMonth:   make([]OwnJobMonth, 0, OwnStatisticsMonths),
 	}
 	if totals.FinishedJobs > 0 {
@@ -160,6 +187,31 @@ func (s *Service) OwnStatistics(ctx context.Context, p authorization.Principal) 
 		result.FavouriteMachine = &OwnFavouriteMachine{Name: favourite.Name, Jobs: int(favourite.Jobs)}
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return OwnJobStatistics{}, err
+	}
+	machines, err := q.ListOwnMachineTimes(
+		ctx,
+		machinelogbookdb.ListOwnMachineTimesParams{PersonID: &p.PersonID, PageLimit: OwnMachineTimesLimit},
+	)
+	if err != nil {
+		return OwnJobStatistics{}, err
+	}
+	for _, machine := range machines {
+		result.Machines = append(result.Machines, OwnMachineTime{
+			Name: machine.Name, MachineSeconds: machine.MachineSeconds, Jobs: int(machine.Jobs),
+		})
+	}
+	materials, err := q.ListOwnMaterialUses(
+		ctx,
+		machinelogbookdb.ListOwnMaterialUsesParams{PersonID: &p.PersonID, PageLimit: OwnMaterialUsesLimit},
+	)
+	if err != nil {
+		return OwnJobStatistics{}, err
+	}
+	for _, material := range materials {
+		result.Materials = append(result.Materials, OwnMaterialUse{
+			Name: material.Name, Dimension: material.Dimension, Amount: math.Round(material.Amount*10) / 10,
+			Jobs: int(material.Jobs),
+		})
 	}
 	now := s.now().UTC()
 	from := time.Date(now.Year(), now.Month()-(OwnStatisticsMonths-1), 1, 0, 0, 0, 0, time.UTC)

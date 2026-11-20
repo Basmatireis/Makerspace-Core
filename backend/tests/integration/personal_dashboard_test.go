@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -262,6 +263,116 @@ func TestPersonalDashboardStatisticsUseScheduledDurationsOfEndedAssignments(t *t
 	if statistics == nil || statistics.OpenDaysStaffed != 2 || statistics.OpenDayHours != 7.5 ||
 		statistics.EventShifts != 1 || statistics.EventShiftHours != 1.5 || statistics.MemberSince.IsZero() {
 		t.Fatalf("statistics = %+v, want 2 open days / 7.5 h and 1 shift / 1.5 h", statistics)
+	}
+	// The latest ended assignment is the shift five days ago; the cancelled open day after it does not count.
+	if statistics.LastStaffedAt == nil || statistics.LastStaffedAt.Sub(e.now.AddDate(0, 0, -5)).Abs() > time.Millisecond {
+		t.Fatalf("last staffed = %v, want the start of the past shift %v", statistics.LastStaffedAt, e.now.AddDate(0, 0, -5))
+	}
+	if statistics.Membership == nil || statistics.Membership.Membership != roles.MembershipSupervisor ||
+		statistics.Membership.Since.IsZero() {
+		t.Fatalf("membership = %+v, want supervisor with its assignment time", statistics.Membership)
+	}
+
+	// Before the first ended assignment there is no last time.
+	fresh, err := e.dashboard.Get(ctx, e.person("fresh", supervisorRole.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh.Statistics == nil || fresh.Statistics.LastStaffedAt != nil {
+		t.Fatalf("fresh statistics = %+v, want no last staffed time", fresh.Statistics)
+	}
+}
+
+// TestPersonalDashboardJobStatisticsRankMachinesAndMaterials covers the job tiles: failed jobs, machine time per
+// machine and material use per material type, all from the person's own jobs only.
+func TestPersonalDashboardJobStatisticsRankMachinesAndMaterials(t *testing.T) {
+	e := newStaffingEnv(t)
+	ctx := testContext(t)
+	memberRole := e.role("Members", level(roles.MembershipSupervisor), authorization.MachineJobsRead)
+	maker := e.person("maker", memberRole.ID)
+	other := e.person("other-maker", memberRole.ID)
+	tag := strings.ToUpper(strings.ReplaceAll(ids.New().String(), "-", "")[20:28])
+
+	process := ids.New()
+	e.exec(`INSERT INTO processes (id, name, integration) VALUES ($1, $2, 'none')`, process, "Dashboard process "+tag)
+	printer, laser := ids.New(), ids.New()
+	e.exec(`INSERT INTO machines (id, process_id, name) VALUES ($1, $3, $4), ($2, $3, $5)`,
+		printer, laser, process, "Printer "+tag, "Laser "+tag)
+	pla, plywood := ids.New(), ids.New()
+	e.exec(`INSERT INTO material_types (id, name, unit, kind, code, machine_use) VALUES
+		($1, $3, 'g', 'filament', $4, true), ($2, $5, 'm2', 'consumable', $6, true)`,
+		pla, plywood, "PLA "+tag, "P"+tag, "Plywood "+tag, "W"+tag)
+	red, sheet := ids.New(), ids.New()
+	e.exec(`INSERT INTO materials (id, display_id, name, unit, material_type_id) VALUES
+		($1, 'A-' || (900000000 + floor(random() * 99999999))::bigint, $3, 'g', $4),
+		($2, 'A-' || (900000000 + floor(random() * 99999999))::bigint, $5, 'm2', $6)`,
+		red, sheet, "PLA red "+tag, pla, "Plywood sheet "+tag, plywood)
+
+	jobCounter := 0
+	job := func(customer authorization.Principal, machine uuid.UUID, length time.Duration, outcome string) uuid.UUID {
+		t.Helper()
+		jobCounter++
+		id, run := ids.New(), ids.New()
+		random := ids.New() // UUIDv7: the last bytes are random
+		number := 900000000 + (int(random[12])<<16|int(random[13])<<8|int(random[14]))*4 + jobCounter%4
+		e.exec(`INSERT INTO machine_jobs (id, display_id, machine_id, customer_person_id) VALUES ($1, $2, $3, $4)`,
+			id, fmt.Sprintf("J-2031-%d", number), machine, customer.PersonID)
+		started := e.now.AddDate(0, 0, -jobCounter)
+		e.exec(`INSERT INTO machine_runs (id, display_id, machine_id, source, job_id, started_at, ended_at, outcome)
+			VALUES ($1, $2, $3, 'manual', $4, $5, $6, $7)`,
+			run, fmt.Sprintf("R-2031-%d", number), machine, id, started, started.Add(length), outcome)
+		return run
+	}
+	usage := func(run, material uuid.UUID, quantity string, unit any, active bool) {
+		t.Helper()
+		e.exec(`INSERT INTO machine_run_usages (id, run_id, material_id, quantity, material_unit, active)
+			VALUES ($1, $2, $3, $4::numeric, $5, $6)`, ids.New(), run, material, quantity, unit, active)
+	}
+
+	first := job(maker, printer, 2*time.Hour, "successful")
+	usage(first, red, "100", nil, true)
+	usage(first, red, "500", nil, false) // inactive usage never counts
+	second := job(maker, printer, time.Hour, "failed")
+	usage(second, red, "0.05", "kg", true)
+	third := job(maker, laser, 30*time.Minute, "partial_failure")
+	usage(third, sheet, "0.5", nil, true)
+	// Another person's long job on the laser with lots of material stays theirs.
+	foreign := job(other, laser, 10*time.Hour, "successful")
+	usage(foreign, red, "1000", nil, true)
+
+	view, err := e.dashboard.Get(ctx, maker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Statistics == nil || view.Statistics.Jobs == nil {
+		t.Fatalf("statistics = %+v, want job statistics", view.Statistics)
+	}
+	jobs := view.Statistics.Jobs
+	if jobs.Jobs != 3 || jobs.SuccessfulJobs != 1 || jobs.FailedJobs != 2 || jobs.FinishedJobs != 3 ||
+		jobs.MaterialGrams != 150 || jobs.MachineSeconds != int64((3*time.Hour+30*time.Minute)/time.Second) {
+		t.Fatalf("job totals = %+v", jobs)
+	}
+	if len(jobs.Machines) != 2 ||
+		jobs.Machines[0].Name != "Printer "+tag || jobs.Machines[0].MachineSeconds != 3*3600 || jobs.Machines[0].Jobs != 2 ||
+		jobs.Machines[1].Name != "Laser "+tag || jobs.Machines[1].MachineSeconds != 1800 || jobs.Machines[1].Jobs != 1 {
+		t.Fatalf("machines = %+v, want the printer (3 h, 2 jobs) before the laser (30 min, 1 job)", jobs.Machines)
+	}
+	if len(jobs.Materials) != 2 ||
+		jobs.Materials[0].Name != "PLA "+tag || jobs.Materials[0].Dimension != "mass" || jobs.Materials[0].Amount != 150 ||
+		jobs.Materials[0].Jobs != 2 ||
+		jobs.Materials[1].Name != "Plywood "+tag || jobs.Materials[1].Dimension != "area" || jobs.Materials[1].Amount != 5000 ||
+		jobs.Materials[1].Jobs != 1 {
+		t.Fatalf("materials = %+v, want PLA 150 g in 2 jobs before plywood 5000 cm2 in 1 job", jobs.Materials)
+	}
+
+	// Without jobs the lists are empty, not missing.
+	empty, err := e.dashboard.Get(ctx, e.person("no-jobs", memberRole.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty.Statistics.Jobs == nil || empty.Statistics.Jobs.Machines == nil || len(empty.Statistics.Jobs.Machines) != 0 ||
+		empty.Statistics.Jobs.Materials == nil || len(empty.Statistics.Jobs.Materials) != 0 || empty.Statistics.Jobs.FailedJobs != 0 {
+		t.Fatalf("empty job statistics = %+v", empty.Statistics.Jobs)
 	}
 }
 
