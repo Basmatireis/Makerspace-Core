@@ -139,7 +139,7 @@ describe('personal dashboard', () => {
     // One info box in Next up: the short-staffed warning wins over the open place.
     expect(screen.getByText('Short-staffed')).toBeInTheDocument();
     expect(screen.queryByText('Supervisor needed')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Your makerspace so far' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Your makerspace so far' })).toBeInTheDocument();
     expect(screen.getByText('16 hours staffed')).toBeInTheDocument();
     expect(screen.getByText('4 hours helping')).toBeInTheDocument();
     expect(screen.getByText('20 h')).toBeInTheDocument();
@@ -149,6 +149,12 @@ describe('personal dashboard', () => {
     expect(within(nextUp).getByText('After that')).toBeInTheDocument();
     expect(within(nextUp).getByText(/Maker Faire · Door ·/)).toBeInTheDocument();
     expect(within(nextUp).getByText('Signed up for this shift')).toBeInTheDocument();
+    // Without event permissions the shift links to the public event page, like the open day links to its day.
+    expect(
+      within(nextUp)
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href')),
+    ).toContain('/events/public/maker-faire');
     expect(screen.queryByRole('link', { name: /calendar/i })).not.toBeInTheDocument();
   });
 

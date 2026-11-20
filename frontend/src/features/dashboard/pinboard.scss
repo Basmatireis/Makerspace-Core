@@ -113,3 +113,32 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+// One tidy block per row: every line starts on the same edge with a small, even gap. The toggle of a machine row
+// looks like a line of text with the chevron right behind the name.
+.db-pb__msg {
+  display: grid;
+  gap: $spacing-01;
+  justify-items: start;
+  min-inline-size: 0;
+}
+
+.db-pb__msg .wg-muted {
+  margin: 0;
+}
+
+.db-pb__line {
+  @include type-style('body-compact-01');
+}
+
+.db-pb__msg .db-pb__toggle.cds--btn {
+  min-block-size: 0;
+  block-size: auto;
+  padding: 0 calc(#{$spacing-05} + #{$spacing-03}) 0 0;
+  text-align: start;
+  @include type-style('body-compact-01');
+}
+
+.db-pb__msg .db-pb__toggle .cds--btn__icon {
+  inset-inline-end: 0;
+}

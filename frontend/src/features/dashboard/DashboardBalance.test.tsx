@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type {
   PersonalBalance,
   PersonalDashboard,
@@ -14,12 +14,6 @@ import { App } from '../../app/App';
 import { currentUserFixture } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
-
-vi.mock('../../app/charting', () => ({
-  ScaleTypes: { LINEAR: 'linear', LABELS: 'labels' },
-  LineChart: () => <div />,
-  SimpleBarChart: ({ data }: { data: unknown[] }) => <div data-testid="bar-chart">{data.length} bars</div>,
-}));
 
 const orderA = '0192f6f8-743e-7c77-a349-cd07c3e8c001';
 const orderB = '0192f6f8-743e-7c77-a349-cd07c3e8c002';
@@ -450,19 +444,12 @@ describe('job statistics', () => {
     expect(screen.queryByRole('img', { name: /came out right/ })).not.toBeInTheDocument();
   });
 
-  it('loads the jobs-per-month chart lazily and hides it without jobs', async () => {
+  it('shows no jobs-per-month chart on the dashboard', async () => {
     serve({ statistics: statistics(jobStats()) }, [PermissionId.machine_jobsread]);
-    const view = renderRoute(<App />, '/dashboard');
-    expect(await screen.findByTestId('bar-chart')).toHaveTextContent('12 bars');
-    expect(screen.getByRole('table', { name: 'Your jobs per month' })).toBeInTheDocument();
-    view.unmount();
-
-    serve({ statistics: statistics(jobStats({ jobs: 0, successRate: null, materialGrams: 0 })) }, [
-      PermissionId.machine_jobsread,
-    ]);
     renderRoute(<App />, '/dashboard');
-    expect(await screen.findByText('Your first job is waiting')).toBeInTheDocument();
+    expect(await screen.findByText('Jobs')).toBeInTheDocument();
     expect(screen.queryByTestId('bar-chart')).not.toBeInTheDocument();
+    expect(screen.queryByText('Your jobs per month')).not.toBeInTheDocument();
   });
 });
 

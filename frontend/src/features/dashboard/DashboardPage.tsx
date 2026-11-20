@@ -8,12 +8,11 @@ import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { useNow } from '../../app/useNow';
 import { useCurrentUser } from '../auth/auth';
 import { useBranding } from '../branding/branding';
-import { canAccessOpenDays, hasPermission, PermissionId } from '../auth/permissions';
+import { canAccessOpenDays, hasAnyPermission, hasPermission, PermissionId } from '../auth/permissions';
 import { BalanceTile } from './BalanceTile';
 import { ComingUpPanel } from './ComingUpPanel';
 import { NextOpenDayTile, UpcomingOpenDaysList } from './GuestOpenDays';
 import { LabRulesNotice, LabRulesTile } from './LabRules';
-import { JobsPerMonth } from './JobsPerMonth';
 import PinboardSkeleton from '../workinggroups/PinboardSkeleton';
 import { NextUpTile } from './NextUpTile';
 import { PayDialog } from './PayDialog';
@@ -77,11 +76,15 @@ export function DashboardPage() {
     hasPermission(currentUser, PermissionId.ordersfinalize);
   const payOrderIds = new Set(canPay && balance ? payableOrders(balance).map((order) => order.id) : []);
   const payItems = balance ? [...orderItems(balance), ...(canPayJobs ? jobItems(balance) : [])] : [];
-  const jobStats = data.statistics?.jobs;
-  const jobsChart = jobStats && jobStats.jobs > 0 ? <JobsPerMonth months={jobStats.jobsPerMonth} /> : null;
+  const canOpenEvents = hasAnyPermission(currentUser, [
+    'events.read',
+    'events.manage',
+    'events.staffing.manage',
+    'events.assign',
+  ]);
   const pinboard = hasPermission(currentUser, PermissionId.working_groupsread);
-  // The wide column holds the pinboard and the chart; without them the side tiles share the row.
-  const wide = pinboard || jobsChart !== null;
+  // The wide column holds the pinboard; without it the side tiles share the row.
+  const wide = pinboard;
 
   return (
     <PageShell
@@ -115,7 +118,6 @@ export function DashboardPage() {
                   <DashboardPinboard />
                 </Suspense>
               )}
-              {jobsChart}
             </div>
           )}
           <div className="db-main__side">
@@ -126,6 +128,7 @@ export function DashboardPage() {
                 now={now}
                 canSignUp={canSignUp}
                 canFindOpenDays={canFindOpenDays}
+                canOpenEvents={canOpenEvents}
               />
             ) : (
               <>

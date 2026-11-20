@@ -154,20 +154,26 @@ export default function DashboardPinboard() {
         if (row.type === 'yours') {
           const hint = dueHint(row.task, today);
           return (
-            <>
-              <span className="wg-message">{row.task.title}</span>
+            <div className="db-pb__msg">
+              <span className="db-pb__line">{row.task.title}</span>
               {hint && <span className={`wg-muted wg-hint--${hint.tone}`}>{hint.text}</span>}
               {row.task.commentCount > 0 && <RowComments task={row.task} />}
-            </>
+            </div>
           );
         }
-        if (row.type === 'note') return <span className="wg-message">{row.note.text}</span>;
+        if (row.type === 'note')
+          return (
+            <div className="db-pb__msg">
+              <span className="db-pb__line">{row.note.text}</span>
+            </div>
+          );
         const { item } = row;
         const open = expanded.has(row.id);
         const until = backAround(item.until);
         return (
-          <>
+          <div className="db-pb__msg">
             <Button
+              className="db-pb__toggle"
               kind="ghost"
               size="sm"
               renderIcon={open ? ChevronUp : ChevronDown}
@@ -197,7 +203,7 @@ export default function DashboardPinboard() {
                 </>
               )}
             </div>
-          </>
+          </div>
         );
       },
     },

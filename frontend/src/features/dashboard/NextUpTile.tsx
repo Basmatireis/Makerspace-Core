@@ -20,6 +20,8 @@ type Props = {
   now: number;
   canSignUp: boolean;
   canFindOpenDays: boolean;
+  /** Whether the person may open the internal event page (events.read and similar). */
+  canOpenEvents?: boolean;
 };
 
 /**
@@ -101,11 +103,12 @@ function NextUpHint({ next, staffing, now, canSignUp }: { next: ComingUpItem | u
 }
 
 /** Where the title of a commitment links to: the open day or the public event page. */
-function detailsPath(item: ComingUpItem, canFindOpenDays: boolean): string | null {
+function detailsPath(item: ComingUpItem, canFindOpenDays: boolean, canOpenEvents: boolean): string | null {
   if (item.kind === 'open_day')
     return canFindOpenDays && item.periodId && item.openDayId
       ? `/open-days/${item.periodId}/days/${item.openDayId}`
       : null;
+  if (canOpenEvents && item.eventId) return `/events/${item.eventId}`;
   return item.publicId ? `/events/public/${item.publicId}` : null;
 }
 
@@ -208,11 +211,11 @@ function SemesterStatus({ staffing, canFindOpenDays }: Pick<Props, 'staffing' | 
  * semester progress at the bottom.
  */
 export function NextUpTile(props: Props) {
-  const { items, staffing, now, canSignUp, canFindOpenDays } = props;
+  const { items, staffing, now, canSignUp, canFindOpenDays, canOpenEvents = false } = props;
   const [leaving, setLeaving] = useState<ComingUpItem | null>(null);
   const [next, ...rest] = items;
   const after = rest.slice(0, AFTER_LIMIT);
-  const nextPath = next ? detailsPath(next, canFindOpenDays) : null;
+  const nextPath = next ? detailsPath(next, canFindOpenDays, canOpenEvents) : null;
 
   return (
     <Tile className="db-tile" data-guide="dashboard-next-up">
@@ -252,7 +255,7 @@ export function NextUpTile(props: Props) {
             <p className="db-then__head">After that</p>
             <ul>
               {after.map((item) => {
-                const path = detailsPath(item, canFindOpenDays);
+                const path = detailsPath(item, canFindOpenDays, canOpenEvents);
                 const day = dayLabel(item.startsAt, now);
                 return (
                   <li key={`${item.kind}-${item.id}`} className="db-then__row">

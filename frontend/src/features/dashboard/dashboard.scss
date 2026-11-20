@@ -154,11 +154,6 @@
   fill: theme.$support-warning;
 }
 
-.db-section-title {
-  margin-block-end: $spacing-04;
-  @include type-style('productive-heading-03');
-}
-
 // The statistics row: four small tiles beside the material tile, as wide as the columns below.
 .db-statrow {
   display: grid;
@@ -226,10 +221,8 @@
 }
 
 .db-kv dt {
-  overflow: hidden;
   min-inline-size: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .db-kv dd {
@@ -500,12 +493,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.db-chart.cds--tile {
-  display: grid;
-  gap: $spacing-04;
-  align-content: start;
-}
-
 .db-panel__empty {
   padding: $spacing-05;
   color: theme.$text-secondary;
@@ -528,4 +515,15 @@
 
 .db-pinboard-skeleton.cds--tile {
   min-block-size: 32rem;
+}
+
+// Contained list rows clip their content to one line; the second line of a row wraps instead.
+.db-panel .cds--contained-list-item__content {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.db-item__meta {
+  overflow-wrap: anywhere;
 }

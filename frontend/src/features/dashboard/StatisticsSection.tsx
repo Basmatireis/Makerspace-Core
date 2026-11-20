@@ -94,10 +94,7 @@ export function StatisticsSection({ statistics, now }: { statistics: PersonalSta
     .reduce((sum, material) => sum + material.amount, 0);
 
   return (
-    <section aria-labelledby="db-stats-title" className="db-statsection">
-      <h2 id="db-stats-title" className="db-section-title">
-        Your makerspace so far
-      </h2>
+    <section aria-label="Your makerspace so far" className="db-statsection">
       <div className={`db-statrow${jobs ? '' : ' db-statrow--short'}`}>
         <div className="db-stats">
           <Stat
