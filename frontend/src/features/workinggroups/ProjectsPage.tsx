@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Button, InlineNotification, Modal, Search, Tag } from '@carbon/react';
+import { Button, InlineNotification, Modal, Search } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { WorkingGroupProject, WorkingGroupPurchase } from '../../api/generated/models';
@@ -15,6 +15,7 @@ import { formatCents, toCents } from '../orders/money';
 import { BudgetCard, type Figures } from './BudgetParts';
 import { ProjectDialog } from './ProjectDialogs';
 import { ProjectPanel } from './ProjectParts';
+import { PurchaseTrack } from './PurchaseList';
 import { PurchasePanel } from './PurchasePanel';
 import {
   PROJECT_BUCKETS,
@@ -27,11 +28,11 @@ import {
   who,
 } from './projectModel';
 import { projectsOptions } from './projectQueries';
-import { PURCHASE_STATUS_LABEL, PURCHASE_STATUS_TAG, amountCents, sortPeriods } from './financeModel';
+import { COUNTS_LABEL, amountCents, countsAs, sortPeriods } from './financeModel';
 import { budgetOptions, budgetPeriodsOptions, purchasesOptions } from './financeQueries';
 import { orderGroups, workingGroupsOptions } from './queries';
 import { Tile } from './TaskSummary';
-import { firstName, formatDateOnly } from './taskModel';
+import { formatDateOnly, personName } from './taskModel';
 import { useDialogOpener } from './useDialogOpener';
 import './workinggroups.scss';
 
@@ -460,19 +461,19 @@ function ProjectRow({
                 >
                   <span className="wg-pamount">
                     <strong>{formatCents(amountCents(purchase))}</strong>
+                    <small>{COUNTS_LABEL[countsAs(purchase)]}</small>
                   </span>
-                  <span className="wg-lwhat">
+                  <span className="wg-lwhat wg-tree">
                     <span className="wg-lwhat__title">{purchase.item}</span>
                     <small>
-                      {purchase.quantity} × · {purchase.requester ? firstName(purchase.requester) : 'Former member'}
+                      Purchase · {purchase.quantity} × ·{' '}
+                      {purchase.requester ? personName(purchase.requester) : 'Former member'}
                     </small>
                   </span>
-                  <span />
-                  <span>
-                    <Tag size="sm" type={PURCHASE_STATUS_TAG[purchase.status]}>
-                      {PURCHASE_STATUS_LABEL[purchase.status]}
-                    </Tag>
+                  <span className="wg-lfrom">
+                    {purchase.how === 'self' ? 'Bought by a member' : 'Collective order'}
                   </span>
+                  <PurchaseTrack purchase={purchase} />
                 </button>
               </li>
             );

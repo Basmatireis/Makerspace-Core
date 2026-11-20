@@ -982,8 +982,33 @@
 // Projects.
 .wg-prow--group.wg-subrow {
   min-block-size: 3rem;
-  padding-inline-start: 2.5rem;
   background: theme.$layer-01;
+}
+
+.wg-subrow .wg-pamount strong,
+.wg-subrow .wg-lwhat__title {
+  font-weight: 400;
+}
+
+.wg-subrow .wg-lfrom {
+  color: theme.$text-secondary;
+}
+
+// A row that belongs to the row above: indented behind a "└" connector.
+.wg-tree {
+  position: relative;
+  padding-inline-start: $spacing-06;
+}
+
+.wg-tree::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: $spacing-02;
+  inline-size: $spacing-03;
+  block-size: 0.75rem;
+  border-inline-start: 1px solid theme.$border-strong-01;
+  border-block-end: 1px solid theme.$border-strong-01;
 }
 
 .wg-sublist {
