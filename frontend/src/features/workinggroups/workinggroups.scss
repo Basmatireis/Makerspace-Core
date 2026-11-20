@@ -1582,3 +1582,78 @@
   block-size: 100%;
   object-fit: contain;
 }
+
+// Links between tickets, to-dos, purchases and projects
+.wg-linkline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+  margin-block: $spacing-04;
+
+  p {
+    margin: 0;
+  }
+}
+
+.wg-linkpick,
+.wg-linked {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wg-linkpick {
+  max-block-size: 18rem;
+  overflow-y: auto;
+  margin-block-start: $spacing-04;
+}
+
+.wg-linked li {
+  padding-block: $spacing-02;
+}
+
+// Lately feed
+.wg-lately {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: $spacing-04;
+    padding-block: $spacing-03;
+    border-block-end: 1px solid var(--cds-border-subtle);
+  }
+
+  svg {
+    color: var(--cds-icon-secondary);
+  }
+}
+
+// Management overview
+.wg-gcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: $spacing-05;
+  margin-block: $spacing-05;
+}
+
+.wg-gcard {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.wg-gcard__top {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.wg-lately-card {
+  margin-block-start: $spacing-05;
+}

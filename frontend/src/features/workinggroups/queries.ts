@@ -4,6 +4,7 @@ import {
   getWorkingGroup,
   getWorkingGroupTicket,
   getWorkingGroupTodo,
+  listWorkingGroupActivity,
   listWorkingGroupMachines,
   listWorkingGroupNotes,
   listWorkingGroupStatus,
@@ -25,6 +26,7 @@ export const workingGroupKeys = {
   notes: (groupId: string | undefined) => [...workingGroupKeys.all, 'notes', groupId ?? 'all'] as const,
   status: () => [...workingGroupKeys.all, 'status'] as const,
   ticket: (id: string) => [...workingGroupKeys.all, 'ticket', id] as const,
+  activity: (id: string, limit: number) => [...workingGroupKeys.all, 'activity', id, limit] as const,
   todo: (id: string) => [...workingGroupKeys.all, 'todo', id] as const,
 };
 
@@ -102,3 +104,10 @@ export const workingGroupStatusOptions = queryOptions({
   queryKey: workingGroupKeys.status(),
   queryFn: ({ signal }) => listWorkingGroupStatus({ signal }),
 });
+
+/** The latest events of a group, newest first. */
+export const workingGroupActivityOptions = (groupId: string, limit: number) =>
+  queryOptions({
+    queryKey: workingGroupKeys.activity(groupId, limit),
+    queryFn: ({ signal }) => listWorkingGroupActivity(groupId, { limit }, { signal }),
+  });

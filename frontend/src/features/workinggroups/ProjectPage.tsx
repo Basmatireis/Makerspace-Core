@@ -3,6 +3,7 @@ import { Button, InlineNotification, Link as CarbonLink, Select, SelectItem, Tag
 import { Checkmark, ErrorFilled } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
+import { LinkedTasks } from './LinkParts';
 import type {
   WorkingGroupProject,
   WorkingGroupProjectItem,
@@ -490,6 +491,8 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
               </dd>
             </dl>
           </section>
+
+          <LinkedTasks groupId={project.groupId} tasks={project.linkedTasks} />
 
           <section className="wg-card" aria-label="History">
             <h3>History</h3>

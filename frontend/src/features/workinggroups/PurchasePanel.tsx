@@ -34,6 +34,7 @@ import {
   countsAs,
   stageOf,
 } from './financeModel';
+import { LinkedTasks } from './LinkParts';
 import { firstName, personName } from './taskModel';
 import { useDialogOpener } from './useDialogOpener';
 import { saveErrorText, taskErrorText, useWgMutation } from './useWgMutation';
@@ -251,6 +252,8 @@ export function PurchasePanel({
           </Fact>
         )}
       </FactsGrid>
+
+      <LinkedTasks section groupId={purchase.groupId} tasks={purchase.linkedTasks} />
 
       {purchase.hasReceipt && (
         <DetailPanelSection title="Receipt">

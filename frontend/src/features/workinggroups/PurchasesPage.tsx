@@ -75,7 +75,7 @@ export function PurchasesPage() {
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FilterValues>({});
   const [view, setView] = useState<'list' | 'order'>('list');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => params.get('item'));
   const add = useDialogOpener();
   const rules = useDialogOpener();
   const book = useDialogOpener();

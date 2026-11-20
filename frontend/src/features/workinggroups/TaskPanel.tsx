@@ -24,6 +24,7 @@ import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { DetailPanel, DetailPanelHead, DetailPanelSection } from '../../app/components/DetailPanel';
 import { Fact, FactsGrid } from '../../app/components/Facts';
 import { Avatar } from './TaskList';
+import { TaskLinkLine } from './LinkParts';
 import { useCurrentUser } from '../auth/auth';
 import { canManageWorkingGroups, workingGroupTicketOptions, workingGroupTodoOptions } from './queries';
 import { formatDate } from '../../app/dateTime';
@@ -175,6 +176,8 @@ export function TaskPanel({ task, group, me, onPlan, onAnswer, onGone }: Props) 
           </>
         )}
       </div>
+
+      <TaskLinkLine task={task} link={ticket?.link ?? task.todo?.link} canEdit={inside} />
 
       {ticket?.body && <p className="wg-panel-body">{ticket.body}</p>}
       {ticket?.blocksUse && <p className="wg-panel-body wg-panel-blocks">It cannot be used right now.</p>}

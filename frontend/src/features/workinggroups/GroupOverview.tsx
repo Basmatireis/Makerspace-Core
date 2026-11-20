@@ -34,6 +34,7 @@ import {
   type Task,
 } from './taskModel';
 import { useDialogOpener } from './useDialogOpener';
+import { Lately } from './Lately';
 import { OpenButton, RowComments } from './RowComments';
 import { useNoteRemoval } from './useNoteRemoval';
 
@@ -480,6 +481,7 @@ function InsideOverview({ summary, group }: { summary: WorkingGroupSummary; grou
         </Card>
         <SideColumn group={group} todos={groupTodos} today={today} onChangeStatus={change.open} />
       </div>
+      <Lately groupId={group.id} />
       {pin.value && <PinNoteDialog groupId={group.id} onClose={pin.close} />}
       {change.value && <ChangeStatusDialog target={change.value} onClose={change.close} />}
     </>
@@ -510,6 +512,7 @@ function OutsideOverview({ summary, group }: { summary: WorkingGroupSummary; gro
         </Card>
         <SideColumn group={group} today={todayOn()} />
       </div>
+      <Lately groupId={group.id} />
       {write.value && <WriteTicketDialog groups={[summary]} initialGroupId={group.id} onClose={write.close} />}
     </>
   );

@@ -30,7 +30,13 @@ export const budgetOptions = (params: GetWorkingGroupBudgetParams) =>
 
 export const purchasesOptions = (params: ListWorkingGroupPurchasesParams) =>
   queryOptions({
-    queryKey: [...base, 'purchases', params.groupId ?? 'all', params.periodId ?? 'current'] as const,
+    queryKey: [
+      ...base,
+      'purchases',
+      params.groupId ?? 'all',
+      params.periodId ?? 'current',
+      params.status ?? 'any',
+    ] as const,
     queryFn: ({ signal }) => listWorkingGroupPurchases(params, { signal }),
   });
 
