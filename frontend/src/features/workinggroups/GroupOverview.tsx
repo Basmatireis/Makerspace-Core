@@ -208,10 +208,10 @@ function PinboardTable({
 
 function Card({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
   return (
-    <section className="wg-card" aria-label={title}>
-      <header className="wg-card__header">
-        <h2 className="wg-card__title">{title}</h2>
-        {sub && <p className="wg-card__sub">{sub}</p>}
+    <section className="wg-tile wg-tile--stack" aria-label={title}>
+      <header className="wg-tile__header">
+        <h2 className="wg-tile__title">{title}</h2>
+        {sub && <p className="wg-tile__sub">{sub}</p>}
       </header>
       {children}
     </section>
