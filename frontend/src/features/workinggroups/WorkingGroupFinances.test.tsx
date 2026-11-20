@@ -313,6 +313,16 @@ describe('working group purchases', () => {
     expect(within(dialog).queryByText(/Check the fields/)).not.toBeInTheDocument();
   });
 
+  it('says that a planned purchase waits for its project to run', async () => {
+    const user = userEvent.setup();
+    serve(member, { purchases: [purchase(1, { status: 'planned' })] });
+    renderRoute(<App />, '/working-groups/purchases');
+
+    await user.click(await rowOf(/Item 1/));
+    expect(await screen.findByText('Planned in a project. It is bought once the project runs.')).toBeInTheDocument();
+    expect(screen.queryByText('Declined.')).not.toBeInTheDocument();
+  });
+
   it('approves and declines from the panel when the flags allow it', async () => {
     const user = userEvent.setup();
     const served = serve(financeManager, {

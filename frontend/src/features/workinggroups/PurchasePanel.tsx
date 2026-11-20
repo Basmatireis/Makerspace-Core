@@ -55,7 +55,9 @@ function sentence(purchase: WorkingGroupPurchase): string {
       return 'It arrived.';
     case 'refunded':
       return 'The money was returned.';
-    default:
+    case 'planned':
+      return 'Planned in a project. It is bought once the project runs.';
+    case 'declined':
       return purchase.declineReason ? `Declined: ${purchase.declineReason}` : 'Declined.';
   }
 }
