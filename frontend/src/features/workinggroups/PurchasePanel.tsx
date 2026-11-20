@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Download } from '@carbon/icons-react';
 import { Button, InlineNotification, Link, OverflowMenu, OverflowMenuItem, Tag } from '@carbon/react';
-import { useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import type { WorkingGroupPurchase } from '../../api/generated/models';
 import {
   approveWorkingGroupPurchase,
@@ -16,7 +16,7 @@ import {
   uploadWorkingGroupPurchaseAttachment,
 } from '../../api/generated/working-groups/working-groups';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
-import { DetailPanel, DetailPanelHead, DetailPanelSection } from '../../app/components/DetailPanel';
+import { DetailPanel, DetailPanelSection } from '../../app/components/DetailPanel';
 import { Fact, FactsGrid } from '../../app/components/Facts';
 import { formatDate } from '../../app/dateTime';
 import { formatMoney } from '../orders/formatting';
@@ -32,10 +32,11 @@ import {
   fileHeaders,
   fileProblem,
   countsAs,
-  stageOf,
 } from './financeModel';
 import { LinkedTasks } from './LinkParts';
-import { firstName, personName } from './taskModel';
+import { PanelHead } from './PanelHead';
+import { PurchaseTrack } from './PurchaseList';
+import { personName } from './taskModel';
 import { useDialogOpener } from './useDialogOpener';
 import { saveErrorText, taskErrorText, useWgMutation } from './useWgMutation';
 
@@ -69,12 +70,14 @@ export function PurchasePanel({
   isLead,
   finance,
   onGone,
+  onClose,
 }: {
   purchase: WorkingGroupPurchase;
   me: string;
   isLead: boolean;
   finance: boolean;
   onGone: () => void;
+  onClose?: () => void;
 }) {
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -108,18 +111,31 @@ export function PurchasePanel({
     (isLead || purchase.requester?.personId === me);
   const error =
     fileError ?? saveErrorText(toProject.error ?? approve.error ?? arrived.error ?? refunded.error ?? attach.error);
-  const stage = stageOf(purchase);
   const counts = countsAs(purchase);
   const busy = approve.isPending || arrived.isPending || refunded.isPending;
 
   return (
-    <DetailPanel>
-      <DetailPanelHead
+    <DetailPanel className="wg-panel">
+      <PanelHead
+        label={`Purchase · ${purchase.groupName}`}
         title={purchase.item}
-        meta={`Purchase · ${purchase.groupName}`}
-        secondary={`${purchase.quantity} × ${formatMoney(purchase.unitPrice)} · ${
-          purchase.requester ? firstName(purchase.requester) : 'Former member'
-        } · ${formatDate(purchase.createdAt)}`}
+        meta={[
+          `${purchase.quantity} × ${formatMoney(purchase.unitPrice)}`,
+          personName(purchase.requester),
+          formatDate(purchase.createdAt),
+        ]}
+        tags={
+          <>
+            <Tag size="sm" type={PURCHASE_STATUS_TAG[purchase.status]}>
+              {PURCHASE_STATUS_LABEL[purchase.status]}
+            </Tag>
+            {purchase.needsProject && (
+              <Tag size="sm" type="red">
+                Needs a project
+              </Tag>
+            )}
+          </>
+        }
         actions={
           hasMore && (
             <OverflowMenu ref={menu} aria-label="More actions" iconDescription="More actions" flipped size="md">
@@ -139,23 +155,12 @@ export function PurchasePanel({
             </OverflowMenu>
           )
         }
-        helper={
-          <>
-            <Tag size="sm" type={PURCHASE_STATUS_TAG[purchase.status]}>
-              {PURCHASE_STATUS_LABEL[purchase.status]}
-            </Tag>
-            {purchase.needsProject && (
-              <Tag size="sm" type="magenta">
-                Needs a project
-              </Tag>
-            )}
-          </>
-        }
+        onClose={onClose}
       />
       {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={error} />}
-      <p className="wg-panel-body">{sentence(purchase)}</p>
+      <p className="wg-panel__note">{sentence(purchase)}</p>
 
-      <div className="wg-panel-actions">
+      <div className="wg-panel__actions">
         {canTurn && (
           <Button
             kind="primary"
@@ -224,9 +229,21 @@ export function PurchasePanel({
         <Fact label="Amount" helper={COUNTS_LABEL[counts]}>
           {formatCents(amountCents(purchase))}
         </Fact>
-        <Fact label="Stage">{stage.label}</Fact>
-        <Fact label="Who buys">{purchase.how === 'self' ? personName(purchase.requester) : 'Management'}</Fact>
-        <Fact label="Period">{purchase.periodName}</Fact>
+        <Fact label="Stage">
+          <PurchaseTrack purchase={purchase} />
+        </Fact>
+        <Fact label="Who buys" helper={purchase.how === 'self' ? 'Gets the money back' : 'Collective order'}>
+          {purchase.how === 'self' ? personName(purchase.requester) : 'Management'}
+        </Fact>
+        <Fact label="Paid from" helper={purchase.projectId ? 'Project' : purchase.periodName}>
+          {purchase.projectId ? (
+            <Link as={RouterLink} to={`/working-groups/projects/${purchase.projectId}`}>
+              Its project
+            </Link>
+          ) : (
+            'Group budget'
+          )}
+        </Fact>
         {purchase.link && /^https?:\/\//i.test(purchase.link) && (
           <Fact label="Shop">
             <Link href={purchase.link} target="_blank" rel="noopener noreferrer">

@@ -1036,6 +1036,22 @@
   align-items: center;
 }
 
+.wg-plist__main {
+  display: grid;
+  gap: $spacing-01;
+  min-inline-size: 0;
+
+  small {
+    color: theme.$text-secondary;
+    @include type-style('helper-text-01');
+  }
+}
+
+.wg-plist__amount {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
 .wg-reason {
   margin: 0 0 $spacing-04;
   padding: $spacing-03 $spacing-04;
@@ -2172,4 +2188,111 @@
 
 .wg-ov-row__main > .cds--link:hover {
   color: theme.$link-primary-hover;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Project and purchase panels: label, title, dotted meta line, tags; one note line, one action row, then a
+// label-over-value facts grid and sub-sections with a count.
+// ---------------------------------------------------------------------------------------------------------------
+
+.wg-panel.detail-panel {
+  gap: $spacing-05;
+}
+
+.wg-ph {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.wg-ph__lines {
+  display: grid;
+  gap: $spacing-02;
+  min-inline-size: 0;
+
+  > * {
+    margin: 0;
+  }
+}
+
+.wg-ph__label {
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+
+.wg-ph__title {
+  @include type-style('heading-03');
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.wg-ph__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: $spacing-03;
+  @include type-style('body-compact-01');
+}
+
+.wg-ph__dot {
+  color: theme.$text-secondary;
+}
+
+.wg-ph__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+  margin-block-start: $spacing-02;
+
+  .cds--tag {
+    margin: 0;
+  }
+}
+
+.wg-ph__actions {
+  display: flex;
+  flex: none;
+  gap: $spacing-02;
+  margin: (-$spacing-03) (-$spacing-03) 0 0;
+}
+
+.wg-panel__note {
+  margin: 0;
+  color: theme.$text-secondary;
+  white-space: pre-wrap;
+  @include type-style('body-compact-01');
+}
+
+.wg-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+.wg-panel .facts-grid {
+  gap: $spacing-05 $spacing-05;
+}
+
+.wg-panel .facts-grid .wg-track {
+  margin-block-start: $spacing-02;
+}
+
+.wg-psec {
+  display: grid;
+  gap: $spacing-03;
+}
+
+.wg-psec__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $spacing-03;
+  margin: 0;
+  @include type-style('heading-compact-01');
+
+  span {
+    color: theme.$text-secondary;
+    font-weight: 400;
+  }
 }

@@ -250,6 +250,7 @@ export function PurchasesPage() {
         setSelectedId(null);
         listRef.current?.focus();
       }}
+      onClose={panelFits ? () => setSelectedId(null) : undefined}
     />
   ) : (
     <DetailPanel>

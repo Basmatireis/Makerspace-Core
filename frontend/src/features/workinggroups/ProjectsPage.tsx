@@ -197,6 +197,7 @@ export function ProjectsPage() {
       finance={finance}
       purchase={selectedPurchase}
       onGone={() => setSelected(null)}
+      onClose={panelFits ? () => setSelected(null) : undefined}
     />
   ) : selectedProject ? (
     <ProjectPanel
@@ -204,6 +205,7 @@ export function ProjectsPage() {
       project={selectedProject}
       purchases={byProject.get(selectedProject.id) ?? []}
       onSelectPurchase={(id) => setSelected({ kind: 'purchase', id })}
+      onClose={panelFits ? () => setSelected(null) : undefined}
     />
   ) : (
     <DetailPanel>
