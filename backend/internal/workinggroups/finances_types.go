@@ -15,11 +15,13 @@ type Period struct {
 	StartsOn    time.Time
 	EndsOn      time.Time
 	TotalAmount string
-	Closed      bool
-	ClosedAt    *time.Time
-	Current     bool
-	Version     int64
-	CreatedAt   time.Time
+	// Income figures are for finance managers: what the cash register brought into this period.
+	IncomeTotal, IncomeDeposited, IncomeBookedAhead string
+	Closed                                          bool
+	ClosedAt                                        *time.Time
+	Current                                         bool
+	Version                                         int64
+	CreatedAt                                       time.Time
 }
 
 // PeriodInput creates a period; the shares of CopySharesFromPeriodID are copied when it is set.

@@ -68,4 +68,6 @@ export interface CashJournalEntry {
      * @nullable
      */
   updatedAt: string | null;
+  /** True for a withdrawal that went into the working-group budget. Only for holders of `working_group_finances.manage`. */
+  intoBudget?: boolean;
 }

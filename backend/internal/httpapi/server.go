@@ -257,6 +257,10 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		EventSignupRetention: &eventSignupRetention,
 	})
 	privacyService.Register(privacycatalog.PrivacyRecords, subjectrequests.RetentionHandler())
+	// The register and the working-group budget reach each other through narrow interfaces declared on each side.
+	workingGroupsService := workinggroups.NewService(pool).WithLocation(makerspaceLocation(cfg)).WithFiles(fileService).
+		WithWiRefMailer(invoicingService).WithCashRegister(ordersService)
+	ordersService.WithBudget(workingGroupsService)
 	return &Server{
 		logger:             logger,
 		cameraRelay:        relay,
@@ -299,7 +303,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		accountPreferences: accountpreferences.NewService(pool),
 		configTransfer:     configTransferService,
 		trainings:          trainingsService,
-		workingGroups:      workinggroups.NewService(pool).WithLocation(makerspaceLocation(cfg)).WithFiles(fileService).WithWiRefMailer(invoicingService),
+		workingGroups:      workingGroupsService,
 		privacy:            privacyService,
 		deviceRates:        newDeviceRateLimits(),
 		surveyLinkViews:    ratelimit.New(surveyLinkViewsPerWindow, surveyLinkWindow),

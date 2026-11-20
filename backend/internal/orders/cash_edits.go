@@ -328,6 +328,9 @@ func (s *Service) UpdateCashMovement(
 	if CashMovementKind(row.Kind) == CashCorrection {
 		return CashMovement{}, errCorrectionBelongsToCount()
 	}
+	if err = s.requireMovementUnlinked(ctx, tx, row.ID); err != nil {
+		return CashMovement{}, err
+	}
 	if row.Version != change.ExpectedVersion {
 		return CashMovement{}, apperror.StaleWrite
 	}
@@ -382,6 +385,9 @@ func (s *Service) UpdateCashMovement(
 	if err = checkBalanceAfter(ctx, q, from, before, hadBefore); err != nil {
 		return CashMovement{}, err
 	}
+	if err = s.requireHeldBack(ctx, tx, q); err != nil {
+		return CashMovement{}, err
+	}
 	if err = writeCashAudit(ctx, tx, p, "cash_movement.updated", "cash_movement", row.ID, requestID,
 		movementAuditMetadata(row), fields...); err != nil {
 		return CashMovement{}, err
@@ -423,6 +429,9 @@ func (s *Service) DeleteCashMovement(
 	if CashMovementKind(row.Kind) == CashCorrection {
 		return errCorrectionBelongsToCount()
 	}
+	if err = s.requireMovementUnlinked(ctx, tx, row.ID); err != nil {
+		return err
+	}
 	if row.Version != deletion.ExpectedVersion {
 		return apperror.StaleWrite
 	}
@@ -437,6 +446,9 @@ func (s *Service) DeleteCashMovement(
 		return err
 	}
 	if err = checkBalanceAfter(ctx, q, row.OccurredAt, before, hadBefore); err != nil {
+		return err
+	}
+	if err = s.requireHeldBack(ctx, tx, q); err != nil {
 		return err
 	}
 	if err = writeCashAudit(ctx, tx, p, "cash_movement.deleted", "cash_movement", row.ID, requestID,
@@ -655,6 +667,9 @@ func (s *Service) UpdateCashCount(
 	if err = checkBalanceAfter(ctx, q, from, before, hadBefore); err != nil {
 		return CashCount{}, err
 	}
+	if err = s.requireHeldBack(ctx, tx, q); err != nil {
+		return CashCount{}, err
+	}
 	result, err := s.loadCashCount(ctx, q, row.ID)
 	if err != nil {
 		return result, err
@@ -725,6 +740,9 @@ func (s *Service) DeleteCashCount(
 		return err
 	}
 	if err = checkBalanceAfter(ctx, q, row.CountedAt, before, hadBefore); err != nil {
+		return err
+	}
+	if err = s.requireHeldBack(ctx, tx, q); err != nil {
 		return err
 	}
 	return databaseError(tx.Commit(ctx))

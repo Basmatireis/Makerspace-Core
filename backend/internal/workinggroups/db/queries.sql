@@ -992,3 +992,54 @@ SELECT request_pdf_file_id FROM working_group_projects WHERE id = sqlc.arg(id);
 
 -- name: GetWorkingGroupProjectSignature :one
 SELECT request_signature_file_id FROM working_group_projects WHERE id = sqlc.arg(id);
+
+-- name: InsertWorkingGroupIncome :exec
+INSERT INTO working_group_income (id, period_id, amount, occurred_on, note, location, cash_movement_id, created_by_person_id)
+VALUES (sqlc.arg(id), sqlc.arg(period_id), sqlc.arg(amount)::text::numeric, sqlc.arg(occurred_on)::date, sqlc.arg(note),
+        sqlc.arg(location), sqlc.narg(cash_movement_id)::uuid, sqlc.narg(created_by_person_id)::uuid);
+
+-- name: GetWorkingGroupIncome :one
+SELECT i.id, i.period_id, i.amount::text AS amount, i.occurred_on, i.note, i.location, i.cash_movement_id,
+       btrim(p.first_name || ' ' || p.last_name)::text AS created_by_name, (p.id IS NOT NULL)::boolean AS has_creator, i.created_at
+FROM working_group_income i LEFT JOIN people p ON p.id = i.created_by_person_id
+WHERE i.id = sqlc.arg(id);
+
+-- name: LockWorkingGroupIncome :one
+SELECT id, period_id, amount::text AS amount, occurred_on, note, location, cash_movement_id
+FROM working_group_income WHERE id = sqlc.arg(id) FOR UPDATE;
+
+-- name: ListWorkingGroupIncome :many
+SELECT i.id, i.period_id, i.amount::text AS amount, i.occurred_on, i.note, i.location, i.cash_movement_id,
+       btrim(p.first_name || ' ' || p.last_name)::text AS created_by_name, (p.id IS NOT NULL)::boolean AS has_creator, i.created_at
+FROM working_group_income i LEFT JOIN people p ON p.id = i.created_by_person_id
+WHERE i.period_id = sqlc.arg(period_id)
+ORDER BY i.created_at DESC, i.id DESC;
+
+-- name: DeleteWorkingGroupIncome :execrows
+DELETE FROM working_group_income WHERE id = sqlc.arg(id);
+
+-- name: ReduceWorkingGroupIncome :exec
+UPDATE working_group_income SET amount = sqlc.arg(amount)::text::numeric WHERE id = sqlc.arg(id);
+
+-- name: MoveWorkingGroupIncomeToBank :exec
+UPDATE working_group_income SET location = 'bank', cash_movement_id = sqlc.arg(cash_movement_id)::uuid, occurred_on = sqlc.arg(occurred_on)::date
+WHERE id = sqlc.arg(id);
+
+-- name: ListWorkingGroupIncomeFigures :many
+SELECT period_id,
+       COALESCE(sum(amount) FILTER (WHERE location = 'bank'), 0)::text AS deposited,
+       COALESCE(sum(amount) FILTER (WHERE location = 'cash'), 0)::text AS booked_ahead
+FROM working_group_income GROUP BY period_id;
+
+-- name: WorkingGroupBookedAheadTotal :one
+SELECT COALESCE(sum(amount), 0)::text FROM working_group_income WHERE location = 'cash';
+
+-- name: WorkingGroupMovementsWithIncome :many
+SELECT DISTINCT cash_movement_id::uuid AS cash_movement_id FROM working_group_income
+WHERE cash_movement_id = ANY((sqlc.arg(ids)::text[])::uuid[]);
+
+-- name: WorkingGroupMovementHasIncome :one
+SELECT EXISTS (SELECT 1 FROM working_group_income WHERE cash_movement_id = sqlc.arg(cash_movement_id));
+
+-- name: WorkingGroupPeriodHasBookedAhead :one
+SELECT EXISTS (SELECT 1 FROM working_group_income WHERE period_id = sqlc.arg(period_id) AND location = 'cash');

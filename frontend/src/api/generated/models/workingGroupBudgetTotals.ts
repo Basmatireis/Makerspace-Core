@@ -22,6 +22,7 @@ import type { Money } from './money';
 import type { SignedMoney } from './signedMoney';
 
 export interface WorkingGroupBudgetTotals {
+  /** The budget of the period: the total from HTU plus the income from the cash register. */
   totalAmount: Money;
   givenSum: Money;
   keptBack: SignedMoney;

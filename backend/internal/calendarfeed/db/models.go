@@ -2624,6 +2624,18 @@ type WorkingGroupFinanceSignature struct {
 	UpdatedAt time.Time
 }
 
+type WorkingGroupIncome struct {
+	ID                uuid.UUID
+	PeriodID          uuid.UUID
+	Amount            pgtype.Numeric
+	OccurredOn        pgtype.Date
+	Note              string
+	Location          string
+	CashMovementID    *uuid.UUID
+	CreatedByPersonID *uuid.UUID
+	CreatedAt         time.Time
+}
+
 type WorkingGroupMachine struct {
 	GroupID         uuid.UUID
 	MachineID       uuid.UUID

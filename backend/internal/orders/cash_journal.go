@@ -74,6 +74,8 @@ type CashJournalEntry struct {
 	Count                    *CashJournalCount   `json:"count"`
 	Version                  *int64              `json:"version"`
 	UpdatedAt                *time.Time          `json:"updatedAt"`
+	// IntoBudget is set for finance managers: the withdrawal went into the working-group budget.
+	IntoBudget *bool `json:"intoBudget,omitempty"`
 	// effect is the signed change of the register, for the exports.
 	effect decimal.Decimal
 }
@@ -407,5 +409,34 @@ func (s *Service) CashJournal(ctx context.Context, p authorization.Principal, qu
 		result.Facts = journalFacts(facts)
 		return nil
 	})
-	return result, err
+	if err != nil {
+		return result, err
+	}
+	if span.to == nil && s.budget != nil && p.Has(authorization.WorkingGroupFinancesManage) {
+		ahead, e := s.budget.BookedAhead(ctx, nil)
+		if e != nil {
+			return result, e
+		}
+		text := ahead.StringFixed(2)
+		result.Register.BookedAhead = &text
+	}
+	withdrawals := []uuid.UUID{}
+	for _, item := range result.Items {
+		if item.Kind == JournalWithdrawal {
+			withdrawals = append(withdrawals, item.ID)
+		}
+	}
+	linked, err := s.markIntoBudget(ctx, p, withdrawals)
+	if err != nil {
+		return result, err
+	}
+	if linked != nil {
+		for i := range result.Items {
+			if result.Items[i].Kind == JournalWithdrawal {
+				into := linked[result.Items[i].ID]
+				result.Items[i].IntoBudget = &into
+			}
+		}
+	}
+	return result, nil
 }

@@ -358,6 +358,9 @@ SELECT jsonb_build_object(
             'plannedIncome', pr.planned_income, 'createdAt', pr.created_at) ORDER BY pr.created_at), '[]'::jsonb)
         FROM working_group_projects pr JOIN working_groups g ON g.id = pr.group_id
         WHERE pr.requester_person_id = sqlc.arg(subject_person)::uuid),
+    'income', (SELECT COALESCE(jsonb_agg(jsonb_build_object('note', i.note, 'amount', i.amount, 'date', i.occurred_on,
+            'createdAt', i.created_at) ORDER BY i.created_at), '[]'::jsonb)
+        FROM working_group_income i WHERE i.created_by_person_id = sqlc.arg(subject_person)::uuid),
     'signatures', (SELECT COALESCE(jsonb_agg(jsonb_build_object('savedAt', s.updated_at)), '[]'::jsonb)
         FROM working_group_finance_signatures s WHERE s.person_id = sqlc.arg(subject_person)::uuid),
     'signedProjects', (SELECT COALESCE(jsonb_agg(jsonb_build_object('group', g.name, 'title', pr.title, 'status', pr.status)
@@ -369,6 +372,7 @@ SELECT jsonb_build_object(
 -- name: CountWorkingGroupFinances :one
 SELECT ((SELECT count(*) FROM working_group_purchases WHERE requester_person_id = sqlc.arg(subject_person)::uuid)
      + (SELECT count(*) FROM working_group_projects WHERE requester_person_id = sqlc.arg(subject_person)::uuid)
+     + (SELECT count(*) FROM working_group_income WHERE created_by_person_id = sqlc.arg(subject_person)::uuid)
      + (SELECT count(*) FROM working_group_projects WHERE request_signed_by = sqlc.arg(subject_person)::uuid)
      + (SELECT count(*) FROM working_group_finance_signatures WHERE person_id = sqlc.arg(subject_person)::uuid))::bigint;
 

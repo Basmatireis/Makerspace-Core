@@ -43,6 +43,8 @@ type Service struct {
 	files    *files.Service
 	mailer   WiRefMailer
 	sending  sync.Map
+	// register tells how much cash the register holds, for booking cash ahead to the budget.
+	register CashRegister
 }
 
 func NewService(pool *pgxpool.Pool) *Service {

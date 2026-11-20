@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
   STATUS_COLUMNS,
   daysBetween,
@@ -119,6 +120,7 @@ export function Tile({
   pressed,
   onClick,
   rows,
+  footer,
 }: {
   title: string;
   count: number | string;
@@ -126,6 +128,8 @@ export function Tile({
   pressed?: boolean;
   onClick?: () => void;
   rows: [string, string][];
+  /** A line under the rows, for example a link. Only for tiles without a click handler. */
+  footer?: ReactNode;
 }) {
   const body = (
     <>
@@ -146,6 +150,9 @@ export function Tile({
       {body}
     </button>
   ) : (
-    <div className="wg-minetile wg-minetile--static">{body}</div>
+    <div className="wg-minetile wg-minetile--static">
+      {body}
+      {footer}
+    </div>
   );
 }

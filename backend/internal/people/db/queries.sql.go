@@ -259,6 +259,7 @@ SELECT
         + (SELECT count(*) FROM working_group_places WHERE status_changed_by = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_purchases WHERE requester_person_id = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_projects WHERE requester_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_income WHERE created_by_person_id = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_project_history WHERE actor_person_id = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_projects WHERE request_signed_by = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_finance_signatures WHERE person_id = ANY(($1::text[])::uuid[]))
@@ -1982,6 +1983,9 @@ WITH tickets_moved AS (
 ), projects_moved AS (
     UPDATE working_group_projects AS pr SET requester_person_id = $2::uuid
     WHERE pr.requester_person_id = $1 RETURNING 1
+), income_moved AS (
+    UPDATE working_group_income AS inc SET created_by_person_id = $2::uuid
+    WHERE inc.created_by_person_id = $1 RETURNING 1
 ), signed_moved AS (
     UPDATE working_group_projects AS sp SET request_signed_by = $2::uuid
     WHERE sp.request_signed_by = $1 RETURNING 1
@@ -2000,7 +2004,7 @@ SELECT ((SELECT count(*) FROM tickets_moved) + (SELECT count(*) FROM followers_m
       + (SELECT count(*) FROM todos_moved) + (SELECT count(*) FROM comments_moved)
       + (SELECT count(*) FROM notes_moved) + (SELECT count(*) FROM machine_status_moved)
       + (SELECT count(*) FROM place_status_moved) + (SELECT count(*) FROM purchases_moved)
-      + (SELECT count(*) FROM projects_moved) + (SELECT count(*) FROM signed_moved) + (SELECT count(*) FROM project_history_moved)
+      + (SELECT count(*) FROM projects_moved) + (SELECT count(*) FROM income_moved) + (SELECT count(*) FROM signed_moved) + (SELECT count(*) FROM project_history_moved)
       + (SELECT count(*) FROM finance_rules_moved) + (SELECT count(*) FROM signatures_moved))::bigint AS moved
 `
 

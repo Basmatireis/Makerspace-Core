@@ -33,6 +33,12 @@ export interface WorkingGroupBudgetPeriod {
   endsOn: string;
   /** The total from HTU. Only returned to holders of `working_group_finances.manage`. */
   totalAmount?: Money;
+  /** Income from the cash register that counts in this period's budget (deposited + booked ahead). Only for holders of `working_group_finances.manage`. */
+  incomeTotal?: Money;
+  /** The part of the income that is still in the cash register. Only for holders of `working_group_finances.manage`. */
+  incomeBookedAhead?: Money;
+  /** The part of the income that was withdrawn from the register. Only for holders of `working_group_finances.manage`. */
+  incomeDeposited?: Money;
   closed: boolean;
   closedAt?: string;
   /** True for the open period that contains today in the makerspace time zone; new purchases go into it. */

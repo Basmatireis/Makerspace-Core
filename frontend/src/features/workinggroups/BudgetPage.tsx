@@ -13,6 +13,9 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
+import { useCurrentUser } from '../auth/auth';
+import { hasPermission, PermissionId } from '../auth/permissions';
+import { cashRegisterQuery } from '../orders/queries';
 import type { WorkingGroupBudgetPeriod, WorkingGroupGroupBudget } from '../../api/generated/models';
 import {
   closeWorkingGroupBudgetPeriod,
@@ -45,6 +48,10 @@ const percent = (part: number, whole: number) => (whole > 0 ? Math.max(0, Math.r
 /** Working groups → Budget (finance managers): what HTU gives and how the groups use their share. */
 export function BudgetPage() {
   const periodsQuery = useQuery(budgetPeriodsOptions);
+  const me = useCurrentUser();
+  const canRegister =
+    hasPermission(me, PermissionId.paymentsread) && hasPermission(me, PermissionId.cash_movementsread);
+  const register = useQuery({ ...cashRegisterQuery(), enabled: canRegister });
   const groupsQuery = useQuery(workingGroupsOptions);
   const periods = useMemo(() => sortPeriods(periodsQuery.data?.items ?? []), [periodsQuery.data]);
   const [chosen, setChosen] = useState<string | null>(null);
@@ -109,6 +116,9 @@ export function BudgetPage() {
     .sort((a, b) => a.groupName.localeCompare(b.groupName));
   const selected = (budget?.groups ?? []).find((entry) => entry.groupId === selectedId) ?? null;
   const total = toCents(period.totalAmount);
+  // The income figures come with the totals for finance managers; the register is theirs to read.
+  const income = period.incomeTotal !== undefined;
+  const incomeTotal = toCents(period.incomeTotal);
 
   const panel = selected ? (
     <SharePanel key={`${period.id}-${selected.groupId}`} period={period} entry={selected} />
@@ -123,7 +133,7 @@ export function BudgetPage() {
 
   return (
     <PageShell title={TITLE} width="wide" breadcrumbs={CRUMBS}>
-      <div className="wg-summary wg-summary--two">
+      <div className={`wg-summary ${income ? 'wg-summary--three' : 'wg-summary--two'}`}>
         {figures ? (
           <BudgetCard
             label="Budget"
@@ -140,16 +150,49 @@ export function BudgetPage() {
             {budgetQuery.isError ? <p>The budget could not be loaded.</p> : <p className="wg-muted">Loading…</p>}
           </section>
         )}
-        <Tile
-          title="From HTU"
-          count={formatCents(total)}
-          rows={[
-            ['Given', formatCents(figures?.given ?? 0)],
-            ['Kept back', formatCents(figures?.kept ?? 0)],
-            ['Given out', `${percent(figures?.given ?? 0, total)} %`],
-            ['Groups', String(budget?.groups.length ?? 0)],
-          ]}
-        />
+        {income ? (
+          <>
+            <Tile
+              title="Budget"
+              count={formatCents(total + incomeTotal)}
+              rows={[
+                ['From HTU', formatCents(total)],
+                ['Income', formatCents(incomeTotal)],
+                ['Given to groups', formatCents(figures?.given ?? 0)],
+                ['Kept back', formatCents(figures?.kept ?? 0)],
+              ]}
+            />
+            <Tile
+              title="Income from sales"
+              count={formatCents(incomeTotal)}
+              rows={[
+                ['Deposited', formatCents(toCents(period.incomeDeposited))],
+                ['Booked ahead', formatCents(toCents(period.incomeBookedAhead))],
+                ...(canRegister
+                  ? [['Register now', formatCents(toCents(register.data?.expected))] as [string, string]]
+                  : []),
+              ]}
+              footer={
+                canRegister ? (
+                  <CarbonLink as={Link} to="/payments" className="wg-minetile__link">
+                    Cash register
+                  </CarbonLink>
+                ) : undefined
+              }
+            />
+          </>
+        ) : (
+          <Tile
+            title="From HTU"
+            count={formatCents(total)}
+            rows={[
+              ['Given', formatCents(figures?.given ?? 0)],
+              ['Kept back', formatCents(figures?.kept ?? 0)],
+              ['Given out', `${percent(figures?.given ?? 0, total)} %`],
+              ['Groups', String(budget?.groups.length ?? 0)],
+            ]}
+          />
+        )}
       </div>
 
       <ListWithPanel panel={panel} panelLabel="Group budget details">

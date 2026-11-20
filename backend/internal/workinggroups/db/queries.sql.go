@@ -738,6 +738,18 @@ func (q *Queries) DeleteWorkingGroupFinanceSignature(ctx context.Context, person
 	return file_id, err
 }
 
+const deleteWorkingGroupIncome = `-- name: DeleteWorkingGroupIncome :execrows
+DELETE FROM working_group_income WHERE id = $1
+`
+
+func (q *Queries) DeleteWorkingGroupIncome(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWorkingGroupIncome, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteWorkingGroupMachine = `-- name: DeleteWorkingGroupMachine :exec
 DELETE FROM working_group_machines WHERE group_id = $1 AND machine_id = $2
 `
@@ -1128,6 +1140,44 @@ func (q *Queries) GetWorkingGroupFinanceSignature(ctx context.Context, personID 
 	var file_id uuid.UUID
 	err := row.Scan(&file_id)
 	return file_id, err
+}
+
+const getWorkingGroupIncome = `-- name: GetWorkingGroupIncome :one
+SELECT i.id, i.period_id, i.amount::text AS amount, i.occurred_on, i.note, i.location, i.cash_movement_id,
+       btrim(p.first_name || ' ' || p.last_name)::text AS created_by_name, (p.id IS NOT NULL)::boolean AS has_creator, i.created_at
+FROM working_group_income i LEFT JOIN people p ON p.id = i.created_by_person_id
+WHERE i.id = $1
+`
+
+type GetWorkingGroupIncomeRow struct {
+	ID             uuid.UUID
+	PeriodID       uuid.UUID
+	Amount         string
+	OccurredOn     pgtype.Date
+	Note           string
+	Location       string
+	CashMovementID *uuid.UUID
+	CreatedByName  string
+	HasCreator     bool
+	CreatedAt      time.Time
+}
+
+func (q *Queries) GetWorkingGroupIncome(ctx context.Context, id uuid.UUID) (GetWorkingGroupIncomeRow, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupIncome, id)
+	var i GetWorkingGroupIncomeRow
+	err := row.Scan(
+		&i.ID,
+		&i.PeriodID,
+		&i.Amount,
+		&i.OccurredOn,
+		&i.Note,
+		&i.Location,
+		&i.CashMovementID,
+		&i.CreatedByName,
+		&i.HasCreator,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const getWorkingGroupMachineStatus = `-- name: GetWorkingGroupMachineStatus :one
@@ -1596,6 +1646,37 @@ func (q *Queries) InsertWorkingGroupColumn(ctx context.Context, arg InsertWorkin
 	return err
 }
 
+const insertWorkingGroupIncome = `-- name: InsertWorkingGroupIncome :exec
+INSERT INTO working_group_income (id, period_id, amount, occurred_on, note, location, cash_movement_id, created_by_person_id)
+VALUES ($1, $2, $3::text::numeric, $4::date, $5,
+        $6, $7::uuid, $8::uuid)
+`
+
+type InsertWorkingGroupIncomeParams struct {
+	ID                uuid.UUID
+	PeriodID          uuid.UUID
+	Amount            string
+	OccurredOn        pgtype.Date
+	Note              string
+	Location          string
+	CashMovementID    *uuid.UUID
+	CreatedByPersonID *uuid.UUID
+}
+
+func (q *Queries) InsertWorkingGroupIncome(ctx context.Context, arg InsertWorkingGroupIncomeParams) error {
+	_, err := q.db.Exec(ctx, insertWorkingGroupIncome,
+		arg.ID,
+		arg.PeriodID,
+		arg.Amount,
+		arg.OccurredOn,
+		arg.Note,
+		arg.Location,
+		arg.CashMovementID,
+		arg.CreatedByPersonID,
+	)
+	return err
+}
+
 const insertWorkingGroupStatusChange = `-- name: InsertWorkingGroupStatusChange :exec
 INSERT INTO working_group_status_changes (id, group_id, machine_id, place_id, status, changed_at)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -2028,6 +2109,91 @@ func (q *Queries) ListWorkingGroupFileIDs(ctx context.Context, targetGroup uuid.
 			return nil, err
 		}
 		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupIncome = `-- name: ListWorkingGroupIncome :many
+SELECT i.id, i.period_id, i.amount::text AS amount, i.occurred_on, i.note, i.location, i.cash_movement_id,
+       btrim(p.first_name || ' ' || p.last_name)::text AS created_by_name, (p.id IS NOT NULL)::boolean AS has_creator, i.created_at
+FROM working_group_income i LEFT JOIN people p ON p.id = i.created_by_person_id
+WHERE i.period_id = $1
+ORDER BY i.created_at DESC, i.id DESC
+`
+
+type ListWorkingGroupIncomeRow struct {
+	ID             uuid.UUID
+	PeriodID       uuid.UUID
+	Amount         string
+	OccurredOn     pgtype.Date
+	Note           string
+	Location       string
+	CashMovementID *uuid.UUID
+	CreatedByName  string
+	HasCreator     bool
+	CreatedAt      time.Time
+}
+
+func (q *Queries) ListWorkingGroupIncome(ctx context.Context, periodID uuid.UUID) ([]ListWorkingGroupIncomeRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupIncome, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupIncomeRow{}
+	for rows.Next() {
+		var i ListWorkingGroupIncomeRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PeriodID,
+			&i.Amount,
+			&i.OccurredOn,
+			&i.Note,
+			&i.Location,
+			&i.CashMovementID,
+			&i.CreatedByName,
+			&i.HasCreator,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupIncomeFigures = `-- name: ListWorkingGroupIncomeFigures :many
+SELECT period_id,
+       COALESCE(sum(amount) FILTER (WHERE location = 'bank'), 0)::text AS deposited,
+       COALESCE(sum(amount) FILTER (WHERE location = 'cash'), 0)::text AS booked_ahead
+FROM working_group_income GROUP BY period_id
+`
+
+type ListWorkingGroupIncomeFiguresRow struct {
+	PeriodID    uuid.UUID
+	Deposited   string
+	BookedAhead string
+}
+
+func (q *Queries) ListWorkingGroupIncomeFigures(ctx context.Context) ([]ListWorkingGroupIncomeFiguresRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupIncomeFigures)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupIncomeFiguresRow{}
+	for rows.Next() {
+		var i ListWorkingGroupIncomeFiguresRow
+		if err := rows.Scan(&i.PeriodID, &i.Deposited, &i.BookedAhead); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -3564,6 +3730,36 @@ func (q *Queries) LockWorkingGroupFinanceRules(ctx context.Context) (int64, erro
 	return version, err
 }
 
+const lockWorkingGroupIncome = `-- name: LockWorkingGroupIncome :one
+SELECT id, period_id, amount::text AS amount, occurred_on, note, location, cash_movement_id
+FROM working_group_income WHERE id = $1 FOR UPDATE
+`
+
+type LockWorkingGroupIncomeRow struct {
+	ID             uuid.UUID
+	PeriodID       uuid.UUID
+	Amount         string
+	OccurredOn     pgtype.Date
+	Note           string
+	Location       string
+	CashMovementID *uuid.UUID
+}
+
+func (q *Queries) LockWorkingGroupIncome(ctx context.Context, id uuid.UUID) (LockWorkingGroupIncomeRow, error) {
+	row := q.db.QueryRow(ctx, lockWorkingGroupIncome, id)
+	var i LockWorkingGroupIncomeRow
+	err := row.Scan(
+		&i.ID,
+		&i.PeriodID,
+		&i.Amount,
+		&i.OccurredOn,
+		&i.Note,
+		&i.Location,
+		&i.CashMovementID,
+	)
+	return i, err
+}
+
 const lockWorkingGroupProject = `-- name: LockWorkingGroupProject :one
 SELECT lp.id, lp.group_id, lp.status, lp.requester_person_id, lp.version, COALESCE(lp.paid_from, '')::text AS paid_from,
        lp.advance_requested, COALESCE(lp.advance_amount::text, '')::text AS advance_amount, COALESCE(lp.advance_status, '')::text AS advance_status,
@@ -3808,6 +4004,22 @@ func (q *Queries) MarkWorkingGroupPurchasesOrdered(ctx context.Context, arg Mark
 	return result.RowsAffected(), nil
 }
 
+const moveWorkingGroupIncomeToBank = `-- name: MoveWorkingGroupIncomeToBank :exec
+UPDATE working_group_income SET location = 'bank', cash_movement_id = $1::uuid, occurred_on = $2::date
+WHERE id = $3
+`
+
+type MoveWorkingGroupIncomeToBankParams struct {
+	CashMovementID uuid.UUID
+	OccurredOn     pgtype.Date
+	ID             uuid.UUID
+}
+
+func (q *Queries) MoveWorkingGroupIncomeToBank(ctx context.Context, arg MoveWorkingGroupIncomeToBankParams) error {
+	_, err := q.db.Exec(ctx, moveWorkingGroupIncomeToBank, arg.CashMovementID, arg.OccurredOn, arg.ID)
+	return err
+}
+
 const moveWorkingGroupTicketsToColumn = `-- name: MoveWorkingGroupTicketsToColumn :exec
 UPDATE working_group_tickets SET column_id = $1, version = version + 1, updated_at = now()
 WHERE group_id = $2 AND column_id = $3
@@ -3982,6 +4194,20 @@ type RedactWorkingGroupPurchaseParams struct {
 
 func (q *Queries) RedactWorkingGroupPurchase(ctx context.Context, arg RedactWorkingGroupPurchaseParams) error {
 	_, err := q.db.Exec(ctx, redactWorkingGroupPurchase, arg.RedactText, arg.RedactFiles, arg.ID)
+	return err
+}
+
+const reduceWorkingGroupIncome = `-- name: ReduceWorkingGroupIncome :exec
+UPDATE working_group_income SET amount = $1::text::numeric WHERE id = $2
+`
+
+type ReduceWorkingGroupIncomeParams struct {
+	Amount string
+	ID     uuid.UUID
+}
+
+func (q *Queries) ReduceWorkingGroupIncome(ctx context.Context, arg ReduceWorkingGroupIncomeParams) error {
+	_, err := q.db.Exec(ctx, reduceWorkingGroupIncome, arg.Amount, arg.ID)
 	return err
 }
 
@@ -4614,4 +4840,62 @@ func (q *Queries) UpsertWorkingGroupFinanceSignature(ctx context.Context, arg Up
 	var replaced_file_id uuid.UUID
 	err := row.Scan(&replaced_file_id)
 	return replaced_file_id, err
+}
+
+const workingGroupBookedAheadTotal = `-- name: WorkingGroupBookedAheadTotal :one
+SELECT COALESCE(sum(amount), 0)::text FROM working_group_income WHERE location = 'cash'
+`
+
+func (q *Queries) WorkingGroupBookedAheadTotal(ctx context.Context) (string, error) {
+	row := q.db.QueryRow(ctx, workingGroupBookedAheadTotal)
+	var column_1 string
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const workingGroupMovementHasIncome = `-- name: WorkingGroupMovementHasIncome :one
+SELECT EXISTS (SELECT 1 FROM working_group_income WHERE cash_movement_id = $1)
+`
+
+func (q *Queries) WorkingGroupMovementHasIncome(ctx context.Context, cashMovementID *uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, workingGroupMovementHasIncome, cashMovementID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const workingGroupMovementsWithIncome = `-- name: WorkingGroupMovementsWithIncome :many
+SELECT DISTINCT cash_movement_id::uuid AS cash_movement_id FROM working_group_income
+WHERE cash_movement_id = ANY(($1::text[])::uuid[])
+`
+
+func (q *Queries) WorkingGroupMovementsWithIncome(ctx context.Context, ids []string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, workingGroupMovementsWithIncome, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var cash_movement_id uuid.UUID
+		if err := rows.Scan(&cash_movement_id); err != nil {
+			return nil, err
+		}
+		items = append(items, cash_movement_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const workingGroupPeriodHasBookedAhead = `-- name: WorkingGroupPeriodHasBookedAhead :one
+SELECT EXISTS (SELECT 1 FROM working_group_income WHERE period_id = $1 AND location = 'cash')
+`
+
+func (q *Queries) WorkingGroupPeriodHasBookedAhead(ctx context.Context, periodID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, workingGroupPeriodHasBookedAhead, periodID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }

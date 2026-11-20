@@ -86,7 +86,7 @@ export const journalDayText = (day: string) => dayHeading.format(new Date(`${day
 export const daysByDate = (days: CashJournalDay[]) => new Map(days.map((day) => [day.date, day]));
 
 /** The second line of an entry in the journal: the order and customer, the reason and note, or what a count found. */
-export function journalEntryText(entry: CashJournalEntry): string {
+export function journalEntryText(entry: CashJournalEntry, canBudget = false): string {
   if (entry.count) {
     const counted = `Counted ${formatCents(toCents(entry.count.countedAmount))} · expected ${formatCents(
       toCents(entry.count.expectedAmount),
@@ -99,7 +99,11 @@ export function journalEntryText(entry: CashJournalEntry): string {
       : 'Not tied to an order';
     return [order, entry.kind === 'receipt' ? '' : entry.paymentReason].filter(Boolean).join(' · ');
   }
-  return [entry.movementReason ? cashMovementReasonLabel[entry.movementReason] : '', entry.note]
+  return [
+    entry.movementReason ? cashMovementReasonLabel[entry.movementReason] : '',
+    entry.note,
+    canBudget && entry.intoBudget ? 'into the budget' : '',
+  ]
     .filter(Boolean)
     .join(' · ');
 }

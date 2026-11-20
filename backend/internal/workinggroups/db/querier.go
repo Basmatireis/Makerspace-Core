@@ -54,6 +54,7 @@ type Querier interface {
 	DeleteWorkingGroupBooking(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupColumn(ctx context.Context, arg DeleteWorkingGroupColumnParams) error
 	DeleteWorkingGroupFinanceSignature(ctx context.Context, personID uuid.UUID) (uuid.UUID, error)
+	DeleteWorkingGroupIncome(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkingGroupMachine(ctx context.Context, arg DeleteWorkingGroupMachineParams) error
 	// A machine that leaves its group starts again at ok, without history.
 	DeleteWorkingGroupMachineStatusChanges(ctx context.Context, arg DeleteWorkingGroupMachineStatusChangesParams) error
@@ -77,6 +78,7 @@ type Querier interface {
 	GetWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUID) (GetWorkingGroupBudgetPeriodRow, error)
 	GetWorkingGroupFinanceRules(ctx context.Context) (GetWorkingGroupFinanceRulesRow, error)
 	GetWorkingGroupFinanceSignature(ctx context.Context, personID uuid.UUID) (uuid.UUID, error)
+	GetWorkingGroupIncome(ctx context.Context, id uuid.UUID) (GetWorkingGroupIncomeRow, error)
 	GetWorkingGroupMachineStatus(ctx context.Context, arg GetWorkingGroupMachineStatusParams) (GetWorkingGroupMachineStatusRow, error)
 	GetWorkingGroupMember(ctx context.Context, arg GetWorkingGroupMemberParams) (GetWorkingGroupMemberRow, error)
 	GetWorkingGroupName(ctx context.Context, id uuid.UUID) (string, error)
@@ -99,6 +101,7 @@ type Querier interface {
 	GetWorkingGroupTodoCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTodoCoreRow, error)
 	HandInWorkingGroupPurchaseReceipt(ctx context.Context, arg HandInWorkingGroupPurchaseReceiptParams) error
 	InsertWorkingGroupColumn(ctx context.Context, arg InsertWorkingGroupColumnParams) error
+	InsertWorkingGroupIncome(ctx context.Context, arg InsertWorkingGroupIncomeParams) error
 	InsertWorkingGroupStatusChange(ctx context.Context, arg InsertWorkingGroupStatusChangeParams) error
 	// Budget and purchases. Money is carried as exact decimal text between the database and the application:
 	// parameters are cast from text, numeric columns are read as text.
@@ -119,6 +122,8 @@ type Querier interface {
 	ListWorkingGroupColumns(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupColumnsRow, error)
 	// Every stored file of the purchases of a group, collected before the group is deleted.
 	ListWorkingGroupFileIDs(ctx context.Context, targetGroup uuid.UUID) ([]uuid.UUID, error)
+	ListWorkingGroupIncome(ctx context.Context, periodID uuid.UUID) ([]ListWorkingGroupIncomeRow, error)
+	ListWorkingGroupIncomeFigures(ctx context.Context) ([]ListWorkingGroupIncomeFiguresRow, error)
 	ListWorkingGroupItemStatuses(ctx context.Context) ([]ListWorkingGroupItemStatusesRow, error)
 	ListWorkingGroupMachineOptions(ctx context.Context) ([]ListWorkingGroupMachineOptionsRow, error)
 	ListWorkingGroupMachines(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupMachinesRow, error)
@@ -156,6 +161,7 @@ type Querier interface {
 	// Exclusive lock for changes of the period itself (edit, close, shares).
 	LockWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUID) (LockWorkingGroupBudgetPeriodRow, error)
 	LockWorkingGroupFinanceRules(ctx context.Context) (int64, error)
+	LockWorkingGroupIncome(ctx context.Context, id uuid.UUID) (LockWorkingGroupIncomeRow, error)
 	LockWorkingGroupProject(ctx context.Context, id uuid.UUID) (LockWorkingGroupProjectRow, error)
 	LockWorkingGroupProjectItem(ctx context.Context, id uuid.UUID) (LockWorkingGroupProjectItemRow, error)
 	LockWorkingGroupPurchase(ctx context.Context, id uuid.UUID) (LockWorkingGroupPurchaseRow, error)
@@ -165,6 +171,7 @@ type Querier interface {
 	MarkWorkingGroupLead(ctx context.Context, arg MarkWorkingGroupLeadParams) error
 	MarkWorkingGroupPurchaseOrderArrived(ctx context.Context, id uuid.UUID) error
 	MarkWorkingGroupPurchasesOrdered(ctx context.Context, arg MarkWorkingGroupPurchasesOrderedParams) (int64, error)
+	MoveWorkingGroupIncomeToBank(ctx context.Context, arg MoveWorkingGroupIncomeToBankParams) error
 	MoveWorkingGroupTicketsToColumn(ctx context.Context, arg MoveWorkingGroupTicketsToColumnParams) error
 	MoveWorkingGroupTodosToColumn(ctx context.Context, arg MoveWorkingGroupTodosToColumnParams) error
 	// Whether an open to-do with the same group, title and repeat interval exists besides the one just done.
@@ -178,6 +185,7 @@ type Querier interface {
 	ReceiveWorkingGroupPurchase(ctx context.Context, id uuid.UUID) error
 	RedactWorkingGroupBooking(ctx context.Context, id uuid.UUID) (int64, error)
 	RedactWorkingGroupPurchase(ctx context.Context, arg RedactWorkingGroupPurchaseParams) error
+	ReduceWorkingGroupIncome(ctx context.Context, arg ReduceWorkingGroupIncomeParams) error
 	RefundWorkingGroupPurchase(ctx context.Context, id uuid.UUID) error
 	SetWorkingGroupMachineStatus(ctx context.Context, arg SetWorkingGroupMachineStatusParams) (int64, error)
 	SetWorkingGroupPlaceStatus(ctx context.Context, arg SetWorkingGroupPlaceStatusParams) (int64, error)
@@ -212,6 +220,10 @@ type Querier interface {
 	UpsertWorkingGroupBudgetShare(ctx context.Context, arg UpsertWorkingGroupBudgetShareParams) error
 	// Returns the replaced file, if any.
 	UpsertWorkingGroupFinanceSignature(ctx context.Context, arg UpsertWorkingGroupFinanceSignatureParams) (uuid.UUID, error)
+	WorkingGroupBookedAheadTotal(ctx context.Context) (string, error)
+	WorkingGroupMovementHasIncome(ctx context.Context, cashMovementID *uuid.UUID) (bool, error)
+	WorkingGroupMovementsWithIncome(ctx context.Context, ids []string) ([]uuid.UUID, error)
+	WorkingGroupPeriodHasBookedAhead(ctx context.Context, periodID uuid.UUID) (bool, error)
 }
 
 var _ Querier = (*Queries)(nil)

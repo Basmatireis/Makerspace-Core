@@ -91,6 +91,12 @@ describe('journal', () => {
       count: null,
       ...extra,
     }) as CashJournalEntry;
+  it('words "into the budget" only for finance managers', () => {
+    const withdrawal = entry({ source: 'movement', kind: 'withdrawal', movementReason: 'safe', intoBudget: true });
+    expect(journalEntryText(withdrawal)).toBe('Moved to safe');
+    expect(journalEntryText(withdrawal, true)).toBe('Moved to safe · into the budget');
+  });
+
   it('heads a day with its weekday and describes entries', () => {
     expect(journalDayText('2026-10-31')).toBe('Saturday 31 October');
     expect(

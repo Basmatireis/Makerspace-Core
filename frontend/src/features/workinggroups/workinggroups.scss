@@ -1061,6 +1061,12 @@
   }
 }
 
+.wg-summary--three {
+  @media (min-width: 66rem) {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
 .wg-minetile--static {
   cursor: default;
 }

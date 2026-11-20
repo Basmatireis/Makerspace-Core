@@ -693,6 +693,7 @@ var Tables = []Table{
 	{Name: "working_group_bookings", Columns: map[string]Treatment{"text": Neutral}},
 	{Name: "working_group_budget_periods", Columns: map[string]Treatment{"name": Catalog}},
 	{Name: "working_group_budget_shares"},
+	{Name: "working_group_income", Columns: map[string]Treatment{"note": Neutral, "location": System}},
 	{Name: "working_group_finance_rules", Columns: map[string]Treatment{
 		"request_unit_kind": System, "request_unit_name": Catalog, "request_place": Cleared,
 	}},

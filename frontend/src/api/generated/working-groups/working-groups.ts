@@ -24,6 +24,7 @@ import type {
   CompleteWorkingGroupProjectRequest,
   CreateWorkingGroupBookingRequest,
   CreateWorkingGroupBudgetPeriodRequest,
+  CreateWorkingGroupIncomeRequest,
   CreateWorkingGroupNoteRequest,
   CreateWorkingGroupProjectBody,
   CreateWorkingGroupPurchaseOrderRequest,
@@ -34,6 +35,7 @@ import type {
   DeclineWorkingGroupPurchaseRequest,
   GetWorkingGroupBudgetParams,
   ListWorkingGroupBookingsParams,
+  ListWorkingGroupIncomeParams,
   ListWorkingGroupNotesParams,
   ListWorkingGroupPeopleParams,
   ListWorkingGroupProjectsParams,
@@ -65,6 +67,8 @@ import type {
   WorkingGroupCommentRequest,
   WorkingGroupFinanceRules,
   WorkingGroupGroupBudget,
+  WorkingGroupIncome,
+  WorkingGroupIncomeList,
   WorkingGroupList,
   WorkingGroupMachineOptionList,
   WorkingGroupNote,
@@ -777,6 +781,85 @@ export const getWorkingGroupBudget = async (params?: GetWorkingGroupBudgetParams
   {
     ...options,
     method: 'GET'
+
+
+  }
+);}
+
+
+export const getListWorkingGroupIncomeUrl = (params?: ListWorkingGroupIncomeParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/working-group-income?${stringifiedParams}` : `/api/v1/working-group-income`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Income from the cash register, newest first; `periodId` defaults to the current period.
+ * @summary List the income of a budget period
+ */
+export const listWorkingGroupIncome = async (params?: ListWorkingGroupIncomeParams, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupIncomeList> => {
+
+  return apiFetch<WorkingGroupIncomeList>(getListWorkingGroupIncomeUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateWorkingGroupIncomeUrl = () => {
+
+
+
+
+  return `/api/v1/working-group-income`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Books an amount that is still in the cash register into the budget of the current open period. The amount cannot exceed the register's expected amount minus what is already booked ahead (409 `insufficient_cash`); 409 `no_open_budget_period` without an open period.
+ * @summary Book cash ahead to the budget
+ */
+export const createWorkingGroupIncome = async (createWorkingGroupIncomeRequest: CreateWorkingGroupIncomeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupIncome> => {
+
+  return apiFetch<WorkingGroupIncome>(getCreateWorkingGroupIncomeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(createWorkingGroupIncomeRequest)
+  }
+);}
+
+
+export const getDeleteWorkingGroupIncomeUrl = (incomeId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/working-group-income/${incomeId}`
+}
+
+/**
+ * Requires `working_groups.read` and `working_group_finances.manage`. Only entries that are still in the register (`where` is `cash`) can be removed (409 `income_withdrawn` otherwise); 409 `budget_period_closed` for a closed period.
+ * @summary Undo a booking ahead
+ */
+export const deleteWorkingGroupIncome = async (incomeId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteWorkingGroupIncomeUrl(incomeId),
+  {
+    ...options,
+    method: 'DELETE'
 
 
   }

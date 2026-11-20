@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { CashMovementBudget } from './cashMovementBudget';
 import type { CreateCashMovementRequestKind } from './createCashMovementRequestKind';
 import type { CreateCashMovementRequestReason } from './createCashMovementRequestReason';
 import type { Money } from './money';
@@ -33,4 +34,5 @@ export interface CreateCashMovementRequest {
   note?: string;
   /** Not in the future. A withdrawal cannot exceed the cash the register should hold. */
   occurredAt: string;
+  budget?: CashMovementBudget;
 }

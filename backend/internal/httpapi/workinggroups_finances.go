@@ -18,6 +18,9 @@ func periodDTO(v workinggroups.Period) openapi.WorkingGroupBudgetPeriod {
 	if v.TotalAmount != "" {
 		out.TotalAmount = &v.TotalAmount
 	}
+	if v.IncomeTotal != "" {
+		out.IncomeTotal, out.IncomeDeposited, out.IncomeBookedAhead = &v.IncomeTotal, &v.IncomeDeposited, &v.IncomeBookedAhead
+	}
 	return out
 }
 
@@ -769,4 +772,70 @@ func (s *Server) RedactWorkingGroupBooking(
 		return nil, err
 	}
 	return openapi.RedactWorkingGroupBooking200JSONResponse(bookingDTO(booking)), nil
+}
+
+func incomeDTO(v workinggroups.Income) openapi.WorkingGroupIncome {
+	out := openapi.WorkingGroupIncome{
+		Id: v.ID, PeriodId: v.PeriodID, Amount: v.Amount, OccurredOn: openapi_types.Date{Time: v.OccurredOn}, Note: v.Note,
+		Where: openapi.WorkingGroupIncomeWhere(v.Where), CreatedAt: v.CreatedAt,
+		CashMovementId: nullable.NewNullNullable[openapi.UUIDv7](), CreatedByName: nullable.NewNullNullable[string](),
+	}
+	if v.CashMovementID != nil {
+		out.CashMovementId = nullable.NewNullableWithValue(*v.CashMovementID)
+	}
+	if v.CreatedByName != nil {
+		out.CreatedByName = nullable.NewNullableWithValue(*v.CreatedByName)
+	}
+	return out
+}
+
+func (s *Server) ListWorkingGroupIncome(
+	ctx context.Context,
+	r openapi.ListWorkingGroupIncomeRequestObject,
+) (openapi.ListWorkingGroupIncomeResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.workingGroups.ListIncome(ctx, p, r.Params.PeriodId)
+	if err != nil {
+		return nil, err
+	}
+	out := openapi.WorkingGroupIncomeList{Items: make([]openapi.WorkingGroupIncome, 0, len(items))}
+	for _, item := range items {
+		out.Items = append(out.Items, incomeDTO(item))
+	}
+	return openapi.ListWorkingGroupIncome200JSONResponse(out), nil
+}
+
+func (s *Server) CreateWorkingGroupIncome(
+	ctx context.Context,
+	r openapi.CreateWorkingGroupIncomeRequestObject,
+) (openapi.CreateWorkingGroupIncomeResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.workingGroups.BookAhead(ctx, p, workinggroups.IncomeInput{Amount: r.Body.Amount, Note: r.Body.Note}, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.CreateWorkingGroupIncome201JSONResponse(incomeDTO(item)), nil
+}
+
+func (s *Server) DeleteWorkingGroupIncome(
+	ctx context.Context,
+	r openapi.DeleteWorkingGroupIncomeRequestObject,
+) (openapi.DeleteWorkingGroupIncomeResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.workingGroups.DeleteIncome(ctx, p, r.IncomeId, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteWorkingGroupIncome204Response{}, nil
 }

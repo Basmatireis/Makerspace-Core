@@ -311,6 +311,7 @@ func declarations() []privacy.Definition {
 				"working_group_purchases.decline_reason", "working_group_purchases.attachment_file_id",
 				"working_group_purchases.receipt_file_id", "working_group_purchase_orders.shop",
 				"working_group_purchase_orders.invoice_file_id", "working_group_bookings.text",
+				"working_group_income.created_by_person_id", "working_group_income.note",
 				"working_group_projects.requester_person_id", "working_group_projects.title", "working_group_projects.goal",
 				"working_group_projects.benefit", "working_group_projects.completion_report", "working_group_projects.request_form",
 				"working_group_projects.request_signature_file_id", "working_group_projects.request_signed_by", "working_group_projects.request_pdf_file_id",

@@ -49,4 +49,6 @@ export interface CashMovement {
   version: Version;
   /** Last change; equals createdAt until the movement is edited or its count recalculated. */
   updatedAt: string;
+  /** True for a withdrawal that went into the working-group budget; such a movement cannot be edited or deleted (409 `cash_movement_in_budget`). Only for holders of `working_group_finances.manage`. */
+  intoBudget?: boolean;
 }

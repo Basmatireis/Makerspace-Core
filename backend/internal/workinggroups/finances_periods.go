@@ -68,11 +68,19 @@ func (s *Service) ListPeriods(ctx context.Context, p authorization.Principal) ([
 	if err != nil {
 		return nil, err
 	}
+	var figures map[uuid.UUID]incomeFigure
+	if isFinance(p) {
+		if figures, err = incomeFigures(ctx, q); err != nil {
+			return nil, err
+		}
+	}
 	items := make([]Period, 0, len(rows))
 	for _, row := range rows {
 		period := s.newPeriod(row.ID, row.Name, row.StartsOn, row.EndsOn, row.TotalAmount, row.ClosedAt, row.Version, row.CreatedAt)
 		if !isFinance(p) {
 			period.TotalAmount = "" // the total from HTU is for finance managers
+		} else {
+			period.withIncome(figures[row.ID])
 		}
 		items = append(items, period)
 	}
@@ -250,6 +258,13 @@ func (s *Service) ClosePeriod(
 		if locked.Version != expectedVersion {
 			return apperror.StaleWrite
 		}
+		ahead, err := q.WorkingGroupPeriodHasBookedAhead(ctx, id)
+		if err != nil {
+			return err
+		}
+		if ahead {
+			return apperror.Conflicting("income_booked_ahead", "Withdraw or undo the money booked ahead first.")
+		}
 		if _, err := q.CloseWorkingGroupBudgetPeriod(ctx, id); err != nil {
 			return err
 		}
@@ -371,7 +386,14 @@ func (s *Service) GetBudget(ctx context.Context, p authorization.Principal, peri
 		givenSum, spentSum, reservedSum = givenSum.Add(given), spentSum.Add(spent), reservedSum.Add(reserved)
 	}
 	if finance {
-		total := dbMoney(period.TotalAmount)
+		figures, err := incomeFigures(ctx, q)
+		if err != nil {
+			return Budget{}, err
+		}
+		income := figures[id]
+		budget.Period.withIncome(income)
+		// The budget of the period is the total from HTU plus the income from the cash register.
+		total := dbMoney(period.TotalAmount).Add(income.deposited).Add(income.bookedAhead)
 		budget.Totals = &BudgetTotals{
 			TotalAmount: moneyText(total), GivenSum: moneyText(givenSum), KeptBack: moneyText(total.Sub(givenSum)),
 			SpentSum: moneyText(spentSum), ReservedSum: moneyText(reservedSum), FreeSum: moneyText(givenSum.Sub(spentSum).Sub(reservedSum)),
