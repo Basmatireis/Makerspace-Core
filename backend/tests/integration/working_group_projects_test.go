@@ -536,7 +536,8 @@ func TestWorkingGroupPurchaseConvertsToAProject(t *testing.T) {
 		len(p.Items[0].Purchases) != 1 || p.Items[0].Purchases[0].Status != workinggroups.PurchasePlanned || p.Title != "Laser tube" {
 		t.Fatalf("convert: %+v %v", p, err)
 	}
-	if got := f.getPurchase(t, purchase.ID); got.Status != workinggroups.PurchasePlanned || got.ProjectID == nil || *got.ProjectID != p.ID {
+	// A purchase planned in a (draft) project no longer needs a project.
+	if got := f.getPurchase(t, purchase.ID); got.Status != workinggroups.PurchasePlanned || got.ProjectID == nil || *got.ProjectID != p.ID || got.NeedsProject {
 		t.Fatalf("purchase = %+v", got)
 	}
 	_, err = f.service.ConvertPurchaseToProject(ctx, f.member, purchase.ID, purchase.Version+1, nil)
