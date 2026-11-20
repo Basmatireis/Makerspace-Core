@@ -1252,3 +1252,322 @@
   align-items: end;
   gap: $spacing-03;
 }
+
+// Projects.
+.wg-prow--group.wg-subrow {
+  min-block-size: 3rem;
+  padding-inline-start: 2.5rem;
+  background: theme.$layer-01;
+}
+
+.wg-sublist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wg-track__bar--5 i {
+  inline-size: 0.75rem;
+}
+
+.wg-plist {
+  display: grid;
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-plist li {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-04;
+  align-items: center;
+}
+
+.wg-reason {
+  margin: 0 0 $spacing-04;
+  padding: $spacing-03 $spacing-04;
+  border-inline-start: 3px solid theme.$support-warning;
+  background: theme.$layer-02;
+}
+
+.wg-reason p {
+  margin: $spacing-02 0;
+}
+
+.wg-pj-top {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: $spacing-05;
+  margin-block: $spacing-04 $spacing-05;
+}
+
+.wg-pj-body {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+  gap: $spacing-05;
+  align-items: start;
+}
+
+.wg-pj-side {
+  display: grid;
+  gap: $spacing-05;
+}
+
+@media (max-width: 65.98rem) {
+  .wg-pj-top,
+  .wg-pj-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.wg-card {
+  padding: $spacing-05;
+  background: theme.$layer-02;
+  border: 1px solid theme.$border-subtle-01;
+}
+
+.wg-card h3 {
+  @include type-style('heading-02');
+  margin-block-end: $spacing-03;
+}
+
+.wg-phead__row,
+.wg-pj-cardhead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-04;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wg-hsteps {
+  display: flex;
+  margin: $spacing-05 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-hsteps li {
+  position: relative;
+  flex: 1;
+  display: grid;
+  justify-items: center;
+  gap: $spacing-02;
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+
+.wg-hsteps li::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.4rem;
+  inset-inline: -50% 50%;
+  block-size: 2px;
+  background: theme.$border-subtle-01;
+}
+
+.wg-hsteps li:first-child::before {
+  display: none;
+}
+
+.wg-hsteps li.is-past::before,
+.wg-hsteps li.is-now::before {
+  background: theme.$support-success;
+}
+
+.wg-hsteps__dot {
+  position: relative;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  border-radius: 50%;
+  border: 2px solid theme.$border-strong-01;
+  background: theme.$layer-02;
+}
+
+.wg-hsteps li.is-past .wg-hsteps__dot {
+  background: theme.$support-success;
+  border-color: theme.$support-success;
+}
+
+.wg-hsteps li.is-now {
+  color: theme.$text-primary;
+}
+
+.wg-hsteps li.is-now .wg-hsteps__dot {
+  border-color: theme.$support-success;
+  background: theme.$layer-02;
+}
+
+.wg-hsteps li.is-declined .wg-hsteps__dot {
+  border-color: theme.$support-error;
+}
+
+.wg-todo-list {
+  display: grid;
+  gap: $spacing-03;
+  margin: 0 0 $spacing-04;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-todo-list li {
+  display: flex;
+  gap: $spacing-03;
+  align-items: center;
+}
+
+.wg-todo-list .is-done svg {
+  fill: theme.$support-success;
+}
+
+.wg-todo-list .is-open svg {
+  fill: theme.$support-error;
+}
+
+.wg-pbar {
+  display: flex;
+  block-size: 0.75rem;
+  margin-block: $spacing-04 $spacing-03;
+  background: theme.$layer-accent-01;
+}
+
+.wg-pbar__seg.is-spent {
+  background: theme.$support-success;
+}
+
+.wg-pbar__seg.is-requested {
+  background: theme.$support-info;
+}
+
+.wg-pbar__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-05;
+  margin-block-end: $spacing-05;
+  @include type-style('label-01');
+}
+
+.wg-cplan__row {
+  all: unset;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(8rem, 3fr) 6rem 6rem minmax(7rem, 1.4fr);
+  gap: $spacing-04;
+  align-items: center;
+  inline-size: 100%;
+  padding: $spacing-03 $spacing-04;
+  border-block-end: 1px solid theme.$border-subtle-01;
+  cursor: pointer;
+  @include type-style('body-compact-01');
+}
+
+.wg-cplan__row:hover {
+  background: theme.$layer-hover-02;
+}
+
+.wg-cplan__row:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+
+.wg-cplan__row.is-selected {
+  background: theme.$layer-selected-02;
+}
+
+.wg-cplan__row small {
+  display: block;
+  color: theme.$text-secondary;
+}
+
+.wg-cplan__row--head,
+.wg-cplan__row--total {
+  cursor: default;
+  font-weight: 600;
+}
+
+.wg-cplan__row--sub {
+  padding-inline-start: $spacing-07;
+  background: theme.$layer-01;
+}
+
+.wg-cplan__group {
+  margin: $spacing-04 0 $spacing-02;
+  @include type-style('label-01');
+}
+
+.wg-pa-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: $spacing-02 $spacing-05;
+  margin: 0;
+}
+
+.wg-pa-facts dt {
+  color: theme.$text-secondary;
+}
+
+.wg-pa-facts dd {
+  margin: 0;
+}
+
+.wg-pa-label {
+  @include type-style('label-01');
+}
+
+.wg-pa-attachments {
+  margin: 0;
+  padding-inline-start: $spacing-05;
+}
+
+.wg-pa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: $spacing-05;
+}
+
+.wg-sig {
+  display: grid;
+  gap: $spacing-04;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.wg-sig legend {
+  @include type-style('label-01');
+  margin-block-end: $spacing-03;
+}
+
+.wg-sig__box {
+  position: relative;
+  inline-size: 100%;
+  max-inline-size: 25rem;
+  aspect-ratio: 400 / 150;
+  overflow: hidden;
+  border: 1px dashed theme.$border-strong-01;
+  background: #fff;
+  touch-action: none;
+}
+
+.wg-sig__canvas {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  touch-action: none;
+}
+
+.wg-sig__img {
+  position: absolute;
+  user-select: none;
+  cursor: grab;
+  max-inline-size: none;
+}
+
+.wg-sig__saved {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}

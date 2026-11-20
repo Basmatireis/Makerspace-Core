@@ -26,6 +26,13 @@ const ERROR_TEXT: Record<string, string> = {
   purchase_not_orderable: 'Only approved purchases of a collective order can be ordered.',
   purchases_mixed_periods: 'Choose purchases of one period only.',
   working_group_has_finances: 'The group has purchases or budget shares and cannot be deleted.',
+  project_checklist_open: 'The checklist is not complete yet.',
+  signature_required: 'Add a signature before the request goes to the WiRef.',
+  signature_invalid: 'The signature could not be read. Draw or upload it again.',
+  project_state: 'This project was changed by someone else.',
+  project_has_purchases: 'This item has purchases and cannot be removed.',
+  project_offers_missing: 'Choose an offer for every item that needs offers.',
+  wiref_not_needed: 'This project does not need the WiRef.',
   working_group_project_request_exists: 'This project number exists already.',
 };
 

@@ -212,6 +212,11 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
       to: '/working-groups/purchases',
       active: pathname.startsWith('/working-groups/purchases'),
     });
+    workingGroups.push({
+      label: 'Projects',
+      to: '/working-groups/projects',
+      active: pathname.startsWith('/working-groups/projects'),
+    });
     if (financeManager) {
       workingGroups.push({
         label: 'Budget',

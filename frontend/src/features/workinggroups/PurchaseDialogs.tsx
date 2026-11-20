@@ -21,11 +21,12 @@ import type { WorkingGroupPurchase, WorkingGroupPurchaseHow, WorkingGroupSummary
 import {
   createWorkingGroupPurchases,
   declineWorkingGroupPurchase,
+  downloadWorkingGroupProjectOfferFile,
   handInWorkingGroupPurchaseReceipt,
   uploadWorkingGroupPurchaseAttachment,
 } from '../../api/generated/working-groups/working-groups';
 import { useNotify } from '../../app/toasts';
-import { formatCents, fromCents, parseMoneyInput } from '../orders/money';
+import { formatCents, fromCents, moneyInputText, parseMoneyInput } from '../orders/money';
 import { ACCEPTED_FILES, fileHeaders, fileProblem, previewKind } from './financeModel';
 import { workingGroupKeys } from './queries';
 import { taskErrorText, useWgMutation } from './useWgMutation';
@@ -95,20 +96,46 @@ interface AddValues {
 
 const blankItem = (): ItemValues => ({ item: '', link: '', quantity: '1', price: '', file: null });
 
+/** What a purchase made from a project starts with: its project and cost plan item, and optionally the item's text, shop, price and the chosen offer's file. */
+export interface PurchasePrefill {
+  projectId: string;
+  projectItemId?: string;
+  item?: string;
+  link?: string;
+  /** Price each, in cents. */
+  priceCents?: number;
+  offerId?: string;
+}
+
 /** Several wanted items in one go, each with an optional offer or cart file that is attached after they exist. */
 export function AddPurchasesDialog({
   groups,
   initialGroupId,
+  prefill,
   onClose,
 }: {
   groups: readonly WorkingGroupSummary[];
   initialGroupId: string;
+  prefill?: PurchasePrefill;
   onClose: () => void;
 }) {
   const notify = useNotify();
   const fileInputs = useRef(new Map<number, HTMLInputElement>());
   const { control, handleSubmit, register, watch, setValue } = useForm<AddValues>({
-    defaultValues: { groupId: initialGroupId || groups[0]?.id || '', how: 'central', items: [blankItem()] },
+    defaultValues: {
+      groupId: initialGroupId || groups[0]?.id || '',
+      how: 'central',
+      items: [
+        prefill
+          ? {
+              ...blankItem(),
+              item: prefill.item ?? '',
+              link: prefill.link ?? '',
+              price: prefill.priceCents === undefined ? '' : moneyInputText(prefill.priceCents),
+            }
+          : blankItem(),
+      ],
+    },
   });
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const items = watch('items');
@@ -123,6 +150,8 @@ export function AddPurchasesDialog({
     const created = await createWorkingGroupPurchases({
       groupId: values.groupId,
       how: values.how,
+      projectId: prefill?.projectId,
+      projectItemId: prefill?.projectItemId,
       items: values.items.map((row) => ({
         item: row.item.trim(),
         link: row.link.trim() || undefined,
@@ -133,9 +162,15 @@ export function AddPurchasesDialog({
     notAttached.current = [];
     for (const [index, row] of values.items.entries()) {
       const purchase = created.items[index];
-      if (!row.file || !purchase) continue;
+      if (!purchase) continue;
       try {
-        await uploadWorkingGroupPurchaseAttachment(purchase.id, row.file, { headers: fileHeaders(row.file) });
+        let file = row.file;
+        if (!file && prefill?.offerId && index === 0) {
+          const blob = await downloadWorkingGroupProjectOfferFile(prefill.projectId, prefill.offerId);
+          file = new File([blob], 'offer', { type: blob.type });
+        }
+        if (!file) continue;
+        await uploadWorkingGroupPurchaseAttachment(purchase.id, file, { headers: fileHeaders(file) });
       } catch {
         notAttached.current.push(row.item.trim());
       }

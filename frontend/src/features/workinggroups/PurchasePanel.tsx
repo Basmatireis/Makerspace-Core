@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react';
 import { Download } from '@carbon/icons-react';
 import { Button, InlineNotification, Link, Tag } from '@carbon/react';
+import { useNavigate } from 'react-router-dom';
 import type { WorkingGroupPurchase } from '../../api/generated/models';
 import {
   approveWorkingGroupPurchase,
   arrivedWorkingGroupPurchase,
+  convertWorkingGroupPurchaseToProject,
   deleteWorkingGroupPurchase,
   downloadWorkingGroupPurchaseAttachment,
   downloadWorkingGroupPurchaseReceipt,
@@ -73,6 +75,7 @@ export function PurchasePanel({
   finance: boolean;
   onGone: () => void;
 }) {
+  const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const deleteButton = useRef<HTMLButtonElement>(null);
   const decline = useDialogOpener();
@@ -92,7 +95,16 @@ export function PurchasePanel({
     refundedWorkingGroupPurchase(purchase.id, { expectedVersion: purchase.version }),
   );
   const remove = useWgMutation(() => deleteWorkingGroupPurchase(purchase.id));
-  const error = fileError ?? saveErrorText(approve.error ?? arrived.error ?? refunded.error ?? attach.error);
+  const toProject = useWgMutation(() =>
+    convertWorkingGroupPurchaseToProject(purchase.id, { expectedVersion: purchase.version }),
+  );
+  const canTurn =
+    purchase.needsProject &&
+    purchase.status === 'wanted' &&
+    !purchase.projectId &&
+    (isLead || purchase.requester?.personId === me);
+  const error =
+    fileError ?? saveErrorText(toProject.error ?? approve.error ?? arrived.error ?? refunded.error ?? attach.error);
   const stage = stageOf(purchase);
   const counts = countsAs(purchase);
   const busy = approve.isPending || arrived.isPending || refunded.isPending;
@@ -138,6 +150,20 @@ export function PurchasePanel({
         {finance && (
           <Button kind="ghost" size="md" onClick={() => redact.open(true)}>
             Remove personal data…
+          </Button>
+        )}
+        {canTurn && (
+          <Button
+            kind="primary"
+            size="md"
+            disabled={toProject.isPending}
+            onClick={() =>
+              toProject.mutate(undefined, {
+                onSuccess: (created) => void navigate(`/working-groups/projects/${(created as { id: string }).id}`),
+              })
+            }
+          >
+            Turn into a project
           </Button>
         )}
         {canAttach && (

@@ -91,6 +91,20 @@ Finance managers combine approved purchases of one period into a **collective or
 
 Finance managers set two limits: the **project threshold** (from this amount a purchase or order needs a project) and the **offers threshold**, and keep the standing **project requests** (number and label) an order can refer to. Writes are guarded by a version (`expectedVersion`), so a stale save is refused.
 
+## Projects
+
+A **project** is the plan for a larger spend of one group: title, what the group wants to do, what it improves, from and until, people taking part, planned income, alcohol, an optional advance from HTU, and a **cost plan** of items (text, planned cost in total, link, note). Items that reach the offers threshold need **three offers** (shop, price, file); the other items need a purchase with a link or a file. Members of the group see their projects, finance managers see all of them; for everybody else a project does not exist.
+
+Status flow: Draft → Waiting for approval → (At the WiRef →) Running → Completed. Management can **return** a project with a comment (it becomes "Changes asked for" and is edited and handed in again) or **decline** it with a reason. The lead or requester edits the plan while the project is a draft or returned; finance managers may change it until it is completed or declined. The **checklist** of the API (`checklist.open`: `goal_missing`, `benefit_missing`, `items_missing`, `item_needs_purchase:<id>`, `item_needs_offers:<id>`) must be empty before the project can be handed in. A purchase of a group that reaches the project threshold can be turned into a draft project (`convertWorkingGroupPurchaseToProject`) that contains it as its first item.
+
+Only finance managers decide. On approval they say **where the money comes from**: the group budget or an external source (for example HTU, which always goes to the WiRef). This can be changed later (`setWorkingGroupProjectPaidFrom`, recorded in the history). A project goes to the WiRef when it is paid from an external source or its planned total reaches the project threshold; the WiRef decision records its number and, for each item that needs offers, the offer the WiRef chose (the item then keeps that price). If the WiRef declines, the project is declined. Running projects are completed with a report; a requested advance is marked as arrived by a finance manager.
+
+## Projektantrag
+
+For the WiRef the server renders the **Projektantrag** PDF from the rules (kind and name of the unit, place, default responsible person), the project and the fields a finance manager edits in the approve dialog: kind of unit (Stv, UV, Referat/Studi-Lab), name of the unit, project name, from, until, description, people, planned maximum expenses and income, alcohol, advance, the Kostenstellenverantwortliche Person, place and date. `requestForm` of a project carries the prefilled values (finance managers only); `previewWorkingGroupProjectRequest` renders a preview without storing or sending anything. The mail to the WiRef carries the PDF and the files of the chosen offers and of the purchases; it is sent on approval or, when it was held back, with "Send to the WiRef" (`wirefRequestPending`). The sent PDF stays available (`downloadWorkingGroupProjectRequestPdf`).
+
+The form needs a **signature**: drawn on screen, an uploaded PNG or JPEG image (placed and sized freely in the signature box, sent as a PNG of at most 512 KiB, base64) or the **saved signature** of the finance manager. "Keep this signature for my next requests" stores it (`putWorkingGroupFinanceSignature`). A saved signature can only be read, replaced and deleted by its owner and is never part of another person's data. Without a signature the request is refused with `signature_required`.
+
 ## Data protection
 
 Tickets, to-dos and comments are one privacy category ("Working group tickets and to-dos"): the person links are unlinked when the person is deleted, the texts stay; subject requests export the subject's own tickets, assignments, to-dos, comments and follows (follows name only the group and the time). Audit events name ids and changed fields, never subjects, descriptions, titles, comments or answers. People merge moves tickets, assignments, to-dos and comments to the surviving person and drops follows that would duplicate or follow the merged person's own ticket. The staging anonymizer replaces subjects, descriptions, titles and comments with neutral text. Do not put personal data in tickets.
@@ -102,6 +116,7 @@ Tickets, to-dos and comments are one privacy category ("Working group tickets an
 - **Working groups → Tickets & to-dos** (`/working-groups/tasks`, needs `working_groups.read`): one combined list of tickets and to-dos with the tabs "All groups" and one per group (`?group=<id>`, default the caller's first own group). The top row counts the open items (inbox, overdue, due this week, later) and shows the unassigned and the caller's own items; each of its columns and tiles filters the list. The list groups items by Inbox, Overdue, This week, Next week, Later, No due date and Done; on a group tab `?view=board` shows the board (Inbox, the group's columns, Done) whose cards people inside the group drag between columns (the detail panel's Column field does the same without dragging). The side panel plans, answers, closes and reopens tickets, edits assignee, due date and column inline (`expectedVersion`), shows comments and, for people outside, follows a ticket. Anybody writes a ticket; "New to-do" and the to-do list appear only for people inside a group; the lead and management edit the columns of a group.
 - **Settings → Working groups** (`/settings/working-groups`, needs `working_groups.read`): the tile appears only for people who can edit at least one group, which are those with `working_groups.manage` and the leads of a group. Leads see a tab for each group they lead and reach it with "Manage group" on the overview; management sees every group and can also create a group, rename it, choose the lead and delete it. Each tab edits the description and chat link, the members, the machines and the places.
 - **Working groups → Purchases** (`/working-groups/purchases`, for members of a group and for finance managers): tabs "All groups" (finance managers only) and one per group (`?group=<id>`); a budget card (free of given, period, Spent | Reserved | Free, Kept back on All groups) whose Spent and Reserved columns filter the list, the tiles "Waiting for approval" and "Your turn" (finance managers on All groups: "Collective order"), a searchable and filterable list grouped by stage with a detail panel, "Add purchases" and, for finance managers on All groups, "Rules and limits".
+- **Working groups → Projects** (`/working-groups/projects`, same visibility as Purchases; non-members get a short empty state): the same tabs and budget card, the tiles "Waiting for approval" (finance managers: "Waiting for you") and "Running", a list grouped by Waiting for approval, Drafts, Running and Finished with the planned amount, the paid-from source and a five-step stage track; the purchases of a project are indented sub-rows, and selecting one shows the purchase in the panel. "Start a project" opens the project dialog. **Project page** (`/working-groups/projects/:projectId`): header with stepper, "What happens next" (checklist and "Hand in for approval"; for finance managers Approve, Return with a comment, Decline, "WiRef approved it", "WiRef declined it", "Advance arrived"; "Complete the project"), the cost plan table with bar, item and purchase rows and a detail panel for the selected item (offers, "Make a purchase"), and the cards "Request for the WiRef" (preview, send), "About" (finance managers change "Paid from" inline) and "History". The approve dialog contains the whole Projektantrag and the signature field. A purchase that needs a project has "Turn into a project" in its panel.
 - **Working groups → Budget** (`/working-groups/budget`, finance managers only): the budget of the period, the tile "From HTU", the list of groups with their share and use, a panel to change a share, "Edit period" (with "Close this period") and "New budget period".
 - The screens only hide what the person cannot do; the API enforces every rule above again.
 
@@ -184,5 +199,33 @@ Tickets, to-dos and comments are one privacy category ("Working group tickets an
 | `createWorkingGroupProjectRequest` | `POST /working-group-project-requests` | finance manager |
 | `updateWorkingGroupProjectRequest` | `PUT /working-group-project-requests/{requestId}` | finance manager |
 | `deleteWorkingGroupProjectRequest` | `DELETE /working-group-project-requests/{requestId}` | finance manager |
+| `listWorkingGroupProjects` | `GET /working-group-projects?groupId=&status=` | member (own groups), finance manager (all) |
+| `createWorkingGroupProject` | `POST /working-group-projects` | member of the group |
+| `getWorkingGroupProject` | `GET /working-group-projects/{projectId}` | member, finance manager; others: 404 |
+| `updateWorkingGroupProject` | `PATCH /working-group-projects/{projectId}` | lead or requester (draft, returned); finance manager |
+| `deleteWorkingGroupProject` | `DELETE /working-group-projects/{projectId}` | see the contract |
+| `createWorkingGroupProjectItem` | `POST /working-group-projects/{projectId}/items` | lead or requester (draft, returned); finance manager |
+| `reorderWorkingGroupProjectItems` | `PUT /working-group-projects/{projectId}/items/order` | as adding an item |
+| `updateWorkingGroupProjectItem` | `PATCH /working-group-projects/{projectId}/items/{itemId}` | as adding an item |
+| `deleteWorkingGroupProjectItem` | `DELETE /working-group-projects/{projectId}/items/{itemId}` | as adding an item |
+| `createWorkingGroupProjectOffer` | `POST /working-group-projects/{projectId}/items/{itemId}/offers` | as adding an item |
+| `deleteWorkingGroupProjectOffer` | `DELETE /working-group-projects/{projectId}/offers/{offerId}` | as adding an item |
+| `uploadWorkingGroupProjectOfferFile` | `PUT /working-group-projects/{projectId}/offers/{offerId}/file` | as adding an item |
+| `downloadWorkingGroupProjectOfferFile` | `GET /working-group-projects/{projectId}/offers/{offerId}/file` | member, finance manager |
+| `submitWorkingGroupProject` | `POST /working-group-projects/{projectId}/submit` | lead or requester (checklist complete) |
+| `returnWorkingGroupProject` | `POST /working-group-projects/{projectId}/return` | finance manager (reason) |
+| `declineWorkingGroupProject` | `POST /working-group-projects/{projectId}/decline` | finance manager (reason) |
+| `approveWorkingGroupProject` | `POST /working-group-projects/{projectId}/approve` | finance manager (paid from, form, signature) |
+| `recordWorkingGroupProjectWiRefDecision` | `POST /working-group-projects/{projectId}/wiref-decision` | finance manager (number, chosen offers) |
+| `setWorkingGroupProjectPaidFrom` | `POST /working-group-projects/{projectId}/paid-from` | finance manager |
+| `sendWorkingGroupProjectToWiRef` | `POST /working-group-projects/{projectId}/send-to-wiref` | finance manager |
+| `markWorkingGroupProjectAdvanceReceived` | `POST /working-group-projects/{projectId}/advance-received` | finance manager |
+| `completeWorkingGroupProject` | `POST /working-group-projects/{projectId}/complete` | lead, requester or finance manager (running) |
+| `previewWorkingGroupProjectRequest` | `POST /working-group-projects/{projectId}/request-preview` | finance manager |
+| `downloadWorkingGroupProjectRequestPdf` | `GET /working-group-projects/{projectId}/request-pdf` | finance manager |
+| `convertWorkingGroupPurchaseToProject` | `POST /working-group-purchases/{purchaseId}/to-project` | lead of the group or requester of a wanted purchase |
+| `putWorkingGroupFinanceSignature` | `PUT /working-group-finance-signature` | finance manager (own signature) |
+| `downloadWorkingGroupFinanceSignature` | `GET /working-group-finance-signature` | finance manager (own signature; 404 when none) |
+| `deleteWorkingGroupFinanceSignature` | `DELETE /working-group-finance-signature` | finance manager (own signature) |
 
 All operations also need `working_groups.read`. The two picker lists return the minimum: people as id and display name (no e-mail, no matriculation number), machines with the group they already belong to.

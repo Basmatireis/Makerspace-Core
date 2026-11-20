@@ -72,6 +72,8 @@ import {
   TrainingsSettingsPage,
   WorkingGroupsPage,
   WorkingGroupTasksPage,
+  ProjectPage,
+  ProjectsPage,
   PurchasesPage,
   BudgetPage,
   WorkingGroupsSettingsPage,
@@ -558,6 +560,22 @@ export function App() {
               element={
                 <PermissionRoute allOf={['working_groups.read']}>
                   <PurchasesPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="working-groups/projects"
+              element={
+                <PermissionRoute allOf={['working_groups.read']}>
+                  <ProjectsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="working-groups/projects/:projectId"
+              element={
+                <PermissionRoute allOf={['working_groups.read']}>
+                  <ProjectPage />
                 </PermissionRoute>
               }
             />
