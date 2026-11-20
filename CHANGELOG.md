@@ -4,6 +4,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-19
+
 ### Added
 
 - **Working group tickets and to-dos linked to purchases and projects, ticket notifications and a "lately" feed (backend).** A ticket or to-do may be linked to one purchase or project of its group (`PUT /working-group-tickets/{ticketId}/link`, `PUT /working-group-todos/{todoId}/link`; migration 00154); tickets and to-dos carry `link` for callers who may see the target, purchases and projects carry `linkedTasks` for people inside the group. The new notification trigger `working_group_ticket_updated` (recipients `author` and `followers`) is raised for new comments, planning and closing, never for the person who made the change; delivery is restricted to the ticket's author and followers (roles, named people and personal subscriptions get nothing) and internal comments reach only recipients inside the group. `GET /working-groups/{groupId}/activity` lists the group's recent events (outsiders see ticket events only). The purchase attachment description now says `wanted` (or `planned`). See [docs/working-groups.md](docs/working-groups.md).
@@ -1007,6 +1009,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[Unreleased]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.19.1...v0.20.0
 [0.19.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.18.2...v0.19.0
 [0.18.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.18.1...v0.18.2
