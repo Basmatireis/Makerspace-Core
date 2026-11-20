@@ -48,6 +48,9 @@ func (s *Service) ListTickets(ctx context.Context, p authorization.Principal, fi
 	for _, row := range rows {
 		items = append(items, ticketFromRow(row))
 	}
+	if err := attachLatestComments(ctx, workinggroupsdb.New(s.pool), p, items, nil); err != nil {
+		return nil, false, err
+	}
 	return items, truncated, nil
 }
 
@@ -496,4 +499,52 @@ func sameDate(a, b *time.Time) bool {
 		return a == nil && b == nil
 	}
 	return dateParam(a) == dateParam(b)
+}
+
+// attachLatestComments fills LatestComments of the listed tickets and to-dos with one query for the whole list; it shows
+// what the detail shows (internal ticket comments only to people inside the group).
+func attachLatestComments(
+	ctx context.Context,
+	q *workinggroupsdb.Queries,
+	p authorization.Principal,
+	tickets []Ticket,
+	todos []Todo,
+) error {
+	if len(tickets) == 0 && len(todos) == 0 {
+		return nil
+	}
+	ticketIDs := make([]uuid.UUID, 0, len(tickets))
+	for _, ticket := range tickets {
+		ticketIDs = append(ticketIDs, ticket.ID)
+	}
+	todoIDs := make([]uuid.UUID, 0, len(todos))
+	for _, todo := range todos {
+		todoIDs = append(todoIDs, todo.ID)
+	}
+	rows, err := q.ListWorkingGroupLatestComments(ctx, workinggroupsdb.ListWorkingGroupLatestCommentsParams{
+		TicketIds: ticketIDs, TodoIds: todoIDs, CallerManage: p.Has(authorization.WorkingGroupsManage), CallerPersonID: p.PersonID,
+	})
+	if err != nil {
+		return err
+	}
+	byTicket := map[uuid.UUID][]Comment{}
+	byTodo := map[uuid.UUID][]Comment{}
+	for _, c := range rows {
+		comment := Comment{
+			ID: c.ID, Author: personRef(c.AuthorPersonID, c.AuthorName), Text: c.Text, Internal: c.Internal, CreatedAt: c.CreatedAt,
+		}
+		switch {
+		case c.TicketID != nil:
+			byTicket[*c.TicketID] = append(byTicket[*c.TicketID], comment)
+		case c.TodoID != nil:
+			byTodo[*c.TodoID] = append(byTodo[*c.TodoID], comment)
+		}
+	}
+	for i := range tickets {
+		tickets[i].LatestComments = append([]Comment{}, byTicket[tickets[i].ID]...)
+	}
+	for i := range todos {
+		todos[i].LatestComments = append([]Comment{}, byTodo[todos[i].ID]...)
+	}
+	return nil
 }

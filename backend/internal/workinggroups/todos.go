@@ -31,6 +31,9 @@ func (s *Service) ListTodos(ctx context.Context, p authorization.Principal, grou
 	for _, row := range rows {
 		items = append(items, todoFromRow(row))
 	}
+	if err := attachLatestComments(ctx, workinggroupsdb.New(s.pool), p, nil, items); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 

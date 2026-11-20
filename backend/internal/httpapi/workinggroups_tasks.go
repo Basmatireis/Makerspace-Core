@@ -477,7 +477,7 @@ func dateDTO(value *time.Time) *openapi_types.Date {
 }
 
 func workingGroupTicketDTO(item workinggroups.Ticket) openapi.WorkingGroupTicket {
-	return openapi.WorkingGroupTicket{
+	result := openapi.WorkingGroupTicket{
 		Id:            item.ID,
 		GroupId:       item.GroupID,
 		GroupName:     item.GroupName,
@@ -503,6 +503,11 @@ func workingGroupTicketDTO(item workinggroups.Ticket) openapi.WorkingGroupTicket
 		ClosedAt:      item.ClosedAt,
 		Link:          taskLinkDTO(item.Link),
 	}
+	if item.LatestComments != nil {
+		latest := workingGroupCommentsDTO(item.LatestComments)
+		result.LatestComments = &latest
+	}
+	return result
 }
 
 func workingGroupCommentsDTO(items []workinggroups.Comment) []openapi.WorkingGroupComment {
@@ -546,6 +551,10 @@ func workingGroupTodoDTO(item workinggroups.Todo) openapi.WorkingGroupTodo {
 		CreatedAt:    item.CreatedAt,
 		UpdatedAt:    item.UpdatedAt,
 		Link:         taskLinkDTO(item.Link),
+	}
+	if item.LatestComments != nil {
+		latest := workingGroupCommentsDTO(item.LatestComments)
+		result.LatestComments = &latest
 	}
 	if item.RepeatEveryDays != nil {
 		days := int32(*item.RepeatEveryDays)

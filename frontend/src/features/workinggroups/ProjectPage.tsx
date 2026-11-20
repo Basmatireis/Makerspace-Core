@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button, InlineNotification, Link as CarbonLink, Select, SelectItem, Tag } from '@carbon/react';
 import { Checkmark, ErrorFilled } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { LinkedTasks } from './LinkParts';
 import type {
   WorkingGroupProject,
@@ -161,10 +161,7 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
   const history = [...project.history].reverse();
 
   return (
-    <PageShell title={project.title} width="wide" breadcrumbs={[...CRUMBS, { label: project.title, to: '#' }]}>
-      <p>
-        <Link to={`/working-groups/projects?group=${project.groupId}`}>Back to projects</Link>
-      </p>
+    <PageShell title={project.title} width="wide" breadcrumbs={CRUMBS}>
       {actionError && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={actionError} />
       )}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Button, Modal, Tag, Tile as CarbonTile } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -56,6 +56,7 @@ export function ManagementOverview({
   const budget = useQuery({ ...budgetOptions({}), enabled: finance });
   const [focus, setFocus] = useState<Kind | null>(null);
   const panelFits = useListPanelLayout();
+  const rowOpener = useRef<HTMLElement | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const waiting = useMemo<Waiting[]>(() => {
@@ -148,7 +149,7 @@ export function ManagementOverview({
     <>
       {finance && (
         <>
-          <div className="wg-summary">
+          <div className="wg-mgsummary">
             <Tile
               title="Waiting for you"
               count={waiting.length}
@@ -189,7 +190,11 @@ export function ManagementOverview({
                               type="button"
                               className={`wg-lrow wg-prow wg-prow--group${item.key === selectedKey ? ' is-selected' : ''}`}
                               aria-pressed={item.key === selectedKey}
-                              onClick={() => setSelectedKey(item.key)}
+                              onClick={() => {
+                                rowOpener.current =
+                                  document.activeElement instanceof HTMLElement ? document.activeElement : null;
+                                setSelectedKey(item.key);
+                              }}
                             >
                               <span className="wg-pamount">
                                 <strong>{item.cents > 0 ? formatCents(item.cents) : '–'}</strong>
@@ -210,7 +215,16 @@ export function ManagementOverview({
             </div>
           </ListWithPanel>
           {!panelFits && selected && (
-            <Modal open passiveModal size="md" modalHeading="Details" onRequestClose={() => setSelectedKey(null)}>
+            <Modal
+              open
+              passiveModal
+              size="md"
+              modalHeading="Details"
+              onRequestClose={() => {
+                setSelectedKey(null);
+                window.setTimeout(() => rowOpener.current?.focus(), 0);
+              }}
+            >
               {panel}
             </Modal>
           )}

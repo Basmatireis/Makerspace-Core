@@ -58,11 +58,13 @@ type Ticket struct {
 	IsFollowing   bool
 	IsMine        bool
 	CommentCount  int64
-	Inside        bool
-	Version       int64
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	ClosedAt      *time.Time
+	// LatestComments are the newest comments the caller may see (at most three, newest first); set by the list only.
+	LatestComments []Comment
+	Inside         bool
+	Version        int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	ClosedAt       *time.Time
 	// Link is the purchase or project the ticket is linked to; nil without a link and when the caller may not see it.
 	Link *TaskLink
 }
@@ -159,9 +161,11 @@ type Todo struct {
 	DoneAt          *time.Time
 	IsMine          bool
 	CommentCount    int64
-	Version         int64
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// LatestComments are the newest comments (at most three, newest first); set by the list only.
+	LatestComments []Comment
+	Version        int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 	// Link is the purchase or project the to-do is linked to; nil without a link and when the caller may not see it.
 	Link *TaskLink
 }

@@ -6,15 +6,19 @@ export const projectLink = (id: string) => `/working-groups/projects/${id}`;
 export const taskItemLink = (groupId: string, kind: 'ticket' | 'todo', id: string) =>
   `/working-groups/tasks?group=${groupId}&item=${encodeURIComponent(`${kind}:${id}`)}`;
 
-/** "5 minutes ago", "yesterday"; older than a week as a date. */
-export function relativeTime(iso: string, now = Date.now()): string {
-  const minutes = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000));
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  const days = Math.round(hours / 24);
-  if (days === 1) return 'yesterday';
-  if (days < 7) return `${days} days ago`;
-  return formatDate(iso);
+const MINUTE = 60_000;
+const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['day', 24 * 60 * MINUTE],
+  ['hour', 60 * MINUTE],
+  ['minute', MINUTE],
+];
+const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+
+/** "2 hours ago", "yesterday"; anything older than a month is a plain date. */
+export function relativeTime(value: string, now = Date.now()): string {
+  const elapsed = new Date(value).getTime() - now;
+  if (Math.abs(elapsed) < MINUTE) return 'just now';
+  if (Math.abs(elapsed) > 30 * 24 * 60 * MINUTE) return formatDate(value);
+  const [unit, size] = UNITS.find(([, size]) => Math.abs(elapsed) >= size) ?? UNITS[2];
+  return relative.format(Math.round(elapsed / size), unit);
 }

@@ -91,6 +91,7 @@ const project = {
 function serve(
   options: {
     permissions?: PermissionId[];
+    member?: boolean;
     ticket?: WorkingGroupTicket;
     activity?: WorkingGroupActivityEntry[];
   } = {},
@@ -106,6 +107,7 @@ function serve(
     http.get(`*/api/v1/working-groups/${groupId}`, () =>
       HttpResponse.json({
         ...summary,
+        isMember: options.member ?? true,
         version: 1,
         members: [],
         machines: [],
@@ -117,7 +119,7 @@ function serve(
     ),
     http.get(`*/api/v1/working-groups/${groupId}/activity`, ({ request }) => {
       limits.push(new URL(request.url).searchParams.get('limit'));
-      return HttpResponse.json({ items: options.activity ?? [] });
+      return HttpResponse.json({ items: (options.activity ?? []).slice(0, Number(limits.at(-1) ?? 50)) });
     }),
     http.get('*/api/v1/working-group-tickets', () => HttpResponse.json({ items: [shown] })),
     http.get('*/api/v1/working-group-todos', () => HttpResponse.json({ items: [] })),
@@ -181,6 +183,26 @@ describe('linking a ticket', () => {
     await waitFor(() => expect(bodies).toEqual([{ expectedVersion: 3 }]));
   });
 
+  it('moves focus to the Belongs-to line after linking and unlinking', async () => {
+    serve();
+    renderRoute(<App />, taskUrl);
+    await userEvent.click(await screen.findByRole('button', { name: 'Link' }));
+    const dialog = await screen.findByRole('dialog', { name: /Link to a purchase/ });
+    expect(within(dialog).getByRole('group', { name: 'Purchases' })).toBeInTheDocument();
+    await userEvent.click(await within(dialog).findByLabelText(/Nozzle set/));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Link' }));
+    await waitFor(() => expect(document.querySelector('.wg-linkline')).toHaveFocus());
+  });
+
+  it('explains instead of listing when the caller cannot see purchases and projects', async () => {
+    serve({ member: false, permissions: [PermissionId.working_groupsread, PermissionId.working_groupsmanage] });
+    renderRoute(<App />, taskUrl);
+    await userEvent.click(await screen.findByRole('button', { name: 'Link' }));
+    const dialog = await screen.findByRole('dialog', { name: /Link to a purchase/ });
+    expect(within(dialog).getByText(/cannot see the purchases and projects/)).toBeInTheDocument();
+    expect(within(dialog).queryByText('Nothing found.')).not.toBeInTheDocument();
+  });
+
   it('offers no Link button to somebody outside the group', async () => {
     serve({ ticket: ticket({ inside: false }) });
     renderRoute(<App />, taskUrl);
@@ -202,13 +224,15 @@ describe('Lately', () => {
   });
 
   it('lists sentences with relative times and loads more on request', async () => {
-    const { limits } = serve({ activity: Array.from({ length: 10 }, (_, n) => entry(n + 1)) });
+    const { limits } = serve({ activity: Array.from({ length: 12 }, (_, n) => entry(n + 1)) });
     renderRoute(<App />, '/working-groups');
     const row = (await screen.findByText('Alignment 1')).closest('li')!;
     expect(row).toHaveTextContent('Ada closed the ticket Alignment 1');
-    expect(row).toHaveTextContent('1 h ago');
+    expect(row).toHaveTextContent('1 hour ago');
     await userEvent.click(screen.getByRole('button', { name: 'Show more' }));
     await waitFor(() => expect(limits).toEqual(['10', '50']));
+    await waitFor(() => expect(screen.getByText('Alignment 11')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Alignment 11' })).toHaveFocus());
   });
 });
 

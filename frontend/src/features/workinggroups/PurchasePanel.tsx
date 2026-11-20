@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Download } from '@carbon/icons-react';
-import { Button, InlineNotification, Link, Tag } from '@carbon/react';
+import { Button, InlineNotification, Link, OverflowMenu, OverflowMenuItem, Tag } from '@carbon/react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkingGroupPurchase } from '../../api/generated/models';
 import {
@@ -76,7 +76,9 @@ export function PurchasePanel({
 }) {
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const deleteButton = useRef<HTMLButtonElement>(null);
+  const deleteButton = useRef<HTMLElement | null>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const hasMore = purchase.canDelete || finance;
   const decline = useDialogOpener();
   const receipt = useDialogOpener();
   const preview = useDialogOpener();
@@ -116,6 +118,25 @@ export function PurchasePanel({
         secondary={`${purchase.quantity} × ${formatMoney(purchase.unitPrice)} · ${
           purchase.requester ? firstName(purchase.requester) : 'Former member'
         } · ${formatDate(purchase.createdAt)}`}
+        actions={
+          hasMore && (
+            <OverflowMenu ref={menu} aria-label="More actions" iconDescription="More actions" flipped size="md">
+              {finance && <OverflowMenuItem itemText="Remove personal data…" onClick={() => redact.open(true)} />}
+              {purchase.canDelete && (
+                <OverflowMenuItem
+                  itemText="Delete"
+                  isDelete
+                  hasDivider={finance}
+                  onClick={() => {
+                    deleteButton.current = menu.current?.querySelector('button') ?? null;
+                    remove.reset();
+                    setConfirmDelete(true);
+                  }}
+                />
+              )}
+            </OverflowMenu>
+          )
+        }
         helper={
           <>
             <Tag size="sm" type={PURCHASE_STATUS_TAG[purchase.status]}>
@@ -133,24 +154,6 @@ export function PurchasePanel({
       <p className="wg-panel-body">{sentence(purchase)}</p>
 
       <div className="wg-panel-actions">
-        {purchase.canDelete && (
-          <Button
-            ref={deleteButton}
-            kind="danger--ghost"
-            size="md"
-            onClick={() => {
-              remove.reset();
-              setConfirmDelete(true);
-            }}
-          >
-            Delete
-          </Button>
-        )}
-        {finance && (
-          <Button kind="ghost" size="md" onClick={() => redact.open(true)}>
-            Remove personal data…
-          </Button>
-        )}
         {canTurn && (
           <Button
             kind="primary"

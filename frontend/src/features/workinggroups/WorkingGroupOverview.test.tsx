@@ -133,13 +133,16 @@ function serve(options: { group?: WorkingGroup; notes?: WorkingGroupNote[]; perm
     ),
     http.get('*/api/v1/working-groups', () => HttpResponse.json({ items: [detail] })),
     http.get(`*/api/v1/working-groups/${printId}`, () => HttpResponse.json(detail)),
-    http.get('*/api/v1/working-group-tickets', () => HttpResponse.json({ items: [ticket] })),
+    http.get('*/api/v1/working-group-tickets', () =>
+      HttpResponse.json({ items: [{ ...ticket, latestComments: [4, 3, 2].map(comment) }] }),
+    ),
     http.get('*/api/v1/working-group-todos', () =>
       HttpResponse.json({ items: detail.isMember ? [unassignedTodo, overdueTodo, laterTodo] : [] }),
     ),
-    http.get('*/api/v1/working-group-tickets/:id', () =>
-      HttpResponse.json({ ticket, followers: [], comments: [1, 2, 3, 4].map(comment) }),
-    ),
+    http.get('*/api/v1/working-group-tickets/:id', () => {
+      record('ticketDetail', true);
+      return HttpResponse.json({ ticket, followers: [], comments: [1, 2, 3, 4].map(comment) });
+    }),
     http.get('*/api/v1/working-group-notes', () =>
       HttpResponse.json({ items: options.notes ?? [publicNote, groupNote] }),
     ),
@@ -183,7 +186,7 @@ const removeButton = (label: HTMLElement) =>
 
 describe('working group overview for people inside', () => {
   it('shows the stat tiles and the pinboard in order, with the last comments under a row', async () => {
-    serve();
+    const bodies = serve();
     renderRoute(<App />, '/working-groups');
 
     const table = await screen.findByRole('table', { name: 'Group pinboard' });
@@ -220,6 +223,8 @@ describe('working group overview for people inside', () => {
     expect(within(table).getByText(/Comment number 2/)).toBeInTheDocument();
     const list = within(table).getByRole('list', { name: 'Latest comments on Printer jams' });
     expect(within(list).getAllByRole('listitem')).toHaveLength(4);
+    // The rows come with their comments: no request per row.
+    expect(bodies.ticketDetail).toBeUndefined();
 
     // Open is an icon button with an accessible name, a link to the item.
     // Carbon renders the label as the tooltip text that names the button.

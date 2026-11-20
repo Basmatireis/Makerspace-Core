@@ -130,6 +130,9 @@ type Querier interface {
 	ListWorkingGroupIncome(ctx context.Context, periodID uuid.UUID) ([]ListWorkingGroupIncomeRow, error)
 	ListWorkingGroupIncomeFigures(ctx context.Context) ([]ListWorkingGroupIncomeFiguresRow, error)
 	ListWorkingGroupItemStatuses(ctx context.Context) ([]ListWorkingGroupItemStatusesRow, error)
+	// The newest three comments of each listed ticket and to-do, with the visibility of the detail: internal ticket comments
+	// only for people inside the group; the to-do list only exists for people inside. One query for the whole list.
+	ListWorkingGroupLatestComments(ctx context.Context, arg ListWorkingGroupLatestCommentsParams) ([]ListWorkingGroupLatestCommentsRow, error)
 	// Tickets and to-dos linked to the given purchases and projects, for people inside the group (a member or
 	// working_groups.manage) only.
 	ListWorkingGroupLinkedTasks(ctx context.Context, arg ListWorkingGroupLinkedTasksParams) ([]ListWorkingGroupLinkedTasksRow, error)

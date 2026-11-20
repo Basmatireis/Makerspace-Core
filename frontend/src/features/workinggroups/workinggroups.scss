@@ -545,7 +545,9 @@
 
 .wg-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: $spacing-03;
+  min-inline-size: 0;
   padding: $spacing-04;
   background: theme.$background;
   cursor: pointer;
@@ -1346,6 +1348,7 @@
 
 .wg-phead__row,
 .wg-pj-cardhead {
+  min-inline-size: 0;
   display: flex;
   flex-wrap: wrap;
   gap: $spacing-04;
@@ -1439,6 +1442,9 @@
 
 .wg-pbar {
   display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  overflow: hidden;
   block-size: 0.75rem;
   margin-block: $spacing-04 $spacing-03;
   background: theme.$layer-accent-01;
@@ -1465,6 +1471,10 @@
   box-sizing: border-box;
   display: grid;
   grid-template-columns: minmax(8rem, 3fr) 6rem 6rem minmax(7rem, 1.4fr);
+
+  @media (max-width: 40rem) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
   gap: $spacing-04;
   align-items: center;
   inline-size: 100%;
@@ -1534,8 +1544,19 @@
 
 .wg-pa-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
   gap: $spacing-05;
+
+  > * {
+    min-inline-size: 0;
+  }
+
+  // Date pickers keep their own fixed width otherwise and push the grid wider than the modal.
+  .cds--date-picker,
+  .cds--date-picker-container,
+  .cds--date-picker__input {
+    inline-size: 100%;
+  }
 }
 
 .wg-sig {
@@ -1654,6 +1675,36 @@
   gap: $spacing-03;
 }
 
-.wg-lately-card {
-  margin-block-start: $spacing-05;
+.wg-pj-cardhead .wg-toolbar__actions {
+  margin-inline-start: 0;
+}
+
+.wg-focus {
+  min-inline-size: 0;
+}
+
+.wg-card__header {
+  min-inline-size: 0;
+}
+
+// The status tiles of the management overview: "Waiting for you" wide, the four kinds equal beside it.
+.wg-mgsummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  margin-block-end: $spacing-05;
+
+  @media (min-width: 42rem) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (min-width: 66rem) {
+    grid-template-columns: minmax(0, 1.4fr) repeat(4, minmax(0, 1fr));
+  }
+}
+
+.wg-main {
+  display: grid;
+  gap: $spacing-05;
+  min-inline-size: 0;
 }

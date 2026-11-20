@@ -221,6 +221,30 @@ func TestWorkingGroupTicketsOutsidersWriteReadAndFollowButNeverWorkOnThem(t *tes
 	if err != nil || len(asManager.Comments) != 2 || !asManager.Ticket.Inside {
 		t.Fatalf("manager view = %+v, %v", asManager, err)
 	}
+	// The list carries the newest comments with the detail's visibility: outsiders never get internal ones.
+	latest := func(p authorization.Principal) []workinggroups.Comment {
+		t.Helper()
+		items, _, err := f.service.ListTickets(ctx, p, workinggroups.TicketFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range items {
+			if item.ID == ticket.Ticket.ID {
+				return item.LatestComments
+			}
+		}
+		t.Fatal("ticket not listed")
+		return nil
+	}
+	if got := latest(f.outsider); len(got) != 1 || got[0].Internal || got[0].Text != "Same here" {
+		t.Fatalf("outsider latest = %+v", got)
+	}
+	if got := latest(f.member); len(got) != 2 || !got[0].Internal || got[0].Text != "Order a lens" {
+		t.Fatalf("member latest = %+v", got)
+	}
+	if got := latest(f.manager); len(got) != 2 {
+		t.Fatalf("manager latest = %+v", got)
+	}
 	assertCount(t, pool, `SELECT count(*) FROM working_group_tickets WHERE status <> 'new'`, 0)
 
 	// To-dos do not exist for outsiders: not in lists, 404 for every single-to-do operation, 403 for creating one.
@@ -483,6 +507,15 @@ func TestWorkingGroupTodosRepeatAndLifecycle(t *testing.T) {
 	commented, err := f.service.AddTodoComment(ctx, f.lead, single.Todo.ID, workinggroups.CommentInput{Text: "Remember", Internal: false}, nil)
 	if err != nil || len(commented.Comments) != 1 || !commented.Comments[0].Internal || commented.Todo.CommentCount != 1 {
 		t.Fatalf("todo comment = %+v, %v", commented, err)
+	}
+	todoList, err := f.service.ListTodos(ctx, f.manager, &f.group.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range todoList {
+		if item.ID == single.Todo.ID && (len(item.LatestComments) != 1 || item.LatestComments[0].Text != "Remember") {
+			t.Fatalf("todo latest = %+v", item.LatestComments)
+		}
 	}
 	if done, err = f.service.MarkTodoDone(ctx, f.manager, single.Todo.ID, nil); err != nil || done.NextTodoID != nil {
 		t.Fatalf("single done = %+v, %v", done, err)

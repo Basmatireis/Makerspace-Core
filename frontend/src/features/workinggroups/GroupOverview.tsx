@@ -467,21 +467,23 @@ function InsideOverview({ summary, group }: { summary: WorkingGroupSummary; grou
         </Tile>
       </div>
       <div className="wg-layout">
-        <Card title="Group pinboard">
-          <PinboardTable
-            groupId={group.id}
-            rows={rows}
-            inside
-            toolbarAction={
-              <Button renderIcon={Add} onClick={() => pin.open(true)}>
-                Pin a note
-              </Button>
-            }
-          />
-        </Card>
+        <div className="wg-main">
+          <Card title="Group pinboard">
+            <PinboardTable
+              groupId={group.id}
+              rows={rows}
+              inside
+              toolbarAction={
+                <Button renderIcon={Add} onClick={() => pin.open(true)}>
+                  Pin a note
+                </Button>
+              }
+            />
+          </Card>
+          <Lately groupId={group.id} />
+        </div>
         <SideColumn group={group} todos={groupTodos} today={today} onChangeStatus={change.open} />
       </div>
-      <Lately groupId={group.id} />
       {pin.value && <PinNoteDialog groupId={group.id} onClose={pin.close} />}
       {change.value && <ChangeStatusDialog target={change.value} onClose={change.close} />}
     </>
@@ -502,17 +504,19 @@ function OutsideOverview({ summary, group }: { summary: WorkingGroupSummary; gro
   return (
     <>
       <div className="wg-layout">
-        <Card title="Notes from this group" sub={group.description || undefined}>
-          <PinboardTable
-            groupId={group.id}
-            rows={rows}
-            inside={false}
-            toolbarAction={<Button onClick={() => write.open(true)}>Write a ticket</Button>}
-          />
-        </Card>
+        <div className="wg-main">
+          <Card title="Notes from this group" sub={group.description || undefined}>
+            <PinboardTable
+              groupId={group.id}
+              rows={rows}
+              inside={false}
+              toolbarAction={<Button onClick={() => write.open(true)}>Write a ticket</Button>}
+            />
+          </Card>
+          <Lately groupId={group.id} />
+        </div>
         <SideColumn group={group} today={todayOn()} />
       </div>
-      <Lately groupId={group.id} />
       {write.value && <WriteTicketDialog groups={[summary]} initialGroupId={group.id} onClose={write.close} />}
     </>
   );

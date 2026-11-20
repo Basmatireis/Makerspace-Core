@@ -6,6 +6,7 @@ import {
   Link as CarbonLink,
   Modal,
   RadioButton,
+  RadioButtonGroup,
   Search,
   Switch,
 } from '@carbon/react';
@@ -28,9 +29,20 @@ const statusText = (link: WorkingGroupTaskLink) =>
     : PROJECT_STATUS_LABEL[link.status as keyof typeof PROJECT_STATUS_LABEL]) ?? link.status;
 
 /** "Belongs to: <title> (status)" with Link or Unlink. Only shown to people who may edit the item. */
-export function TaskLinkLine({ task, link, canEdit }: { task: Task; link?: WorkingGroupTaskLink; canEdit: boolean }) {
+export function TaskLinkLine({
+  task,
+  link,
+  canEdit,
+  canSeeTargets,
+}: {
+  task: Task;
+  link?: WorkingGroupTaskLink;
+  canEdit: boolean;
+  /** Purchases and projects are visible to members of the group and finance managers only. */
+  canSeeTargets: boolean;
+}) {
   const [picking, setPicking] = useState(false);
-  const opener = useRef<HTMLButtonElement>(null);
+  const line = useRef<HTMLDivElement>(null);
   const isTicket = task.kind === 'ticket';
   const save = useWgMutation((body: { purchaseId?: string; projectId?: string }) =>
     isTicket
@@ -39,8 +51,10 @@ export function TaskLinkLine({ task, link, canEdit }: { task: Task; link?: Worki
   );
   if (!link && !canEdit) return null;
   const error = saveErrorText(save.error);
+  // The Link and Unlink buttons replace each other, so focus moves to the stable line, not to a vanished button.
+  const settle = () => window.setTimeout(() => line.current?.focus(), 0);
   return (
-    <div className="wg-linkline">
+    <div className="wg-linkline" ref={line} tabIndex={-1}>
       {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={error} />}
       <p>
         {link ? (
@@ -60,20 +74,36 @@ export function TaskLinkLine({ task, link, canEdit }: { task: Task; link?: Worki
       </p>
       {canEdit &&
         (link ? (
-          <Button kind="ghost" size="sm" disabled={save.isPending} onClick={() => save.mutate({})}>
+          <Button
+            kind="ghost"
+            size="sm"
+            disabled={save.isPending}
+            onClick={() => save.mutate({}, { onSuccess: settle })}
+          >
             Unlink
           </Button>
         ) : (
-          <Button ref={opener} kind="tertiary" size="sm" onClick={() => setPicking(true)}>
+          <Button kind="tertiary" size="sm" onClick={() => setPicking(true)}>
             Link
           </Button>
         ))}
       {picking && (
         <LinkDialog
           groupId={task.groupId}
+          canSeeTargets={canSeeTargets}
           pending={save.isPending}
-          onClose={() => setPicking(false)}
-          onPick={(body) => save.mutate(body, { onSuccess: () => setPicking(false) })}
+          onClose={() => {
+            setPicking(false);
+            settle();
+          }}
+          onPick={(body) =>
+            save.mutate(body, {
+              onSuccess: () => {
+                setPicking(false);
+                settle();
+              },
+            })
+          }
         />
       )}
     </div>
@@ -83,11 +113,13 @@ export function TaskLinkLine({ task, link, canEdit }: { task: Task; link?: Worki
 /** Pick ONE purchase or project of the group. */
 function LinkDialog({
   groupId,
+  canSeeTargets,
   pending,
   onClose,
   onPick,
 }: {
   groupId: string;
+  canSeeTargets: boolean;
   pending: boolean;
   onClose: () => void;
   onPick: (body: { purchaseId?: string; projectId?: string }) => void;
@@ -95,22 +127,14 @@ function LinkDialog({
   const [tab, setTab] = useState<'purchase' | 'project'>('purchase');
   const [search, setSearch] = useState('');
   const [chosen, setChosen] = useState<{ kind: 'purchase' | 'project'; id: string } | null>(null);
-  const purchases = useQuery(purchasesOptions({ groupId }));
-  const projects = useQuery(projectsOptions({ groupId }));
+  const purchases = useQuery({ ...purchasesOptions({ groupId }), enabled: canSeeTargets });
+  const projects = useQuery({ ...projectsOptions({ groupId }), enabled: canSeeTargets });
   const needle = search.trim().toLowerCase();
   const options = useMemo(() => {
     const items =
       tab === 'purchase'
-        ? (purchases.data?.items ?? []).map((p) => ({
-            id: p.id,
-            title: p.item,
-            sub: PURCHASE_STATUS_LABEL[p.status],
-          }))
-        : (projects.data?.items ?? []).map((p) => ({
-            id: p.id,
-            title: p.title,
-            sub: PROJECT_STATUS_LABEL[p.status],
-          }));
+        ? (purchases.data?.items ?? []).map((p) => ({ id: p.id, title: p.item, sub: PURCHASE_STATUS_LABEL[p.status] }))
+        : (projects.data?.items ?? []).map((p) => ({ id: p.id, title: p.title, sub: PROJECT_STATUS_LABEL[p.status] }));
     return items.filter((item) => !needle || item.title.toLowerCase().includes(needle));
   }, [tab, purchases.data, projects.data, needle]);
   const query = tab === 'purchase' ? purchases : projects;
@@ -127,39 +151,55 @@ function LinkDialog({
         if (chosen) onPick(chosen.kind === 'purchase' ? { purchaseId: chosen.id } : { projectId: chosen.id });
       }}
     >
-      <ContentSwitcher
-        size="md"
-        selectedIndex={tab === 'purchase' ? 0 : 1}
-        onChange={(event) => setTab(event.name === 'project' ? 'project' : 'purchase')}
-      >
-        <Switch name="purchase" text="Purchases" />
-        <Switch name="project" text="Projects" />
-      </ContentSwitcher>
-      <Search
-        id="wg-link-search"
-        size="md"
-        labelText="Search"
-        placeholder="Search"
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        onClear={() => setSearch('')}
-      />
-      {query.isError && <p className="wg-empty">It could not be loaded.</p>}
-      {query.isSuccess && options.length === 0 && <p className="wg-empty">Nothing found.</p>}
-      <ul className="wg-linkpick" aria-label={tab === 'purchase' ? 'Purchases' : 'Projects'}>
-        {options.map((item) => (
-          <li key={item.id}>
-            <RadioButton
-              id={`wg-link-${item.id}`}
-              name="wg-link-target"
-              labelText={`${item.title} (${item.sub})`}
-              value={item.id}
-              checked={chosen?.id === item.id}
-              onChange={() => setChosen({ kind: tab, id: item.id })}
-            />
-          </li>
-        ))}
-      </ul>
+      {!canSeeTargets ? (
+        <InlineNotification
+          kind="info"
+          lowContrast
+          hideCloseButton
+          title="You cannot see the purchases and projects of this group."
+          subtitle="Members of the group and finance managers can link work to them."
+        />
+      ) : (
+        <>
+          <ContentSwitcher
+            size="md"
+            selectedIndex={tab === 'purchase' ? 0 : 1}
+            onChange={(event) => setTab(event.name === 'project' ? 'project' : 'purchase')}
+          >
+            <Switch name="purchase" text="Purchases" />
+            <Switch name="project" text="Projects" />
+          </ContentSwitcher>
+          <Search
+            id="wg-link-search"
+            size="md"
+            labelText="Search"
+            placeholder="Search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            onClear={() => setSearch('')}
+          />
+          {query.isError && <p className="wg-empty">It could not be loaded.</p>}
+          {query.isSuccess && options.length === 0 && <p className="wg-empty">Nothing found.</p>}
+          <RadioButtonGroup
+            key={tab}
+            className="wg-linkpick"
+            legendText={tab === 'purchase' ? 'Purchases' : 'Projects'}
+            name="wg-link-target"
+            orientation="vertical"
+            valueSelected={chosen?.kind === tab ? chosen.id : ''}
+            onChange={(value) => setChosen({ kind: tab, id: String(value) })}
+          >
+            {options.map((item) => (
+              <RadioButton
+                key={item.id}
+                id={`wg-link-${item.id}`}
+                labelText={`${item.title} (${item.sub})`}
+                value={item.id}
+              />
+            ))}
+          </RadioButtonGroup>
+        </>
+      )}
     </Modal>
   );
 }

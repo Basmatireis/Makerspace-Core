@@ -455,7 +455,8 @@ describe('working group purchases', () => {
     renderRoute(<App />, '/working-groups/purchases?group=all');
 
     await user.click(await rowOf(/Item 1/));
-    await user.click(screen.getByRole('button', { name: 'Remove personal data…' }));
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByText('Remove personal data…'));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('checkbox', { name: 'Item text and link' }));
     await user.click(within(dialog).getByRole('button', { name: 'Remove' }));

@@ -20,6 +20,7 @@
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
+import type { WorkingGroupComment } from './workingGroupComment';
 import type { WorkingGroupPerson } from './workingGroupPerson';
 import type { WorkingGroupTaskLink } from './workingGroupTaskLink';
 import type { WorkingGroupTicketKind } from './workingGroupTicketKind';
@@ -56,6 +57,11 @@ export interface WorkingGroupTicket {
      * @minimum 0
      */
   commentCount: number;
+  /**
+     * The newest comments the caller may see, newest first; the same visibility as the detail.
+     * @maxItems 3
+     */
+  latestComments?: WorkingGroupComment[];
   /** The caller is a member of the group or holds `working_groups.manage`. */
   inside: boolean;
   version: Version;

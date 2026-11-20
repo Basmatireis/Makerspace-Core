@@ -301,6 +301,24 @@ DELETE FROM working_group_ticket_followers WHERE ticket_id = sqlc.arg(ticket_id)
 INSERT INTO working_group_comments (id, ticket_id, todo_id, author_person_id, text, internal)
 VALUES (sqlc.arg(id), sqlc.narg(ticket_id), sqlc.narg(todo_id), sqlc.arg(author_person_id), sqlc.arg(text), sqlc.arg(internal));
 
+-- name: ListWorkingGroupLatestComments :many
+-- The newest three comments of each listed ticket and to-do, with the visibility of the detail: internal ticket comments
+-- only for people inside the group; the to-do list only exists for people inside. One query for the whole list.
+SELECT id, ticket_id, todo_id, author_person_id, author_name, text, internal, created_at FROM (
+    SELECT c.id, c.ticket_id, c.todo_id, c.author_person_id,
+           COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS author_name, c.text, c.internal, c.created_at,
+           row_number() OVER (PARTITION BY COALESCE(c.ticket_id, c.todo_id) ORDER BY c.created_at DESC, c.id DESC) AS rn
+    FROM working_group_comments c
+    LEFT JOIN people p ON p.id = c.author_person_id
+    LEFT JOIN working_group_tickets t ON t.id = c.ticket_id
+    WHERE (c.ticket_id = ANY(sqlc.arg(ticket_ids)::uuid[]) AND (NOT c.internal OR sqlc.arg(caller_manage)::boolean OR EXISTS (
+              SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = sqlc.arg(caller_person_id)
+          )))
+       OR c.todo_id = ANY(sqlc.arg(todo_ids)::uuid[])
+) latest
+WHERE rn <= 3
+ORDER BY created_at DESC, id DESC;
+
 -- name: ListWorkingGroupTicketComments :many
 SELECT c.id, c.author_person_id, COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS author_name, c.text, c.internal, c.created_at
 FROM working_group_comments c

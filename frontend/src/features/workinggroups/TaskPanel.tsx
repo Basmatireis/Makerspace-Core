@@ -26,6 +26,7 @@ import { Fact, FactsGrid } from '../../app/components/Facts';
 import { Avatar } from './TaskList';
 import { TaskLinkLine } from './LinkParts';
 import { useCurrentUser } from '../auth/auth';
+import { hasPermission, PermissionId } from '../auth/permissions';
 import { canManageWorkingGroups, workingGroupTicketOptions, workingGroupTodoOptions } from './queries';
 import { formatDate } from '../../app/dateTime';
 import { firstName, formatDateOnly, kindLine, personName, repeatLabel, type Task } from './taskModel';
@@ -75,7 +76,9 @@ export function TaskPanel({ task, group, me, onPlan, onAnswer, onGone }: Props) 
   const follow = useWgMutation((following: boolean) =>
     following ? unfollowWorkingGroupTicket(task.id) : followWorkingGroupTicket(task.id),
   );
-  const manage = canManageWorkingGroups(useCurrentUser());
+  const currentUser = useCurrentUser();
+  const manage = canManageWorkingGroups(currentUser);
+  const finance = hasPermission(currentUser, PermissionId.working_group_financesmanage);
   const remove = useWgMutation(() => (isTicket ? deleteWorkingGroupTicket(task.id) : deleteWorkingGroupTodo(task.id)));
 
   const inside = task.inside;
@@ -177,7 +180,12 @@ export function TaskPanel({ task, group, me, onPlan, onAnswer, onGone }: Props) 
         )}
       </div>
 
-      <TaskLinkLine task={task} link={ticket?.link ?? task.todo?.link} canEdit={inside} />
+      <TaskLinkLine
+        task={task}
+        link={ticket?.link ?? task.todo?.link}
+        canEdit={inside}
+        canSeeTargets={Boolean(group?.isMember || group?.isLead) || finance}
+      />
 
       {ticket?.body && <p className="wg-panel-body">{ticket.body}</p>}
       {ticket?.blocksUse && <p className="wg-panel-body wg-panel-blocks">It cannot be used right now.</p>}

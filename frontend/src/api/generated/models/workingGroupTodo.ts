@@ -20,6 +20,7 @@
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
+import type { WorkingGroupComment } from './workingGroupComment';
 import type { WorkingGroupPerson } from './workingGroupPerson';
 import type { WorkingGroupTaskLink } from './workingGroupTaskLink';
 
@@ -45,6 +46,11 @@ export interface WorkingGroupTodo {
   isMine: boolean;
   /** @minimum 0 */
   commentCount: number;
+  /**
+     * The newest comments the caller may see, newest first; the same visibility as the detail.
+     * @maxItems 3
+     */
+  latestComments?: WorkingGroupComment[];
   version: Version;
   createdAt: string;
   updatedAt: string;

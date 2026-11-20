@@ -21982,6 +21982,7 @@ components:
         isFollowing: {type: boolean}
         isMine: {type: boolean, description: The caller wrote the ticket or is its assignee.}
         commentCount: {type: integer, format: int64, minimum: 0, description: Counts the comments the caller may see.}
+        latestComments: {type: array, maxItems: 3, items: {$ref: "#/components/schemas/WorkingGroupComment"}, description: "The newest comments the caller may see, newest first; the same visibility as the detail."}
         inside: {type: boolean, description: The caller is a member of the group or holds `working_groups.manage`.}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
@@ -22823,6 +22824,7 @@ components:
         doneAt: {type: string, format: date-time}
         isMine: {type: boolean, description: The caller is the assignee.}
         commentCount: {type: integer, format: int64, minimum: 0}
+        latestComments: {type: array, maxItems: 3, items: {$ref: "#/components/schemas/WorkingGroupComment"}, description: "The newest comments the caller may see, newest first; the same visibility as the detail."}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}

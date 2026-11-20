@@ -2394,6 +2394,77 @@ func (q *Queries) ListWorkingGroupItemStatuses(ctx context.Context) ([]ListWorki
 	return items, nil
 }
 
+const listWorkingGroupLatestComments = `-- name: ListWorkingGroupLatestComments :many
+SELECT id, ticket_id, todo_id, author_person_id, author_name, text, internal, created_at FROM (
+    SELECT c.id, c.ticket_id, c.todo_id, c.author_person_id,
+           COALESCE(btrim(p.first_name || ' ' || p.last_name), '')::text AS author_name, c.text, c.internal, c.created_at,
+           row_number() OVER (PARTITION BY COALESCE(c.ticket_id, c.todo_id) ORDER BY c.created_at DESC, c.id DESC) AS rn
+    FROM working_group_comments c
+    LEFT JOIN people p ON p.id = c.author_person_id
+    LEFT JOIN working_group_tickets t ON t.id = c.ticket_id
+    WHERE (c.ticket_id = ANY($1::uuid[]) AND (NOT c.internal OR $2::boolean OR EXISTS (
+              SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = $3
+          )))
+       OR c.todo_id = ANY($4::uuid[])
+) latest
+WHERE rn <= 3
+ORDER BY created_at DESC, id DESC
+`
+
+type ListWorkingGroupLatestCommentsParams struct {
+	TicketIds      []uuid.UUID
+	CallerManage   bool
+	CallerPersonID uuid.UUID
+	TodoIds        []uuid.UUID
+}
+
+type ListWorkingGroupLatestCommentsRow struct {
+	ID             uuid.UUID
+	TicketID       *uuid.UUID
+	TodoID         *uuid.UUID
+	AuthorPersonID *uuid.UUID
+	AuthorName     string
+	Text           string
+	Internal       bool
+	CreatedAt      time.Time
+}
+
+// The newest three comments of each listed ticket and to-do, with the visibility of the detail: internal ticket comments
+// only for people inside the group; the to-do list only exists for people inside. One query for the whole list.
+func (q *Queries) ListWorkingGroupLatestComments(ctx context.Context, arg ListWorkingGroupLatestCommentsParams) ([]ListWorkingGroupLatestCommentsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupLatestComments,
+		arg.TicketIds,
+		arg.CallerManage,
+		arg.CallerPersonID,
+		arg.TodoIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupLatestCommentsRow{}
+	for rows.Next() {
+		var i ListWorkingGroupLatestCommentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TicketID,
+			&i.TodoID,
+			&i.AuthorPersonID,
+			&i.AuthorName,
+			&i.Text,
+			&i.Internal,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkingGroupLinkedTasks = `-- name: ListWorkingGroupLinkedTasks :many
 SELECT kind, id, title, purchase_id, project_id FROM (
     SELECT 'ticket'::text AS kind, t.id, t.subject AS title, t.purchase_id, t.project_id, t.group_id, t.created_at
