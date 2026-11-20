@@ -118,7 +118,7 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
 
   const draftLike = project.status === 'draft' || project.status === 'returned';
   const canPlan = project.canEdit || (finance && !isEndState(project));
-  const canBuyItem = project.status === 'running' || (draftLike && project.canSubmit);
+  const canBuyItem = (group?.isMember ?? false) && (project.status === 'running' || (draftLike && project.canSubmit));
   const submit = useWgMutation(() => submitWorkingGroupProject(project.id, { expectedVersion: project.version }));
   const sendWiRef = useWgMutation(() =>
     sendWorkingGroupProjectToWiRef(project.id, { expectedVersion: project.version }),

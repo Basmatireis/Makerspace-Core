@@ -23,7 +23,7 @@ import { formatMoney } from '../orders/formatting';
 import { ACCEPTED_FILES, fileProblem } from './financeModel';
 import { Shell } from './PurchaseDialogs';
 import { SignatureField, type SignatureValue } from './SignatureField';
-import { SIGNATURE_REQUIRED, taskErrorText, useWgMutation } from './useWgMutation';
+import { SIGNATURE_REQUIRED, createErrorText, taskErrorText, useWgMutation } from './useWgMutation';
 
 const moneyRule = (value: string) => parseMoneyInput(value) !== null || 'Enter an amount.';
 
@@ -99,7 +99,11 @@ export function ProjectDialog({
       primary="Save"
       size="md"
       pending={save.isPending}
-      error={save.isError ? taskErrorText(save.error, 'Check the fields and try again.') : undefined}
+      error={
+        save.isError
+          ? (project ? taskErrorText : createErrorText)(save.error, 'Check the fields and try again.')
+          : undefined
+      }
       onClose={onClose}
       onSubmit={() => void submit()}
     >

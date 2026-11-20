@@ -29,7 +29,7 @@ import { useNotify } from '../../app/toasts';
 import { formatCents, fromCents, moneyInputText, parseMoneyInput } from '../orders/money';
 import { ACCEPTED_FILES, fileHeaders, fileProblem, previewKind } from './financeModel';
 import { workingGroupKeys } from './queries';
-import { taskErrorText, useWgMutation } from './useWgMutation';
+import { createErrorText, taskErrorText, useWgMutation } from './useWgMutation';
 
 export function Shell({
   heading,
@@ -194,7 +194,7 @@ export function AddPurchasesDialog({
       heading="Add purchases"
       primary={items.length > 1 ? `Add ${items.length} items` : 'Add'}
       pending={create.isPending}
-      error={create.isError ? taskErrorText(create.error, 'Check the fields and try again.') : undefined}
+      error={create.isError ? createErrorText(create.error, 'Check the fields and try again.') : undefined}
       size="lg"
       onClose={onClose}
       onSubmit={() => void submit()}

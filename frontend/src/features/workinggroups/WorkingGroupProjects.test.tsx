@@ -246,6 +246,55 @@ describe('working group projects', () => {
     expect(await screen.findByText('Projects are for the members of a working group.')).toBeInTheDocument();
   });
 
+  it('offers no project start to a finance manager who is in no group', async () => {
+    serve(financeManager, { member: false });
+    renderRoute(<App />, '/working-groups/projects');
+
+    expect(await screen.findByText('Only members of a working group can start projects.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start a project' })).not.toBeInTheDocument();
+  });
+
+  it('starts a project in the own group without a group dropdown', async () => {
+    const user = userEvent.setup();
+    serve(member);
+    renderRoute(<App />, '/working-groups/projects');
+
+    await user.click(await screen.findByRole('button', { name: 'Start a project' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByLabelText('Working group')).not.toBeInTheDocument();
+  });
+
+  it('says that only members may start when the server refuses', async () => {
+    const user = userEvent.setup();
+    serve(member);
+    server.use(
+      http.post('*/api/v1/working-group-projects', () =>
+        HttpResponse.json({ code: 'forbidden', message: 'no' }, { status: 403 }),
+      ),
+    );
+    renderRoute(<App />, '/working-groups/projects');
+
+    await user.click(await screen.findByRole('button', { name: 'Start a project' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Title'), 'Laser');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    expect(await within(dialog).findByText(/Only members of this working group can do this/)).toBeInTheDocument();
+  });
+
+  it('does not offer purchases on a project to a finance manager outside the group', async () => {
+    const user = userEvent.setup();
+    serve(financeManager, {
+      member: false,
+      projects: [project(1, { status: 'running', canEdit: false, canSubmit: false })],
+    });
+    renderRoute(<App />, `/working-groups/projects/${pid(1)}`);
+    await user.click(await screen.findByText('Laser tube'));
+    await screen.findByText('Cost plan item');
+    expect(screen.queryByRole('button', { name: 'Make a purchase' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add purchases' })).not.toBeInTheDocument();
+  });
+
   it('disables the hand-in while the checklist is open and selects the item from its link', async () => {
     const user = userEvent.setup();
     serve(member, {

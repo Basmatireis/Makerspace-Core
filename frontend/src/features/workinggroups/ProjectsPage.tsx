@@ -60,6 +60,8 @@ export function ProjectsPage() {
         : (own[0]?.id ?? (finance ? ALL : ''));
   const groupId = scope === ALL || scope === '' ? undefined : scope;
   const selectedGroup = groups.find((group) => group.id === groupId);
+  // Only members of a group start its projects, whatever the group filter shows.
+  const startGroups = selectedGroup ? own.filter((group) => group.id === selectedGroup.id) : own;
 
   const periods = useMemo(() => sortPeriods(periodsQuery.data?.items ?? []), [periodsQuery.data]);
   const [chosenPeriod, setChosenPeriod] = useState<string | null>(null);
@@ -311,9 +313,13 @@ export function ProjectsPage() {
               onReset={() => setFilters({})}
             />
             <div className="wg-toolbar__actions">
-              <Button kind="primary" size="md" onClick={() => start.open(true)}>
-                Start a project
-              </Button>
+              {startGroups.length > 0 ? (
+                <Button kind="primary" size="md" onClick={() => start.open(true)}>
+                  Start a project
+                </Button>
+              ) : (
+                <span className="wg-muted wg-toolbar__note">Only members of a working group can start projects.</span>
+              )}
             </div>
           </div>
           {projectsQuery.data?.truncated && (
@@ -377,9 +383,9 @@ export function ProjectsPage() {
         </Modal>
       )}
 
-      {start.value && (
+      {start.value && startGroups.length > 0 && (
         <ProjectDialog
-          groups={selectedGroup ? [selectedGroup] : visibleGroups}
+          groups={startGroups}
           initialGroupId={selectedGroup?.id ?? ''}
           onClose={start.close}
           onSaved={(created) => void navigate(`/working-groups/projects/${created.id}`)}
