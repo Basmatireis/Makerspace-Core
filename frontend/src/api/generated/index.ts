@@ -48,3 +48,4 @@ export * from './supervisors/supervisors';
 export * from './surveys/surveys';
 export * from './trainings/trainings';
 export * from './visitor-enrollment/visitor-enrollment';
+export * from './working-groups/working-groups';

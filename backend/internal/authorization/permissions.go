@@ -110,6 +110,9 @@ const (
 	TrainingRecordsReadAll             Permission = Permission(openapi.TrainingRecordsReadAll)
 	TrainingRecordsUpdate              Permission = Permission(openapi.TrainingRecordsUpdate)
 	TrainingRecordsUpdateSelf          Permission = Permission(openapi.TrainingRecordsUpdateSelf)
+	WorkingGroupsRead                  Permission = Permission(openapi.WorkingGroupsRead)
+	WorkingGroupsManage                Permission = Permission(openapi.WorkingGroupsManage)
+	WorkingGroupFinancesManage         Permission = Permission(openapi.WorkingGroupFinancesManage)
 	MachineJobsRead                    Permission = Permission(openapi.MachineJobsRead)
 	MachineJobsCreate                  Permission = Permission(openapi.MachineJobsCreate)
 	MachineJobsEdit                    Permission = Permission(openapi.MachineJobsEdit)
@@ -198,6 +201,7 @@ var registry = []Permission{
 	MachinesRead, MachinesManage,
 	TrainingsManage, TrainingRecordsReadSelf, TrainingRecordsReadAll, TrainingRecordsUpdate,
 	TrainingRecordsUpdateSelf,
+	WorkingGroupsRead, WorkingGroupsManage, WorkingGroupFinancesManage,
 	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsOverridePrice, MachineJobsDelete,
 	InventoryRead, InventoryArticlesManage, InventoryReceive, InventoryConsume, InventoryCorrect,
 	InventoryDelete, InventoryLedgerDelete, FilamentSpoolsManage, PrinterSlotsAssign,
@@ -314,6 +318,9 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	TrainingRecordsReadAll:             "Read every person's training records, including internal notes.",
 	TrainingRecordsUpdate:              "Set another person's training status and read every person's records.",
 	TrainingRecordsUpdateSelf:          "Set the own training status and read the own records including internal notes.",
+	WorkingGroupsRead:                  "See the working groups, their members' names, all tickets with their public comments; write tickets, follow them and comment. Members of a group (and managers) also plan and close its tickets, write internal comments and use its to-dos.",
+	WorkingGroupsManage:                "Create, rename and delete working groups, choose their lead and edit any group.",
+	WorkingGroupFinancesManage:         "Manage the working groups' budget: set up budget periods and each group's share, approve or decline purchases, place collective orders, return money for receipts, book costs directly, and set the finance rules.",
 	MachineJobsRead:                    "Read machine jobs and their pricing and usage details.",
 	MachineJobsCreate:                  "Create manual jobs and ingest automatically detected jobs.",
 	MachineJobsEdit:                    "Correct confirmed machine-job facts and material usage.",

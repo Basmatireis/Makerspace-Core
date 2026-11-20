@@ -207,6 +207,33 @@ func registerBuiltinHandlers(service *privacy.Service, fileService *files.Servic
 		},
 		outcome: privacy.OutcomeErased,
 	})
+	register(privacycatalog.WorkingGroupMembers, builtin{
+		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
+			return q.ExportWorkingGroupMemberships(ctx, s.PersonID)
+		},
+		count: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) (int64, error) {
+			return q.CountWorkingGroupMemberships(ctx, s.PersonID)
+		},
+		outcome: privacy.OutcomeErased,
+	})
+	register(privacycatalog.WorkingGroupTasks, builtin{
+		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
+			return q.ExportWorkingGroupTasks(ctx, s.PersonID)
+		},
+		count: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) (int64, error) {
+			return q.CountWorkingGroupTasks(ctx, s.PersonID)
+		},
+		outcome: privacy.OutcomeUnlinked, note: "Tickets, to-dos and comments stay without their author or assignee; follows are deleted.",
+	})
+	register(privacycatalog.WorkingGroupFinances, builtin{
+		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
+			return q.ExportWorkingGroupFinances(ctx, s.PersonID)
+		},
+		count: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) (int64, error) {
+			return q.CountWorkingGroupFinances(ctx, s.PersonID)
+		},
+		outcome: privacy.OutcomeUnlinked, note: "Purchases stay in the group's budget without their requester; the files of the purchases stay.",
+	})
 	register(privacycatalog.LabRulesConfirmations, builtin{
 		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
 			return q.ExportLabRulesConfirmations(ctx, s.PersonID)

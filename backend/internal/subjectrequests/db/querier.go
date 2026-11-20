@@ -38,6 +38,9 @@ type Querier interface {
 	CountTrainingRecords(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
 	// Open visits plus the kept last visit date; completed visits are not kept.
 	CountVisits(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
+	CountWorkingGroupFinances(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
+	CountWorkingGroupMemberships(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
+	CountWorkingGroupTasks(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
 	DeleteExportFilesQueueBlobs(ctx context.Context, fileIds []string) error
 	DeleteProcessingActivity(ctx context.Context, arg DeleteProcessingActivityParams) (uuid.UUID, error)
 	DeleteSubjectRequestsByID(ctx context.Context, ids []string) (int64, error)
@@ -74,6 +77,13 @@ type Querier interface {
 	ExportSurveyResponses(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportTrainingRecords(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportVisits(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
+	// The subject's own purchases: what they asked for and the metadata of their receipts (never the receipt files, and
+	// not the reasons other people gave when declining).
+	ExportWorkingGroupFinances(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
+	ExportWorkingGroupMemberships(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
+	// The subject's own tickets (text only when they wrote them), assignments, to-dos, comments, pinboard notes and status notes. Follows name only the group and the time: the ticket text
+	// belongs to its author.
+	ExportWorkingGroupTasks(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	GetProcessingActivity(ctx context.Context, id uuid.UUID) (PrivacyProcessingActivity, error)
 	// Subject lookups ----------------------------------------------------------------
 	GetSubjectPerson(ctx context.Context, subjectPerson uuid.UUID) (GetSubjectPersonRow, error)

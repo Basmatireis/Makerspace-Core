@@ -55,6 +55,9 @@ type Event struct {
 	ExcludedPeople []uuid.UUID
 	// Subjects maps a throttle subject key to its value (a machine's identifier, an error code).
 	Subjects map[string]string
+	// Restricted limits delivery to the people named in Recipients: roles and people a rule names itself, and personal
+	// subscriptions, reach nobody the event does not name. Events whose facts only their own recipients may learn use it.
+	Restricted bool
 	// ResolveToken identifies the thing the event is about; Resolve with the same token stops the firing's waiting
 	// escalations and e-mail fallbacks.
 	ResolveToken string
@@ -278,7 +281,15 @@ func (d *Dispatcher) resolvePeople(
 		}
 		lists = append(lists, holders)
 	}
-	return dedupePeople(lists...), nil
+	people := dedupePeople(lists...)
+	if ev.Restricted {
+		var named []uuid.UUID
+		for _, list := range ev.Recipients {
+			named = append(named, list...)
+		}
+		people = slices.DeleteFunc(people, func(id uuid.UUID) bool { return !slices.Contains(named, id) })
+	}
+	return people, nil
 }
 
 // resolveOrganizations lists the organizations the event's own recipient keys stand for.

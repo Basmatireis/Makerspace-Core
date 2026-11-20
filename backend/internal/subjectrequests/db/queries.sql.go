@@ -311,6 +311,51 @@ func (q *Queries) CountVisits(ctx context.Context, subjectPerson uuid.UUID) (int
 	return total, err
 }
 
+const countWorkingGroupFinances = `-- name: CountWorkingGroupFinances :one
+SELECT ((SELECT count(*) FROM working_group_purchases WHERE requester_person_id = $1::uuid)
+     + (SELECT count(*) FROM working_group_projects WHERE requester_person_id = $1::uuid)
+     + (SELECT count(*) FROM working_group_income WHERE created_by_person_id = $1::uuid)
+     + (SELECT count(*) FROM working_group_projects WHERE request_signed_by = $1::uuid)
+     + (SELECT count(*) FROM working_group_finance_signatures WHERE person_id = $1::uuid))::bigint
+`
+
+func (q *Queries) CountWorkingGroupFinances(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkingGroupFinances, subjectPerson)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countWorkingGroupMemberships = `-- name: CountWorkingGroupMemberships :one
+SELECT count(*)::bigint FROM working_group_members WHERE person_id = $1::uuid
+`
+
+func (q *Queries) CountWorkingGroupMemberships(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkingGroupMemberships, subjectPerson)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countWorkingGroupTasks = `-- name: CountWorkingGroupTasks :one
+SELECT ((SELECT count(*) FROM working_group_tickets
+          WHERE author_person_id = $1::uuid OR assignee_person_id = $1::uuid)
+    + (SELECT count(*) FROM working_group_ticket_followers WHERE person_id = $1::uuid)
+    + (SELECT count(*) FROM working_group_todos
+          WHERE assignee_person_id = $1::uuid OR created_by_person_id = $1::uuid)
+    + (SELECT count(*) FROM working_group_comments WHERE author_person_id = $1::uuid)
+    + (SELECT count(*) FROM working_group_notes WHERE author_person_id = $1::uuid)
+    + (SELECT count(*) FROM working_group_machines WHERE status_changed_by = $1::uuid AND status_note IS NOT NULL)
+    + (SELECT count(*) FROM working_group_places WHERE status_changed_by = $1::uuid AND status_note IS NOT NULL))::bigint AS total
+`
+
+func (q *Queries) CountWorkingGroupTasks(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkingGroupTasks, subjectPerson)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const deleteExportFilesQueueBlobs = `-- name: DeleteExportFilesQueueBlobs :exec
 WITH deleted AS (
     DELETE FROM files WHERE id = ANY(($1::text[])::uuid[]) RETURNING storage_key
@@ -801,6 +846,110 @@ SELECT jsonb_build_object(
 
 func (q *Queries) ExportVisits(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
 	row := q.db.QueryRow(ctx, exportVisits, subjectPerson)
+	var document []byte
+	err := row.Scan(&document)
+	return document, err
+}
+
+const exportWorkingGroupFinances = `-- name: ExportWorkingGroupFinances :one
+SELECT jsonb_build_object(
+    'purchases', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'item', p.item, 'link', p.link, 'quantity', p.quantity, 'unitPrice', p.unit_price,
+            'how', p.how, 'status', p.status, 'receiptAmount', p.receipt_amount,
+            'hasAttachment', p.attachment_file_id IS NOT NULL, 'hasReceipt', p.receipt_file_id IS NOT NULL,
+            'createdAt', p.created_at) ORDER BY p.created_at), '[]'::jsonb)
+        FROM working_group_purchases p JOIN working_groups g ON g.id = p.group_id
+        WHERE p.requester_person_id = $1::uuid),
+    'projects', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'title', pr.title, 'goal', pr.goal, 'benefit', pr.benefit, 'status', pr.status,
+            'plannedIncome', pr.planned_income, 'createdAt', pr.created_at) ORDER BY pr.created_at), '[]'::jsonb)
+        FROM working_group_projects pr JOIN working_groups g ON g.id = pr.group_id
+        WHERE pr.requester_person_id = $1::uuid),
+    'income', (SELECT COALESCE(jsonb_agg(jsonb_build_object('note', i.note, 'amount', i.amount, 'date', i.occurred_on,
+            'createdAt', i.created_at) ORDER BY i.created_at), '[]'::jsonb)
+        FROM working_group_income i WHERE i.created_by_person_id = $1::uuid),
+    'signatures', (SELECT COALESCE(jsonb_agg(jsonb_build_object('savedAt', s.updated_at)), '[]'::jsonb)
+        FROM working_group_finance_signatures s WHERE s.person_id = $1::uuid),
+    'signedProjects', (SELECT COALESCE(jsonb_agg(jsonb_build_object('group', g.name, 'title', pr.title, 'status', pr.status)
+            ORDER BY pr.created_at), '[]'::jsonb)
+        FROM working_group_projects pr JOIN working_groups g ON g.id = pr.group_id
+        WHERE pr.request_signed_by = $1::uuid)
+)::jsonb AS document
+`
+
+// The subject's own purchases: what they asked for and the metadata of their receipts (never the receipt files, and
+// not the reasons other people gave when declining).
+func (q *Queries) ExportWorkingGroupFinances(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, exportWorkingGroupFinances, subjectPerson)
+	var document []byte
+	err := row.Scan(&document)
+	return document, err
+}
+
+const exportWorkingGroupMemberships = `-- name: ExportWorkingGroupMemberships :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object('group', g.name, 'isLead', m.is_lead, 'joinedAt', m.joined_at) ORDER BY g.name), '[]'::jsonb)::jsonb AS document
+FROM working_group_members m JOIN working_groups g ON g.id = m.group_id WHERE m.person_id = $1::uuid
+`
+
+func (q *Queries) ExportWorkingGroupMemberships(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, exportWorkingGroupMemberships, subjectPerson)
+	var document []byte
+	err := row.Scan(&document)
+	return document, err
+}
+
+const exportWorkingGroupTasks = `-- name: ExportWorkingGroupTasks :one
+SELECT jsonb_build_object(
+    'tickets', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'kind', t.kind, 'status', t.status,
+            'wrote', t.author_person_id = $1::uuid,
+            'assigned', t.assignee_person_id = $1::uuid,
+            'dueOn', t.due_on, 'createdAt', t.created_at, 'updatedAt', t.updated_at, 'closedAt', t.closed_at)
+            || CASE WHEN t.author_person_id = $1::uuid
+                    THEN jsonb_build_object('subject', t.subject, 'body', t.body, 'blocksUse', t.blocks_use)
+                    ELSE '{}'::jsonb END
+            ORDER BY t.created_at), '[]'::jsonb)
+        FROM working_group_tickets t JOIN working_groups g ON g.id = t.group_id
+        WHERE t.author_person_id = $1::uuid OR t.assignee_person_id = $1::uuid),
+    'follows', (SELECT COALESCE(jsonb_agg(jsonb_build_object('group', g.name, 'since', f.created_at) ORDER BY f.created_at), '[]'::jsonb)
+        FROM working_group_ticket_followers f
+        JOIN working_group_tickets t ON t.id = f.ticket_id JOIN working_groups g ON g.id = t.group_id
+        WHERE f.person_id = $1::uuid),
+    'todos', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'title', d.title, 'dueOn', d.due_on, 'doneAt', d.done_at,
+            'assigned', d.assignee_person_id = $1::uuid,
+            'created', d.created_by_person_id = $1::uuid, 'createdAt', d.created_at) ORDER BY d.created_at), '[]'::jsonb)
+        FROM working_group_todos d JOIN working_groups g ON g.id = d.group_id
+        WHERE d.assignee_person_id = $1::uuid OR d.created_by_person_id = $1::uuid),
+    'comments', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'text', c.text, 'internal', c.internal, 'on', CASE WHEN c.ticket_id IS NOT NULL THEN 'ticket' ELSE 'todo' END,
+            'createdAt', c.created_at) ORDER BY c.created_at), '[]'::jsonb)
+        FROM working_group_comments c
+        LEFT JOIN working_group_tickets ct ON ct.id = c.ticket_id
+        LEFT JOIN working_group_todos cd ON cd.id = c.todo_id
+        JOIN working_groups g ON g.id = COALESCE(ct.group_id, cd.group_id)
+        WHERE c.author_person_id = $1::uuid),
+    'notes', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', g.name, 'public', n.is_public, 'text', n.text, 'createdAt', n.created_at) ORDER BY n.created_at), '[]'::jsonb)
+        FROM working_group_notes n LEFT JOIN working_groups g ON g.id = n.group_id
+        WHERE n.author_person_id = $1::uuid),
+    'statusNotes', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+            'group', s.group_name, 'status', s.status, 'note', s.status_note, 'until', s.status_until, 'changedAt', s.status_changed_at)
+            ORDER BY s.status_changed_at), '[]'::jsonb)
+        FROM (SELECT g.name AS group_name, m.status, m.status_note, m.status_until, m.status_changed_at
+              FROM working_group_machines m JOIN working_groups g ON g.id = m.group_id
+              WHERE m.status_changed_by = $1::uuid AND m.status_note IS NOT NULL
+              UNION ALL
+              SELECT g.name, pl.status, pl.status_note, pl.status_until, pl.status_changed_at
+              FROM working_group_places pl JOIN working_groups g ON g.id = pl.group_id
+              WHERE pl.status_changed_by = $1::uuid AND pl.status_note IS NOT NULL) s)
+)::jsonb AS document
+`
+
+// The subject's own tickets (text only when they wrote them), assignments, to-dos, comments, pinboard notes and status notes. Follows name only the group and the time: the ticket text
+// belongs to its author.
+func (q *Queries) ExportWorkingGroupTasks(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, exportWorkingGroupTasks, subjectPerson)
 	var document []byte
 	err := row.Scan(&document)
 	return document, err

@@ -26,6 +26,9 @@ const (
 	OpenDayAssignments   privacy.CategoryID = "opendays.assignments"
 	StaffingExcusals     privacy.CategoryID = "opendays.staffing_excusals"
 	TrainingRecords      privacy.CategoryID = "trainings.records"
+	WorkingGroupMembers  privacy.CategoryID = "working_groups.members"
+	WorkingGroupTasks    privacy.CategoryID = "working_groups.tasks"
+	WorkingGroupFinances privacy.CategoryID = "working_groups.finances"
 	// LabRulesConfirmations keeps the identifier it had when confirmations were paper requests: policies,
 	// retention holds and subject requests store category identifiers.
 	LabRulesConfirmations  privacy.CategoryID = "laborordnung.requests"
@@ -57,16 +60,17 @@ const (
 
 // Owner modules: the built-in feature areas that own data categories.
 const (
-	Identity     privacy.ModuleID = "identity"
-	Platform     privacy.ModuleID = "platform"
-	Laborordnung privacy.ModuleID = "laborordnung"
-	Attendance   privacy.ModuleID = "attendance"
-	Trainings    privacy.ModuleID = "trainings"
-	OpenDays     privacy.ModuleID = "open_days"
-	Events       privacy.ModuleID = "events"
-	Orders       privacy.ModuleID = "orders"
-	Machines     privacy.ModuleID = "machines"
-	Signage      privacy.ModuleID = "signage"
+	Identity      privacy.ModuleID = "identity"
+	Platform      privacy.ModuleID = "platform"
+	Laborordnung  privacy.ModuleID = "laborordnung"
+	Attendance    privacy.ModuleID = "attendance"
+	Trainings     privacy.ModuleID = "trainings"
+	WorkingGroups privacy.ModuleID = "working_groups"
+	OpenDays      privacy.ModuleID = "open_days"
+	Events        privacy.ModuleID = "events"
+	Orders        privacy.ModuleID = "orders"
+	Machines      privacy.ModuleID = "machines"
+	Signage       privacy.ModuleID = "signage"
 )
 
 const day = 24 * time.Hour
@@ -266,6 +270,60 @@ func declarations() []privacy.Definition {
 			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt},
 			Actions:        []privacy.Action{privacy.ActionRetainWithReview},
 			Subject:        privacy.SubjectPerson,
+		},
+		{
+			ID: WorkingGroupMembers, Owner: WorkingGroups, Name: "Working group memberships",
+			Description:    "Which working groups a person belongs to or leads.",
+			Contains:       "Person, group, lead flag, join time",
+			ErasureOutcome: privacy.ErasureErased,
+			Fields:         []string{"working_group_members.person_id"},
+			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt},
+			Actions:        []privacy.Action{privacy.ActionRetainWithReview},
+			Subject:        privacy.SubjectPerson,
+		},
+		{
+			ID: WorkingGroupTasks, Owner: WorkingGroups, Name: "Working group tickets, to-dos, notes and status",
+			Description:    "Tickets people wrote for a group, who has the same problem, to-dos of the group, the comments on both, pinboard notes and who last set the status of a machine or place.",
+			Contains:       "Authors, assignees, followers, subjects, descriptions, titles, comments, pinboard notes, status notes and who changed a status",
+			ErasureOutcome: privacy.ErasureUnlinked,
+			Fields: []string{
+				"working_group_tickets.author_person_id", "working_group_tickets.assignee_person_id",
+				"working_group_tickets.subject", "working_group_tickets.body",
+				"working_group_ticket_followers.person_id",
+				"working_group_todos.assignee_person_id", "working_group_todos.created_by_person_id",
+				"working_group_todos.title",
+				"working_group_comments.author_person_id", "working_group_comments.text",
+				"working_group_notes.author_person_id", "working_group_notes.text",
+				"working_group_machines.status_note", "working_group_machines.status_changed_by",
+				"working_group_places.status_note", "working_group_places.status_changed_by",
+			},
+			Triggers: []privacy.Trigger{privacy.TriggerCompletedAt},
+			Actions:  []privacy.Action{privacy.ActionRetainWithReview},
+			Subject:  privacy.SubjectPerson,
+		},
+		{
+			ID: WorkingGroupFinances, Owner: WorkingGroups, Name: "Working group purchases and receipts",
+			Description:    "What members asked their group to buy, the offers and receipts they handed in, collective orders with their invoices and costs booked against a group's budget.",
+			Contains:       "Requesters, item texts, shop links, offers, receipts and invoices (files that may show names or addresses), shop names and booking texts",
+			ErasureOutcome: privacy.ErasureUnlinked,
+			Fields: []string{
+				"working_group_purchases.requester_person_id", "working_group_purchases.item", "working_group_purchases.link",
+				"working_group_purchases.decline_reason", "working_group_purchases.attachment_file_id",
+				"working_group_purchases.receipt_file_id", "working_group_purchase_orders.shop",
+				"working_group_purchase_orders.invoice_file_id", "working_group_bookings.text",
+				"working_group_income.created_by_person_id", "working_group_income.note",
+				"working_group_projects.requester_person_id", "working_group_projects.title", "working_group_projects.goal",
+				"working_group_projects.benefit", "working_group_projects.completion_report", "working_group_projects.request_form",
+				"working_group_projects.request_signature_file_id", "working_group_projects.request_signed_by", "working_group_projects.request_pdf_file_id",
+				"working_group_project_items.text", "working_group_project_items.link", "working_group_project_items.note",
+				"working_group_project_offers.shop", "working_group_project_offers.file_id",
+				"working_group_project_history.actor_person_id", "working_group_project_history.reason",
+				"working_group_finance_signatures.person_id", "working_group_finance_signatures.file_id",
+				"working_group_finance_rules.request_responsible_person_id", "working_group_finance_rules.request_place",
+			},
+			Triggers: []privacy.Trigger{privacy.TriggerCompletedAt},
+			Actions:  []privacy.Action{privacy.ActionRetainWithReview},
+			Subject:  privacy.SubjectPerson,
 		},
 		{
 			ID: LabRulesConfirmations, Owner: Laborordnung, Name: "Lab Rules confirmations",

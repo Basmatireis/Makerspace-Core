@@ -1,0 +1,1710 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/components/progress-bar';
+@use '@carbon/styles/scss/theme' as theme;
+
+// Application-specific layout for the working-group pages; every control is a Carbon component.
+.wg-description {
+  max-inline-size: 48rem;
+  margin: 0;
+}
+
+.wg-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  align-items: start;
+}
+
+// Carbon's lg breakpoint (1056 px): from here on the side column sits next to the main one, in a 2:1 split.
+@media (min-width: 66rem) {
+  .wg-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
+
+.wg-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+  margin-block-end: $spacing-03;
+}
+
+.wg-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: $spacing-03;
+  align-items: end;
+  max-inline-size: 36rem;
+}
+
+@media (max-width: 41.98rem) {
+  .wg-add {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.wg-form {
+  max-inline-size: 36rem;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Tickets & to-dos
+// ---------------------------------------------------------------------------------------------------------------
+
+.wg-muted {
+  color: theme.$text-secondary;
+}
+
+.wg-visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.wg-placeholder__title {
+  @include type-style('heading-02');
+}
+
+// Muted status colours: the support colours mixed into the layer colour.
+.wg-st-inbox {
+  --wg-st: #{theme.$support-info};
+}
+.wg-st-overdue {
+  --wg-st: #{theme.$support-error};
+}
+.wg-st-week {
+  --wg-st: #{theme.$support-warning};
+}
+.wg-st-later {
+  --wg-st: #{theme.$support-success};
+}
+
+.wg-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  margin-block-end: $spacing-05;
+}
+
+@media (min-width: 66rem) {
+  .wg-summary {
+    grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.wg-sbar,
+.wg-minetile {
+  display: grid;
+  align-content: start;
+  gap: $spacing-04;
+  padding: $spacing-05;
+  background: theme.$layer-01;
+  color: theme.$text-primary;
+}
+
+.wg-sbar__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03 $spacing-05;
+}
+
+.wg-sbar__sum {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+}
+
+.wg-sbar__n,
+.wg-minetile__n {
+  font-size: 2.25rem;
+  line-height: 2.75rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.wg-sbar__l {
+  display: grid;
+  @include type-style('body-compact-01');
+  font-weight: 600;
+}
+
+.wg-sbar__l small,
+.wg-sbar__facts {
+  @include type-style('helper-text-01');
+  font-weight: 400;
+  color: theme.$text-secondary;
+}
+
+.wg-sbar__bar {
+  display: flex;
+  gap: 2px;
+  block-size: 1.5rem;
+}
+
+.wg-sbar__seg {
+  min-inline-size: 0.5rem;
+  background: color-mix(in srgb, var(--wg-st) 55%, #{theme.$layer-01});
+}
+
+.wg-sbar__cols {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: $spacing-03;
+}
+
+.wg-sbar__col {
+  all: unset;
+  box-sizing: border-box;
+  display: grid;
+  gap: 0.125rem;
+  padding: $spacing-03 $spacing-04;
+  cursor: pointer;
+  border-block-start: 3px solid color-mix(in srgb, var(--wg-st) 55%, #{theme.$layer-01});
+  background: theme.$layer-02;
+}
+
+.wg-sbar__col:hover {
+  background: theme.$layer-hover-02;
+}
+
+.wg-sbar__col:focus-visible,
+.wg-minetile:focus-visible,
+.wg-lrow:focus-visible,
+.wg-card:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+
+.wg-sbar__col[aria-pressed='true'],
+.wg-minetile[aria-pressed='true'] {
+  background: theme.$layer-selected-01;
+  outline: 2px solid theme.$interactive;
+  outline-offset: -2px;
+}
+
+.wg-sbar__cn {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.wg-sbar__cl {
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+
+.wg-minetile {
+  all: unset;
+  box-sizing: border-box;
+  display: grid;
+  align-content: start;
+  gap: $spacing-02;
+  padding: $spacing-05;
+  background: theme.$layer-01;
+  cursor: pointer;
+  min-block-size: 100%;
+}
+
+.wg-minetile:hover {
+  background: theme.$layer-hover-01;
+}
+
+.wg-minetile__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  @include type-style('body-compact-01');
+  font-weight: 600;
+}
+
+.wg-minetile__row {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-04;
+  @include type-style('body-compact-01');
+  color: theme.$text-secondary;
+}
+
+.wg-minetile__row span:last-child {
+  color: theme.$text-primary;
+  font-variant-numeric: tabular-nums;
+}
+
+// The card with the toolbar and the list or board.
+.wg-card-list {
+  background: theme.$layer-01;
+  min-inline-size: 0;
+}
+
+.wg-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+  padding: $spacing-03 $spacing-05;
+  border-block-end: 1px solid theme.$border-subtle-01;
+}
+
+.wg-toolbar__search {
+  flex: 1 1 14rem;
+  min-inline-size: 0;
+}
+
+.wg-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+  margin-inline-start: auto;
+}
+
+.wg-toolbar__views {
+  display: flex;
+}
+
+.wg-empty {
+  padding: $spacing-07 $spacing-05;
+  text-align: center;
+  color: theme.$text-secondary;
+}
+
+// List view: grey rows under uppercase group headings, like the Open Days list.
+.wg-lweek {
+  display: flex;
+  align-items: baseline;
+  gap: $spacing-03;
+  margin: 0;
+  padding: $spacing-05 $spacing-05 $spacing-02;
+  text-transform: uppercase;
+  color: theme.$text-secondary;
+  background: theme.$background;
+  @include type-style('label-01');
+  font-weight: 600;
+}
+
+.wg-lweek small {
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.wg-llist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wg-lrow {
+  all: unset;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 3.5rem minmax(9rem, 2.2fr) minmax(6.5rem, 1fr) minmax(5.5rem, 0.9fr) 7rem 5.5rem;
+  gap: 0 $spacing-05;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: 4rem;
+  padding: $spacing-03 $spacing-05 $spacing-03 0.8125rem;
+  border-inline-start: 3px solid var(--wg-bk, transparent);
+  border-block-end: 1px solid theme.$border-subtle-01;
+  background: theme.$layer-02;
+  cursor: pointer;
+  @include type-style('body-compact-01');
+}
+
+.wg-lrow:hover {
+  background: theme.$layer-hover-02;
+}
+
+.wg-lrow.is-selected {
+  background: theme.$layer-selected-02;
+}
+
+.wg-lrow--head {
+  min-block-size: 2.5rem;
+  background: theme.$layer-accent-01;
+  border-inline-start-color: theme.$layer-accent-01;
+  cursor: default;
+  font-weight: 600;
+}
+
+.wg-lrow--head:hover {
+  background: theme.$layer-accent-01;
+}
+
+.wg-bk-inbox {
+  --wg-bk: #{theme.$support-info};
+}
+.wg-bk-overdue {
+  --wg-bk: #{theme.$support-error};
+}
+.wg-bk-week {
+  --wg-bk: #{theme.$support-warning};
+}
+.wg-bk-done {
+  --wg-bk: #{theme.$support-success};
+}
+.wg-lrow.wg-bk-done {
+  color: theme.$text-secondary;
+}
+
+.wg-ldate {
+  display: grid;
+  justify-items: center;
+  line-height: 1;
+}
+
+.wg-ldate__wd,
+.wg-ldate__m {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.32px;
+  color: theme.$text-secondary;
+}
+
+.wg-ldate__d {
+  font-size: 1.5rem;
+  font-weight: 300;
+  padding-block: 0.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.wg-ldate__none {
+  color: theme.$support-info;
+}
+
+.wg-lwhat,
+.wg-lwho,
+.wg-lfrom {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.wg-lwhat__title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wg-lwhat small {
+  color: theme.$text-secondary;
+}
+
+.wg-lwho {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.wg-av {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  flex: none;
+  border-radius: 50%;
+  background: theme.$layer-accent-01;
+  color: theme.$text-primary;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.wg-ldue {
+  text-align: end;
+  @include type-style('helper-text-01');
+  color: theme.$text-secondary;
+}
+
+.wg-ldue.is-error {
+  color: theme.$support-error;
+}
+
+.wg-ldue.is-warning {
+  color: theme.$text-primary;
+  font-weight: 600;
+}
+
+.wg-lmore {
+  padding: $spacing-03 $spacing-05;
+}
+
+.wg-track {
+  display: grid;
+  gap: 0.25rem;
+  min-inline-size: 0;
+}
+
+.wg-track__bar {
+  display: flex;
+  gap: 2px;
+}
+
+.wg-track__bar i {
+  flex: 1 1 0;
+  block-size: 0.375rem;
+  background: theme.$layer-accent-01;
+}
+
+.wg-track__bar i.is-past {
+  background: color-mix(in srgb, #{theme.$interactive} 45%, #{theme.$layer-accent-01});
+}
+
+.wg-track__bar i.is-now {
+  background: theme.$interactive;
+}
+
+.wg-track.is-inbox .wg-track__bar i.is-now {
+  background: theme.$support-info;
+}
+
+.wg-track.is-done .wg-track__bar i {
+  background: theme.$support-success;
+}
+
+.wg-track.is-declined .wg-track__bar i {
+  background: theme.$border-strong-01;
+}
+
+.wg-track__l {
+  @include type-style('helper-text-01');
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 65.98rem) {
+  .wg-lrow {
+    grid-template-columns: 3.5rem minmax(0, 1fr) auto;
+    row-gap: 0.25rem;
+  }
+
+  .wg-lrow--head {
+    display: none;
+  }
+
+  .wg-lrow > :nth-child(n + 3) {
+    grid-column: 2 / -1;
+  }
+}
+
+// Board view.
+.wg-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(13rem, 1fr);
+  gap: $spacing-04;
+  padding: $spacing-04;
+  background: theme.$background;
+  overflow-x: auto;
+}
+
+.wg-col {
+  display: grid;
+  align-content: start;
+  gap: $spacing-03;
+  padding: $spacing-03;
+  background: theme.$layer-01;
+  min-inline-size: 0;
+}
+
+.wg-col--inbox {
+  background: color-mix(in srgb, #{theme.$support-info} 7%, #{theme.$layer-01});
+}
+
+.wg-col.is-over {
+  outline: 2px dashed theme.$interactive;
+  outline-offset: -2px;
+}
+
+.wg-col__head {
+  display: flex;
+  align-items: baseline;
+  gap: $spacing-03;
+  margin: 0;
+  text-transform: uppercase;
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+  font-weight: 600;
+}
+
+.wg-col__cards {
+  list-style: none;
+  display: grid;
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+}
+
+.wg-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-03;
+  min-inline-size: 0;
+  padding: $spacing-04;
+  background: theme.$background;
+  cursor: pointer;
+}
+
+.wg-card[draggable='true'] {
+  cursor: grab;
+}
+
+.wg-card:hover {
+  background: theme.$layer-hover-01;
+}
+
+.wg-card.is-sel {
+  background: theme.$layer-selected-01;
+}
+
+.wg-card__top {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  color: theme.$text-secondary;
+}
+
+.wg-card__title {
+  font-weight: 600;
+}
+
+.wg-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.wg-card__who {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  @include type-style('helper-text-01');
+}
+
+// Detail panel.
+.wg-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: $spacing-03;
+  margin-block: $spacing-04;
+}
+
+.wg-panel-body {
+  margin-block: $spacing-04;
+  white-space: pre-wrap;
+}
+
+.wg-panel-blocks {
+  color: theme.$support-error;
+}
+
+.wg-comments {
+  list-style: none;
+  display: grid;
+  gap: $spacing-04;
+  margin: 0 0 $spacing-04;
+  padding: 0;
+}
+
+.wg-comment {
+  display: flex;
+  gap: $spacing-03;
+}
+
+.wg-comment p {
+  margin: 0;
+}
+
+.wg-comment__meta {
+  @include type-style('helper-text-01');
+  color: theme.$text-secondary;
+}
+
+.wg-comment__text {
+  white-space: pre-wrap;
+}
+
+.wg-colform {
+  list-style: none;
+  display: grid;
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+}
+
+.wg-colform__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: $spacing-02;
+  align-items: start;
+}
+
+// ---- Overview and dashboard pinboard ------------------------------------------------------------------------
+
+.wg-layout--stats {
+  margin-block-end: $spacing-05;
+}
+
+.wg-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: $spacing-05;
+}
+
+.wg-stat.cds--tile {
+  display: grid;
+  align-content: start;
+  gap: $spacing-02;
+}
+
+.wg-stat__label {
+  @include type-style('heading-compact-01');
+}
+
+.wg-stat__value {
+  @include type-style('productive-heading-04');
+}
+
+.wg-stat__detail,
+.wg-muted {
+  display: block;
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+
+.wg-stat__row {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-03;
+  @include type-style('body-compact-01');
+}
+
+.wg-usage {
+  display: grid;
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 6rem auto;
+    align-items: center;
+    gap: $spacing-03;
+  }
+}
+
+.wg-usage__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wg-focus:focus {
+  outline: none;
+}
+
+.wg-card {
+  display: grid;
+  gap: $spacing-03;
+  padding: $spacing-04;
+  background: theme.$background;
+  cursor: pointer;
+}
+
+.wg-card[draggable='true'] {
+  cursor: grab;
+}
+
+.wg-card:hover {
+  background: theme.$layer-hover-01;
+}
+
+.wg-card.is-sel {
+  background: theme.$layer-selected-01;
+}
+
+.wg-card__top {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  color: theme.$text-secondary;
+}
+
+.wg-card__title {
+  font-weight: 600;
+}
+
+.wg-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.wg-card__who {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  @include type-style('helper-text-01');
+}
+
+// Detail panel.
+.wg-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: $spacing-03;
+  margin-block: $spacing-04;
+}
+
+.wg-panel-body {
+  margin-block: $spacing-04;
+  white-space: pre-wrap;
+}
+
+.wg-panel-blocks {
+  color: theme.$support-error;
+}
+
+.wg-comments {
+  list-style: none;
+  display: grid;
+  gap: $spacing-04;
+  margin: 0 0 $spacing-04;
+  padding: 0;
+}
+
+.wg-comment {
+  display: flex;
+  gap: $spacing-03;
+}
+
+.wg-comment p {
+  margin: 0;
+}
+
+.wg-comment__meta {
+  @include type-style('helper-text-01');
+  color: theme.$text-secondary;
+}
+
+.wg-comment__text {
+  white-space: pre-wrap;
+}
+
+.wg-colform {
+  list-style: none;
+  display: grid;
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+}
+
+.wg-colform__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: $spacing-02;
+  align-items: start;
+}
+
+// ---- Overview and dashboard pinboard ------------------------------------------------------------------------
+
+.wg-layout--stats {
+  margin-block-end: $spacing-05;
+}
+
+.wg-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: $spacing-05;
+}
+
+.wg-stat.cds--tile {
+  display: grid;
+  align-content: start;
+  gap: $spacing-02;
+}
+
+.wg-stat__label {
+  @include type-style('heading-compact-01');
+}
+
+.wg-stat__value {
+  @include type-style('productive-heading-04');
+}
+
+.wg-stat__detail,
+.wg-muted {
+  display: block;
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+
+.wg-stat__row {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-03;
+  @include type-style('body-compact-01');
+}
+
+.wg-usage {
+  display: grid;
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 6rem auto;
+    align-items: center;
+    gap: $spacing-03;
+  }
+}
+
+.wg-usage__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wg-bar {
+  display: block;
+  block-size: 0.5rem;
+  background: theme.$layer-accent;
+
+  > span {
+    display: block;
+    block-size: 100%;
+    background: theme.$support-error;
+  }
+}
+
+.wg-card {
+  display: grid;
+  gap: $spacing-03;
+  min-inline-size: 0;
+}
+
+.wg-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.wg-card__title {
+  margin: 0;
+  @include type-style('productive-heading-03');
+}
+
+.wg-card__sub {
+  flex-basis: 100%;
+  margin: 0;
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+
+.wg-message {
+  display: block;
+}
+
+.wg-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+}
+
+.wg-rowcomments {
+  display: grid;
+  gap: $spacing-03;
+  margin: $spacing-03 0 0;
+  padding: 0;
+  list-style: none;
+  @include type-style('body-compact-01');
+}
+
+.wg-rowcomment {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-03;
+  min-inline-size: 0;
+}
+
+.wg-rowcomment__text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: $spacing-03;
+  min-inline-size: 0;
+}
+
+.wg-rowcomment__line {
+  flex: 1 1 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wg-side {
+  min-inline-size: 0;
+}
+
+.wg-todos,
+.wg-items {
+  display: grid;
+  gap: $spacing-04;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-todo {
+  display: flex;
+  gap: $spacing-04;
+  align-items: flex-start;
+}
+
+.wg-date {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  align-content: center;
+  inline-size: 3rem;
+  padding-block: $spacing-02;
+  border: 1px solid theme.$border-subtle;
+  @include type-style('label-01');
+}
+
+.wg-date__day {
+  @include type-style('productive-heading-03');
+}
+
+.wg-date--error {
+  border-color: theme.$support-error;
+  color: theme.$support-error;
+}
+
+.wg-date--warning {
+  border-color: theme.$support-warning;
+}
+
+.wg-hint--error {
+  color: theme.$support-error;
+}
+
+.wg-item {
+  display: grid;
+  gap: $spacing-02;
+  justify-items: start;
+}
+
+.wg-item__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.wg-item__name {
+  @include type-style('heading-compact-01');
+}
+
+.wg-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: $spacing-02 $spacing-05;
+  margin: $spacing-03 0 0;
+  @include type-style('body-compact-01');
+
+  dt {
+    color: theme.$text-secondary;
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.wg-facts__action {
+  grid-column: 1 / -1;
+}
+
+.wg-all {
+  display: grid;
+  gap: $spacing-04;
+}
+
+.wg-all__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-all__tile.cds--tile {
+  display: grid;
+  gap: $spacing-02;
+  block-size: 100%;
+}
+
+// Purchases and budget.
+.wg-summary--two {
+  @media (min-width: 66rem) {
+    grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr);
+  }
+}
+
+.wg-summary--three {
+  @media (min-width: 66rem) {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.wg-minetile--static {
+  cursor: default;
+}
+
+.wg-sbar__period {
+  min-inline-size: 10rem;
+}
+
+.wg-sbar__cols--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wg-sbar__ch {
+  @include type-style('helper-text-01');
+  color: theme.$text-secondary;
+}
+
+.wg-fin-spent {
+  --wg-st: #{theme.$support-info};
+}
+
+.wg-fin-reserved {
+  --wg-st: #{theme.$support-warning};
+}
+
+.wg-fin-free {
+  --wg-st: #{theme.$support-success};
+}
+
+.wg-fin-kept {
+  --wg-st: #{theme.$border-strong-01};
+}
+
+.wg-subhead {
+  margin: 0 0 $spacing-03;
+  @include type-style('heading-compact-01');
+}
+
+.wg-subhead--pad {
+  padding: $spacing-05 $spacing-05 0;
+}
+
+.wg-pamount {
+  display: grid;
+  min-inline-size: 0;
+
+  small {
+    @include type-style('helper-text-01');
+    color: theme.$text-secondary;
+  }
+}
+
+.wg-prow--static {
+  cursor: default;
+}
+
+.wg-bused {
+  display: grid;
+  gap: $spacing-02;
+  min-inline-size: 0;
+
+  small {
+    @include type-style('helper-text-01');
+    color: theme.$text-secondary;
+  }
+}
+
+.wg-brow--total {
+  cursor: default;
+  font-weight: 600;
+}
+
+@media (min-width: 66rem) {
+  .wg-prow {
+    grid-template-columns: 7.5rem minmax(10rem, 2.4fr) 7.5rem;
+  }
+
+  .wg-prow--group {
+    grid-template-columns: 7.5rem minmax(10rem, 2.4fr) minmax(6rem, 1fr) 7.5rem;
+  }
+
+  .wg-brow {
+    grid-template-columns: 7.5rem minmax(10rem, 2fr) 7.5rem minmax(10rem, 2fr);
+  }
+}
+
+@media (max-width: 65.98rem) {
+  .wg-prow,
+  .wg-brow {
+    grid-template-columns: 6rem minmax(0, 1fr) auto;
+  }
+}
+
+.wg-buyrow {
+  display: grid;
+  grid-template-columns: minmax(8rem, 2fr) minmax(8rem, 2fr) 5rem 6rem auto auto;
+  gap: $spacing-03;
+  align-items: end;
+}
+
+@media (max-width: 65.98rem) {
+  .wg-buyrow {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.wg-buyrow__file {
+  display: grid;
+}
+
+.wg-buyrow__error {
+  margin: 0;
+  @include type-style('helper-text-01');
+  color: theme.$text-error;
+}
+
+.wg-buytotal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.wg-preview {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: 70vh;
+  margin-inline: auto;
+}
+
+.wg-preview--pdf {
+  inline-size: 100%;
+  block-size: 70vh;
+  border: 0;
+}
+
+.wg-receipt {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+}
+
+.wg-collective {
+  display: grid;
+  gap: $spacing-05;
+}
+
+.wg-collective__top {
+  display: grid;
+  gap: $spacing-05;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 66rem) {
+  .wg-collective__top {
+    grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr);
+  }
+}
+
+.wg-order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.wg-rules-list {
+  display: grid;
+  gap: $spacing-03;
+  margin: 0 0 $spacing-04;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-rules-list__row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+
+  > span {
+    flex: 1 1 auto;
+  }
+}
+
+.wg-rules-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: $spacing-03;
+}
+
+// Projects.
+.wg-prow--group.wg-subrow {
+  min-block-size: 3rem;
+  padding-inline-start: 2.5rem;
+  background: theme.$layer-01;
+}
+
+.wg-sublist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wg-track__bar--5 i {
+  inline-size: 0.75rem;
+}
+
+.wg-plist {
+  display: grid;
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-plist li {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-04;
+  align-items: center;
+}
+
+.wg-reason {
+  margin: 0 0 $spacing-04;
+  padding: $spacing-03 $spacing-04;
+  border-inline-start: 3px solid theme.$support-warning;
+  background: theme.$layer-02;
+}
+
+.wg-reason p {
+  margin: $spacing-02 0;
+}
+
+.wg-pj-top {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: $spacing-05;
+  margin-block: $spacing-04 $spacing-05;
+}
+
+.wg-pj-body {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+  gap: $spacing-05;
+  align-items: start;
+}
+
+.wg-pj-side {
+  display: grid;
+  gap: $spacing-05;
+}
+
+@media (max-width: 65.98rem) {
+  .wg-pj-top,
+  .wg-pj-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.wg-card {
+  padding: $spacing-05;
+  background: theme.$layer-02;
+  border: 1px solid theme.$border-subtle-01;
+}
+
+.wg-card h3 {
+  @include type-style('heading-02');
+  margin-block-end: $spacing-03;
+}
+
+.wg-phead__row,
+.wg-pj-cardhead {
+  min-inline-size: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-04;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wg-hsteps {
+  display: flex;
+  margin: $spacing-05 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-hsteps li {
+  position: relative;
+  flex: 1;
+  display: grid;
+  justify-items: center;
+  gap: $spacing-02;
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+
+.wg-hsteps li::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.4rem;
+  inset-inline: -50% 50%;
+  block-size: 2px;
+  background: theme.$border-subtle-01;
+}
+
+.wg-hsteps li:first-child::before {
+  display: none;
+}
+
+.wg-hsteps li.is-past::before,
+.wg-hsteps li.is-now::before {
+  background: theme.$support-success;
+}
+
+.wg-hsteps__dot {
+  position: relative;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  border-radius: 50%;
+  border: 2px solid theme.$border-strong-01;
+  background: theme.$layer-02;
+}
+
+.wg-hsteps li.is-past .wg-hsteps__dot {
+  background: theme.$support-success;
+  border-color: theme.$support-success;
+}
+
+.wg-hsteps li.is-now {
+  color: theme.$text-primary;
+}
+
+.wg-hsteps li.is-now .wg-hsteps__dot {
+  border-color: theme.$support-success;
+  background: theme.$layer-02;
+}
+
+.wg-hsteps li.is-declined .wg-hsteps__dot {
+  border-color: theme.$support-error;
+}
+
+.wg-todo-list {
+  display: grid;
+  gap: $spacing-03;
+  margin: 0 0 $spacing-04;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-todo-list li {
+  display: flex;
+  gap: $spacing-03;
+  align-items: center;
+}
+
+.wg-todo-list .is-done svg {
+  fill: theme.$support-success;
+}
+
+.wg-todo-list .is-open svg {
+  fill: theme.$support-error;
+}
+
+.wg-pbar {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  overflow: hidden;
+  block-size: 0.75rem;
+  margin-block: $spacing-04 $spacing-03;
+  background: theme.$layer-accent-01;
+}
+
+.wg-pbar__seg.is-spent {
+  background: theme.$support-success;
+}
+
+.wg-pbar__seg.is-requested {
+  background: theme.$support-info;
+}
+
+.wg-pbar__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-05;
+  margin-block-end: $spacing-05;
+  @include type-style('label-01');
+}
+
+.wg-cplan__row {
+  all: unset;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(8rem, 3fr) 6rem 6rem minmax(7rem, 1.4fr);
+
+  @media (max-width: 40rem) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  gap: $spacing-04;
+  align-items: center;
+  inline-size: 100%;
+  padding: $spacing-03 $spacing-04;
+  border-block-end: 1px solid theme.$border-subtle-01;
+  cursor: pointer;
+  @include type-style('body-compact-01');
+}
+
+.wg-cplan__row:hover {
+  background: theme.$layer-hover-02;
+}
+
+.wg-cplan__row:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+
+.wg-cplan__row.is-selected {
+  background: theme.$layer-selected-02;
+}
+
+.wg-cplan__row small {
+  display: block;
+  color: theme.$text-secondary;
+}
+
+.wg-cplan__row--head,
+.wg-cplan__row--total {
+  cursor: default;
+  font-weight: 600;
+}
+
+.wg-cplan__row--sub {
+  padding-inline-start: $spacing-07;
+  background: theme.$layer-01;
+}
+
+.wg-cplan__group {
+  margin: $spacing-04 0 $spacing-02;
+  @include type-style('label-01');
+}
+
+.wg-pa-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: $spacing-02 $spacing-05;
+  margin: 0;
+}
+
+.wg-pa-facts dt {
+  color: theme.$text-secondary;
+}
+
+.wg-pa-facts dd {
+  margin: 0;
+}
+
+.wg-pa-label {
+  @include type-style('label-01');
+}
+
+.wg-pa-attachments {
+  margin: 0;
+  padding-inline-start: $spacing-05;
+}
+
+.wg-pa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: $spacing-05;
+
+  > * {
+    min-inline-size: 0;
+  }
+
+  // Date pickers keep their own fixed width otherwise and push the grid wider than the modal.
+  .cds--date-picker,
+  .cds--date-picker-container,
+  .cds--date-picker__input {
+    inline-size: 100%;
+  }
+}
+
+.wg-sig {
+  display: grid;
+  gap: $spacing-04;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.wg-sig legend {
+  @include type-style('label-01');
+  margin-block-end: $spacing-03;
+}
+
+.wg-sig__box {
+  position: relative;
+  inline-size: 100%;
+  max-inline-size: 25rem;
+  aspect-ratio: 400 / 150;
+  overflow: hidden;
+  border: 1px dashed theme.$border-strong-01;
+  background: #fff;
+  touch-action: none;
+}
+
+.wg-sig__canvas {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  touch-action: none;
+}
+
+.wg-sig__img {
+  position: absolute;
+  user-select: none;
+  cursor: grab;
+  max-inline-size: none;
+}
+
+.wg-sig__saved {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+// Links between tickets, to-dos, purchases and projects
+.wg-linkline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+  margin-block: $spacing-04;
+
+  p {
+    margin: 0;
+  }
+}
+
+.wg-linkpick,
+.wg-linked {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wg-linkpick {
+  max-block-size: 18rem;
+  overflow-y: auto;
+  margin-block-start: $spacing-04;
+}
+
+.wg-linked li {
+  padding-block: $spacing-02;
+}
+
+// Lately feed
+.wg-lately {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: $spacing-04;
+    padding-block: $spacing-03;
+    border-block-end: 1px solid var(--cds-border-subtle);
+  }
+
+  svg {
+    color: var(--cds-icon-secondary);
+  }
+}
+
+// Management overview
+.wg-gcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: $spacing-05;
+  margin-block: $spacing-05;
+}
+
+.wg-gcard {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.wg-gcard__top {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.wg-pj-cardhead .wg-toolbar__actions {
+  margin-inline-start: 0;
+}
+
+.wg-focus {
+  min-inline-size: 0;
+}
+
+.wg-card__header {
+  min-inline-size: 0;
+}
+
+// The status tiles of the management overview: "Waiting for you" wide, the four kinds equal beside it.
+.wg-mgsummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  margin-block-end: $spacing-05;
+
+  @media (min-width: 42rem) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (min-width: 66rem) {
+    grid-template-columns: minmax(0, 1.4fr) repeat(4, minmax(0, 1fr));
+  }
+}
+
+.wg-main {
+  display: grid;
+  gap: $spacing-05;
+  min-inline-size: 0;
+}

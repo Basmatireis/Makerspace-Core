@@ -13,6 +13,7 @@ export const permissionGroupOrder = [
   'Open Days',
   'Events',
   'Trainings',
+  'Working groups',
   'Workshop',
   'Inventory',
   'Sales & cash',
@@ -105,6 +106,11 @@ const catalog: Catalog = {
     ['training_records.update.self', 'Set own training status'],
     ['training_records.update', 'Set training status of others'],
     ['trainings.manage', 'Manage trainings and competencies'],
+  ],
+  'Working groups': [
+    ['working_groups.read', 'View working groups'],
+    ['working_groups.manage', 'Manage working groups'],
+    ['working_group_finances.manage', 'Manage working group budgets'],
   ],
   Workshop: [
     ['machines.read', 'View machines'],

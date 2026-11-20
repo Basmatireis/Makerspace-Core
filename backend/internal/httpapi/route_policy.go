@@ -14,6 +14,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/workinggroups"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 )
@@ -26,6 +27,8 @@ const (
 	maxNotificationRuleBodyBytes = 288 << 10
 	// maxPDFTemplateBodyBytes fits the largest template document (256 KiB) with its envelope.
 	maxPDFTemplateBodyBytes = 288 << 10
+	// maxSignatureBodyBytes fits a 512 KiB signature image as base64 with its envelope.
+	maxSignatureBodyBytes = 768 << 10
 )
 
 // requestBodyLimits overrides maxJSONRequestBodyBytes for the operations that accept larger
@@ -34,7 +37,18 @@ const (
 var requestBodyLimits = map[string]int64{
 	routeKey(http.MethodPost, "/notification-rules"): maxNotificationRuleBodyBytes,
 	// 2 MiB asset plus one byte (pdftemplates.MaxAssetBytes in phase 2); the preview and draft documents are JSON up to 256 KiB.
-	routeKey(http.MethodPost, "/pdf-templates/assets"):                          2<<20 + 1,
+	routeKey(http.MethodPost, "/pdf-templates/assets"): 2<<20 + 1,
+	// 10 MiB file plus one byte (workinggroups.MaxFinanceFileBytes): offers, receipts and invoices of working group purchases.
+	routeKey(http.MethodPut, "/working-group-purchases/{purchaseId}/attachment"):          workinggroups.MaxFinanceFileBytes + 1,
+	routeKey(http.MethodPost, "/working-group-purchases/{purchaseId}/receipt"):            workinggroups.MaxFinanceFileBytes + 1,
+	routeKey(http.MethodPut, "/working-group-purchase-orders/{orderId}/invoice"):          workinggroups.MaxFinanceFileBytes + 1,
+	routeKey(http.MethodPut, "/working-group-projects/{projectId}/offers/{offerId}/file"): workinggroups.MaxFinanceFileBytes + 1,
+	// The approval and the preview carry a signature image (512 KiB) as base64 inside the JSON body.
+	routeKey(http.MethodPost, "/working-group-projects/{projectId}/approve"):         maxSignatureBodyBytes,
+	routeKey(http.MethodPost, "/working-group-projects/{projectId}/request-preview"): maxSignatureBodyBytes,
+	routeKey(http.MethodPost, "/working-group-projects/{projectId}/send-to-wiref"):   maxSignatureBodyBytes,
+	// A signature image is at most 512 KiB.
+	routeKey(http.MethodPut, "/working-group-finance-signature"):                workinggroups.MaxSignatureBytes + 1,
 	routeKey(http.MethodPut, "/pdf-templates/{export}/draft"):                   maxPDFTemplateBodyBytes,
 	routeKey(http.MethodPost, "/pdf-templates/{export}/preview"):                maxPDFTemplateBodyBytes,
 	routeKey(http.MethodPut, "/notification-rules/{ruleId}"):                    maxNotificationRuleBodyBytes,

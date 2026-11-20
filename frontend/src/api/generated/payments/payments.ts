@@ -466,7 +466,7 @@ export const getCreateCashMovementUrl = () => {
 }
 
 /**
- * Requires cash_movements.record and cash_movements.read. Retrying the same operationKey with the same input returns the recorded movement; people with cash_movements.manage can edit or delete it afterwards (`/cash-movements/{movementId}`). 409 insufficient_cash when a withdrawal exceeds what the register should hold.
+ * Requires cash_movements.record and cash_movements.read. Retrying the same operationKey with the same input returns the recorded movement; people with cash_movements.manage can edit or delete it afterwards (`/cash-movements/{movementId}`). 409 insufficient_cash when a withdrawal exceeds what the register should hold. A withdrawal may carry a `budget` choice (see `CashMovementBudget`), which also needs `working_group_finances.manage`: 403 without it, 409 `no_open_budget_period` / `income_withdrawn`, 422 when the withdrawal is larger than the booking ahead it takes.
  * @summary Record a cash withdrawal or deposit
  */
 export const createCashMovement = async (createCashMovementRequest: CreateCashMovementRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CashMovement> => {
@@ -490,7 +490,7 @@ export const getUpdateCashMovementUrl = (movementId: UUIDv7,) => {
 }
 
 /**
- * Requires cash_movements.read and cash_movements.manage. Changes the amount, the time, the reason or the note of a withdrawal or deposit; omitted fields keep their value and the kind never changes. A correction belongs to its count and changes with it (409 `cash_movement_is_correction`). Counts from the earlier of the old and the new time on are recalculated in the same transaction: their expected amount, difference and correction follow the edit (a count that matched and now differs keeps no reason until it is edited). 409 `stale_write` when `expectedVersion` is not the current version, `cash_balance_negative` when the register would hold less than nothing at some later moment. Audited as `cash_movement.updated` with the previous amount, time and reason.
+ * Requires cash_movements.read and cash_movements.manage. A withdrawal that went into the working-group budget cannot be edited (409 `cash_movement_in_budget`). Changes the amount, the time, the reason or the note of a withdrawal or deposit; omitted fields keep their value and the kind never changes. A correction belongs to its count and changes with it (409 `cash_movement_is_correction`). Counts from the earlier of the old and the new time on are recalculated in the same transaction: their expected amount, difference and correction follow the edit (a count that matched and now differs keeps no reason until it is edited). 409 `stale_write` when `expectedVersion` is not the current version, `cash_balance_negative` when the register would hold less than nothing at some later moment. Audited as `cash_movement.updated` with the previous amount, time and reason.
  * @summary Edit a cash withdrawal or deposit
  */
 export const updateCashMovement = async (movementId: UUIDv7,
@@ -515,7 +515,7 @@ export const getDeleteCashMovementUrl = (movementId: UUIDv7,) => {
 }
 
 /**
- * Requires cash_movements.read and cash_movements.manage. Deletes the withdrawal or deposit for good; later counts are recalculated without it. A correction is removed only with its count (409 `cash_movement_is_correction`). 409 `stale_write` when `expectedVersion` is not the current version, `cash_balance_negative` when the register would hold less than nothing at some later moment. Audited as `cash_movement.deleted` with the reference, kind, amount, time and reason.
+ * Requires cash_movements.read and cash_movements.manage. A withdrawal that went into the working-group budget cannot be deleted (409 `cash_movement_in_budget`). Deletes the withdrawal or deposit for good; later counts are recalculated without it. A correction is removed only with its count (409 `cash_movement_is_correction`). 409 `stale_write` when `expectedVersion` is not the current version, `cash_balance_negative` when the register would hold less than nothing at some later moment. Audited as `cash_movement.deleted` with the reference, kind, amount, time and reason.
  * @summary Delete a cash withdrawal or deposit
  */
 export const deleteCashMovement = async (movementId: UUIDv7,

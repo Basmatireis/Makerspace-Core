@@ -1,6 +1,5 @@
 import { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { LoginPage } from '../features/auth/LoginPage';
 import { WithPublicFooter } from '../features/branding/PublicFooter';
 import { PermissionRoute, ProtectedRoute, useCurrentUser } from '../features/auth/auth';
 import { canAccessSettings } from '../features/auth/permissions';
@@ -12,6 +11,7 @@ import { machineLogbookPaths } from '../features/machinelogbook/shared/paths';
 import { DeviceBridgeProvider } from '../features/kiosk/DeviceBridgeProvider';
 import {
   AboutPage,
+  LoginPage,
   ActivityPage,
   AttendancePage,
   BrandingLegalSettingsPage,
@@ -70,6 +70,13 @@ import {
   RecycleBinPage,
   RunDetailPage,
   TrainingsSettingsPage,
+  WorkingGroupsPage,
+  WorkingGroupTasksPage,
+  ProjectPage,
+  ProjectsPage,
+  PurchasesPage,
+  BudgetPage,
+  WorkingGroupsSettingsPage,
   SettingsPage,
   SingleSignOnPage,
   DevicesSessionsPage,
@@ -529,6 +536,62 @@ export function App() {
               element={
                 <PermissionRoute allOf={['trainings.manage']}>
                   <TrainingsSettingsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="settings/working-groups"
+              element={
+                <PermissionRoute allOf={['working_groups.read']}>
+                  <WorkingGroupsSettingsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="working-groups/tasks"
+              element={
+                <PermissionRoute allOf={['working_groups.read']}>
+                  <WorkingGroupTasksPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="working-groups/purchases"
+              element={
+                <PermissionRoute allOf={['working_groups.read']}>
+                  <PurchasesPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="working-groups/projects"
+              element={
+                <PermissionRoute allOf={['working_groups.read']}>
+                  <ProjectsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="working-groups/projects/:projectId"
+              element={
+                <PermissionRoute allOf={['working_groups.read']}>
+                  <ProjectPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="working-groups/budget"
+              element={
+                <PermissionRoute allOf={['working_groups.read', 'working_group_finances.manage']}>
+                  <BudgetPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="working-groups"
+              element={
+                <PermissionRoute allOf={['working_groups.read']}>
+                  <WorkingGroupsPage />
                 </PermissionRoute>
               }
             />

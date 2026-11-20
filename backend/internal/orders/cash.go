@@ -86,6 +86,14 @@ func (s *Service) CashRegister(ctx context.Context, p authorization.Principal, t
 	if result.LastCount, err = s.latestCashCount(ctx, q, to); err != nil {
 		return result, err
 	}
+	if to == nil && s.budget != nil && p.Has(authorization.WorkingGroupFinancesManage) {
+		ahead, e := s.budget.BookedAhead(ctx, nil)
+		if e != nil {
+			return result, e
+		}
+		text := ahead.StringFixed(2)
+		result.BookedAhead = &text
+	}
 	return result, nil
 }
 
@@ -161,6 +169,14 @@ func (s *Service) ListCashMovements(
 		return CashMovementPage{}, err
 	}
 	result := CashMovementPage{Items: []CashMovement{}, Page: int64(page), PageSize: int64(size)}
+	linkIDs := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		linkIDs = append(linkIDs, row.ID)
+	}
+	linked, err := s.markIntoBudget(ctx, p, linkIDs)
+	if err != nil {
+		return result, err
+	}
 	if result.Total, err = q.CountCashMovements(
 		ctx,
 		db.CountCashMovementsParams{Kind: kind, FromTime: nullableTime(from), ToTime: nullableTime(to)},
@@ -171,6 +187,10 @@ func (s *Service) ListCashMovements(
 		item, e := s.cashMovement(ctx, q, row)
 		if e != nil {
 			return result, e
+		}
+		if linked != nil {
+			into := linked[item.ID]
+			item.IntoBudget = &into
 		}
 		result.Items = append(result.Items, item)
 	}
@@ -186,6 +206,10 @@ func (s *Service) CreateCashMovement(
 	requestID *uuid.UUID,
 ) (CashMovement, error) {
 	if err := require(p, authorization.CashMovementsRead, authorization.CashMovementsRecord); err != nil {
+		return CashMovement{}, err
+	}
+	budgetMode, err := s.checkBudgetChoice(p, input)
+	if err != nil {
 		return CashMovement{}, err
 	}
 	if input.OperationKey == uuid.Nil {
@@ -240,7 +264,27 @@ func (s *Service) CreateCashMovement(
 				"Operation key was used for different input",
 			)
 		}
-		return s.cashMovement(ctx, q, existing)
+		// A retry must also repeat the budget choice: a withdrawal is linked to income exactly when it had one.
+		wanted := budgetMode != ""
+		linked := false
+		if s.budget != nil {
+			links, e := s.budget.LinkedMovements(ctx, tx, []uuid.UUID{existing.ID})
+			if e != nil {
+				return CashMovement{}, e
+			}
+			linked = links[existing.ID]
+		}
+		if wanted != linked {
+			return CashMovement{}, apperror.Conflicting(
+				"idempotency_conflict",
+				"Operation key was used for different input",
+			)
+		}
+		replay, e := s.cashMovement(ctx, q, existing)
+		if e == nil && s.budget != nil && p.Has(authorization.WorkingGroupFinancesManage) && existing.Kind == string(CashWithdrawal) {
+			replay.IntoBudget = &linked
+		}
+		return replay, e
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return CashMovement{}, err
@@ -288,23 +332,30 @@ func (s *Service) CreateCashMovement(
 	if err != nil {
 		return CashMovement{}, databaseError(err)
 	}
-	if err = writeAudit(
-		ctx,
-		tx,
-		p,
-		"cash_movement.recorded",
-		"cash_movement",
-		row.ID,
-		requestID,
-		"kind",
-		"amount",
-		"reason",
-	); err != nil {
+	auditFields := []string{"kind", "amount", "reason"}
+	if budgetMode != "" {
+		// Same transaction: the withdrawal and its income entry commit together or not at all.
+		if err = s.budget.WithdrawalIncome(ctx, tx, p, row.ID, amount, occurred, budgetMode, input.Budget.IncomeID); err != nil {
+			return CashMovement{}, err
+		}
+		auditFields = append(auditFields, "budget")
+	}
+	if input.Kind == CashWithdrawal {
+		// Money booked ahead stays in the register, whatever the budget choice.
+		if err = s.requireHeldBack(ctx, tx, q); err != nil {
+			return CashMovement{}, err
+		}
+	}
+	if err = writeAudit(ctx, tx, p, "cash_movement.recorded", "cash_movement", row.ID, requestID, auditFields...); err != nil {
 		return CashMovement{}, err
 	}
 	result, err := s.cashMovement(ctx, q, row)
 	if err != nil {
 		return result, err
+	}
+	if s.budget != nil && p.Has(authorization.WorkingGroupFinancesManage) && input.Kind == CashWithdrawal {
+		into := budgetMode != ""
+		result.IntoBudget = &into
 	}
 	return result, databaseError(tx.Commit(ctx))
 }

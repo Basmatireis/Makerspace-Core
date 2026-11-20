@@ -385,6 +385,23 @@ SELECT
     (SELECT count(*) FROM survey_invitations WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS survey_invitations,
     (SELECT count(*) FROM survey_responses WHERE identified_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS survey_responses,
     (SELECT count(*) FROM organization_members WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS organization_memberships,
+    (SELECT count(*) FROM working_group_members WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS working_group_memberships,
+    ((SELECT count(*) FROM working_group_tickets
+        WHERE author_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]) OR assignee_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_ticket_followers WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_todos
+            WHERE assignee_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]) OR created_by_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_comments WHERE author_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_notes WHERE author_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_machines WHERE status_changed_by = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_places WHERE status_changed_by = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_purchases WHERE requester_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_projects WHERE requester_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_income WHERE created_by_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_project_history WHERE actor_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_projects WHERE request_signed_by = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_finance_signatures WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_finance_rules WHERE request_responsible_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS working_group_tasks,
     (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY((sqlc.arg(account_ids)::text[])::uuid[]))::bigint AS notifications,
     ((SELECT count(*) FROM privacy_retention_holds WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM privacy_subject_requests WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS privacy_holds;
@@ -454,6 +471,114 @@ WHERE source.person_id = sqlc.arg(source_person_id) AND target.person_id = sqlc.
 
 -- name: MoveMergeOrganizationMembers :execrows
 UPDATE organization_members SET person_id = sqlc.arg(target_person_id) WHERE person_id = sqlc.arg(source_person_id);
+
+-- name: LockMergeWorkingGroups :many
+-- Locks the groups of both Persons in id order, like every working group mutation, before memberships move.
+SELECT id FROM working_groups
+WHERE id IN (SELECT group_id FROM working_group_members WHERE person_id IN (sqlc.arg(source_person_id), sqlc.arg(target_person_id)))
+ORDER BY id FOR UPDATE;
+
+-- name: HandOverMergeWorkingGroupLeads :exec
+-- Where both Persons are members of a group and the source led it, the target takes over the lead.
+WITH handed AS (
+    UPDATE working_group_members source SET is_lead = false
+    FROM working_group_members target
+    WHERE source.person_id = sqlc.arg(source_person_id) AND target.person_id = sqlc.arg(target_person_id)
+      AND source.group_id = target.group_id AND source.is_lead
+    RETURNING source.group_id
+)
+UPDATE working_group_members SET is_lead = true
+FROM handed
+WHERE working_group_members.group_id = handed.group_id AND working_group_members.person_id = sqlc.arg(target_person_id);
+
+-- name: DeleteDuplicateMergeWorkingGroupMembers :execrows
+-- Where both Persons are members of a group the target stays.
+DELETE FROM working_group_members source
+USING working_group_members target
+WHERE source.person_id = sqlc.arg(source_person_id) AND target.person_id = sqlc.arg(target_person_id)
+  AND source.group_id = target.group_id;
+
+-- name: MoveMergeWorkingGroupMembers :execrows
+UPDATE working_group_members SET person_id = sqlc.arg(target_person_id) WHERE person_id = sqlc.arg(source_person_id);
+
+-- name: DeleteDuplicateMergeWorkingGroupFollowers :one
+-- The target's follow stays where both follow. Nobody follows a ticket they wrote, so a follow of the source's or the
+-- target's own ticket that would end up with the merged person as author goes.
+WITH from_source AS (
+    DELETE FROM working_group_ticket_followers f
+    WHERE f.person_id = sqlc.arg(source_person_id)
+      AND (EXISTS (SELECT 1 FROM working_group_ticket_followers t
+                   WHERE t.ticket_id = f.ticket_id AND t.person_id = sqlc.arg(target_person_id))
+           OR EXISTS (SELECT 1 FROM working_group_tickets w
+                      WHERE w.id = f.ticket_id AND w.author_person_id = sqlc.arg(target_person_id)))
+    RETURNING 1
+), from_target AS (
+    DELETE FROM working_group_ticket_followers f
+    WHERE f.person_id = sqlc.arg(target_person_id)
+      AND EXISTS (SELECT 1 FROM working_group_tickets w WHERE w.id = f.ticket_id AND w.author_person_id = sqlc.arg(source_person_id))
+    RETURNING 1
+)
+SELECT ((SELECT count(*) FROM from_source) + (SELECT count(*) FROM from_target))::bigint AS dropped;
+
+-- name: MoveMergeWorkingGroupTasks :one
+-- Moves the source's tickets, assignments, follows, to-dos, comments, pinboard notes, status notes and purchases to the target;
+-- returns how many rows moved.
+WITH tickets_moved AS (
+    UPDATE working_group_tickets AS t SET
+        author_person_id = CASE WHEN t.author_person_id = sqlc.arg(source_person_id) THEN sqlc.arg(target_person_id)::uuid ELSE t.author_person_id END,
+        assignee_person_id = CASE WHEN t.assignee_person_id = sqlc.arg(source_person_id) THEN sqlc.arg(target_person_id)::uuid ELSE t.assignee_person_id END
+    WHERE t.author_person_id = sqlc.arg(source_person_id) OR t.assignee_person_id = sqlc.arg(source_person_id)
+    RETURNING 1
+), followers_moved AS (
+    UPDATE working_group_ticket_followers AS f SET person_id = sqlc.arg(target_person_id)::uuid
+    WHERE f.person_id = sqlc.arg(source_person_id) RETURNING 1
+), todos_moved AS (
+    UPDATE working_group_todos AS d SET
+        assignee_person_id = CASE WHEN d.assignee_person_id = sqlc.arg(source_person_id) THEN sqlc.arg(target_person_id)::uuid ELSE d.assignee_person_id END,
+        created_by_person_id = CASE WHEN d.created_by_person_id = sqlc.arg(source_person_id) THEN sqlc.arg(target_person_id)::uuid ELSE d.created_by_person_id END
+    WHERE d.assignee_person_id = sqlc.arg(source_person_id) OR d.created_by_person_id = sqlc.arg(source_person_id)
+    RETURNING 1
+), comments_moved AS (
+    UPDATE working_group_comments AS c SET author_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE c.author_person_id = sqlc.arg(source_person_id) RETURNING 1
+), notes_moved AS (
+    UPDATE working_group_notes AS n SET author_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE n.author_person_id = sqlc.arg(source_person_id) RETURNING 1
+), machine_status_moved AS (
+    UPDATE working_group_machines AS m SET status_changed_by = sqlc.arg(target_person_id)::uuid
+    WHERE m.status_changed_by = sqlc.arg(source_person_id) RETURNING 1
+), place_status_moved AS (
+    UPDATE working_group_places AS pl SET status_changed_by = sqlc.arg(target_person_id)::uuid
+    WHERE pl.status_changed_by = sqlc.arg(source_person_id) RETURNING 1
+), purchases_moved AS (
+    UPDATE working_group_purchases AS pu SET requester_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE pu.requester_person_id = sqlc.arg(source_person_id) RETURNING 1
+), projects_moved AS (
+    UPDATE working_group_projects AS pr SET requester_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE pr.requester_person_id = sqlc.arg(source_person_id) RETURNING 1
+), income_moved AS (
+    UPDATE working_group_income AS inc SET created_by_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE inc.created_by_person_id = sqlc.arg(source_person_id) RETURNING 1
+), signed_moved AS (
+    UPDATE working_group_projects AS sp SET request_signed_by = sqlc.arg(target_person_id)::uuid
+    WHERE sp.request_signed_by = sqlc.arg(source_person_id) RETURNING 1
+), project_history_moved AS (
+    UPDATE working_group_project_history AS ph SET actor_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE ph.actor_person_id = sqlc.arg(source_person_id) RETURNING 1
+), finance_rules_moved AS (
+    UPDATE working_group_finance_rules AS fr SET request_responsible_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE fr.request_responsible_person_id = sqlc.arg(source_person_id) RETURNING 1
+), signatures_moved AS (
+    UPDATE working_group_finance_signatures AS sg SET person_id = sqlc.arg(target_person_id)::uuid
+    WHERE sg.person_id = sqlc.arg(source_person_id)
+      AND NOT EXISTS (SELECT 1 FROM working_group_finance_signatures tsig WHERE tsig.person_id = sqlc.arg(target_person_id)::uuid) RETURNING 1
+)
+SELECT ((SELECT count(*) FROM tickets_moved) + (SELECT count(*) FROM followers_moved)
+      + (SELECT count(*) FROM todos_moved) + (SELECT count(*) FROM comments_moved)
+      + (SELECT count(*) FROM notes_moved) + (SELECT count(*) FROM machine_status_moved)
+      + (SELECT count(*) FROM place_status_moved) + (SELECT count(*) FROM purchases_moved)
+      + (SELECT count(*) FROM projects_moved) + (SELECT count(*) FROM income_moved) + (SELECT count(*) FROM signed_moved) + (SELECT count(*) FROM project_history_moved)
+      + (SELECT count(*) FROM finance_rules_moved) + (SELECT count(*) FROM signatures_moved))::bigint AS moved;
 
 -- name: RepointMergePersonReferences :one
 -- Re-points the person references that carry no uniqueness rule. Conflicting open visits are rejected before this
@@ -843,3 +968,12 @@ UPDATE people SET
     updated_at = now()
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: ListPersonSignatureFiles :many
+-- The saved finance signatures of the people; their files are deleted after a merge or a deletion.
+SELECT file_id::uuid AS file_id FROM working_group_finance_signatures WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]);
+
+-- name: ListUnreferencedSignatureFiles :many
+-- Of the given files, those no saved signature refers to any more.
+SELECT f::uuid AS file_id FROM unnest((sqlc.arg(ids)::text[])::uuid[]) AS f
+WHERE NOT EXISTS (SELECT 1 FROM working_group_finance_signatures s WHERE s.file_id = f);

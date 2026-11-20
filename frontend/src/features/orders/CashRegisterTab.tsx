@@ -12,6 +12,7 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { DirectoryTable, useServerTableState, type Column } from '../machinelogbook/shared/DirectoryTable';
 import { QueryBoundary } from '../machinelogbook/shared/QueryBoundary';
+import { BookAheadModal } from './BookAheadModal';
 import { CashCountModal } from './CashCountModal';
 import { CashMovementModal } from './CashMovementModal';
 import { DeleteCashEntryDialog } from './DeleteCashEntryDialog';
@@ -51,6 +52,8 @@ export function CashRegisterTab() {
   const [deleting, setDeleting] = useState<CashJournalEntry | null>(null);
   const canRecord = hasPermission(user, PermissionId.cash_movementsrecord);
   const canManage = hasPermission(user, PermissionId.cash_movementsmanage);
+  const canBudget = hasPermission(user, PermissionId.working_group_financesmanage);
+  const [aheadId, setAheadId] = useState<string | undefined>();
   const journal = useQuery({
     ...cashJournalQuery({
       ...(period.from ? { from: period.from } : {}),
@@ -77,7 +80,18 @@ export function CashRegisterTab() {
     );
 
   const registerPanel = (data: CashJournal) => (
-    <RegisterPanel journal={data} period={period} onAction={setDialog} canCount={canRecord} canMove={canRecord} />
+    <RegisterPanel
+      journal={data}
+      period={period}
+      onAction={setDialog}
+      canCount={canRecord}
+      canMove={canRecord}
+      canBudget={canBudget}
+      onWithdrawAhead={(id) => {
+        setAheadId(id);
+        setDialog('withdrawal');
+      }}
+    />
   );
 
   return (
@@ -97,6 +111,7 @@ export function CashRegisterTab() {
                       entry={selected}
                       canOrders={hasPermission(user, PermissionId.ordersread)}
                       canManage={canManage}
+                      canBudget={canBudget}
                       onEdit={setEditing}
                       onDelete={setDeleting}
                       onClose={() => select(null)}
@@ -110,6 +125,7 @@ export function CashRegisterTab() {
                   journal={data}
                   selectedId={selected?.id ?? null}
                   panelFits={panelFits}
+                  canBudget={canBudget}
                   onSelect={(entry) => {
                     if (panelFits) select(entry.id === selected?.id ? null : entry.id);
                     else if (entry.source === 'payment') void navigate(`/payments/${entry.id}`);
@@ -126,8 +142,16 @@ export function CashRegisterTab() {
       {periodFilter.dialog}
       {dialog === 'count' && <CashCountModal onClose={() => setDialog(null)} />}
       {(dialog === 'withdrawal' || dialog === 'deposit') && (
-        <CashMovementModal kind={dialog} onClose={() => setDialog(null)} />
+        <CashMovementModal
+          kind={dialog}
+          incomeId={dialog === 'withdrawal' ? aheadId : undefined}
+          onClose={() => {
+            setDialog(null);
+            setAheadId(undefined);
+          }}
+        />
       )}
+      {dialog === 'bookahead' && <BookAheadModal onClose={() => setDialog(null)} />}
       {editing?.kind === 'count' && <CashCountModal entry={editing} onClose={() => setEditing(null)} />}
       {(editing?.kind === 'withdrawal' || editing?.kind === 'deposit') && (
         <CashMovementModal kind={editing.kind} entry={editing} onClose={() => setEditing(null)} />
@@ -153,6 +177,7 @@ function JournalTable({
   journal,
   selectedId,
   panelFits,
+  canBudget,
   onSelect,
   filterTags,
   categories,
@@ -161,6 +186,7 @@ function JournalTable({
   journal: CashJournal;
   selectedId: string | null;
   panelFits: boolean;
+  canBudget: boolean;
   onSelect: (entry: CashJournalEntry) => void;
   filterTags: ReactNode;
   categories: FilterCategory[];
@@ -189,7 +215,7 @@ function JournalTable({
           ) : (
             <span className="sales-journal-ref__plain">{entry.reference}</span>
           )}
-          <span className="mj-secondary">{journalEntryText(entry)}</span>
+          <span className="mj-secondary">{journalEntryText(entry, canBudget)}</span>
         </div>
       ),
     },

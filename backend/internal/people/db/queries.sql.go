@@ -247,6 +247,23 @@ SELECT
     (SELECT count(*) FROM survey_invitations WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS survey_invitations,
     (SELECT count(*) FROM survey_responses WHERE identified_person_id = ANY(($1::text[])::uuid[]))::bigint AS survey_responses,
     (SELECT count(*) FROM organization_members WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS organization_memberships,
+    (SELECT count(*) FROM working_group_members WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS working_group_memberships,
+    ((SELECT count(*) FROM working_group_tickets
+        WHERE author_person_id = ANY(($1::text[])::uuid[]) OR assignee_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_ticket_followers WHERE person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_todos
+            WHERE assignee_person_id = ANY(($1::text[])::uuid[]) OR created_by_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_comments WHERE author_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_notes WHERE author_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_machines WHERE status_changed_by = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_places WHERE status_changed_by = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_purchases WHERE requester_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_projects WHERE requester_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_income WHERE created_by_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_project_history WHERE actor_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_projects WHERE request_signed_by = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_finance_signatures WHERE person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_finance_rules WHERE request_responsible_person_id = ANY(($1::text[])::uuid[])))::bigint AS working_group_tasks,
     (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY(($2::text[])::uuid[]))::bigint AS notifications,
     ((SELECT count(*) FROM privacy_retention_holds WHERE subject_person_id = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM privacy_subject_requests WHERE subject_person_id = ANY(($1::text[])::uuid[])))::bigint AS privacy_holds
@@ -271,6 +288,8 @@ type CountMergeHistoryRow struct {
 	SurveyInvitations       int64
 	SurveyResponses         int64
 	OrganizationMemberships int64
+	WorkingGroupMemberships int64
+	WorkingGroupTasks       int64
 	Notifications           int64
 	PrivacyHolds            int64
 }
@@ -293,6 +312,8 @@ func (q *Queries) CountMergeHistory(ctx context.Context, arg CountMergeHistoryPa
 		&i.SurveyInvitations,
 		&i.SurveyResponses,
 		&i.OrganizationMemberships,
+		&i.WorkingGroupMemberships,
+		&i.WorkingGroupTasks,
 		&i.Notifications,
 		&i.PrivacyHolds,
 	)
@@ -564,6 +585,59 @@ type DeleteDuplicateMergeShiftAssignmentsParams struct {
 // One active assignment per shift and Person: the target's assignment wins.
 func (q *Queries) DeleteDuplicateMergeShiftAssignments(ctx context.Context, arg DeleteDuplicateMergeShiftAssignmentsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteDuplicateMergeShiftAssignments, arg.SourcePersonID, arg.TargetPersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteDuplicateMergeWorkingGroupFollowers = `-- name: DeleteDuplicateMergeWorkingGroupFollowers :one
+WITH from_source AS (
+    DELETE FROM working_group_ticket_followers f
+    WHERE f.person_id = $1
+      AND (EXISTS (SELECT 1 FROM working_group_ticket_followers t
+                   WHERE t.ticket_id = f.ticket_id AND t.person_id = $2)
+           OR EXISTS (SELECT 1 FROM working_group_tickets w
+                      WHERE w.id = f.ticket_id AND w.author_person_id = $2))
+    RETURNING 1
+), from_target AS (
+    DELETE FROM working_group_ticket_followers f
+    WHERE f.person_id = $2
+      AND EXISTS (SELECT 1 FROM working_group_tickets w WHERE w.id = f.ticket_id AND w.author_person_id = $1)
+    RETURNING 1
+)
+SELECT ((SELECT count(*) FROM from_source) + (SELECT count(*) FROM from_target))::bigint AS dropped
+`
+
+type DeleteDuplicateMergeWorkingGroupFollowersParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// The target's follow stays where both follow. Nobody follows a ticket they wrote, so a follow of the source's or the
+// target's own ticket that would end up with the merged person as author goes.
+func (q *Queries) DeleteDuplicateMergeWorkingGroupFollowers(ctx context.Context, arg DeleteDuplicateMergeWorkingGroupFollowersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, deleteDuplicateMergeWorkingGroupFollowers, arg.SourcePersonID, arg.TargetPersonID)
+	var dropped int64
+	err := row.Scan(&dropped)
+	return dropped, err
+}
+
+const deleteDuplicateMergeWorkingGroupMembers = `-- name: DeleteDuplicateMergeWorkingGroupMembers :execrows
+DELETE FROM working_group_members source
+USING working_group_members target
+WHERE source.person_id = $1 AND target.person_id = $2
+  AND source.group_id = target.group_id
+`
+
+type DeleteDuplicateMergeWorkingGroupMembersParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// Where both Persons are members of a group the target stays.
+func (q *Queries) DeleteDuplicateMergeWorkingGroupMembers(ctx context.Context, arg DeleteDuplicateMergeWorkingGroupMembersParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDuplicateMergeWorkingGroupMembers, arg.SourcePersonID, arg.TargetPersonID)
 	if err != nil {
 		return 0, err
 	}
@@ -997,6 +1071,30 @@ func (q *Queries) GetRolePermissionGrantsForAssignment(ctx context.Context, role
 		return nil, err
 	}
 	return items, nil
+}
+
+const handOverMergeWorkingGroupLeads = `-- name: HandOverMergeWorkingGroupLeads :exec
+WITH handed AS (
+    UPDATE working_group_members source SET is_lead = false
+    FROM working_group_members target
+    WHERE source.person_id = $2 AND target.person_id = $1
+      AND source.group_id = target.group_id AND source.is_lead
+    RETURNING source.group_id
+)
+UPDATE working_group_members SET is_lead = true
+FROM handed
+WHERE working_group_members.group_id = handed.group_id AND working_group_members.person_id = $1
+`
+
+type HandOverMergeWorkingGroupLeadsParams struct {
+	TargetPersonID uuid.UUID
+	SourcePersonID uuid.UUID
+}
+
+// Where both Persons are members of a group and the source led it, the target takes over the lead.
+func (q *Queries) HandOverMergeWorkingGroupLeads(ctx context.Context, arg HandOverMergeWorkingGroupLeadsParams) error {
+	_, err := q.db.Exec(ctx, handOverMergeWorkingGroupLeads, arg.TargetPersonID, arg.SourcePersonID)
+	return err
 }
 
 const isPersonRoleAssigned = `-- name: IsPersonRoleAssigned :one
@@ -1444,6 +1542,31 @@ func (q *Queries) ListPersonRolesByPeople(ctx context.Context, personIds []strin
 	return items, nil
 }
 
+const listPersonSignatureFiles = `-- name: ListPersonSignatureFiles :many
+SELECT file_id::uuid AS file_id FROM working_group_finance_signatures WHERE person_id = ANY(($1::text[])::uuid[])
+`
+
+// The saved finance signatures of the people; their files are deleted after a merge or a deletion.
+func (q *Queries) ListPersonSignatureFiles(ctx context.Context, ids []string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPersonSignatureFiles, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var file_id uuid.UUID
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProfileImageRequirements = `-- name: ListProfileImageRequirements :many
 SELECT p.id AS person_id, COALESCE(bool_or(r.profile_image_required), false)::boolean AS required
 FROM people p
@@ -1509,6 +1632,32 @@ func (q *Queries) ListRoleOptions(ctx context.Context) ([]ListRoleOptionsRow, er
 	return items, nil
 }
 
+const listUnreferencedSignatureFiles = `-- name: ListUnreferencedSignatureFiles :many
+SELECT f::uuid AS file_id FROM unnest(($1::text[])::uuid[]) AS f
+WHERE NOT EXISTS (SELECT 1 FROM working_group_finance_signatures s WHERE s.file_id = f)
+`
+
+// Of the given files, those no saved signature refers to any more.
+func (q *Queries) ListUnreferencedSignatureFiles(ctx context.Context, ids []string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listUnreferencedSignatureFiles, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var file_id uuid.UUID
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockAccountsForMerge = `-- name: LockAccountsForMerge :many
 SELECT id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at FROM accounts WHERE person_id = ANY(($1::text[])::uuid[]) ORDER BY id FOR UPDATE
 `
@@ -1537,6 +1686,38 @@ func (q *Queries) LockAccountsForMerge(ctx context.Context, personIds []string) 
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockMergeWorkingGroups = `-- name: LockMergeWorkingGroups :many
+SELECT id FROM working_groups
+WHERE id IN (SELECT group_id FROM working_group_members WHERE person_id IN ($1, $2))
+ORDER BY id FOR UPDATE
+`
+
+type LockMergeWorkingGroupsParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// Locks the groups of both Persons in id order, like every working group mutation, before memberships move.
+func (q *Queries) LockMergeWorkingGroups(ctx context.Context, arg LockMergeWorkingGroupsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, lockMergeWorkingGroups, arg.SourcePersonID, arg.TargetPersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1749,6 +1930,96 @@ func (q *Queries) MoveMergeTrainingRecords(ctx context.Context, arg MoveMergeTra
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const moveMergeWorkingGroupMembers = `-- name: MoveMergeWorkingGroupMembers :execrows
+UPDATE working_group_members SET person_id = $1 WHERE person_id = $2
+`
+
+type MoveMergeWorkingGroupMembersParams struct {
+	TargetPersonID uuid.UUID
+	SourcePersonID uuid.UUID
+}
+
+func (q *Queries) MoveMergeWorkingGroupMembers(ctx context.Context, arg MoveMergeWorkingGroupMembersParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveMergeWorkingGroupMembers, arg.TargetPersonID, arg.SourcePersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const moveMergeWorkingGroupTasks = `-- name: MoveMergeWorkingGroupTasks :one
+WITH tickets_moved AS (
+    UPDATE working_group_tickets AS t SET
+        author_person_id = CASE WHEN t.author_person_id = $1 THEN $2::uuid ELSE t.author_person_id END,
+        assignee_person_id = CASE WHEN t.assignee_person_id = $1 THEN $2::uuid ELSE t.assignee_person_id END
+    WHERE t.author_person_id = $1 OR t.assignee_person_id = $1
+    RETURNING 1
+), followers_moved AS (
+    UPDATE working_group_ticket_followers AS f SET person_id = $2::uuid
+    WHERE f.person_id = $1 RETURNING 1
+), todos_moved AS (
+    UPDATE working_group_todos AS d SET
+        assignee_person_id = CASE WHEN d.assignee_person_id = $1 THEN $2::uuid ELSE d.assignee_person_id END,
+        created_by_person_id = CASE WHEN d.created_by_person_id = $1 THEN $2::uuid ELSE d.created_by_person_id END
+    WHERE d.assignee_person_id = $1 OR d.created_by_person_id = $1
+    RETURNING 1
+), comments_moved AS (
+    UPDATE working_group_comments AS c SET author_person_id = $2::uuid
+    WHERE c.author_person_id = $1 RETURNING 1
+), notes_moved AS (
+    UPDATE working_group_notes AS n SET author_person_id = $2::uuid
+    WHERE n.author_person_id = $1 RETURNING 1
+), machine_status_moved AS (
+    UPDATE working_group_machines AS m SET status_changed_by = $2::uuid
+    WHERE m.status_changed_by = $1 RETURNING 1
+), place_status_moved AS (
+    UPDATE working_group_places AS pl SET status_changed_by = $2::uuid
+    WHERE pl.status_changed_by = $1 RETURNING 1
+), purchases_moved AS (
+    UPDATE working_group_purchases AS pu SET requester_person_id = $2::uuid
+    WHERE pu.requester_person_id = $1 RETURNING 1
+), projects_moved AS (
+    UPDATE working_group_projects AS pr SET requester_person_id = $2::uuid
+    WHERE pr.requester_person_id = $1 RETURNING 1
+), income_moved AS (
+    UPDATE working_group_income AS inc SET created_by_person_id = $2::uuid
+    WHERE inc.created_by_person_id = $1 RETURNING 1
+), signed_moved AS (
+    UPDATE working_group_projects AS sp SET request_signed_by = $2::uuid
+    WHERE sp.request_signed_by = $1 RETURNING 1
+), project_history_moved AS (
+    UPDATE working_group_project_history AS ph SET actor_person_id = $2::uuid
+    WHERE ph.actor_person_id = $1 RETURNING 1
+), finance_rules_moved AS (
+    UPDATE working_group_finance_rules AS fr SET request_responsible_person_id = $2::uuid
+    WHERE fr.request_responsible_person_id = $1 RETURNING 1
+), signatures_moved AS (
+    UPDATE working_group_finance_signatures AS sg SET person_id = $2::uuid
+    WHERE sg.person_id = $1
+      AND NOT EXISTS (SELECT 1 FROM working_group_finance_signatures tsig WHERE tsig.person_id = $2::uuid) RETURNING 1
+)
+SELECT ((SELECT count(*) FROM tickets_moved) + (SELECT count(*) FROM followers_moved)
+      + (SELECT count(*) FROM todos_moved) + (SELECT count(*) FROM comments_moved)
+      + (SELECT count(*) FROM notes_moved) + (SELECT count(*) FROM machine_status_moved)
+      + (SELECT count(*) FROM place_status_moved) + (SELECT count(*) FROM purchases_moved)
+      + (SELECT count(*) FROM projects_moved) + (SELECT count(*) FROM income_moved) + (SELECT count(*) FROM signed_moved) + (SELECT count(*) FROM project_history_moved)
+      + (SELECT count(*) FROM finance_rules_moved) + (SELECT count(*) FROM signatures_moved))::bigint AS moved
+`
+
+type MoveMergeWorkingGroupTasksParams struct {
+	SourcePersonID *uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// Moves the source's tickets, assignments, follows, to-dos, comments, pinboard notes, status notes and purchases to the target;
+// returns how many rows moved.
+func (q *Queries) MoveMergeWorkingGroupTasks(ctx context.Context, arg MoveMergeWorkingGroupTasksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, moveMergeWorkingGroupTasks, arg.SourcePersonID, arg.TargetPersonID)
+	var moved int64
+	err := row.Scan(&moved)
+	return moved, err
 }
 
 const normalizePersonMembership = `-- name: NormalizePersonMembership :exec

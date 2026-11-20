@@ -36,6 +36,7 @@ tags:
   - name: Public Events
   - name: Machines
   - name: Trainings
+  - name: Working groups
   - name: Organizations
   - name: Pricing
   - name: Machine Jobs
@@ -8296,6 +8297,1953 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /working-groups:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroups
+      summary: List working groups
+      description: Requires `working_groups.read`. Sorted by name; the chat link is not part of the list.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Working groups., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroup
+      summary: Create a working group
+      description: Requires `working_groups.manage`. The lead becomes a member of the group.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupRequest"}}}}
+      responses:
+        "201": {description: Working group created., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/people:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupPeople
+      summary: Find people for a working group
+      description: >-
+        Requires `working_groups.read` and either `working_groups.manage` or leading at least one working group.
+        Minimal candidates for the member and lead pickers: id and display name only, at most 50.
+      security: [{sessionCookie: []}]
+      parameters: [{name: search, in: query, schema: {type: string, maxLength: 200}}]
+      responses:
+        "200": {description: Minimal person options., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPersonOptionList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/machines:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupMachines
+      summary: List machines a working group can look after
+      description: >-
+        Requires `working_groups.read` and either `working_groups.manage` or leading at least one working group. Every
+        machine with the working group it is already assigned to, if any.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Assignable machines., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupMachineOptionList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    get:
+      tags: [Working groups]
+      operationId: getWorkingGroup
+      summary: Get a working group
+      description: >-
+        Requires `working_groups.read`. The chat link is only returned to members of the group and holders of
+        `working_groups.manage`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Working group., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Working groups]
+      operationId: updateWorkingGroup
+      summary: Update a working group
+      description: >-
+        Changing the name requires `working_groups.manage`. The description and chat link may also be changed by the
+        group's lead. A `null` chat link clears it; an omitted field stays as it is.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateWorkingGroupRequest"}}}}
+      responses:
+        "200": {description: Working group updated., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroup
+      summary: Delete a working group
+      description: Requires `working_groups.manage`. Removes the group with its memberships, machine assignments and places.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Working group deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/members:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    post:
+      tags: [Working groups]
+      operationId: addWorkingGroupMember
+      summary: Add a member
+      description: Requires `working_groups.manage` or leading this group. A person already in the group answers 409 `working_group_member_exists`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPersonRequest"}}}}
+      responses:
+        "200": {description: Working group with the new member., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/members/{personId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+      - {name: personId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Working groups]
+      operationId: removeWorkingGroupMember
+      summary: Remove a member
+      description: Requires `working_groups.manage` or leading this group. The lead cannot be removed (409 `working_group_lead_required`); choose another lead first.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Working group without the member., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/lead:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupLead
+      summary: Choose the lead
+      description: Requires `working_groups.manage`. The person is added as a member if needed; the previous lead stays a normal member.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPersonRequest"}}}}
+      responses:
+        "200": {description: Working group with the new lead., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/machines:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupMachines
+      summary: Set the machines a group looks after
+      description: >-
+        Requires `working_groups.manage` or leading this group. Replaces the set. A machine that belongs to another
+        group answers 409 `machine_in_other_working_group` with `details.machineId`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupMachinesRequest"}}}}
+      responses:
+        "200": {description: Working group with its machines., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/places:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    post:
+      tags: [Working groups]
+      operationId: addWorkingGroupPlace
+      summary: Add a place
+      description: Requires `working_groups.manage` or leading this group. A place is free text without a machine.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPlaceInput"}}}}
+      responses:
+        "200": {description: Working group with the new place., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/places/{placeId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+      - {name: placeId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Working groups]
+      operationId: removeWorkingGroupPlace
+      summary: Remove a place
+      description: Requires `working_groups.manage` or leading this group.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Working group without the place., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/activity:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupActivity
+      summary: Lately in the group
+      description: >-
+        Requires `working_groups.read`. The most recent events of the group, newest first, built from the group's own
+        records (not from the audit log): tickets created, planned and closed, to-dos done, notes pinned, purchases
+        submitted and approved, projects submitted and approved. People inside the group (a member or
+        `working_groups.manage`) see all of them; everybody else sees only the ticket events. `actor` is absent where
+        the record does not say who did it or the person was deleted.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 50, default: 20}}
+      responses:
+        "200": {description: Recent events., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupActivityList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/columns:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupColumns
+      summary: Replace the board columns
+      description: >-
+        Requires `working_groups.manage` or leading this group. Replaces the ordered list of custom columns between the
+        fixed Inbox and Done. Entries with an `id` are renamed and reordered, entries without one are created and
+        columns missing from the list are deleted; their open tickets and to-dos move to the first column of the new
+        list. At least one column must remain (422 `working_group_column_required`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupColumnsRequest"}}}}
+      responses:
+        "200": {description: Working group with its columns., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/machines/{machineId}/status:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+      - {name: machineId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupMachineStatus
+      summary: Set the status of a machine
+      description: >-
+        Requires being inside the group (a member or `working_groups.manage`). A machine that does not belong to this
+        group answers 404. `ok` clears note and date (they are not allowed with it). Setting the values the machine
+        already has changes nothing and records nothing. A machine that leaves its group starts at `ok` again, without
+        history.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupStatusRequest"}}}}
+      responses:
+        "200": {description: Working group with the new status., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-groups/{groupId}/places/{placeId}/status:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+      - {name: placeId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupPlaceStatus
+      summary: Set the status of a place
+      description: >-
+        Requires being inside the group (a member or `working_groups.manage`). A place that does not belong to this
+        group answers 404. `ok` clears note and date. Setting the values the place already has changes nothing.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupStatusRequest"}}}}
+      responses:
+        "200": {description: Working group with the new status., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-status:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupStatus
+      summary: List the status of every machine and place
+      description: >-
+        Requires `working_groups.read`. Every machine and place of every group with its status, items that are not `ok`
+        first, then by name. `daysNotOkLast90` counts the calendar days (makerspace time zone) among the last 90,
+        today included, on which the item was not `ok` at any time.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Statuses., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupStatusList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-notes:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupNotes
+      summary: List pinboard notes
+      description: >-
+        Requires `working_groups.read`. Newest first, at most 200. A group note is only returned to people inside its
+        group; public notes of a group and makerspace notes (no `groupId`) are returned to everybody. With `groupId`
+        only that group's notes the caller may see are returned (a group the caller is not inside yields its public
+        notes only).
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: groupId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      responses:
+        "200": {description: Notes., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupNoteList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupNote
+      summary: Pin a note
+      description: >-
+        Requires `working_groups.read` and being inside the group for a note with `groupId` (a member or
+        `working_groups.manage`); a makerspace note (no `groupId`) requires `working_groups.manage` and is always public
+        (422 when `public` is false). Notes cannot be edited.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupNoteRequest"}}}}
+      responses:
+        "201": {description: Note pinned., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupNote"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-notes/{noteId}:
+    parameters:
+      - {name: noteId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupNote
+      summary: Remove a note
+      description: >-
+        Requires `working_groups.read` and being the author, the lead of the note's group or holding
+        `working_groups.manage`. A group note the caller is not inside does not exist for them (404).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Note removed.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-budget-periods:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupBudgetPeriods
+      summary: List budget periods
+      description: >-
+        Requires `working_groups.read`. Newest first. Members of any working group and holders of `working_group_finances.manage` see the periods; everybody else gets an empty list. `current` marks the open period that contains today in the makerspace time zone.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupBudgetPeriodList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupBudgetPeriod
+      summary: Create a budget period
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. The group shares of `copySharesFromPeriodId` are copied when given.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupBudgetPeriodRequest"}}}}
+      responses:
+        "201": {description: Created., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupBudgetPeriod"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-budget-periods/{periodId}:
+    parameters:
+      - {name: periodId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    patch:
+      tags: [Working groups]
+      operationId: updateWorkingGroupBudgetPeriod
+      summary: Edit a budget period
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Name, dates and the total from HTU. A closed period is read-only (409 `budget_period_closed`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateWorkingGroupBudgetPeriodRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupBudgetPeriod"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-budget-periods/{periodId}/close:
+    parameters:
+      - {name: periodId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: closeWorkingGroupBudgetPeriod
+      summary: Close a budget period
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. A closed period accepts no new purchases, bookings or share changes and its purchases can no longer change state. Closing cannot be undone.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupBudgetPeriod"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-budget-periods/{periodId}/shares/{groupId}:
+    parameters:
+      - {name: periodId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: groupId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupBudgetShare
+      summary: Set the share of a group
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. The amount given to the group in this period; 0 is allowed. 409 `budget_period_closed` for a closed period.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupBudgetShareRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupGroupBudget"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-budget:
+    get:
+      tags: [Working groups]
+      operationId: getWorkingGroupBudget
+      summary: Budget overview of a period
+      description: >-
+        Requires `working_groups.read`. `periodId` defaults to the current period. Lists the figures of the groups the caller is a member of; holders of `working_group_finances.manage` see every group and the totals of the period. A caller who is neither a member of a group nor a finance manager gets 404. 404 when no period matches.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: periodId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupBudget"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-income:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupIncome
+      summary: List the income of a budget period
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Income from the cash register, newest first; `periodId` defaults to the current period; without a current period the list is empty.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: periodId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupIncomeList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupIncome
+      summary: Book cash ahead to the budget
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Books an amount that is still in the cash register into the budget of the current open period. The amount cannot exceed the register's expected amount minus what is already booked ahead (409 `insufficient_cash`); 409 `no_open_budget_period` without an open period.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupIncomeRequest"}}}}
+      responses:
+        "201": {description: Created., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupIncome"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-income/{incomeId}:
+    parameters:
+      - {name: incomeId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupIncome
+      summary: Undo a booking ahead
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Only entries that are still in the register (`where` is `cash`) can be removed (409 `income_withdrawn` otherwise); 409 `budget_period_closed` for a closed period.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Booking removed.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchases:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupPurchases
+      summary: List purchases
+      description: >-
+        Requires `working_groups.read`. Only purchases of groups the caller is a member of, and every purchase for holders of `working_group_finances.manage`. Newest first, at most 500 (`truncated` tells when more matched).
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: groupId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: periodId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: status, in: query, schema: {$ref: "#/components/schemas/WorkingGroupPurchaseStatus"}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchaseList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupPurchases
+      summary: Add purchases
+      description: >-
+        Requires `working_groups.read` and being a member of the group (working_groups.manage is not enough). Creates one purchase per item in the open period that contains today (422 `budget_period_missing` when there is none), all with the same `how` and the caller as requester, status `wanted`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupPurchasesRequest"}}}}
+      responses:
+        "201": {description: Created., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchaseList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchases/{purchaseId}:
+    parameters:
+      - {name: purchaseId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Working groups]
+      operationId: getWorkingGroupPurchase
+      summary: Get a purchase
+      description: >-
+        Requires `working_groups.read`. Budget figures and purchases are visible only to the members of the group and to holders of `working_group_finances.manage`; for everybody else the purchase does not exist (404).
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchase"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupPurchase
+      summary: Delete a purchase
+      description: >-
+        Requires `working_groups.read`. The requester deletes their own purchase while it is `wanted`; a holder of `working_group_finances.manage` deletes any purchase that is `wanted` or `declined`. The files of the purchase are deleted with it.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Done.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchases/{purchaseId}/approve:
+    parameters:
+      - {name: purchaseId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: approveWorkingGroupPurchase
+      summary: Approve a purchase
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Only `wanted` purchases. A purchase whose estimated total reaches the project threshold cannot be approved (409 `purchase_needs_project`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchase"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchases/{purchaseId}/decline:
+    parameters:
+      - {name: purchaseId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: declineWorkingGroupPurchase
+      summary: Decline a purchase
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Only `wanted` purchases; the reason is optional.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DeclineWorkingGroupPurchaseRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchase"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchases/{purchaseId}/arrived:
+    parameters:
+      - {name: purchaseId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: arrivedWorkingGroupPurchase
+      summary: Mark a collectively ordered purchase as received
+      description: >-
+        Requires `working_groups.read` and being a member of the group or holding `working_group_finances.manage`. Only `ordered` purchases ('central'); sets `received`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchase"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchases/{purchaseId}/refunded:
+    parameters:
+      - {name: purchaseId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: refundedWorkingGroupPurchase
+      summary: Mark the money of a receipt as returned
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Only `bought` purchases ('self'); sets `refunded`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchase"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchases/{purchaseId}/receipt:
+    parameters:
+      - {name: purchaseId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: handInWorkingGroupPurchaseReceipt
+      summary: Hand in the receipt of a purchase
+      description: >-
+        Requires `working_groups.read`, an approved purchase with `how` self and being its requester, the lead of its group or holding `working_group_finances.manage`. The body is the receipt (PDF or image, at most 10 MiB); the actual total goes in `X-Receipt-Amount`. An amount that reaches the project threshold is refused (409 `receipt_needs_project`). Sets `bought`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: X-File-Name, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+        - {name: X-File-Content-Type, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+        - {name: X-Receipt-Amount, in: header, required: true, schema: {$ref: "#/components/schemas/Money"}}
+        - {name: X-Expected-Version, in: header, required: true, schema: {$ref: "#/components/schemas/Version"}}
+      requestBody: {required: true, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchase"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    get:
+      tags: [Working groups]
+      operationId: downloadWorkingGroupPurchaseReceipt
+      summary: Download the receipt
+      description: >-
+        Requires `working_groups.read`. Budget figures and purchases are visible only to the members of the group and to holders of `working_group_finances.manage`; for everybody else the purchase does not exist (404).
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: The file., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}, Content-Security-Policy: {schema: {type: string}}}, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchases/{purchaseId}/attachment:
+    parameters:
+      - {name: purchaseId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Working groups]
+      operationId: uploadWorkingGroupPurchaseAttachment
+      summary: Attach the offer or cart
+      description: >-
+        Requires `working_groups.read` and being the requester, the lead of the group or holding `working_group_finances.manage`; only while the purchase is `wanted` (or `planned` in a project that is not locked yet), not once it is approved. PDF or image, at most 10 MiB. Replaces an earlier file.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: X-File-Name, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+        - {name: X-File-Content-Type, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+      requestBody: {required: true, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchase"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    get:
+      tags: [Working groups]
+      operationId: downloadWorkingGroupPurchaseAttachment
+      summary: Download the offer or cart
+      description: >-
+        Requires `working_groups.read`. Budget figures and purchases are visible only to the members of the group and to holders of `working_group_finances.manage`; for everybody else the purchase does not exist (404).
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: The file., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}, Content-Security-Policy: {schema: {type: string}}}, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupProjects
+      summary: List projects
+      description: >-
+        Requires `working_groups.read`. Projects are visible only to the members of the group and to holders of `working_group_finances.manage`; for everybody else a project does not exist (404). Newest first, at most 200 (`truncated` says when more matched). Rows carry no items.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: groupId, in: query, required: false, schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: status, in: query, required: false, schema: {$ref: "#/components/schemas/WorkingGroupProjectStatus"}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupProject
+      summary: Start a project draft
+      description: >-
+        Requires `working_groups.read` and membership of the group (403 for a finance manager who is not a member, 404 for everybody else). Creates a `draft` with the caller as requester.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupProjectBody"}}}}
+      responses:
+        "201": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Working groups]
+      operationId: getWorkingGroupProject
+      summary: Read a project
+      description: >-
+        Requires `working_groups.read`. Projects are visible only to the members of the group and to holders of `working_group_finances.manage`; for everybody else a project does not exist (404). The cost plan, the checklist, the totals, the history and the flags are part of the answer; `requestForm` only for finance managers.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Working groups]
+      operationId: updateWorkingGroupProject
+      summary: Edit a project
+      description: >-
+        Requires `working_groups.read`; the lead of the group or the requester while the project is `draft` or `returned`. The body replaces all editable fields.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateWorkingGroupProjectBody"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupProject
+      summary: Delete a draft
+      description: >-
+        Requires `working_groups.read`; the lead, the requester or a finance manager while the project is `draft`, `returned` or `declined`. Its planned purchases and files are deleted with it.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Done.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/items:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupProjectItem
+      summary: Add a cost plan item
+      description: >-
+        Requires `working_groups.read`; the lead or the requester while `draft` or `returned`, a finance manager also afterwards (but not once completed or declined). At most 100 items.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectItemInput"}}}}
+      responses:
+        "201": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/items/order:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Working groups]
+      operationId: reorderWorkingGroupProjectItems
+      summary: Reorder the items
+      description: >-
+        Same permission as adding an item. `itemIds` must list every item of the project exactly once.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReorderWorkingGroupProjectItemsRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/items/{itemId}:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: itemId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    patch:
+      tags: [Working groups]
+      operationId: updateWorkingGroupProjectItem
+      summary: Edit a cost plan item
+      description: >-
+        Same permission as adding an item. After the WiRef decision an item with a chosen offer keeps the price of that offer.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectItemUpdateRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupProjectItem
+      summary: Remove a cost plan item
+      description: >-
+        Same permission as adding an item. Its offers and their files are deleted; purchases linked to it stay in the project without an item.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/items/{itemId}/offers:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: itemId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupProjectOffer
+      summary: Add an offer to an item
+      description: >-
+        Same permission as adding an item. At most 10 offers per item. The file follows with the offer file operation.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectOfferInput"}}}}
+      responses:
+        "201": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/offers/{offerId}:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: offerId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupProjectOffer
+      summary: Remove an offer
+      description: >-
+        Same permission as adding an item. The file is deleted with it.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/offers/{offerId}/file:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: offerId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Working groups]
+      operationId: uploadWorkingGroupProjectOfferFile
+      summary: Attach the offer file
+      description: >-
+        Same permission as adding an item. PDF or image, at most 10 MiB. Replaces an earlier file.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: X-File-Name, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+        - {name: X-File-Content-Type, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+      requestBody: {required: true, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    get:
+      tags: [Working groups]
+      operationId: downloadWorkingGroupProjectOfferFile
+      summary: Download the offer file
+      description: >-
+        Requires `working_groups.read`. Projects are visible only to the members of the group and to holders of `working_group_finances.manage`; for everybody else a project does not exist (404). 
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: The file., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}, Content-Security-Policy: {schema: {type: string}}}, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/submit:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: submitWorkingGroupProject
+      summary: Hand the project in
+      description: >-
+        Requires `working_groups.read`; the lead or the requester while `draft` or `returned`. Refused with 409 `project_checklist_open` (details list the open points) while the hand-in checklist is not complete.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectVersionRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/return:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: returnWorkingGroupProject
+      summary: Return a project for changes
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`; a `submitted` project. The reason is required.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectReasonRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/decline:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: declineWorkingGroupProject
+      summary: Decline a project
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`; a `submitted` project. The reason is required.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectReasonRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/approve:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: approveWorkingGroupProject
+      summary: Approve a project
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`; a `submitted` project. When the wiRef has to decide (paid from external, or a planned total at or above the project threshold) the project becomes `wiref` and the Projektantrag is mailed to the wiRef address; otherwise it becomes `running` and its planned purchases `approved`. A project that needs the wiRef cannot be approved without a signature (422).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ApproveWorkingGroupProjectRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/wiref-decision:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: recordWorkingGroupProjectWiRefDecision
+      summary: Record the decision of the wiRef
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`; a project in `wiref`. Sets the number, the chosen offer of every item that has offers and makes the item cost that offer; the project becomes `running` and its planned purchases `approved`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectWiRefDecisionRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/paid-from:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: setWorkingGroupProjectPaidFrom
+      summary: Change who pays
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`; any state before `completed`. Recorded in the history. When a running project starts to need the wiRef and no request was sent, `wirefRequestPending` is true.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectPaidFromRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/send-to-wiref:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: sendWorkingGroupProjectToWiRef
+      summary: Send the Projektantrag
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`; only while `wirefRequestPending` (409 otherwise). Mails the request stored with the project. A project without a stored signature (`signatureMissing`) needs one in the body, or `useSavedSignature` with the caller's saved one (422 `signature_required` otherwise). Delivery is at least once: a crash between the mail and its record can send it again.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SendWorkingGroupProjectToWiRefRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/advance-received:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: markWorkingGroupProjectAdvanceReceived
+      summary: Record the advance
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`; the advance must have been asked for.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectVersionRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/complete:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: completeWorkingGroupProject
+      summary: Complete a project
+      description: >-
+        Requires `working_groups.read`; the lead of the group or a finance manager; a `running` project.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CompleteWorkingGroupProjectRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/request-preview:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: previewWorkingGroupProjectRequest
+      summary: Preview the Projektantrag
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Renders the PDF with the defaults of the rules and the project, overridden by the given fields; nothing is stored or sent.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectRequestFormInput"}}}}
+      responses:
+        "200": {description: The PDF., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}}, content: {application/pdf: {schema: {type: string, format: binary}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-projects/{projectId}/request-pdf:
+    parameters:
+      - {name: projectId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Working groups]
+      operationId: downloadWorkingGroupProjectRequestPdf
+      summary: Download the sent Projektantrag
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. The PDF that was (or is to be) mailed; 404 until the project was approved for the wiRef.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: The file., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}, Content-Security-Policy: {schema: {type: string}}}, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchases/{purchaseId}/to-project:
+    parameters:
+      - {name: purchaseId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: convertWorkingGroupPurchaseToProject
+      summary: Turn a purchase into a project
+      description: >-
+        Requires `working_groups.read`; the lead of the group or the requester of a `wanted` purchase. Creates a draft project with one item from the purchase and links the purchase as `planned`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectVersionRequest"}}}}
+      responses:
+        "201": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-finance-signature:
+    put:
+      tags: [Working groups]
+      operationId: putWorkingGroupFinanceSignature
+      summary: Save the own signature
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. A PNG image of at most 512 KiB; replaces the earlier one. Only its owner can read it.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: X-File-Name, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+        - {name: X-File-Content-Type, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+      requestBody: {required: true, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+      responses:
+        "204": {description: Saved.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupFinanceSignature
+      summary: Delete the own signature
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    get:
+      tags: [Working groups]
+      operationId: downloadWorkingGroupFinanceSignature
+      summary: Read the own signature
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Only the signature of the caller; 404 when none is saved.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: The file., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}, Content-Security-Policy: {schema: {type: string}}}, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchase-orders:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupPurchaseOrders
+      summary: List collective orders
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Newest first, at most 200.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchaseOrderList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupPurchaseOrder
+      summary: Place a collective order
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. All purchases must be `approved` with `how` central and belong to the same period (422 `purchases_mixed_periods`). A total that reaches the project threshold needs `projectRequestId` of a standing project request (422 `project_request_required`). The purchases become `ordered`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupPurchaseOrderRequest"}}}}
+      responses:
+        "201": {description: Created., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchaseOrder"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchase-orders/{orderId}:
+    parameters:
+      - {name: orderId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Working groups]
+      operationId: getWorkingGroupPurchaseOrder
+      summary: Get a collective order
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchaseOrder"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchase-orders/{orderId}/arrived:
+    parameters:
+      - {name: orderId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: arrivedWorkingGroupPurchaseOrder
+      summary: Mark a collective order as arrived
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Sets the purchases of the order that are still `ordered` to `received`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchaseOrder"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchase-orders/{orderId}/invoice:
+    parameters:
+      - {name: orderId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Working groups]
+      operationId: uploadWorkingGroupPurchaseOrderInvoice
+      summary: Attach the invoice of an order
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. PDF or image, at most 10 MiB. Replaces an earlier file.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: X-File-Name, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+        - {name: X-File-Content-Type, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+      requestBody: {required: true, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchaseOrder"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupPurchaseOrderInvoice
+      summary: Delete the invoice of an order
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Deletes the invoice file for good, also in a closed period. 404 when the order has no invoice.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Invoice deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    get:
+      tags: [Working groups]
+      operationId: downloadWorkingGroupPurchaseOrderInvoice
+      summary: Download the invoice of an order
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: The file., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}, Content-Security-Policy: {schema: {type: string}}}, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-bookings:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupBookings
+      summary: List direct bookings
+      description: >-
+        Requires `working_groups.read`. Members see the bookings of their groups, holders of `working_group_finances.manage` see all. Newest first, at most 500.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: groupId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: periodId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupBookingList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupBooking
+      summary: Book a cost directly
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Books a cost against the budget of a group in a period; 409 `budget_period_closed` for a closed period.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupBookingRequest"}}}}
+      responses:
+        "201": {description: Created., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupBooking"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-bookings/{bookingId}:
+    parameters:
+      - {name: bookingId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupBooking
+      summary: Delete a direct booking
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. 409 `budget_period_closed` for a closed period.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Done.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-finance-rules:
+    get:
+      tags: [Working groups]
+      operationId: getWorkingGroupFinanceRules
+      summary: Read the finance rules
+      description: >-
+        Requires `working_groups.read` and being a member of a working group or holding `working_group_finances.manage` (404 otherwise). Returns the thresholds and the standing project requests.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupFinanceRules"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupFinanceRules
+      summary: Set the finance rules
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. The project threshold decides which purchases need a project; the offers threshold is stored for later use.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupFinanceRulesRequest"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupFinanceRules"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-project-requests:
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupProjectRequest
+      summary: Add a standing project request
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. The number is unique (409 `working_group_project_request_exists`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectRequestInput"}}}}
+      responses:
+        "201": {description: Created., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectRequest"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-project-requests/{requestId}:
+    parameters:
+      - {name: requestId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Working groups]
+      operationId: updateWorkingGroupProjectRequest
+      summary: Edit a standing project request
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectRequestInput"}}}}
+      responses:
+        "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectRequest"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupProjectRequest
+      summary: Delete a standing project request
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Orders that used it keep its number.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Done.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-purchases/{purchaseId}/redact:
+    parameters:
+      - {name: purchaseId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: redactWorkingGroupPurchase
+      summary: Remove personal data from a purchase
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Allowed in every status and in closed periods; no figure changes. At least one of `text` and `files`
+        must be true (422). The files are deleted for good.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RedactWorkingGroupPurchaseRequest"}}}}
+      responses:
+        "200": {description: Redacted purchase., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupPurchase"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-bookings/{bookingId}/redact:
+    parameters:
+      - {name: bookingId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Working groups]
+      operationId: redactWorkingGroupBooking
+      summary: Remove personal data from a booking
+      description: >-
+        Requires `working_groups.read` and `working_group_finances.manage`. Replaces the text with `Removed`; allowed in closed periods.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Redacted booking., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupBooking"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupTickets
+      summary: List tickets
+      description: >-
+        Requires `working_groups.read`. Everybody with read sees every ticket of every group. Open tickets (new, planned) first, then the newest closed ones, at most 500 (`truncated` tells when more matched);
+        `inside` per item says whether the caller may also work on it.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: groupId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: status, in: query, schema: {$ref: "#/components/schemas/WorkingGroupTicketStatus"}}
+      responses:
+        "200": {description: Tickets., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupTicket
+      summary: Write a ticket
+      description: Requires `working_groups.read`. The machine, when given, must belong to the group (422 `machine_not_in_working_group`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupTicketRequest"}}}}
+      responses:
+        "201": {description: Ticket created., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    get:
+      tags: [Working groups]
+      operationId: getWorkingGroupTicket
+      summary: Get a ticket
+      description: Requires `working_groups.read`. Internal comments are only returned to people inside the group (a member or `working_groups.manage`).
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Ticket., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Working groups]
+      operationId: updateWorkingGroupTicket
+      summary: Change a planned ticket
+      description: Requires being inside the group. Changes assignee, due date and column of a planned ticket under optimistic locking (409 `stale_write`; 409 `working_group_task_state` when the ticket is not planned).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateWorkingGroupTicketRequest"}}}}
+      responses:
+        "200": {description: Ticket updated., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupTicket
+      summary: Delete a ticket
+      description: Requires `working_groups.manage`. Removes the ticket with its followers and comments for good, for example when it holds personal data.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Ticket deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/plan:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    post:
+      tags: [Working groups]
+      operationId: planWorkingGroupTicket
+      summary: Plan a new ticket
+      description: Requires being inside the group. Moves a new ticket into a column; the assignee must be a member of the group (422 `assignee_not_in_group`). 409 `working_group_task_state` when the ticket is not new.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PlanWorkingGroupTicketRequest"}}}}
+      responses:
+        "200": {description: Ticket planned., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/close:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    post:
+      tags: [Working groups]
+      operationId: closeWorkingGroupTicket
+      summary: Close a ticket
+      description: Requires being inside the group. Closes a new or planned ticket as done or declined. The answer is stored as a public comment in the same transaction and is required when declining.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CloseWorkingGroupTicketRequest"}}}}
+      responses:
+        "200": {description: Ticket closed., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/reopen:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    post:
+      tags: [Working groups]
+      operationId: reopenWorkingGroupTicket
+      summary: Send a ticket back to the inbox
+      description: Requires being inside the group. Planned, done and declined tickets become new again; assignee, due date and column are cleared.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Ticket in the inbox., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/follow:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    put:
+      tags: [Working groups]
+      operationId: followWorkingGroupTicket
+      summary: Have this too
+      description: Requires `working_groups.read`. Following twice changes nothing. The author cannot follow their own ticket (409 `working_group_ticket_own`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Ticket with the caller following it., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: unfollowWorkingGroupTicket
+      summary: Stop following a ticket
+      description: Requires `working_groups.read`. Not following is not an error.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Ticket without the caller following it., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/link:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupTicketLink
+      summary: Link a ticket to a purchase or project
+      description: >-
+        Requires being inside the group (a member or `working_groups.manage`), like planning the ticket. Links the ticket
+        to at most one purchase or one project of the same group, or removes the link when neither id is sent. The
+        target must be one the caller may see (a member of the group or `working_group_finances.manage`; 404
+        otherwise) and belong to the ticket's group (422 `working_group_link_other_group`); both ids at once are
+        422. Optimistic locking (409 `stale_write`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupLinkRequest"}}}}
+      responses:
+        "200": {description: Ticket with its new link., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/comments:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    post:
+      tags: [Working groups]
+      operationId: addWorkingGroupTicketComment
+      summary: Comment on a ticket
+      description: Requires `working_groups.read` for a public comment. An internal comment needs being inside the group.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupCommentRequest"}}}}
+      responses:
+        "200": {description: Ticket with the new comment., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-tickets/{ticketId}/comments/{commentId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+      - {$ref: "#/components/parameters/WorkingGroupCommentId"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupTicketComment
+      summary: Delete a ticket comment
+      description: Requires `working_groups.manage`. Removes the comment for good.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Ticket without the comment., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos/{todoId}/comments/{commentId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTodoId"}
+      - {$ref: "#/components/parameters/WorkingGroupCommentId"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupTodoComment
+      summary: Delete a to-do comment
+      description: Requires `working_groups.manage` (404 for people outside the group).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: To-do without the comment., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos:
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupTodos
+      summary: List to-dos
+      description: Requires `working_groups.read`. Returns the to-dos of the groups the caller is inside (a member or `working_groups.manage`), optionally of one group. Everybody else gets an empty list.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: groupId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      responses:
+        "200": {description: To-dos., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Working groups]
+      operationId: createWorkingGroupTodo
+      summary: Add a to-do
+      description: Requires being inside the group. Without a column the to-do goes to the group's first column.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateWorkingGroupTodoRequest"}}}}
+      responses:
+        "201": {description: To-do created., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos/{todoId}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTodoId"}
+    get:
+      tags: [Working groups]
+      operationId: getWorkingGroupTodo
+      summary: Get a to-do
+      description: Requires being inside the group; for everybody else the to-do does not exist (404).
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: To-do., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Working groups]
+      operationId: updateWorkingGroupTodo
+      summary: Change a to-do
+      description: Requires being inside the group (404 otherwise). Optimistic locking (409 `stale_write`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateWorkingGroupTodoRequest"}}}}
+      responses:
+        "200": {description: To-do updated., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Working groups]
+      operationId: deleteWorkingGroupTodo
+      summary: Delete a to-do
+      description: Requires being inside the group (404 otherwise). Removes the to-do and its comments for good.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: To-do deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos/{todoId}/done:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTodoId"}
+    post:
+      tags: [Working groups]
+      operationId: markWorkingGroupTodoDone
+      summary: Mark a to-do as done
+      description: Requires being inside the group (404 otherwise). A repeating to-do creates the next open one with a due date of today plus its interval in the same transaction; `nextTodoId` names it.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: To-do done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos/{todoId}/reopen:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTodoId"}
+    post:
+      tags: [Working groups]
+      operationId: reopenWorkingGroupTodo
+      summary: Reopen a done to-do
+      description: Requires being inside the group (404 otherwise).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: To-do open again., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos/{todoId}/link:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTodoId"}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupTodoLink
+      summary: Link a to-do to a purchase or project
+      description: >-
+        Requires being inside the group (a member or `working_groups.manage`), like every to-do operation (404 otherwise). Links the to-do
+        to at most one purchase or one project of the same group, or removes the link when neither id is sent. The
+        target must be one the caller may see (a member of the group or `working_group_finances.manage`; 404
+        otherwise) and belong to the to-do's group (422 `working_group_link_other_group`); both ids at once are
+        422. Optimistic locking (409 `stale_write`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupLinkRequest"}}}}
+      responses:
+        "200": {description: To-do with its new link., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos/{todoId}/comments:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTodoId"}
+    post:
+      tags: [Working groups]
+      operationId: addWorkingGroupTodoComment
+      summary: Comment on a to-do
+      description: Requires being inside the group (404 otherwise). Comments on to-dos are never shown outside the group.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupCommentRequest"}}}}
+      responses:
+        "200": {description: To-do with the new comment., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /people/{personId}/training-records:
     parameters:
       - $ref: "#/components/parameters/PersonId"
@@ -11777,7 +13725,7 @@ paths:
       tags: [Payments]
       operationId: createCashMovement
       summary: Record a cash withdrawal or deposit
-      description: "Requires cash_movements.record and cash_movements.read. Retrying the same operationKey with the same input returns the recorded movement; people with cash_movements.manage can edit or delete it afterwards (`/cash-movements/{movementId}`). 409 insufficient_cash when a withdrawal exceeds what the register should hold."
+      description: "Requires cash_movements.record and cash_movements.read. Retrying the same operationKey with the same input returns the recorded movement; people with cash_movements.manage can edit or delete it afterwards (`/cash-movements/{movementId}`). 409 insufficient_cash when a withdrawal exceeds what the register should hold. A withdrawal may carry a `budget` choice (see `CashMovementBudget`), which also needs `working_group_finances.manage`: 403 without it, 409 `no_open_budget_period` / `income_withdrawn`, 422 when the withdrawal is larger than the booking ahead it takes."
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateCashMovementRequest"}}}}
       responses:
@@ -11795,7 +13743,7 @@ paths:
       operationId: updateCashMovement
       summary: Edit a cash withdrawal or deposit
       description: >-
-        Requires cash_movements.read and cash_movements.manage. Changes the amount, the time, the reason or the note of
+        Requires cash_movements.read and cash_movements.manage. A withdrawal that went into the working-group budget cannot be edited (409 `cash_movement_in_budget`). Changes the amount, the time, the reason or the note of
         a withdrawal or deposit; omitted fields keep their value and the kind never changes. A correction belongs to
         its count and changes with it (409 `cash_movement_is_correction`). Counts from the earlier of the old and the
         new time on are recalculated in the same transaction: their expected amount, difference and correction follow
@@ -11817,7 +13765,7 @@ paths:
       operationId: deleteCashMovement
       summary: Delete a cash withdrawal or deposit
       description: >-
-        Requires cash_movements.read and cash_movements.manage. Deletes the withdrawal or deposit for good; later counts
+        Requires cash_movements.read and cash_movements.manage. A withdrawal that went into the working-group budget cannot be deleted (409 `cash_movement_in_budget`). Deletes the withdrawal or deposit for good; later counts
         are recalculated without it. A correction is removed only with its count (409 `cash_movement_is_correction`).
         409 `stale_write` when `expectedVersion` is not the current version, `cash_balance_negative` when the register
         would hold less than nothing at some later moment. Audited as `cash_movement.deleted` with the reference, kind,
@@ -13152,6 +15100,10 @@ components:
       description: One-assignment management credential stored only as a SHA-256 digest.
 
   parameters:
+    WorkingGroupId: {name: groupId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    WorkingGroupTicketId: {name: ticketId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    WorkingGroupCommentId: {name: commentId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    WorkingGroupTodoId: {name: todoId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
     PdfTemplateExport: {name: export, in: path, required: true, schema: {$ref: "#/components/schemas/PdfTemplateExport"}}
     ConfigurationImportMode: {name: mode, in: query, required: true, schema: {$ref: "#/components/schemas/ConfigurationImportMode"}}
     ConfigurationImportSections: {name: sections, in: query, required: true, style: form, explode: true, schema: {type: array, minItems: 1, maxItems: 32, items: {$ref: "#/components/schemas/ConfigurationSection"}}}
@@ -13557,6 +15509,9 @@ components:
         - training_records.read.all
         - training_records.update
         - training_records.update.self
+        - working_groups.read
+        - working_groups.manage
+        - working_group_finances.manage
         - machine_jobs.read
         - machine_jobs.create
         - machine_jobs.edit
@@ -15723,6 +17678,8 @@ components:
         - survey_invitations
         - survey_responses
         - organization_memberships
+        - working_group_memberships
+        - working_group_tasks
         - notifications
         - privacy_holds
         - actor_references
@@ -19840,6 +21797,1158 @@ components:
         active: {type: boolean}
         sortOrder: {type: integer, format: int32, minimum: -10000, maximum: 10000}
 
+    WorkingGroupPerson:
+      type: object
+      additionalProperties: false
+      required: [personId, displayName]
+      properties:
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        displayName: {type: string}
+
+    WorkingGroupSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, memberCount, machineCount, isMember, isLead]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        description: {type: string}
+        lead: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: "The group's lead. Absent only when the lead's person record was deleted and no new lead has been chosen yet."}
+        memberCount: {type: integer, format: int64, minimum: 0}
+        machineCount: {type: integer, format: int64, minimum: 0}
+        isMember: {type: boolean, description: Whether the caller is a member of this group.}
+        isLead: {type: boolean, description: Whether the caller leads this group.}
+        openTicketCount: {type: integer, format: int64, minimum: 0, description: Tickets of this group that are new or planned.}
+        openTodoCount: {type: integer, format: int64, minimum: 0, description: To-dos of this group that are not done. Only present when the caller is inside the group.}
+
+    WorkingGroupList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupSummary"}}
+
+    WorkingGroupMember:
+      type: object
+      additionalProperties: false
+      required: [personId, displayName, isLead, joinedAt]
+      properties:
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        displayName: {type: string}
+        isLead: {type: boolean}
+        joinedAt: {type: string, format: date-time}
+
+    WorkingGroupMachine:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        status: {$ref: "#/components/schemas/WorkingGroupStatus"}
+        note: {type: string, maxLength: 200, description: "Why the status is not ok. Absent for ok."}
+        until: {type: string, format: date, description: "Back around. Absent for ok."}
+        changedAt: {type: string, format: date-time, description: "When the status was last set. Absent while it was never set."}
+        changedBy: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: "Who set it last. Absent when never set or when that person was deleted."}
+
+    WorkingGroupPlace:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        status: {$ref: "#/components/schemas/WorkingGroupStatus"}
+        note: {type: string, maxLength: 200, description: "Why the status is not ok. Absent for ok."}
+        until: {type: string, format: date, description: "Back around. Absent for ok."}
+        changedAt: {type: string, format: date-time, description: "When the status was last set. Absent while it was never set."}
+        changedBy: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: "Who set it last. Absent when never set or when that person was deleted."}
+
+    WorkingGroup:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, memberCount, machineCount, isMember, isLead, version, members, machines, places, columns, canEdit, canManage]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        description: {type: string}
+        lead: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: "The group's lead. Absent only when the lead's person record was deleted and no new lead has been chosen yet."}
+        memberCount: {type: integer, format: int64, minimum: 0}
+        machineCount: {type: integer, format: int64, minimum: 0}
+        isMember: {type: boolean}
+        isLead: {type: boolean}
+        openTicketCount: {type: integer, format: int64, minimum: 0}
+        openTodoCount: {type: integer, format: int64, minimum: 0, description: Only present when the caller is inside the group.}
+        version: {$ref: "#/components/schemas/Version"}
+        chatUrl: {type: string, description: "Only present for members of the group and holders of `working_groups.manage`; omitted when no link is set."}
+        members: {type: array, description: "Lead first, then by name.", items: {$ref: "#/components/schemas/WorkingGroupMember"}}
+        machines: {type: array, items: {$ref: "#/components/schemas/WorkingGroupMachine"}}
+        places: {type: array, items: {$ref: "#/components/schemas/WorkingGroupPlace"}}
+        columns: {type: array, description: "The custom board columns in order, between the fixed Inbox and Done.", items: {$ref: "#/components/schemas/WorkingGroupColumn"}}
+        canEdit: {type: boolean, description: Whether the caller leads the group or holds `working_groups.manage`.}
+        canManage: {type: boolean, description: Whether the caller holds `working_groups.manage`.}
+
+    CreateWorkingGroupRequest:
+      type: object
+      additionalProperties: false
+      required: [name, description, leadPersonId]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 80}
+        description: {type: string, maxLength: 500}
+        leadPersonId: {$ref: "#/components/schemas/UUIDv7"}
+
+    UpdateWorkingGroupRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 80}
+        description: {type: string, maxLength: 500}
+        chatUrl: {type: string, maxLength: 300, nullable: true, description: "An absolute `https://` URL; `null` clears the link."}
+
+    WorkingGroupPersonRequest:
+      type: object
+      additionalProperties: false
+      required: [personId]
+      properties:
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+
+    SetWorkingGroupMachinesRequest:
+      type: object
+      additionalProperties: false
+      required: [machineIds]
+      properties:
+        machineIds: {type: array, maxItems: 200, items: {$ref: "#/components/schemas/UUIDv7"}}
+
+    WorkingGroupPlaceInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 80}
+
+    WorkingGroupColumn:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+
+    WorkingGroupColumnInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 40}
+
+    SetWorkingGroupColumnsRequest:
+      type: object
+      additionalProperties: false
+      required: [columns]
+      properties:
+        columns: {type: array, minItems: 1, maxItems: 20, items: {$ref: "#/components/schemas/WorkingGroupColumnInput"}}
+
+    WorkingGroupTicketKind:
+      type: string
+      enum: [problem, request, question]
+
+    WorkingGroupTicketStatus:
+      type: string
+      enum: [new, planned, done, declined]
+
+    WorkingGroupTicket:
+      type: object
+      additionalProperties: false
+      required: [id, groupId, groupName, kind, subject, body, blocksUse, status, followerCount, isFollowing, isMine, commentCount, inside, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        groupName: {type: string}
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        machineName: {type: string, description: Absent for a general ticket without a machine.}
+        kind: {$ref: "#/components/schemas/WorkingGroupTicketKind"}
+        subject: {type: string}
+        body: {type: string}
+        blocksUse: {type: boolean, description: The machine or place cannot be used right now.}
+        status: {$ref: "#/components/schemas/WorkingGroupTicketStatus"}
+        author: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: Absent when the author's person record was deleted (a former member).}
+        assignee: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: Only while planned; absent when nobody is assigned.}
+        dueOn: {type: string, format: date, description: Only while planned.}
+        columnId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: Only while planned.}
+        followerCount: {type: integer, format: int64, minimum: 0}
+        isFollowing: {type: boolean}
+        isMine: {type: boolean, description: The caller wrote the ticket or is its assignee.}
+        commentCount: {type: integer, format: int64, minimum: 0, description: Counts the comments the caller may see.}
+        latestComments: {type: array, maxItems: 3, items: {$ref: "#/components/schemas/WorkingGroupComment"}, description: "The newest comments the caller may see, newest first; the same visibility as the detail."}
+        inside: {type: boolean, description: The caller is a member of the group or holds `working_groups.manage`.}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        closedAt: {type: string, format: date-time}
+        link: {allOf: [{$ref: "#/components/schemas/WorkingGroupTaskLink"}], description: The purchase or project the ticket is linked to; absent without a link and for a caller who may not see the target.}
+
+    WorkingGroupStatus:
+      type: string
+      enum: [ok, limited, maintenance, out_of_order]
+
+    SetWorkingGroupStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {$ref: "#/components/schemas/WorkingGroupStatus"}
+        note: {type: string, maxLength: 200, description: "Optional; ignored for ok. Blank counts as none."}
+        until: {type: string, format: date, description: "Optional back-around date; ignored for ok."}
+
+    WorkingGroupStatusItem:
+      type: object
+      additionalProperties: false
+      required: [kind, id, name, group, status, daysNotOkLast90]
+      properties:
+        kind: {type: string, enum: [machine, place]}
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        group:
+          type: object
+          additionalProperties: false
+          required: [id, name]
+          properties:
+            id: {$ref: "#/components/schemas/UUIDv7"}
+            name: {type: string}
+        status: {$ref: "#/components/schemas/WorkingGroupStatus"}
+        note: {type: string}
+        until: {type: string, format: date}
+        changedAt: {type: string, format: date-time}
+        changedBy: {$ref: "#/components/schemas/WorkingGroupPerson"}
+        daysNotOkLast90: {type: integer, minimum: 0, maximum: 90}
+
+    WorkingGroupStatusList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupStatusItem"}}
+
+    WorkingGroupNote:
+      type: object
+      additionalProperties: false
+      required: [id, public, text, createdAt, canDelete]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: "Absent for a makerspace note."}
+        groupName: {type: string}
+        public: {type: boolean, description: "Visible to everybody with `working_groups.read`; false means inside the group only."}
+        text: {type: string, minLength: 1, maxLength: 500}
+        createdAt: {type: string, format: date-time}
+        author: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: "Absent when the author's person record was deleted (shown as former member)."}
+        canDelete: {type: boolean, description: "Whether the caller may remove the note."}
+
+    WorkingGroupNoteList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupNote"}}
+
+    CreateWorkingGroupNoteRequest:
+      type: object
+      additionalProperties: false
+      required: [public, text]
+      properties:
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        public: {type: boolean}
+        text: {type: string, minLength: 1, maxLength: 500}
+
+    SignedMoney:
+      type: string
+      pattern: "^-?(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"
+      example: "-14.07"
+      description: A euro amount that may be negative.
+
+    WorkingGroupBudgetPeriod:
+      type: object
+      additionalProperties: false
+      required: [id, name, startsOn, endsOn, closed, current, version, createdAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 80}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+        totalAmount: {allOf: [{$ref: "#/components/schemas/Money"}], description: "The total from HTU. Only returned to holders of `working_group_finances.manage`."}
+        incomeTotal: {allOf: [{$ref: "#/components/schemas/Money"}], description: "Income from the cash register that counts in this period's budget (deposited + booked ahead). Only for holders of `working_group_finances.manage`."}
+        incomeBookedAhead: {allOf: [{$ref: "#/components/schemas/Money"}], description: "The part of the income that is still in the cash register. Only for holders of `working_group_finances.manage`."}
+        incomeDeposited: {allOf: [{$ref: "#/components/schemas/Money"}], description: "The part of the income that was withdrawn from the register. Only for holders of `working_group_finances.manage`."}
+        closed: {type: boolean}
+        closedAt: {type: string, format: date-time}
+        current: {type: boolean, description: "True for the open period that contains today in the makerspace time zone; new purchases go into it."}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+
+    WorkingGroupBudgetPeriodList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupBudgetPeriod"}}
+
+    CreateWorkingGroupBudgetPeriodRequest:
+      type: object
+      additionalProperties: false
+      required: [name, startsOn, endsOn, totalAmount]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 80}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+        totalAmount: {$ref: "#/components/schemas/Money"}
+        copySharesFromPeriodId: {$ref: "#/components/schemas/UUIDv7"}
+
+    UpdateWorkingGroupBudgetPeriodRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 80}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+        totalAmount: {$ref: "#/components/schemas/Money"}
+
+    SetWorkingGroupBudgetShareRequest:
+      type: object
+      additionalProperties: false
+      required: [amount]
+      properties:
+        amount: {$ref: "#/components/schemas/Money"}
+
+    WorkingGroupGroupBudget:
+      type: object
+      additionalProperties: false
+      required: [groupId, groupName, given, spent, reserved, free]
+      description: "`spent` counts purchases that are ordered, bought, received or refunded (the actual amount when known, otherwise the estimate) and direct bookings; `reserved` the approved purchases; `free` is given minus spent minus reserved and may be negative."
+      properties:
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        groupName: {type: string}
+        given: {$ref: "#/components/schemas/Money"}
+        spent: {$ref: "#/components/schemas/Money"}
+        reserved: {$ref: "#/components/schemas/Money"}
+        free: {$ref: "#/components/schemas/SignedMoney"}
+
+    WorkingGroupBudgetTotals:
+      type: object
+      additionalProperties: false
+      required: [totalAmount, givenSum, keptBack, spentSum, reservedSum, freeSum]
+      properties:
+        totalAmount: {allOf: [{$ref: "#/components/schemas/Money"}], description: "The budget of the period: the total from HTU plus the income from the cash register."}
+        givenSum: {$ref: "#/components/schemas/Money"}
+        keptBack: {$ref: "#/components/schemas/SignedMoney"}
+        spentSum: {$ref: "#/components/schemas/Money"}
+        reservedSum: {$ref: "#/components/schemas/Money"}
+        freeSum: {$ref: "#/components/schemas/SignedMoney"}
+
+    WorkingGroupBudget:
+      type: object
+      additionalProperties: false
+      required: [period, groups]
+      properties:
+        period: {$ref: "#/components/schemas/WorkingGroupBudgetPeriod"}
+        groups: {type: array, items: {$ref: "#/components/schemas/WorkingGroupGroupBudget"}}
+        totals: {allOf: [{$ref: "#/components/schemas/WorkingGroupBudgetTotals"}], description: "Only for holders of `working_group_finances.manage`."}
+
+    WorkingGroupIncome:
+      type: object
+      additionalProperties: false
+      required: [id, periodId, amount, occurredOn, note, where, cashMovementId, createdByName, createdAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        periodId: {$ref: "#/components/schemas/UUIDv7"}
+        amount: {$ref: "#/components/schemas/Money"}
+        occurredOn: {type: string, format: date}
+        note: {type: string, minLength: 1, maxLength: 160}
+        where: {type: string, enum: [cash, bank], description: "`cash`: booked ahead, still in the register. `bank`: withdrawn."}
+        cashMovementId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The withdrawal that took the money out of the register."}
+        createdByName: {type: string, nullable: true}
+        createdAt: {type: string, format: date-time}
+    WorkingGroupIncomeList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupIncome"}}
+    CreateWorkingGroupIncomeRequest:
+      type: object
+      additionalProperties: false
+      required: [amount, note]
+      properties:
+        amount: {$ref: "#/components/schemas/Money"}
+        note: {type: string, minLength: 1, maxLength: 160}
+    CashMovementBudget:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      description: "What a withdrawal means for the working-group budget. Needs `working_group_finances.manage` unless `mode` is `none`."
+      properties:
+        mode: {type: string, enum: [none, new, ahead], description: "`none`: not for the budget. `new`: the withdrawn money becomes income of the current period. `ahead`: the withdrawal takes (part of) the booking ahead `incomeId` (422 when larger than that booking)."}
+        incomeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: "Required for `ahead`."}
+    WorkingGroupProjectStatus:
+      type: string
+      enum: [draft, submitted, returned, declined, wiref, running, completed]
+
+    CreateWorkingGroupProjectBody:
+      type: object
+      additionalProperties: false
+      required: [groupId, title, goal, benefit, people, plannedIncome, alcohol, advanceRequested]
+      properties:
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        title: {type: string, minLength: 1, maxLength: 120}
+        goal: {type: string, maxLength: 1000}
+        benefit: {type: string, maxLength: 1000}
+        startsOn: {type: string, format: date, nullable: true}
+        endsOn: {type: string, format: date, nullable: true}
+        people: {type: integer, minimum: 1, maximum: 100000}
+        plannedIncome: {$ref: "#/components/schemas/Money"}
+        alcohol: {type: boolean}
+        advanceRequested: {type: boolean}
+        advanceAmount: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: "Null: the whole planned amount."}
+
+    UpdateWorkingGroupProjectBody:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, title, goal, benefit, people, plannedIncome, alcohol, advanceRequested]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        title: {type: string, minLength: 1, maxLength: 120}
+        goal: {type: string, maxLength: 1000}
+        benefit: {type: string, maxLength: 1000}
+        startsOn: {type: string, format: date, nullable: true}
+        endsOn: {type: string, format: date, nullable: true}
+        people: {type: integer, minimum: 1, maximum: 100000}
+        plannedIncome: {$ref: "#/components/schemas/Money"}
+        alcohol: {type: boolean}
+        advanceRequested: {type: boolean}
+        advanceAmount: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: "Null: the whole planned amount."}
+
+    WorkingGroupProjectItemInput:
+      type: object
+      additionalProperties: false
+      required: [text, plannedAmount]
+      properties:
+        text: {type: string, minLength: 1, maxLength: 160}
+        plannedAmount: {$ref: "#/components/schemas/Money"}
+        link: {type: string, maxLength: 300, description: "An https link."}
+        note: {type: string, maxLength: 500}
+
+    WorkingGroupProjectItemUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, text, plannedAmount]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        text: {type: string, minLength: 1, maxLength: 160}
+        plannedAmount: {$ref: "#/components/schemas/Money"}
+        link: {type: string, maxLength: 300, description: "An https link."}
+        note: {type: string, maxLength: 500}
+
+    ReorderWorkingGroupProjectItemsRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, itemIds]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        itemIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
+
+    WorkingGroupProjectOfferInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, shop, price]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        shop: {type: string, minLength: 1, maxLength: 80}
+        price: {$ref: "#/components/schemas/Money"}
+
+    WorkingGroupProjectVersionRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    SendWorkingGroupProjectToWiRefRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        signature: {type: string, format: byte, maxLength: 700000, description: "A PNG image, base64 encoded (at most 512 KiB); needed when the project has no stored signature."}
+        useSavedSignature: {type: boolean}
+
+    WorkingGroupProjectReasonRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, reason]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        reason: {type: string, minLength: 1, maxLength: 500}
+
+    CompleteWorkingGroupProjectRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        report: {type: string, maxLength: 2000}
+
+    WorkingGroupProjectPaidFrom:
+      type: string
+      enum: [group, external]
+
+    WorkingGroupProjectPaidFromRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, paidFrom]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        paidFrom: {$ref: "#/components/schemas/WorkingGroupProjectPaidFrom"}
+        reason: {type: string, maxLength: 500}
+
+    WorkingGroupProjectUnitKind:
+      type: string
+      enum: [stv, uv, referat]
+
+    WorkingGroupProjectRequestFormInput:
+      type: object
+      additionalProperties: false
+      description: Every field is optional; a missing field takes the default of the rules and the project.
+      properties:
+        unitKind: {$ref: "#/components/schemas/WorkingGroupProjectUnitKind"}
+        unitName: {type: string, maxLength: 120}
+        projectName: {type: string, maxLength: 120}
+        alcohol: {type: boolean}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+        people: {type: integer, minimum: 1, maximum: 100000}
+        advance: {type: boolean}
+        description: {type: string, maxLength: 2000}
+        maxExpenses: {$ref: "#/components/schemas/Money"}
+        maxIncome: {$ref: "#/components/schemas/Money"}
+        responsibleFirstName: {type: string, maxLength: 80}
+        responsibleLastName: {type: string, maxLength: 80}
+        place: {type: string, maxLength: 80}
+        date: {type: string, format: date}
+        signature: {type: string, format: byte, maxLength: 700000, description: "A PNG image, base64 encoded (at most 512 KiB). Takes precedence over the saved signature."}
+        useSavedSignature: {type: boolean}
+
+    ApproveWorkingGroupProjectRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, paidFrom]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        paidFrom: {$ref: "#/components/schemas/WorkingGroupProjectPaidFrom"}
+        form: {$ref: "#/components/schemas/WorkingGroupProjectRequestFormInput"}
+
+    WorkingGroupProjectChosenOffer:
+      type: object
+      additionalProperties: false
+      required: [itemId, offerId]
+      properties:
+        itemId: {$ref: "#/components/schemas/UUIDv7"}
+        offerId: {$ref: "#/components/schemas/UUIDv7"}
+
+    WorkingGroupProjectWiRefDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, number, chosenOffers]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        number: {type: string, minLength: 1, maxLength: 40}
+        chosenOffers: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/WorkingGroupProjectChosenOffer"}}
+
+    WorkingGroupProjectOffer:
+      type: object
+      additionalProperties: false
+      required: [id, shop, price, hasFile]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        shop: {type: string}
+        price: {$ref: "#/components/schemas/Money"}
+        hasFile: {type: boolean}
+
+    WorkingGroupProjectPurchase:
+      type: object
+      additionalProperties: false
+      required: [id, item, quantity, unitPrice, status, hasAttachment]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        itemId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        item: {type: string}
+        link: {type: string}
+        quantity: {type: integer}
+        unitPrice: {$ref: "#/components/schemas/Money"}
+        status: {$ref: "#/components/schemas/WorkingGroupPurchaseStatus"}
+        hasAttachment: {type: boolean}
+
+    WorkingGroupProjectItem:
+      type: object
+      additionalProperties: false
+      required: [id, position, text, plannedAmount, needsOffers, offers, purchases]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        position: {type: integer}
+        text: {type: string}
+        plannedAmount: {$ref: "#/components/schemas/Money"}
+        link: {type: string}
+        note: {type: string}
+        needsOffers: {type: boolean, description: "The planned amount reaches the offers threshold: three offers are needed."}
+        chosenOfferId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        offers: {type: array, items: {$ref: "#/components/schemas/WorkingGroupProjectOffer"}}
+        purchases: {type: array, items: {$ref: "#/components/schemas/WorkingGroupProjectPurchase"}}
+
+    WorkingGroupProjectChecklist:
+      type: object
+      additionalProperties: false
+      required: [complete, open]
+      properties:
+        complete: {type: boolean}
+        open: {type: array, items: {type: string}, description: "Stable codes: goal_missing, benefit_missing, items_missing, item_needs_purchase:<itemId>, item_needs_offers:<itemId>."}
+
+    WorkingGroupProjectTotals:
+      type: object
+      additionalProperties: false
+      required: [planned, inPurchases, spent, left]
+      properties:
+        planned: {$ref: "#/components/schemas/Money"}
+        inPurchases: {allOf: [{$ref: "#/components/schemas/Money"}], description: "Purchases of the project that were not declined."}
+        spent: {$ref: "#/components/schemas/Money"}
+        left: {allOf: [{$ref: "#/components/schemas/Money"}], description: "Planned minus what the purchases of the project spent or reserved; not below 0."}
+
+    WorkingGroupProjectHistoryEntry:
+      type: object
+      additionalProperties: false
+      required: [status, at]
+      properties:
+        status: {type: string, description: "A project status, or `paid_from`, `advance_received`, `wiref_request_sent`."}
+        actor: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], nullable: true}
+        reason: {type: string}
+        at: {type: string, format: date-time}
+
+    WorkingGroupProjectRequestForm:
+      type: object
+      additionalProperties: false
+      required: [unitKind, unitName, number, projectName, alcohol, people, advance, description, maxExpenses, maxIncome, responsibleFirstName, responsibleLastName, place, date]
+      properties:
+        unitKind: {$ref: "#/components/schemas/WorkingGroupProjectUnitKind"}
+        unitName: {type: string}
+        number: {type: string}
+        projectName: {type: string}
+        alcohol: {type: boolean}
+        startsOn: {type: string, format: date, nullable: true}
+        endsOn: {type: string, format: date, nullable: true}
+        people: {type: integer}
+        advance: {type: boolean}
+        description: {type: string}
+        maxExpenses: {$ref: "#/components/schemas/Money"}
+        maxIncome: {$ref: "#/components/schemas/Money"}
+        responsibleFirstName: {type: string}
+        responsibleLastName: {type: string}
+        place: {type: string}
+        date: {type: string, format: date}
+
+    WorkingGroupProject:
+      type: object
+      additionalProperties: false
+      required: [id, groupId, groupName, title, goal, benefit, people, plannedIncome, alcohol, advanceRequested, status, totals, wirefNeeded, wirefRequestPending, hasRequestPdf, canEdit, canSubmit, canDecide, canComplete, items, checklist, history, createdAt, version]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        groupName: {type: string}
+        title: {type: string}
+        goal: {type: string}
+        benefit: {type: string}
+        startsOn: {type: string, format: date, nullable: true}
+        endsOn: {type: string, format: date, nullable: true}
+        people: {type: integer}
+        plannedIncome: {$ref: "#/components/schemas/Money"}
+        alcohol: {type: boolean}
+        advanceRequested: {type: boolean}
+        advanceAmount: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: "The whole planned amount when no amount was set."}
+        advanceStatus: {type: string, enum: [asked, received], nullable: true}
+        paidFrom: {allOf: [{$ref: "#/components/schemas/WorkingGroupProjectPaidFrom"}], nullable: true}
+        wirefNumber: {type: string}
+        status: {$ref: "#/components/schemas/WorkingGroupProjectStatus"}
+        requester: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], nullable: true}
+        completionReport: {type: string}
+        totals: {$ref: "#/components/schemas/WorkingGroupProjectTotals"}
+        wirefNeeded: {type: boolean, description: "Paid from external, or the planned total reaches the project threshold."}
+        wirefRequestPending: {type: boolean}
+        signatureMissing: {type: boolean, description: "The request is pending and the project has no stored signature: sending needs one."}
+        hasRequestPdf: {type: boolean}
+        requestForm: {allOf: [{$ref: "#/components/schemas/WorkingGroupProjectRequestForm"}], nullable: true, description: "Finance managers only."}
+        canEdit: {type: boolean}
+        canSubmit: {type: boolean}
+        canDecide: {type: boolean}
+        canComplete: {type: boolean}
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupProjectItem"}}
+        checklist: {$ref: "#/components/schemas/WorkingGroupProjectChecklist"}
+        history: {type: array, items: {$ref: "#/components/schemas/WorkingGroupProjectHistoryEntry"}}
+        createdAt: {type: string, format: date-time}
+        version: {$ref: "#/components/schemas/Version"}
+        linkedTasks: {type: array, description: "Tickets and to-dos linked to it; only for people inside the group (empty otherwise).", items: {$ref: "#/components/schemas/WorkingGroupLinkedTask"}}
+
+    WorkingGroupProjectList:
+      type: object
+      additionalProperties: false
+      required: [items, truncated]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupProject"}}
+        truncated: {type: boolean}
+
+    WorkingGroupRequestDefaults:
+      type: object
+      additionalProperties: false
+      required: [unitKind, unitName, addGroupName, place]
+      properties:
+        unitKind: {$ref: "#/components/schemas/WorkingGroupProjectUnitKind"}
+        unitName: {type: string, maxLength: 120}
+        addGroupName: {type: boolean}
+        responsiblePerson: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], nullable: true}
+        place: {type: string, maxLength: 80}
+
+    WorkingGroupRequestDefaultsInput:
+      type: object
+      additionalProperties: false
+      required: [unitKind, unitName, addGroupName, place]
+      properties:
+        unitKind: {$ref: "#/components/schemas/WorkingGroupProjectUnitKind"}
+        unitName: {type: string, maxLength: 120}
+        addGroupName: {type: boolean}
+        responsiblePersonId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "A person who holds `working_group_finances.manage` (422 otherwise)."}
+        place: {type: string, maxLength: 80}
+
+    WorkingGroupPurchaseStatus:
+      type: string
+      enum: [planned, wanted, approved, declined, ordered, received, bought, refunded]
+
+    WorkingGroupPurchaseHow:
+      type: string
+      enum: [self, central]
+      description: "`self`: the requester buys it and gets the money back. `central`: it goes into a collective order."
+
+    WorkingGroupPurchase:
+      type: object
+      additionalProperties: false
+      required: [id, groupId, groupName, periodId, periodName, periodClosed, item, quantity, unitPrice, estimatedTotal, how, status, needsProject, hasAttachment, hasReceipt, createdAt, canApprove, canDecline, canHandInReceipt, canMarkArrived, canMarkRefunded, canDelete, version]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        groupName: {type: string}
+        periodId: {$ref: "#/components/schemas/UUIDv7"}
+        periodName: {type: string}
+        periodClosed: {type: boolean}
+        projectId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        projectItemId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        item: {type: string, minLength: 1, maxLength: 160}
+        link: {type: string, maxLength: 300}
+        quantity: {type: integer, minimum: 1}
+        unitPrice: {$ref: "#/components/schemas/Money"}
+        estimatedTotal: {$ref: "#/components/schemas/Money"}
+        actualTotal: {allOf: [{$ref: "#/components/schemas/Money"}], description: "The amount of the receipt; present from `bought` on."}
+        how: {$ref: "#/components/schemas/WorkingGroupPurchaseHow"}
+        status: {$ref: "#/components/schemas/WorkingGroupPurchaseStatus"}
+        declineReason: {type: string, maxLength: 200}
+        requester: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: "Absent when the requester's person record was deleted."}
+        needsProject: {type: boolean, description: "The estimated total reaches the project threshold: the purchase can only be declined or deleted."}
+        hasAttachment: {type: boolean}
+        hasReceipt: {type: boolean}
+        orderId: {$ref: "#/components/schemas/UUIDv7"}
+        createdAt: {type: string, format: date-time}
+        approvedAt: {type: string, format: date-time}
+        declinedAt: {type: string, format: date-time}
+        orderedAt: {type: string, format: date-time}
+        receivedAt: {type: string, format: date-time}
+        boughtAt: {type: string, format: date-time}
+        refundedAt: {type: string, format: date-time}
+        canApprove: {type: boolean}
+        canDecline: {type: boolean}
+        canHandInReceipt: {type: boolean}
+        canMarkArrived: {type: boolean}
+        canMarkRefunded: {type: boolean}
+        canDelete: {type: boolean}
+        version: {$ref: "#/components/schemas/Version"}
+        linkedTasks: {type: array, description: "Tickets and to-dos linked to it; only for people inside the group (empty otherwise).", items: {$ref: "#/components/schemas/WorkingGroupLinkedTask"}}
+
+    WorkingGroupPurchaseList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupPurchase"}}
+        truncated: {type: boolean, description: "True when more purchases matched than the 500 returned."}
+
+    WorkingGroupPurchaseItemInput:
+      type: object
+      additionalProperties: false
+      required: [item, quantity, unitPrice]
+      properties:
+        item: {type: string, minLength: 1, maxLength: 160}
+        link: {type: string, maxLength: 300, description: "An https link to the shop."}
+        quantity: {type: integer, minimum: 1, maximum: 100000}
+        unitPrice: {$ref: "#/components/schemas/Money"}
+
+    CreateWorkingGroupPurchasesRequest:
+      type: object
+      additionalProperties: false
+      required: [groupId, how, items]
+      properties:
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        how: {$ref: "#/components/schemas/WorkingGroupPurchaseHow"}
+        projectId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: "Adds the purchases to this project of the group as `planned` purchases (a link or a file is needed before the project is handed in)."}
+        projectItemId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: "The cost plan item they belong to."}
+        items: {type: array, minItems: 1, maxItems: 50, items: {$ref: "#/components/schemas/WorkingGroupPurchaseItemInput"}}
+
+    DeclineWorkingGroupPurchaseRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        reason: {type: string, maxLength: 200}
+
+    WorkingGroupPurchaseOrder:
+      type: object
+      additionalProperties: false
+      required: [id, periodId, shop, totalAmount, status, purchaseIds, hasInvoice, createdAt, version]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        periodId: {$ref: "#/components/schemas/UUIDv7"}
+        shop: {type: string, minLength: 1, maxLength: 120}
+        totalAmount: {$ref: "#/components/schemas/Money"}
+        status: {type: string, enum: [ordered, arrived]}
+        projectRequestId: {$ref: "#/components/schemas/UUIDv7"}
+        projectNumber: {type: string, maxLength: 40}
+        purchaseIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}}
+        hasInvoice: {type: boolean}
+        createdAt: {type: string, format: date-time}
+        arrivedAt: {type: string, format: date-time}
+        version: {$ref: "#/components/schemas/Version"}
+
+    WorkingGroupPurchaseOrderList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupPurchaseOrder"}}
+        truncated: {type: boolean, description: "True when more orders matched than the 200 returned."}
+
+    CreateWorkingGroupPurchaseOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [shop, purchaseIds]
+      properties:
+        shop: {type: string, minLength: 1, maxLength: 120}
+        purchaseIds: {type: array, minItems: 1, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
+        projectRequestId: {$ref: "#/components/schemas/UUIDv7"}
+
+    WorkingGroupBooking:
+      type: object
+      additionalProperties: false
+      required: [id, groupId, groupName, periodId, text, amount, bookedOn, createdAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        groupName: {type: string}
+        periodId: {$ref: "#/components/schemas/UUIDv7"}
+        text: {type: string, minLength: 1, maxLength: 160}
+        amount: {$ref: "#/components/schemas/Money"}
+        bookedOn: {type: string, format: date}
+        createdAt: {type: string, format: date-time}
+
+    WorkingGroupBookingList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupBooking"}}
+        truncated: {type: boolean}
+
+    CreateWorkingGroupBookingRequest:
+      type: object
+      additionalProperties: false
+      required: [groupId, periodId, text, amount, bookedOn]
+      properties:
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        periodId: {$ref: "#/components/schemas/UUIDv7"}
+        text: {type: string, minLength: 1, maxLength: 160}
+        amount: {$ref: "#/components/schemas/Money"}
+        bookedOn: {type: string, format: date}
+
+    WorkingGroupProjectRequest:
+      type: object
+      additionalProperties: false
+      required: [id, number, label]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        number: {type: string, minLength: 1, maxLength: 40, example: "PA-2026-031"}
+        label: {type: string, minLength: 1, maxLength: 120}
+
+    WorkingGroupProjectRequestInput:
+      type: object
+      additionalProperties: false
+      required: [number, label]
+      properties:
+        number: {type: string, minLength: 1, maxLength: 40}
+        label: {type: string, minLength: 1, maxLength: 120}
+
+    WorkingGroupFinanceRules:
+      type: object
+      additionalProperties: false
+      required: [projectThreshold, offersThreshold, projectRequests, version]
+      properties:
+        projectThreshold: {$ref: "#/components/schemas/Money"}
+        offersThreshold: {$ref: "#/components/schemas/Money"}
+        request: {$ref: "#/components/schemas/WorkingGroupRequestDefaults"}
+        projectRequests: {type: array, items: {$ref: "#/components/schemas/WorkingGroupProjectRequest"}}
+        version: {$ref: "#/components/schemas/Version"}
+
+    SetWorkingGroupFinanceRulesRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, projectThreshold, offersThreshold]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        projectThreshold: {$ref: "#/components/schemas/Money"}
+        offersThreshold: {$ref: "#/components/schemas/Money"}
+        request: {$ref: "#/components/schemas/WorkingGroupRequestDefaultsInput"}
+
+    RedactWorkingGroupPurchaseRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, text, files]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        text: {type: boolean, description: "Replace the item with `Removed` and clear link and decline reason."}
+        files: {type: boolean, description: "Delete the offer and the receipt file; the receipt amount stays."}
+
+    WorkingGroupTicketList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupTicket"}}
+        truncated: {type: boolean, description: "True when more tickets matched than the 500 returned. Open tickets come first, then the newest closed ones."}
+
+    WorkingGroupComment:
+      type: object
+      additionalProperties: false
+      required: [id, text, internal, createdAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        author: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: Absent when the author's person record was deleted (a former member).}
+        text: {type: string}
+        internal: {type: boolean, description: Only the group and management see it.}
+        createdAt: {type: string, format: date-time}
+
+    WorkingGroupTicketDetail:
+      type: object
+      additionalProperties: false
+      required: [ticket, followers, comments]
+      properties:
+        ticket: {$ref: "#/components/schemas/WorkingGroupTicket"}
+        followers: {type: array, description: People who have this too; the author is not among them., items: {$ref: "#/components/schemas/WorkingGroupPerson"}}
+        comments: {type: array, description: Oldest first; internal comments only for people inside the group., items: {$ref: "#/components/schemas/WorkingGroupComment"}}
+
+    CreateWorkingGroupTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [groupId, kind, subject, blocksUse]
+      properties:
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {$ref: "#/components/schemas/WorkingGroupTicketKind"}
+        subject: {type: string, minLength: 1, maxLength: 120}
+        body: {type: string, maxLength: 2000}
+        blocksUse: {type: boolean}
+
+    PlanWorkingGroupTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [columnId]
+      properties:
+        columnId: {$ref: "#/components/schemas/UUIDv7"}
+        assigneePersonId: {$ref: "#/components/schemas/UUIDv7"}
+        dueOn: {type: string, format: date}
+
+    UpdateWorkingGroupTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        assigneePersonId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "`null` clears the assignee."}
+        dueOn: {type: string, format: date, nullable: true, description: "`null` clears the due date."}
+        columnId: {$ref: "#/components/schemas/UUIDv7"}
+
+    CloseWorkingGroupTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [outcome]
+      properties:
+        outcome: {type: string, enum: [done, declined]}
+        answer: {type: string, maxLength: 2000, description: Stored as a public comment; required when declining.}
+
+    WorkingGroupCommentRequest:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text: {type: string, minLength: 1, maxLength: 2000}
+        internal: {type: boolean, default: false, description: "Only people inside the group may write internal comments. Ignored for to-dos, whose comments are always internal."}
+
+    WorkingGroupTodo:
+      type: object
+      additionalProperties: false
+      required: [id, groupId, groupName, title, dueOn, columnId, done, isMine, commentCount, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        groupName: {type: string}
+        title: {type: string}
+        assignee: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: Absent when nobody is assigned or the person was deleted.}
+        createdBy: {allOf: [{$ref: "#/components/schemas/WorkingGroupPerson"}], description: Absent when the person was deleted.}
+        dueOn: {type: string, format: date}
+        columnId: {$ref: "#/components/schemas/UUIDv7"}
+        repeatEveryDays: {type: integer, format: int32, minimum: 1, maximum: 730}
+        done: {type: boolean}
+        doneAt: {type: string, format: date-time}
+        isMine: {type: boolean, description: The caller is the assignee.}
+        commentCount: {type: integer, format: int64, minimum: 0}
+        latestComments: {type: array, maxItems: 3, items: {$ref: "#/components/schemas/WorkingGroupComment"}, description: "The newest comments the caller may see, newest first; the same visibility as the detail."}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        link: {allOf: [{$ref: "#/components/schemas/WorkingGroupTaskLink"}], description: The purchase or project the to-do is linked to; absent without a link and for a caller who may not see the target.}
+
+    WorkingGroupTaskLink:
+      type: object
+      additionalProperties: false
+      required: [kind, id, title, status]
+      properties:
+        kind: {type: string, enum: [purchase, project]}
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        title: {type: string, description: The item of a purchase or the title of a project.}
+        status: {type: string, description: The status of the purchase or project.}
+
+    WorkingGroupLinkedTask:
+      type: object
+      additionalProperties: false
+      required: [kind, id, title]
+      properties:
+        kind: {type: string, enum: [ticket, todo]}
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        title: {type: string, description: The subject of a ticket or the title of a to-do.}
+
+    SetWorkingGroupLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        purchaseId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        projectId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+
+    WorkingGroupActivityEntry:
+      type: object
+      additionalProperties: false
+      required: [kind, at, title, targetKind, targetId]
+      properties:
+        kind: {type: string, enum: [ticket_created, ticket_planned, ticket_closed, todo_done, note_pinned, purchase_submitted, purchase_approved, project_submitted, project_approved]}
+        at: {type: string, format: date-time}
+        actor: {$ref: "#/components/schemas/WorkingGroupPerson"}
+        title: {type: string, description: "Subject, title, item or the text of the note."}
+        targetKind: {type: string, enum: [ticket, todo, note, purchase, project]}
+        targetId: {$ref: "#/components/schemas/UUIDv7"}
+
+    WorkingGroupActivityList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupActivityEntry"}}
+
+    WorkingGroupTodoList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupTodo"}}
+
+    WorkingGroupTodoDetail:
+      type: object
+      additionalProperties: false
+      required: [todo, comments]
+      properties:
+        todo: {$ref: "#/components/schemas/WorkingGroupTodo"}
+        comments: {type: array, description: Oldest first., items: {$ref: "#/components/schemas/WorkingGroupComment"}}
+        nextTodoId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: Set when marking a repeating to-do as done created the next one.}
+
+    CreateWorkingGroupTodoRequest:
+      type: object
+      additionalProperties: false
+      required: [groupId, title, dueOn]
+      properties:
+        groupId: {$ref: "#/components/schemas/UUIDv7"}
+        title: {type: string, minLength: 1, maxLength: 160}
+        assigneePersonId: {$ref: "#/components/schemas/UUIDv7"}
+        dueOn: {type: string, format: date}
+        columnId: {$ref: "#/components/schemas/UUIDv7"}
+        repeatEveryDays: {type: integer, format: int32, minimum: 1, maximum: 730}
+
+    UpdateWorkingGroupTodoRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        title: {type: string, minLength: 1, maxLength: 160}
+        assigneePersonId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "`null` clears the assignee."}
+        dueOn: {type: string, format: date}
+        columnId: {$ref: "#/components/schemas/UUIDv7"}
+        repeatEveryDays: {type: integer, format: int32, minimum: 1, maximum: 730, nullable: true, description: "`null` stops the repetition."}
+
+    WorkingGroupPersonOption:
+      type: object
+      additionalProperties: false
+      required: [id, displayName]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        displayName: {type: string}
+
+    WorkingGroupPersonOptionList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupPersonOption"}}
+
+    WorkingGroupMachineOption:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        workingGroupId: {$ref: "#/components/schemas/UUIDv7"}
+        workingGroupName: {type: string}
+
+    WorkingGroupMachineOptionList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupMachineOption"}}
+
     Training:
       type: object
       additionalProperties: false
@@ -23571,6 +26680,7 @@ components:
         cashCountReference: {type: string, nullable: true, description: "K-YYYY-NNNN of that count."}
         version: {$ref: "#/components/schemas/Version"}
         updatedAt: {type: string, format: date-time, description: "Last change; equals createdAt until the movement is edited or its count recalculated."}
+        intoBudget: {type: boolean, description: "True for a withdrawal that went into the working-group budget; such a movement cannot be edited or deleted (409 `cash_movement_in_budget`). Only for holders of `working_group_finances.manage`."}
     CashJournalKind:
       type: string
       enum: [receipt, refund, correction, withdrawal, deposit, count]
@@ -23622,6 +26732,7 @@ components:
         count: {allOf: [{$ref: "#/components/schemas/CashJournalCount"}], nullable: true}
         version: {type: integer, format: int64, nullable: true, description: "Version of the movement or count, for editing it; null for payments."}
         updatedAt: {type: string, format: date-time, nullable: true, description: "Last change of the movement or count; null for payments."}
+        intoBudget: {type: boolean, description: "True for a withdrawal that went into the working-group budget. Only for holders of `working_group_finances.manage`."}
     CashJournalDay:
       type: object
       additionalProperties: false
@@ -23761,6 +26872,7 @@ components:
         reason: {type: string, enum: [bank_deposit, safe, float, other], description: "`other` requires a note."}
         note: {type: string, maxLength: 500}
         occurredAt: {type: string, format: date-time, description: "Not in the future. A withdrawal cannot exceed the cash the register should hold."}
+        budget: {$ref: "#/components/schemas/CashMovementBudget"}
     CashRegister:
       type: object
       additionalProperties: false
@@ -23779,6 +26891,7 @@ components:
         expected: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "receipts - refundsAndCorrections - withdrawals + deposits"}
         to: {type: string, format: date-time, nullable: true, description: "Exclusive end of the period; null means everything recorded."}
         lastCount: {allOf: [{$ref: "#/components/schemas/CashCount"}], nullable: true, description: "The latest count before `to`; null when the register was never counted."}
+        bookedAhead: {allOf: [{$ref: "#/components/schemas/Money"}], description: "Cash that is booked ahead to the working-group budget and still in the register. Only for holders of `working_group_finances.manage`, and only for the current register (no `to`)."}
     RolePricingGroup:
       type: object
       additionalProperties: false

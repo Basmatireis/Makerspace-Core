@@ -88,6 +88,10 @@ func (s *Service) Merge(
 	if len(fields.discardedProfileImageFile) > 0 && s.files == nil {
 		return MergeResult{}, errStorageUnavailable
 	}
+	signatureFiles, err := s.SignatureFiles(ctx, tx, append([]uuid.UUID{input.TargetPersonID}, input.SourcePersonIDs...))
+	if err != nil {
+		return MergeResult{}, err
+	}
 	moved, err := applyMerge(ctx, queries, principal, state, fields)
 	if err != nil {
 		return MergeResult{}, databaseError(err)
@@ -131,6 +135,7 @@ func (s *Service) Merge(
 	if err := tx.Commit(ctx); err != nil {
 		return MergeResult{}, err
 	}
+	s.DiscardSignatureFiles(ctx, signatureFiles, requestID)
 	for _, fileID := range fields.discardedProfileImageFile {
 		// The merge is committed; a file that cannot be removed now is only orphaned storage, never personal data
 		// reachable through a Person.
@@ -432,6 +437,7 @@ func moveMergePerson(
 		dedupe   func() (int64, error)
 		move     func() (int64, error)
 	}
+	var droppedWorkingGroupMembers, droppedWorkingGroupFollowers int64
 	steps := []dedupeMove{
 		{MergedTrainingRecords, func() (int64, error) {
 			return queries.DeleteSupersededMergeTrainingRecords(ctx, peopledb.DeleteSupersededMergeTrainingRecordsParams{
@@ -478,6 +484,43 @@ func moveMergePerson(
 			return queries.MoveMergeOrganizationMembers(ctx, peopledb.MoveMergeOrganizationMembersParams{
 				SourcePersonID: source, TargetPersonID: target,
 			})
+		}},
+		{MergedWorkingGroupMemberships, func() (int64, error) {
+			if _, err := queries.LockMergeWorkingGroups(ctx, peopledb.LockMergeWorkingGroupsParams{
+				SourcePersonID: source, TargetPersonID: target,
+			}); err != nil {
+				return 0, err
+			}
+			if err := queries.HandOverMergeWorkingGroupLeads(ctx, peopledb.HandOverMergeWorkingGroupLeadsParams{
+				SourcePersonID: source, TargetPersonID: target,
+			}); err != nil {
+				return 0, err
+			}
+			var err error
+			droppedWorkingGroupMembers, err = queries.DeleteDuplicateMergeWorkingGroupMembers(
+				ctx,
+				peopledb.DeleteDuplicateMergeWorkingGroupMembersParams{SourcePersonID: source, TargetPersonID: target},
+			)
+			return droppedWorkingGroupMembers, err
+		}, func() (int64, error) {
+			moved, err := queries.MoveMergeWorkingGroupMembers(ctx, peopledb.MoveMergeWorkingGroupMembersParams{
+				SourcePersonID: source, TargetPersonID: target,
+			})
+			// The count is memberships dropped as duplicates plus memberships moved.
+			return moved + droppedWorkingGroupMembers, err
+		}},
+		{MergedWorkingGroupTasks, func() (int64, error) {
+			var err error
+			droppedWorkingGroupFollowers, err = queries.DeleteDuplicateMergeWorkingGroupFollowers(
+				ctx,
+				peopledb.DeleteDuplicateMergeWorkingGroupFollowersParams{SourcePersonID: source, TargetPersonID: target},
+			)
+			return droppedWorkingGroupFollowers, err
+		}, func() (int64, error) {
+			moved, err := queries.MoveMergeWorkingGroupTasks(ctx, peopledb.MoveMergeWorkingGroupTasksParams{
+				SourcePersonID: &source, TargetPersonID: target,
+			})
+			return moved + droppedWorkingGroupFollowers, err
 		}},
 	}
 	for _, step := range steps {

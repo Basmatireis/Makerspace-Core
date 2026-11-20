@@ -239,3 +239,7 @@
     gap: $spacing-03;
   }
 }
+
+.db-pinboard-skeleton.cds--tile {
+  min-block-size: 24rem;
+}

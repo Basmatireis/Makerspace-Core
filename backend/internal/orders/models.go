@@ -363,6 +363,8 @@ type CashMovementInput struct {
 	Reason       CashMovementReason `json:"reason"`
 	Note         string             `json:"note,omitempty"`
 	OccurredAt   time.Time          `json:"occurredAt"`
+	// Budget says what a withdrawal means for the working-group budget; it needs the finance permission.
+	Budget *CashMovementBudget `json:"budget,omitempty"`
 }
 
 type CashMovement struct {
@@ -380,6 +382,8 @@ type CashMovement struct {
 	CashCountReference *string               `json:"cashCountReference"`
 	Version            int64                 `json:"version"`
 	UpdatedAt          time.Time             `json:"updatedAt"`
+	// IntoBudget is set for finance managers: the withdrawal went into the working-group budget.
+	IntoBudget *bool `json:"intoBudget,omitempty"`
 }
 
 // CashMovementChange edits a withdrawal or deposit; nil fields keep their value.
@@ -420,6 +424,8 @@ type CashRegister struct {
 	Expected              string     `json:"expected"`
 	To                    *time.Time `json:"to"`
 	LastCount             *CashCount `json:"lastCount"`
+	// BookedAhead is for finance managers: cash in the register that is booked ahead to the working-group budget.
+	BookedAhead *string `json:"bookedAhead,omitempty"`
 }
 
 type CashCountInput struct {

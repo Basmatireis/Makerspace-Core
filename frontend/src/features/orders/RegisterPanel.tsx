@@ -1,12 +1,27 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button, DefinitionTooltip, IconButton, Tag } from '@carbon/react';
-import { Add, ArrowRight, Checkmark, Close, Edit, Receipt, Subtract, TrashCan, WarningAlt } from '@carbon/icons-react';
+import {
+  Add,
+  ArrowRight,
+  Checkmark,
+  Close,
+  Edit,
+  Receipt,
+  Subtract,
+  TrashCan,
+  WarningAlt,
+  Wallet,
+} from '@carbon/icons-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { deleteWorkingGroupIncome } from '../../api/generated/working-groups/working-groups';
 import { Link } from 'react-router-dom';
-import type { CashCount, CashJournal, CashJournalEntry } from '../../api/generated/models';
+import type { CashCount, CashJournal, CashJournalEntry, WorkingGroupIncome } from '../../api/generated/models';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { DetailPanel, DetailPanelSection } from '../../app/components/DetailPanel';
 import { Fact, FactsGrid } from '../../app/components/Facts';
 import { RefLink } from '../../app/RefLink';
-import { formatDateTime } from '../../app/dateTime';
+import { workingGroupKeys } from '../workinggroups/queries';
+import { formatDate, formatDateTime } from '../../app/dateTime';
 import {
   countReasonLabel,
   differenceText,
@@ -15,11 +30,13 @@ import {
   journalKindLabel,
   registerDerivation,
 } from './cashJournal';
+import { bookedAheadEntries, budgetIncomeQuery } from './budgetIncome';
 import { cashMovementReasonLabel } from './labels';
 import { formatCents, formatSignedCents, toCents } from './money';
 import { periodName, type Period } from './period';
+import { useFinanceMutation } from './queries';
 
-export type RegisterAction = 'count' | 'withdrawal' | 'deposit';
+export type RegisterAction = 'count' | 'withdrawal' | 'deposit' | 'bookahead';
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
@@ -76,12 +93,17 @@ export function RegisterPanel({
   onAction,
   canCount,
   canMove,
+  canBudget = false,
+  onWithdrawAhead,
 }: {
   journal: CashJournal;
   period: Period;
   onAction: (action: RegisterAction) => void;
   canCount: boolean;
   canMove: boolean;
+  /** working_group_finances.manage: the booked-ahead line, the button and the list of bookings. */
+  canBudget?: boolean;
+  onWithdrawAhead?: (incomeId: string) => void;
 }) {
   const { register, facts } = journal;
   const last = register.lastCount;
@@ -118,6 +140,20 @@ export function RegisterPanel({
             <dd>{formatCents(line.cents)}</dd>
           </div>
         ))}
+        {canBudget && register.bookedAhead != null && (
+          <div>
+            <dt>
+              <DefinitionTooltip
+                definition="Counted in the working-group budget; the cash is still in the register"
+                align="bottom-left"
+                openOnHover
+              >
+                Booked ahead to the budget
+              </DefinitionTooltip>
+            </dt>
+            <dd>{formatCents(toCents(register.bookedAhead))}</dd>
+          </div>
+        )}
       </dl>
       {(canCount || canMove) && (
         <div className="sales-register-actions">
@@ -136,8 +172,14 @@ export function RegisterPanel({
               </Button>
             </>
           )}
+          {canBudget && (
+            <Button kind="tertiary" size="md" renderIcon={Wallet} onClick={() => onAction('bookahead')}>
+              <span className="sales-register-actions__label">Book ahead to the budget</span>
+            </Button>
+          )}
         </div>
       )}
+      {canBudget && canMove && onWithdrawAhead && <BookedAheadSection onWithdraw={onWithdrawAhead} />}
       <DetailPanelSection
         title="Last count"
         action={last ? <DifferenceTag difference={toCents(last.difference)} /> : undefined}
@@ -165,6 +207,65 @@ export function RegisterPanel({
         </FactsGrid>
       </DetailPanelSection>
     </DetailPanel>
+  );
+}
+
+/** The bookings ahead that are still in the register: withdraw (all or part) or undo. */
+function BookedAheadSection({ onWithdraw }: { onWithdraw: (incomeId: string) => void }) {
+  const income = useQuery(budgetIncomeQuery());
+  const client = useQueryClient();
+  const [undoing, setUndoing] = useState<WorkingGroupIncome | null>(null);
+  const entries = bookedAheadEntries(income.data?.items);
+  const undo = useFinanceMutation(
+    (entry: WorkingGroupIncome) => deleteWorkingGroupIncome(entry.id),
+    async () => {
+      // The budget page shows the income too.
+      await client.invalidateQueries({ queryKey: workingGroupKeys.all });
+      setUndoing(null);
+    },
+  );
+  if (entries.length === 0) return null;
+  return (
+    <DetailPanelSection title="Booked ahead to the budget">
+      <ul className="sales-booked-ahead">
+        {entries.map((entry) => (
+          <li key={entry.id} className="sales-inline">
+            <span>
+              {entry.note}
+              <span className="mj-secondary">
+                {' · '}
+                {formatDate(entry.occurredOn)}
+                {' · '}
+                {formatCents(toCents(entry.amount))}
+              </span>
+            </span>
+            <Button kind="ghost" size="sm" aria-label={`Withdraw ${entry.note}`} onClick={() => onWithdraw(entry.id)}>
+              Withdraw
+            </Button>
+            <IconButton label={`Undo booking ${entry.note}`} kind="ghost" size="sm" onClick={() => setUndoing(entry)}>
+              <TrashCan />
+            </IconButton>
+          </li>
+        ))}
+      </ul>
+      {undoing && (
+        <DestructiveActionDialog
+          open
+          title="Undo this booking?"
+          fate="none"
+          confirmLabel="Undo booking"
+          pending={undo.isPending}
+          error={undo.error?.message}
+          onConfirm={() => undo.mutate(undoing)}
+          onClose={() => setUndoing(null)}
+        >
+          <p>
+            {undoing.note} ({formatCents(toCents(undoing.amount))}) no longer counts in the budget. The cash stays in
+            the register.
+          </p>
+        </DestructiveActionDialog>
+      )}
+    </DetailPanelSection>
   );
 }
 
@@ -197,6 +298,7 @@ export function EntryPanel({
   entry,
   canOrders,
   canManage = false,
+  canBudget = false,
   onEdit,
   onDelete,
   onClose,
@@ -204,6 +306,8 @@ export function EntryPanel({
   entry: CashJournalEntry;
   canOrders: boolean;
   canManage?: boolean;
+  /** working_group_finances.manage: the budget mark of a withdrawal. */
+  canBudget?: boolean;
   onEdit?: (entry: CashJournalEntry) => void;
   onDelete?: (entry: CashJournalEntry) => void;
   onClose: () => void;
@@ -247,7 +351,7 @@ export function EntryPanel({
           )}
         </div>
       )}
-      {canManage && isEditableEntry(entry) && (
+      {canManage && isEditableEntry(entry) && !(canBudget && entry.intoBudget) && (
         <div className="sales-inline">
           <Button kind="secondary" size="md" renderIcon={Edit} onClick={() => onEdit?.(entry)}>
             Edit
@@ -290,6 +394,11 @@ export function EntryPanel({
         )}
         {entry.source === 'payment' && entry.paymentReason && <Fact label="Reason">{entry.paymentReason}</Fact>}
         {entry.reversedPaymentReference && <Fact label="Reverses">{entry.reversedPaymentReference}</Fact>}
+        {canBudget && entry.intoBudget && (
+          <Fact label="Budget" helper="Cannot be edited or deleted">
+            Into the budget
+          </Fact>
+        )}
         {entry.movementReason && (
           <Fact label="Reason" helper={entry.note || undefined}>
             {cashMovementReasonLabel[entry.movementReason]}

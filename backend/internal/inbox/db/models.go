@@ -2547,3 +2547,293 @@ type WirefDeliverySetting struct {
 	UpdatedAt              time.Time
 	ReplyToEmail           string
 }
+
+type WorkingGroup struct {
+	ID          uuid.UUID
+	Name        string
+	Description string
+	ChatUrl     *string
+	Version     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type WorkingGroupBooking struct {
+	ID        uuid.UUID
+	GroupID   uuid.UUID
+	PeriodID  uuid.UUID
+	Text      string
+	Amount    pgtype.Numeric
+	BookedOn  pgtype.Date
+	CreatedAt time.Time
+}
+
+type WorkingGroupBudgetPeriod struct {
+	ID          uuid.UUID
+	Name        string
+	StartsOn    pgtype.Date
+	EndsOn      pgtype.Date
+	TotalAmount pgtype.Numeric
+	ClosedAt    pgtype.Timestamptz
+	Version     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type WorkingGroupBudgetShare struct {
+	PeriodID  uuid.UUID
+	GroupID   uuid.UUID
+	Amount    pgtype.Numeric
+	UpdatedAt time.Time
+}
+
+type WorkingGroupColumn struct {
+	ID        uuid.UUID
+	GroupID   uuid.UUID
+	Name      string
+	Position  int32
+	CreatedAt time.Time
+}
+
+type WorkingGroupComment struct {
+	ID             uuid.UUID
+	TicketID       *uuid.UUID
+	TodoID         *uuid.UUID
+	AuthorPersonID *uuid.UUID
+	Text           string
+	Internal       bool
+	CreatedAt      time.Time
+}
+
+type WorkingGroupFinanceRule struct {
+	Singleton                  bool
+	ProjectThreshold           pgtype.Numeric
+	OffersThreshold            pgtype.Numeric
+	Version                    int64
+	UpdatedAt                  time.Time
+	RequestUnitKind            string
+	RequestUnitName            string
+	RequestAddGroupName        bool
+	RequestResponsiblePersonID *uuid.UUID
+	RequestPlace               string
+}
+
+type WorkingGroupFinanceSignature struct {
+	PersonID  uuid.UUID
+	FileID    uuid.UUID
+	UpdatedAt time.Time
+}
+
+type WorkingGroupIncome struct {
+	ID                uuid.UUID
+	PeriodID          uuid.UUID
+	Amount            pgtype.Numeric
+	OccurredOn        pgtype.Date
+	Note              string
+	Location          string
+	CashMovementID    *uuid.UUID
+	CreatedByPersonID *uuid.UUID
+	CreatedAt         time.Time
+}
+
+type WorkingGroupMachine struct {
+	GroupID         uuid.UUID
+	MachineID       uuid.UUID
+	Status          string
+	StatusNote      *string
+	StatusUntil     pgtype.Date
+	StatusChangedAt pgtype.Timestamptz
+	StatusChangedBy *uuid.UUID
+}
+
+type WorkingGroupMember struct {
+	GroupID  uuid.UUID
+	PersonID uuid.UUID
+	IsLead   bool
+	JoinedAt time.Time
+}
+
+type WorkingGroupNote struct {
+	ID             uuid.UUID
+	GroupID        *uuid.UUID
+	IsPublic       bool
+	Text           string
+	AuthorPersonID *uuid.UUID
+	CreatedAt      time.Time
+}
+
+type WorkingGroupPlace struct {
+	ID              uuid.UUID
+	GroupID         uuid.UUID
+	Name            string
+	CreatedAt       time.Time
+	Status          string
+	StatusNote      *string
+	StatusUntil     pgtype.Date
+	StatusChangedAt pgtype.Timestamptz
+	StatusChangedBy *uuid.UUID
+}
+
+type WorkingGroupProject struct {
+	ID                     uuid.UUID
+	GroupID                uuid.UUID
+	Title                  string
+	Goal                   string
+	Benefit                string
+	StartsOn               pgtype.Date
+	EndsOn                 pgtype.Date
+	People                 int32
+	PlannedIncome          pgtype.Numeric
+	Alcohol                bool
+	AdvanceRequested       bool
+	AdvanceAmount          pgtype.Numeric
+	AdvanceStatus          *string
+	PaidFrom               *string
+	WirefNumber            *string
+	Status                 string
+	RequesterPersonID      *uuid.UUID
+	WirefRequestSentAt     pgtype.Timestamptz
+	RequestForm            []byte
+	RequestSignatureFileID *uuid.UUID
+	RequestPdfFileID       *uuid.UUID
+	RequestSignedBy        *uuid.UUID
+	CompletionReport       *string
+	Version                int64
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+type WorkingGroupProjectHistory struct {
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
+	Status        string
+	ActorPersonID *uuid.UUID
+	Reason        *string
+	CreatedAt     time.Time
+}
+
+type WorkingGroupProjectItem struct {
+	ID            uuid.UUID
+	ProjectID     uuid.UUID
+	Position      int32
+	Text          string
+	PlannedAmount pgtype.Numeric
+	Link          *string
+	Note          *string
+	ChosenOfferID *uuid.UUID
+	CreatedAt     time.Time
+}
+
+type WorkingGroupProjectOffer struct {
+	ID        uuid.UUID
+	ItemID    uuid.UUID
+	Shop      string
+	Price     pgtype.Numeric
+	FileID    *uuid.UUID
+	CreatedAt time.Time
+}
+
+type WorkingGroupProjectRequest struct {
+	ID        uuid.UUID
+	Number    string
+	Label     string
+	CreatedAt time.Time
+}
+
+type WorkingGroupPurchase struct {
+	ID                uuid.UUID
+	GroupID           uuid.UUID
+	PeriodID          uuid.UUID
+	Item              string
+	Link              *string
+	Quantity          int32
+	UnitPrice         pgtype.Numeric
+	How               string
+	RequesterPersonID *uuid.UUID
+	Status            string
+	DeclineReason     *string
+	AttachmentFileID  *uuid.UUID
+	ReceiptFileID     *uuid.UUID
+	ReceiptAmount     pgtype.Numeric
+	OrderID           *uuid.UUID
+	ApprovedAt        pgtype.Timestamptz
+	DeclinedAt        pgtype.Timestamptz
+	OrderedAt         pgtype.Timestamptz
+	ReceivedAt        pgtype.Timestamptz
+	BoughtAt          pgtype.Timestamptz
+	RefundedAt        pgtype.Timestamptz
+	Version           int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	ProjectID         *uuid.UUID
+	ProjectItemID     *uuid.UUID
+}
+
+type WorkingGroupPurchaseOrder struct {
+	ID               uuid.UUID
+	PeriodID         uuid.UUID
+	Shop             string
+	TotalAmount      pgtype.Numeric
+	Status           string
+	ProjectRequestID *uuid.UUID
+	ProjectNumber    *string
+	InvoiceFileID    *uuid.UUID
+	ArrivedAt        pgtype.Timestamptz
+	Version          int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type WorkingGroupStatusChange struct {
+	ID        uuid.UUID
+	GroupID   uuid.UUID
+	MachineID *uuid.UUID
+	PlaceID   *uuid.UUID
+	Status    string
+	ChangedAt time.Time
+}
+
+type WorkingGroupTicket struct {
+	ID               uuid.UUID
+	GroupID          uuid.UUID
+	MachineID        *uuid.UUID
+	Kind             string
+	Subject          string
+	Body             string
+	BlocksUse        bool
+	AuthorPersonID   *uuid.UUID
+	Status           string
+	AssigneePersonID *uuid.UUID
+	DueOn            pgtype.Date
+	ColumnID         *uuid.UUID
+	Version          int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	ClosedAt         pgtype.Timestamptz
+	PurchaseID       *uuid.UUID
+	ProjectID        *uuid.UUID
+	PlannedAt        pgtype.Timestamptz
+}
+
+type WorkingGroupTicketFollower struct {
+	TicketID  uuid.UUID
+	PersonID  uuid.UUID
+	CreatedAt time.Time
+}
+
+type WorkingGroupTodo struct {
+	ID                uuid.UUID
+	GroupID           uuid.UUID
+	Title             string
+	AssigneePersonID  *uuid.UUID
+	DueOn             pgtype.Date
+	ColumnID          uuid.UUID
+	RepeatEveryDays   *int32
+	DoneAt            pgtype.Timestamptz
+	CreatedByPersonID *uuid.UUID
+	Version           int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	PurchaseID        *uuid.UUID
+	ProjectID         *uuid.UUID
+}

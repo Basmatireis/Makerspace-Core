@@ -38,6 +38,8 @@ type Service struct {
 	notices  NotificationEmitter
 	// pdf renders the cashbook and receipt PDFs.
 	pdf PDFRenderer
+	// budget books withdrawals into the working-group budget.
+	budget BudgetIncome
 }
 
 // NotificationEmitter is the part of the notification event source this package uses. It writes inside the caller's

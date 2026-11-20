@@ -50,4 +50,6 @@ export interface CashRegister {
   to: string | null;
   /** The latest count before `to`; null when the register was never counted. */
   lastCount: CashCount | null;
+  /** Cash that is booked ahead to the working-group budget and still in the register. Only for holders of `working_group_finances.manage`, and only for the current register (no `to`). */
+  bookedAhead?: Money;
 }

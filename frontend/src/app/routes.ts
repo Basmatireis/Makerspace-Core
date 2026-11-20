@@ -1,5 +1,8 @@
 import { lazy } from 'react';
 
+export const LoginPage = lazy(() =>
+  import('../features/auth/LoginPage').then(({ LoginPage }) => ({ default: LoginPage })),
+);
 export const ResetPasswordPage = lazy(() =>
   import('../features/auth/ResetPasswordPage').then(({ ResetPasswordPage }) => ({ default: ResetPasswordPage })),
 );
@@ -138,6 +141,41 @@ export const OpenDayBreaksRedirect = lazy(() =>
 );
 export const MessagesPage = lazy(() =>
   import('../features/notifications/MessagesPage').then(({ MessagesPage }) => ({ default: MessagesPage })),
+);
+export const WorkingGroupsPage = lazy(() =>
+  import('../features/workinggroups/WorkingGroupsPage').then(({ WorkingGroupsPage }) => ({
+    default: WorkingGroupsPage,
+  })),
+);
+export const WorkingGroupTasksPage = lazy(() =>
+  import('../features/workinggroups/WorkingGroupTasksPage').then(({ WorkingGroupTasksPage }) => ({
+    default: WorkingGroupTasksPage,
+  })),
+);
+export const PurchasesPage = lazy(() =>
+  import('../features/workinggroups/PurchasesPage').then(({ PurchasesPage }) => ({
+    default: PurchasesPage,
+  })),
+);
+export const ProjectsPage = lazy(() =>
+  import('../features/workinggroups/ProjectsPage').then(({ ProjectsPage }) => ({
+    default: ProjectsPage,
+  })),
+);
+export const ProjectPage = lazy(() =>
+  import('../features/workinggroups/ProjectPage').then(({ ProjectPage }) => ({
+    default: ProjectPage,
+  })),
+);
+export const BudgetPage = lazy(() =>
+  import('../features/workinggroups/BudgetPage').then(({ BudgetPage }) => ({
+    default: BudgetPage,
+  })),
+);
+export const WorkingGroupsSettingsPage = lazy(() =>
+  import('../features/workinggroups/WorkingGroupsSettingsPage').then(({ WorkingGroupsSettingsPage }) => ({
+    default: WorkingGroupsSettingsPage,
+  })),
 );
 export const SettingsPage = lazy(() =>
   import('../features/settings/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })),

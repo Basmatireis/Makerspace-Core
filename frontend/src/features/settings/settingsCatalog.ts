@@ -26,6 +26,7 @@ export type SettingsPageId =
   | 'single-sign-on'
   | 'devices-sessions'
   | 'trainings'
+  | 'working-groups'
   | 'laborordnung'
   | 'surveys'
   | 'mail'
@@ -123,6 +124,15 @@ export const settingsItems: readonly SettingsItem[] = [
     path: '/settings/trainings',
     icon: Education,
     permissions: [PermissionId.trainingsmanage],
+  },
+  {
+    id: 'working-groups',
+    group: 'lab',
+    title: 'Working groups',
+    description: 'The machines, places, people and chat link of each working group.',
+    path: '/settings/working-groups',
+    icon: Group,
+    permissions: [PermissionId.working_groupsmanage],
   },
   {
     id: 'laborordnung',

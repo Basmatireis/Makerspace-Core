@@ -36,6 +36,8 @@ export const PeopleMergeCategory = {
   survey_invitations: 'survey_invitations',
   survey_responses: 'survey_responses',
   organization_memberships: 'organization_memberships',
+  working_group_memberships: 'working_group_memberships',
+  working_group_tasks: 'working_group_tasks',
   notifications: 'notifications',
   privacy_holds: 'privacy_holds',
   actor_references: 'actor_references',
