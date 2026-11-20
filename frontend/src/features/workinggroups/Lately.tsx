@@ -4,10 +4,10 @@ import { Button, Link as CarbonLink, Tile } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { WorkingGroupActivityEntry } from '../../api/generated/models';
+import { Avatar } from './TaskList';
 import { projectLink, purchaseLink, relativeTime, taskItemLink } from './linkModel';
-import { workingGroupActivityOptions } from './queries';
+import { LATELY_FIRST, workingGroupActivityOptions } from './queries';
 
-const FIRST = 10;
 const MAX = 50;
 
 const VERB: Record<WorkingGroupActivityEntry['kind'], string> = {
@@ -57,9 +57,9 @@ function target(groupId: string, entry: WorkingGroupActivityEntry): string | nul
   }
 }
 
-/** The latest events of a group: ten at first, "Show more" up to fifty. */
+/** The latest events of a group: five at first, "Show more" up to fifty. */
 export function Lately({ groupId }: { groupId: string }) {
-  const [limit, setLimit] = useState(FIRST);
+  const [limit, setLimit] = useState(LATELY_FIRST);
   const [focusFrom, setFocusFrom] = useState<number | null>(null);
   const list = useRef<HTMLUListElement>(null);
   const activity = useQuery({
@@ -89,8 +89,8 @@ export function Lately({ groupId }: { groupId: string }) {
   }, [settled, focusFrom]);
   if (activity.isError || (activity.isSuccess && items.length === 0)) return null;
   return (
-    <Tile className="wg-lately-card" aria-label="Lately">
-      <h3>Lately</h3>
+    <Tile className="wg-ov-side" aria-label="Lately">
+      <h3 className="wg-ov-side__title">Lately</h3>
       <ul className="wg-lately" ref={list} tabIndex={-1}>
         {items.map((entry, index) => {
           const Icon = entry.targetKind in ICON ? ICON[entry.targetKind] : Document;
@@ -105,7 +105,7 @@ export function Lately({ groupId }: { groupId: string }) {
           );
           return (
             <li key={keys[index]} tabIndex={-1}>
-              <Icon size={16} aria-hidden />
+              {entry.actor ? <Avatar name={entry.actor} /> : <Icon size={16} aria-hidden />}
               <span>
                 {entry.actor ? (
                   <>

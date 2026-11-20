@@ -155,6 +155,8 @@ function serve(options: { group?: WorkingGroup; notes?: WorkingGroupNote[]; perm
             name: 'Prusa CORE One',
             group: { id: printId, name: 'Printing' },
             status: 'limited',
+            note: 'Nozzle worn',
+            until: '2026-12-03',
             daysNotOkLast90: 9,
           },
           {
@@ -166,6 +168,46 @@ function serve(options: { group?: WorkingGroup; notes?: WorkingGroupNote[]; perm
             daysNotOkLast90: 0,
           },
         ],
+      }),
+    ),
+    http.get(`*/api/v1/working-groups/${printId}/activity`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            kind: 'note_pinned',
+            at: '2026-03-05T10:00:00Z',
+            actor: grace,
+            title: 'Printer room closed on Monday',
+            targetKind: 'note',
+            targetId: publicNote.id,
+          },
+        ],
+      }),
+    ),
+    http.get('*/api/v1/working-group-budget', () =>
+      HttpResponse.json({
+        period: {
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8e301',
+          name: '2026',
+          startsOn: '2026-01-01',
+          endsOn: '2026-12-31',
+          closed: false,
+          current: true,
+          version: 1,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+        groups: detail.isMember
+          ? [
+              {
+                groupId: printId,
+                groupName: 'Printing',
+                given: '500.00',
+                spent: '120.00',
+                reserved: '30.00',
+                free: '350.00',
+              },
+            ]
+          : [],
       }),
     ),
     http.post('*/api/v1/working-group-notes', async ({ request }) => {
@@ -215,7 +257,7 @@ describe('working group overview for people inside', () => {
     expect(kinds).toHaveLength(5);
 
     // Four comments: the last three show, the first one is an "N more" link.
-    expect(within(table).getByRole('link', { name: '1 more' })).toHaveAttribute(
+    expect(within(table).getByRole('link', { name: '1 earlier comment' })).toHaveAttribute(
       'href',
       expect.stringContaining('/working-groups/tasks?group=' + printId),
     );
@@ -241,10 +283,29 @@ describe('working group overview for people inside', () => {
 
     expect(screen.getByText('Open tickets')).toBeInTheDocument();
     expect(screen.getByText('Open to-dos')).toBeInTheDocument();
-    expect(screen.getByText('Machines, last 90 days')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: /9 days of 90 not working/ })).toBeInTheDocument();
-    expect(screen.getByText('Lead: Grace Hopper')).toBeInTheDocument();
-    expect(screen.getByText(/back around 3 Dec/)).toBeInTheDocument();
+    expect(await screen.findByText('Last activity')).toBeInTheDocument();
+    expect(await screen.findByText('5 Mar')).toBeInTheDocument();
+
+    // The budget tile shows the group's share of the current period.
+    expect(await screen.findByText('Budget free')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /120\.00 spent and .*30\.00 reserved of .*500\.00/ })).toBeInTheDocument();
+
+    // Machines and places: usable share of the 90 days, days off, the status note and open tickets per machine.
+    const machines = screen.getByRole('list', { name: 'Machines and places, last 90 days' });
+    expect(within(machines).getByRole('img', { name: /9 days of 90 not fully usable/ })).toBeInTheDocument();
+    expect(within(machines).getByText('9 d off')).toBeInTheDocument();
+    expect(within(machines).getByText('always on')).toBeInTheDocument();
+    expect(within(machines).getByText(/Limited · Nozzle worn · back around 3 Dec/)).toBeInTheDocument();
+    expect(screen.getByText('9 days not fully usable in total')).toBeInTheDocument();
+
+    // The side column is separate tiles: next to-dos, people with their open work, and the activity.
+    const next = screen.getByRole('generic', { name: 'Next to-dos' });
+    expect(within(next).getByRole('link', { name: 'Order nozzles' })).toBeInTheDocument();
+    expect(within(next).getByText('2 days late')).toBeInTheDocument();
+    const people = screen.getByRole('generic', { name: 'People' });
+    expect(within(people).getByText('Group lead')).toBeInTheDocument();
+    expect(within(people).getAllByText('1 to-do')).toHaveLength(2);
+    expect(screen.queryByText('Looks after the 3D printers.')).not.toBeInTheDocument();
   });
 
   it('shows Remove only on notes the caller may remove', async () => {
@@ -331,7 +392,7 @@ describe('working group overview for people inside', () => {
 describe('working group overview for people outside', () => {
   const outside = group({ isMember: false, memberCount: 2, openTicketCount: undefined, openTodoCount: undefined });
 
-  it('shows only public notes, no stat row and a way to write a ticket', async () => {
+  it('shows only public notes, the machines tile without changes and a way to write a ticket', async () => {
     serve({ group: outside });
     renderRoute(<App />, '/working-groups');
 
@@ -339,7 +400,10 @@ describe('working group overview for people outside', () => {
     await within(table).findByText('Printer room closed on Monday');
     expect(within(table).queryByText('Team meeting on Friday')).not.toBeInTheDocument();
     expect(screen.queryByText('Open tickets')).not.toBeInTheDocument();
-    expect(screen.queryByText('Machines, last 90 days')).not.toBeInTheDocument();
+    expect(screen.queryByText('Budget free')).not.toBeInTheDocument();
+    // The machines tile shows the status to everybody, without ticket counts or a way to change it.
+    const machines = await screen.findByRole('list', { name: 'Machines and places, last 90 days' });
+    expect(within(machines).queryByText(/ticket/)).not.toBeInTheDocument();
     expect(screen.getByText('Looks after the 3D printers.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pin a note' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Change status of/ })).not.toBeInTheDocument();
