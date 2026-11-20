@@ -1682,7 +1682,16 @@
 // Carbon's lg breakpoint; below it the side tiles come first, as in the prototype).
 // ---------------------------------------------------------------------------------------------------------------
 
-.wg-ov,
+// Two page columns from Carbon's lg breakpoint: the stat tiles with the pinboard right under them on the left, the
+// machines tile and the side tiles on the right, each column as tall as its own content. On narrower screens the
+// side column dissolves so the order is stat tiles, machines, pinboard, side tiles.
+.wg-ov {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  align-items: start;
+}
+
 .wg-ov-main,
 .wg-ov-side-col {
   display: grid;
@@ -1690,26 +1699,42 @@
   min-inline-size: 0;
 }
 
-.wg-ov-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: $spacing-05;
-  align-items: start;
-}
-
-.wg-ov-grid--stats {
-  align-items: stretch;
-}
-
 @media (min-width: 66rem) {
-  .wg-ov-grid {
+  .wg-ov {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+
+  .wg-ov-stats,
+  .wg-ov-main {
+    grid-column: 1;
+  }
+
+  .wg-ov-side-col {
+    grid-column: 2;
+    grid-row: 1 / span 2;
   }
 }
 
 @media (max-width: 65.98rem) {
   .wg-ov-side-col {
-    order: -1;
+    display: contents;
+  }
+
+  .wg-ov-stats {
+    order: 1;
+  }
+
+  .wg-ov-machines {
+    order: 2;
+  }
+
+  .wg-ov-main {
+    order: 3;
+  }
+
+  .wg-ov-side-col > .wg-ov-side {
+    order: 4;
   }
 }
 

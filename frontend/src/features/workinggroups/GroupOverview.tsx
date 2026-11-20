@@ -606,81 +606,77 @@ function InsideOverview({ summary, group }: { summary: WorkingGroupSummary; grou
 
   return (
     <div className="wg-ov">
-      <div className="wg-ov-grid wg-ov-grid--stats">
-        <div className="wg-ov-stats">
+      <div className="wg-ov-stats">
+        <StatTile
+          icon={<UserMultiple size={20} aria-hidden />}
+          value={group.memberCount}
+          label="People"
+          rows={[
+            ...(group.lead ? [['Group lead', firstName(group.lead)] as [string, string]] : []),
+            ['Last activity', lastActivity ? shortDate(lastActivity) : '–'],
+          ]}
+        />
+        <StatTile
+          icon={<Document size={20} aria-hidden />}
+          value={summary.openTicketCount ?? groupTickets.length}
+          label="Open tickets"
+          rows={[
+            ['New', groupTickets.filter((task) => task.state === 'new').length],
+            ['Unassigned', unassignedTickets.length],
+            ['Oldest', oldest ? age(daysBetween(dateInAppTimeZone(new Date(oldest)), today)) : '–'],
+          ]}
+        />
+        <StatTile
+          icon={<Checkmark size={20} aria-hidden />}
+          value={summary.openTodoCount ?? groupTodos.length}
+          label="Open to-dos"
+          rows={[
+            ['Yours', groupTodos.filter((task) => task.isMine).length],
+            ['Overdue', overdueTodos.length],
+            ['Repeating', groupTodos.filter((task) => task.repeatEveryDays).length],
+          ]}
+        />
+        {share && (
           <StatTile
-            icon={<UserMultiple size={20} aria-hidden />}
-            value={group.memberCount}
-            label="People"
-            rows={[
-              ...(group.lead ? [['Group lead', firstName(group.lead)] as [string, string]] : []),
-              ['Last activity', lastActivity ? shortDate(lastActivity) : '–'],
-            ]}
-          />
-          <StatTile
-            icon={<Document size={20} aria-hidden />}
-            value={summary.openTicketCount ?? groupTickets.length}
-            label="Open tickets"
-            rows={[
-              ['New', groupTickets.filter((task) => task.state === 'new').length],
-              ['Unassigned', unassignedTickets.length],
-              ['Oldest', oldest ? age(daysBetween(dateInAppTimeZone(new Date(oldest)), today)) : '–'],
-            ]}
-          />
-          <StatTile
-            icon={<Checkmark size={20} aria-hidden />}
-            value={summary.openTodoCount ?? groupTodos.length}
-            label="Open to-dos"
-            rows={[
-              ['Yours', groupTodos.filter((task) => task.isMine).length],
-              ['Overdue', overdueTodos.length],
-              ['Repeating', groupTodos.filter((task) => task.repeatEveryDays).length],
-            ]}
-          />
-          {share && (
-            <StatTile
-              icon={<Wallet size={20} aria-hidden />}
-              value={formatMoney(share.free)}
-              label="Budget free"
-              bar={
-                <span
-                  className="wg-ov-money"
-                  role="img"
-                  aria-label={`${formatMoney(share.spent)} spent and ${formatMoney(share.reserved)} reserved of ${formatMoney(share.given)}`}
-                >
-                  <i style={{ inlineSize: `${Math.min(100, Math.round((used / (given || 1)) * 100))}%` }} />
-                </span>
-              }
-              rows={[
-                ['Given', formatMoney(share.given)],
-                ['Spent', formatMoney(share.spent)],
-                ['Reserved', formatMoney(share.reserved)],
-              ]}
-            />
-          )}
-        </div>
-        <MachinesTile groupId={group.id} items={machines} tickets={groupTickets} onChangeStatus={change.open} />
-      </div>
-      <div className="wg-ov-grid">
-        <div className="wg-ov-main">
-          <PinboardTable
-            groupId={group.id}
-            rows={rows}
-            label="Group pinboard"
-            sub={`${attention > 0 ? `${attention} unassigned or overdue` : 'Nothing unassigned or overdue'} · ${plural(noteCount, 'note')}`}
-            toolbarAction={
-              <Button renderIcon={Add} onClick={() => pin.open(true)}>
-                Pin a note
-              </Button>
+            icon={<Wallet size={20} aria-hidden />}
+            value={formatMoney(share.free)}
+            label="Budget free"
+            bar={
+              <span
+                className="wg-ov-money"
+                role="img"
+                aria-label={`${formatMoney(share.spent)} spent and ${formatMoney(share.reserved)} reserved of ${formatMoney(share.given)}`}
+              >
+                <i style={{ inlineSize: `${Math.min(100, Math.round((used / (given || 1)) * 100))}%` }} />
+              </span>
             }
+            rows={[
+              ['Given', formatMoney(share.given)],
+              ['Spent', formatMoney(share.spent)],
+              ['Reserved', formatMoney(share.reserved)],
+            ]}
           />
-        </div>
-        <aside className="wg-ov-side-col" aria-label="Group details">
-          <NextTodos todos={groupTodos} today={today} />
-          <People group={group} open={[...groupTodos, ...groupTickets]} inside />
-          <Lately groupId={group.id} />
-        </aside>
+        )}
       </div>
+      <div className="wg-ov-main">
+        <PinboardTable
+          groupId={group.id}
+          rows={rows}
+          label="Group pinboard"
+          sub={`${attention > 0 ? `${attention} unassigned or overdue` : 'Nothing unassigned or overdue'} · ${plural(noteCount, 'note')}`}
+          toolbarAction={
+            <Button renderIcon={Add} onClick={() => pin.open(true)}>
+              Pin a note
+            </Button>
+          }
+        />
+      </div>
+      <aside className="wg-ov-side-col" aria-label="Group details">
+        <MachinesTile groupId={group.id} items={machines} tickets={groupTickets} onChangeStatus={change.open} />
+        <NextTodos todos={groupTodos} today={today} />
+        <People group={group} open={[...groupTodos, ...groupTickets]} inside />
+        <Lately groupId={group.id} />
+      </aside>
       {pin.value && <PinNoteDialog groupId={group.id} onClose={pin.close} />}
       {change.value && <ChangeStatusDialog target={change.value} onClose={change.close} />}
     </div>
@@ -702,40 +698,36 @@ function OutsideOverview({ summary, group }: { summary: WorkingGroupSummary; gro
     .map((note) => noteRow(note, group, false));
   return (
     <div className="wg-ov">
-      <div className="wg-ov-grid wg-ov-grid--stats">
-        <div className="wg-ov-stats">
+      <div className="wg-ov-stats">
+        <StatTile
+          icon={<UserMultiple size={20} aria-hidden />}
+          value={group.memberCount}
+          label="People"
+          rows={group.lead ? [['Group lead', firstName(group.lead)]] : []}
+        />
+        {summary.openTicketCount !== undefined && (
           <StatTile
-            icon={<UserMultiple size={20} aria-hidden />}
-            value={group.memberCount}
-            label="People"
-            rows={group.lead ? [['Group lead', firstName(group.lead)]] : []}
+            icon={<Document size={20} aria-hidden />}
+            value={summary.openTicketCount}
+            label="Open tickets"
+            rows={[]}
           />
-          {summary.openTicketCount !== undefined && (
-            <StatTile
-              icon={<Document size={20} aria-hidden />}
-              value={summary.openTicketCount}
-              label="Open tickets"
-              rows={[]}
-            />
-          )}
-        </div>
+        )}
+      </div>
+      <div className="wg-ov-main">
+        <PinboardTable
+          groupId={group.id}
+          rows={rows}
+          label="Notes from this group"
+          sub={group.description || undefined}
+          toolbarAction={<Button onClick={() => write.open(true)}>Write a ticket</Button>}
+        />
+      </div>
+      <aside className="wg-ov-side-col" aria-label="Group details">
         <MachinesTile groupId={group.id} items={machines} />
-      </div>
-      <div className="wg-ov-grid">
-        <div className="wg-ov-main">
-          <PinboardTable
-            groupId={group.id}
-            rows={rows}
-            label="Notes from this group"
-            sub={group.description || undefined}
-            toolbarAction={<Button onClick={() => write.open(true)}>Write a ticket</Button>}
-          />
-        </div>
-        <aside className="wg-ov-side-col" aria-label="Group details">
-          <People group={group} inside={false} />
-          <Lately groupId={group.id} />
-        </aside>
-      </div>
+        <People group={group} inside={false} />
+        <Lately groupId={group.id} />
+      </aside>
       {write.value && <WriteTicketDialog groups={[summary]} initialGroupId={group.id} onClose={write.close} />}
     </div>
   );
