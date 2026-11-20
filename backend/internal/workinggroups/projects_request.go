@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -274,7 +275,9 @@ func (s *Service) PutFinanceSignature(ctx context.Context, p authorization.Princ
 		if err != nil {
 			return err
 		}
-		replaced = &old
+		if old != uuid.Nil {
+			replaced = &old
+		}
 		return auditNoResource(ctx, tx, p, "working_group_finance_signature.saved", "working_group_finance_signature", requestID, []string{"signature"})
 	})
 	if err != nil {
@@ -359,7 +362,14 @@ func (s *Service) OpenProjectRequestPDF(ctx context.Context, p authorization.Pri
 }
 
 // SendProjectToWiRef mails the Projektantrag of a project that needs the wiRef and has not sent it yet.
-func (s *Service) SendProjectToWiRef(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) (Project, error) {
+func (s *Service) SendProjectToWiRef(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	in RequestFormInput,
+	requestID *uuid.UUID,
+) (Project, error) {
 	if err := requireRead(p); err != nil {
 		return Project{}, err
 	}
@@ -379,7 +389,7 @@ func (s *Service) SendProjectToWiRef(ctx context.Context, p authorization.Princi
 	if !project.WiRefRequestPending {
 		return Project{}, apperror.Conflicting("wiref_request_not_pending", "There is no Projektantrag waiting to be sent")
 	}
-	if err := s.sendRequest(ctx, p, id, requestID); err != nil {
+	if err := s.sendRequest(ctx, p, id, requestID, in); err != nil {
 		return Project{}, err
 	}
 	return s.reloaded(ctx, p, id)
@@ -391,7 +401,13 @@ func deliveryFailed(code string) error {
 
 // sendRequest renders and mails the Projektantrag with its attachments outside any transaction, then stores the
 // sent PDF and the outcome with their audit event in one.
-func (s *Service) sendRequest(ctx context.Context, p authorization.Principal, id uuid.UUID, requestID *uuid.UUID) error {
+func (s *Service) sendRequest(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+	in RequestFormInput,
+) error {
 	if s.mailer == nil {
 		return deliveryFailed("not_configured")
 	}
@@ -422,15 +438,37 @@ func (s *Service) sendRequest(ctx context.Context, p authorization.Principal, id
 				return err
 			}
 		}
-	} else if form, signature, err = s.buildRequestForm(ctx, q, p, project, RequestFormInput{UseSavedSignature: true}); err != nil {
-		return err
+		if signature == nil {
+			if signature, err = s.resolveSignature(ctx, q, p, in); err != nil {
+				return err
+			}
+		}
+	} else {
+		in.UseSavedSignature = in.UseSavedSignature || len(in.Signature) == 0
+		if form, signature, err = s.buildRequestForm(ctx, q, p, project, in); err != nil {
+			return err
+		}
+	}
+	if signature == nil {
+		return apperror.New(422, "signature_required", "The Projektantrag needs a signature: send one or save yours")
+	}
+	// A signature that is not stored with the project yet is stored with the outcome.
+	var newSignature *uuid.UUID
+	if project.SignatureMissing || project.RequestForm == nil {
+		stored, err := s.storeSignature(ctx, p, signature, requestID)
+		if err != nil {
+			return err
+		}
+		newSignature = &stored.ID
 	}
 	pdf, err := renderProjektantrag(form, signature)
 	if err != nil {
+		s.discardFiles(newSignature)
 		return err
 	}
 	attachments, listed, err := s.requestAttachments(ctx, q, project, form, pdf)
 	if err != nil {
+		s.discardFiles(newSignature)
 		return err
 	}
 	paragraphs := []string{
@@ -442,43 +480,75 @@ func (s *Service) sendRequest(ctx context.Context, p authorization.Principal, id
 	}
 	outcome := s.mailer.SendMessage(ctx, "Projektantrag: "+project.Title, paragraphs, attachments)
 	if outcome.Status != invoicing.DeliverySent {
+		s.discardFiles(newSignature)
 		return deliveryFailed(string(outcome.Status))
 	}
-	stored, err := s.files.StoreBytes(ctx, p, "Projektantrag.pdf", "application/pdf", pdf, requestID)
-	if err != nil {
+	// The mail has left: its delivery is recorded even when the copy of the PDF cannot be stored. Across a process
+	// crash between the send and this record the delivery is at least once.
+	var pdfID *uuid.UUID
+	if stored, err := s.files.StoreBytes(ctx, p, "Projektantrag.pdf", "application/pdf", pdf, requestID); err != nil {
 		slog.ErrorContext(ctx, "store sent projektantrag failed")
-		return err
+	} else {
+		pdfID = &stored.ID
 	}
+	recorded := false
 	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		tq := workinggroupsdb.New(tx)
 		pc, err := lockProject(ctx, tx, p, id)
 		if err != nil {
 			return err
 		}
-		if project.RequestForm == nil {
+		if project.RequestForm == nil || newSignature != nil {
 			raw, err := json.Marshal(form)
 			if err != nil {
 				return err
 			}
+			signer := p.PersonID
 			if err := tq.SetWorkingGroupProjectRequest(ctx, workinggroupsdb.SetWorkingGroupProjectRequestParams{
-				ID: id, Form: string(raw), PaidFrom: pc.core.PaidFrom,
+				ID: id, Form: string(raw), SignatureFileID: newSignature, SignedBy: &signer, PaidFrom: pc.core.PaidFrom,
 			}); err != nil {
 				return err
 			}
 		}
-		fileID := stored.ID
-		if err := tq.SetWorkingGroupProjectRequestPDF(ctx, workinggroupsdb.SetWorkingGroupProjectRequestPDFParams{ID: id, PdfFileID: &fileID}); err != nil {
+		changed, err := tq.SetWorkingGroupProjectRequestPDF(ctx, workinggroupsdb.SetWorkingGroupProjectRequestPDFParams{ID: id, PdfFileID: pdfID})
+		if err != nil {
 			return err
 		}
+		if changed == 0 {
+			return nil
+		}
+		recorded = true
 		if err := addProjectHistory(ctx, tq, p, id, "wiref_request_sent", ""); err != nil {
 			return err
 		}
 		return writeTaskAudit(ctx, tx, p, "working_group_project.request_sent", "working_group_project", id, requestID, []string{"request"})
 	})
+	if err != nil || !recorded {
+		s.discardFiles(pdfID)
+	}
 	if err != nil {
-		s.discardFiles(&stored.ID)
+		s.discardFiles(newSignature)
 	}
 	return err
+}
+
+// sanitizeFileName keeps an attachment name readable but free of quotes, backslashes and control characters, which
+// would break the mail headers.
+func sanitizeFileName(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		switch {
+		case r == '"':
+			b.WriteRune('\'')
+		case r == '\\':
+			b.WriteRune('-')
+		case unicode.IsControl(r):
+			b.WriteRune(' ')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // requestAttachments are the generated PDFs and the stored files of a project; what exceeds the size bound is
@@ -528,7 +598,7 @@ func (s *Service) requestAttachments(
 			return err
 		}
 		defer func() { _ = reader.Close() }()
-		name := label + " - " + file.OriginalFilename
+		name := sanitizeFileName(label + " - " + file.OriginalFilename)
 		if total+int(file.Size) > maxMailAttachmentBytes {
 			listed = append(listed, name)
 			return nil
@@ -571,3 +641,11 @@ func (s *Service) requestAttachments(
 }
 
 var _ = decimal.Zero
+
+// CheckSignatureUpload is the refusal an upload handler runs before it reads the body.
+func (s *Service) CheckSignatureUpload(p authorization.Principal) error {
+	if err := requireRead(p); err != nil {
+		return err
+	}
+	return requireFinance(p)
+}

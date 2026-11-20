@@ -80,9 +80,13 @@ type Querier interface {
 	ListPeopleForMerge(ctx context.Context, ids []string) ([]Person, error)
 	ListPersonRoles(ctx context.Context, personID uuid.UUID) ([]Role, error)
 	ListPersonRolesByPeople(ctx context.Context, personIds []string) ([]ListPersonRolesByPeopleRow, error)
+	// The saved finance signatures of the people; their files are deleted after a merge or a deletion.
+	ListPersonSignatureFiles(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListProfileImageRequirements(ctx context.Context, personIds []string) ([]ListProfileImageRequirementsRow, error)
 	// Only what the People list already shows of a role; permissions and settings stay with the roles feature.
 	ListRoleOptions(ctx context.Context) ([]ListRoleOptionsRow, error)
+	// Of the given files, those no saved signature refers to any more.
+	ListUnreferencedSignatureFiles(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	// Locks the Accounts of the merged People in id order after the people and the master invariant lock.
 	LockAccountsForMerge(ctx context.Context, personIds []string) ([]Account, error)
 	// Locks the groups of both Persons in id order, like every working group mutation, before memberships move.

@@ -193,6 +193,7 @@ func (s *Service) ApproveProject(
 		}
 		storedSignature = &file.ID
 	}
+	signer := p.PersonID
 	needed := false
 	err = s.changeProject(ctx, p, id, projectChange{
 		role: roleFinanceP, state: projectIs(ProjectSubmitted), version: input.ExpectedVersion, keepVersion: true,
@@ -202,7 +203,7 @@ func (s *Service) ApproveProject(
 				return nil, apperror.New(422, "signature_required", "A project that needs the wiRef needs a signature")
 			}
 			if err := pc.q.SetWorkingGroupProjectRequest(ctx, workinggroupsdb.SetWorkingGroupProjectRequestParams{
-				ID: id, Form: string(formJSON), SignatureFileID: storedSignature, PaidFrom: input.PaidFrom,
+				ID: id, Form: string(formJSON), SignatureFileID: storedSignature, SignedBy: &signer, PaidFrom: input.PaidFrom,
 			}); err != nil {
 				return nil, err
 			}
@@ -230,7 +231,7 @@ func (s *Service) ApproveProject(
 	}
 	if needed {
 		// The decision is committed; a mail that cannot be sent leaves the request pending for send-to-wiref.
-		_ = s.sendRequest(ctx, p, id, requestID)
+		_ = s.sendRequest(ctx, p, id, requestID, RequestFormInput{})
 	}
 	return s.reloaded(ctx, p, id)
 }

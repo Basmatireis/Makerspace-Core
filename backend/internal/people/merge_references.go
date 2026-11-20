@@ -71,6 +71,7 @@ var MergeReferences = []MergeReference{
 	{"working_group_finance_rules", "request_responsible_person_id", "people", ruleWorkingTasks},
 	{"working_group_finance_signatures", "person_id", "people", ruleWorkingSignature},
 	{"working_group_project_history", "actor_person_id", "people", ruleWorkingTasks},
+	{"working_group_projects", "request_signed_by", "people", ruleWorkingTasks},
 	{"working_group_projects", "requester_person_id", "people", ruleWorkingTasks},
 	{"working_group_purchases", "requester_person_id", "people", ruleWorkingTasks},
 	{"working_group_ticket_followers", "person_id", "people", ruleWorkingTasks},

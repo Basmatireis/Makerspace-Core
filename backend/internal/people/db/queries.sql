@@ -398,6 +398,7 @@ SELECT
         + (SELECT count(*) FROM working_group_purchases WHERE requester_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_projects WHERE requester_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_project_history WHERE actor_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_projects WHERE request_signed_by = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_finance_signatures WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_finance_rules WHERE request_responsible_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS working_group_tasks,
     (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY((sqlc.arg(account_ids)::text[])::uuid[]))::bigint AS notifications,
@@ -554,6 +555,9 @@ WITH tickets_moved AS (
 ), projects_moved AS (
     UPDATE working_group_projects AS pr SET requester_person_id = sqlc.arg(target_person_id)::uuid
     WHERE pr.requester_person_id = sqlc.arg(source_person_id) RETURNING 1
+), signed_moved AS (
+    UPDATE working_group_projects AS sp SET request_signed_by = sqlc.arg(target_person_id)::uuid
+    WHERE sp.request_signed_by = sqlc.arg(source_person_id) RETURNING 1
 ), project_history_moved AS (
     UPDATE working_group_project_history AS ph SET actor_person_id = sqlc.arg(target_person_id)::uuid
     WHERE ph.actor_person_id = sqlc.arg(source_person_id) RETURNING 1
@@ -569,7 +573,7 @@ SELECT ((SELECT count(*) FROM tickets_moved) + (SELECT count(*) FROM followers_m
       + (SELECT count(*) FROM todos_moved) + (SELECT count(*) FROM comments_moved)
       + (SELECT count(*) FROM notes_moved) + (SELECT count(*) FROM machine_status_moved)
       + (SELECT count(*) FROM place_status_moved) + (SELECT count(*) FROM purchases_moved)
-      + (SELECT count(*) FROM projects_moved) + (SELECT count(*) FROM project_history_moved)
+      + (SELECT count(*) FROM projects_moved) + (SELECT count(*) FROM signed_moved) + (SELECT count(*) FROM project_history_moved)
       + (SELECT count(*) FROM finance_rules_moved) + (SELECT count(*) FROM signatures_moved))::bigint AS moved;
 
 -- name: RepointMergePersonReferences :one
@@ -960,3 +964,12 @@ UPDATE people SET
     updated_at = now()
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: ListPersonSignatureFiles :many
+-- The saved finance signatures of the people; their files are deleted after a merge or a deletion.
+SELECT file_id::uuid AS file_id FROM working_group_finance_signatures WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]);
+
+-- name: ListUnreferencedSignatureFiles :many
+-- Of the given files, those no saved signature refers to any more.
+SELECT f::uuid AS file_id FROM unnest((sqlc.arg(ids)::text[])::uuid[]) AS f
+WHERE NOT EXISTS (SELECT 1 FROM working_group_finance_signatures s WHERE s.file_id = f);

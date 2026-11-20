@@ -243,7 +243,8 @@ func (q *Queries) CopyWorkingGroupBudgetShares(ctx context.Context, arg CopyWork
 const countWorkingGroupFinanceRecords = `-- name: CountWorkingGroupFinanceRecords :one
 SELECT ((SELECT count(*) FROM working_group_purchases WHERE group_id = $1::uuid)
       + (SELECT count(*) FROM working_group_bookings WHERE group_id = $1::uuid)
-      + (SELECT count(*) FROM working_group_budget_shares WHERE group_id = $1::uuid))::bigint AS total,
+      + (SELECT count(*) FROM working_group_budget_shares WHERE group_id = $1::uuid)
+      + (SELECT count(*) FROM working_group_projects WHERE group_id = $1::uuid AND status IN ('wiref', 'running', 'completed')))::bigint AS total,
      ((SELECT count(*) FROM working_group_purchases x JOIN working_group_budget_periods per ON per.id = x.period_id
         WHERE x.group_id = $1::uuid AND per.closed_at IS NOT NULL)
       + (SELECT count(*) FROM working_group_bookings x JOIN working_group_budget_periods per ON per.id = x.period_id
@@ -1861,7 +1862,7 @@ SELECT g.id AS group_id, g.name AS group_name,
         -- A running project paid from the group budget reserves what is still planned beyond its purchases; it counts
         -- in the period that is open today.
         + CASE WHEN EXISTS (SELECT 1 FROM working_group_budget_periods bp WHERE bp.id = $1 AND bp.closed_at IS NULL
-                            AND CURRENT_DATE BETWEEN bp.starts_on AND bp.ends_on)
+                            AND $2::date BETWEEN bp.starts_on AND bp.ends_on)
                THEN COALESCE((SELECT sum(GREATEST(0,
                         (SELECT COALESCE(sum(i.planned_amount), 0) FROM working_group_project_items i WHERE i.project_id = pr.id)
                         - (SELECT COALESCE(sum(COALESCE(pu.receipt_amount, pu.quantity * pu.unit_price)), 0) FROM working_group_purchases pu
@@ -1870,14 +1871,15 @@ SELECT g.id AS group_id, g.name AS group_name,
                ELSE 0 END)::text AS reserved
 FROM working_groups g
 LEFT JOIN working_group_budget_shares s ON s.group_id = g.id AND s.period_id = $1
-WHERE ($2::boolean
-       OR EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = g.id AND m.person_id = $3))
-  AND ($4::uuid IS NULL OR g.id = $4)
+WHERE ($3::boolean
+       OR EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = g.id AND m.person_id = $4))
+  AND ($5::uuid IS NULL OR g.id = $5)
 ORDER BY lower(g.name), g.id
 `
 
 type ListWorkingGroupBudgetFiguresParams struct {
 	PeriodID       uuid.UUID
+	Today          pgtype.Date
 	AllGroups      bool
 	CallerPersonID uuid.UUID
 	GroupID        *uuid.UUID
@@ -1895,6 +1897,7 @@ type ListWorkingGroupBudgetFiguresRow struct {
 func (q *Queries) ListWorkingGroupBudgetFigures(ctx context.Context, arg ListWorkingGroupBudgetFiguresParams) ([]ListWorkingGroupBudgetFiguresRow, error) {
 	rows, err := q.db.Query(ctx, listWorkingGroupBudgetFigures,
 		arg.PeriodID,
+		arg.Today,
 		arg.AllGroups,
 		arg.CallerPersonID,
 		arg.GroupID,
@@ -2002,6 +2005,13 @@ const listWorkingGroupFileIDs = `-- name: ListWorkingGroupFileIDs :many
 SELECT attachment_file_id::uuid AS file_id FROM working_group_purchases WHERE group_id = $1::uuid AND attachment_file_id IS NOT NULL
 UNION
 SELECT receipt_file_id::uuid FROM working_group_purchases WHERE group_id = $1::uuid AND receipt_file_id IS NOT NULL
+UNION
+SELECT o.file_id::uuid FROM working_group_project_offers o JOIN working_group_project_items i ON i.id = o.item_id
+JOIN working_group_projects pr ON pr.id = i.project_id WHERE pr.group_id = $1::uuid AND o.file_id IS NOT NULL
+UNION
+SELECT request_pdf_file_id::uuid FROM working_group_projects WHERE group_id = $1::uuid AND request_pdf_file_id IS NOT NULL
+UNION
+SELECT request_signature_file_id::uuid FROM working_group_projects WHERE group_id = $1::uuid AND request_signature_file_id IS NOT NULL
 `
 
 // Every stored file of the purchases of a group, collected before the group is deleted.
@@ -2694,7 +2704,7 @@ SELECT pr.id, pr.group_id, g.name AS group_name, pr.title, pr.goal, pr.benefit, 
        COALESCE(pr.wiref_number, '')::text AS wiref_number, pr.status, pr.requester_person_id,
        COALESCE(btrim(rp.first_name || ' ' || rp.last_name), '')::text AS requester_display_name,
        pr.wiref_request_sent_at, COALESCE(pr.completion_report, '')::text AS completion_report,
-       (pr.request_pdf_file_id IS NOT NULL)::boolean AS has_request_pdf, COALESCE(pr.request_form::text, '')::text AS request_form,
+       (pr.request_pdf_file_id IS NOT NULL)::boolean AS has_request_pdf, (pr.request_signature_file_id IS NOT NULL)::boolean AS has_request_signature, COALESCE(pr.request_form::text, '')::text AS request_form,
        (SELECT COALESCE(sum(i.planned_amount), 0) FROM working_group_project_items i WHERE i.project_id = pr.id)::text AS planned_total,
        (SELECT COALESCE(sum(pu.quantity * pu.unit_price), 0) FROM working_group_purchases pu
         WHERE pu.project_id = pr.id AND pu.status <> 'declined')::text AS in_purchases,
@@ -2749,6 +2759,7 @@ type ListWorkingGroupProjectsRow struct {
 	WirefRequestSentAt   pgtype.Timestamptz
 	CompletionReport     string
 	HasRequestPdf        bool
+	HasRequestSignature  bool
 	RequestForm          string
 	PlannedTotal         string
 	InPurchases          string
@@ -2801,6 +2812,7 @@ func (q *Queries) ListWorkingGroupProjects(ctx context.Context, arg ListWorkingG
 			&i.WirefRequestSentAt,
 			&i.CompletionReport,
 			&i.HasRequestPdf,
+			&i.HasRequestSignature,
 			&i.RequestForm,
 			&i.PlannedTotal,
 			&i.InPurchases,
@@ -2891,6 +2903,7 @@ SELECT p.id, p.group_id, g.name AS group_name, p.period_id, per.name AS period_n
        (p.attachment_file_id IS NOT NULL)::boolean AS has_attachment, (p.receipt_file_id IS NOT NULL)::boolean AS has_receipt,
        p.order_id, p.created_at, p.approved_at, p.declined_at, p.ordered_at, p.received_at, p.bought_at, p.refunded_at, p.version,
        p.project_id, p.project_item_id,
+       COALESCE((SELECT pr.status FROM working_group_projects pr WHERE pr.id = p.project_id), '')::text AS project_status,
        COALESCE((SELECT pr.status = 'running' FROM working_group_projects pr WHERE pr.id = p.project_id), false)::boolean AS project_running,
        EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = p.group_id AND m.person_id = $1) AS caller_is_member,
        EXISTS (SELECT 1 FROM working_group_members m WHERE m.group_id = p.group_id AND m.person_id = $1 AND m.is_lead) AS caller_is_lead
@@ -2949,6 +2962,7 @@ type ListWorkingGroupPurchasesRow struct {
 	Version              int64
 	ProjectID            *uuid.UUID
 	ProjectItemID        *uuid.UUID
+	ProjectStatus        string
 	ProjectRunning       bool
 	CallerIsMember       bool
 	CallerIsLead         bool
@@ -3003,6 +3017,7 @@ func (q *Queries) ListWorkingGroupPurchases(ctx context.Context, arg ListWorking
 			&i.Version,
 			&i.ProjectID,
 			&i.ProjectItemID,
+			&i.ProjectStatus,
 			&i.ProjectRunning,
 			&i.CallerIsMember,
 			&i.CallerIsLead,
@@ -3622,7 +3637,8 @@ func (q *Queries) LockWorkingGroupProjectItem(ctx context.Context, id uuid.UUID)
 const lockWorkingGroupPurchase = `-- name: LockWorkingGroupPurchase :one
 SELECT id, group_id, period_id, how, status, requester_person_id, version, (quantity * unit_price)::text AS estimated_total,
        attachment_file_id, receipt_file_id, order_id, project_id,
-       COALESCE((SELECT pr.status = 'running' FROM working_group_projects pr WHERE pr.id = lp.project_id), false)::boolean AS project_running
+       COALESCE((SELECT pr.status = 'running' FROM working_group_projects pr WHERE pr.id = lp.project_id), false)::boolean AS project_running,
+       COALESCE((SELECT pr.status FROM working_group_projects pr WHERE pr.id = lp.project_id), '')::text AS project_status
 FROM working_group_purchases lp WHERE lp.id = $1 FOR UPDATE
 `
 
@@ -3640,6 +3656,7 @@ type LockWorkingGroupPurchaseRow struct {
 	OrderID           *uuid.UUID
 	ProjectID         *uuid.UUID
 	ProjectRunning    bool
+	ProjectStatus     string
 }
 
 func (q *Queries) LockWorkingGroupPurchase(ctx context.Context, id uuid.UUID) (LockWorkingGroupPurchaseRow, error) {
@@ -3659,6 +3676,7 @@ func (q *Queries) LockWorkingGroupPurchase(ctx context.Context, id uuid.UUID) (L
 		&i.OrderID,
 		&i.ProjectID,
 		&i.ProjectRunning,
+		&i.ProjectStatus,
 	)
 	return i, err
 }
@@ -4113,14 +4131,16 @@ func (q *Queries) SetWorkingGroupProjectPaidFrom(ctx context.Context, arg SetWor
 const setWorkingGroupProjectRequest = `-- name: SetWorkingGroupProjectRequest :exec
 UPDATE working_group_projects
 SET request_form = $1::text::jsonb, request_signature_file_id = COALESCE($2, request_signature_file_id),
-    paid_from = NULLIF($3::text, ''),
+    request_signed_by = CASE WHEN $2 IS NOT NULL THEN $3 ELSE request_signed_by END,
+    paid_from = COALESCE(NULLIF($4::text, ''), paid_from),
     version = version + 1, updated_at = now()
-WHERE id = $4
+WHERE id = $5
 `
 
 type SetWorkingGroupProjectRequestParams struct {
 	Form            string
 	SignatureFileID *uuid.UUID
+	SignedBy        *uuid.UUID
 	PaidFrom        string
 	ID              uuid.UUID
 }
@@ -4129,15 +4149,16 @@ func (q *Queries) SetWorkingGroupProjectRequest(ctx context.Context, arg SetWork
 	_, err := q.db.Exec(ctx, setWorkingGroupProjectRequest,
 		arg.Form,
 		arg.SignatureFileID,
+		arg.SignedBy,
 		arg.PaidFrom,
 		arg.ID,
 	)
 	return err
 }
 
-const setWorkingGroupProjectRequestPDF = `-- name: SetWorkingGroupProjectRequestPDF :exec
+const setWorkingGroupProjectRequestPDF = `-- name: SetWorkingGroupProjectRequestPDF :execrows
 UPDATE working_group_projects SET request_pdf_file_id = $1, wiref_request_sent_at = now(), version = version + 1, updated_at = now()
-WHERE id = $2
+WHERE id = $2 AND wiref_request_sent_at IS NULL
 `
 
 type SetWorkingGroupProjectRequestPDFParams struct {
@@ -4145,9 +4166,13 @@ type SetWorkingGroupProjectRequestPDFParams struct {
 	ID        uuid.UUID
 }
 
-func (q *Queries) SetWorkingGroupProjectRequestPDF(ctx context.Context, arg SetWorkingGroupProjectRequestPDFParams) error {
-	_, err := q.db.Exec(ctx, setWorkingGroupProjectRequestPDF, arg.PdfFileID, arg.ID)
-	return err
+// Records the delivery once: a project that already has a send time is left alone.
+func (q *Queries) SetWorkingGroupProjectRequestPDF(ctx context.Context, arg SetWorkingGroupProjectRequestPDFParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setWorkingGroupProjectRequestPDF, arg.PdfFileID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setWorkingGroupProjectStatus = `-- name: SetWorkingGroupProjectStatus :exec

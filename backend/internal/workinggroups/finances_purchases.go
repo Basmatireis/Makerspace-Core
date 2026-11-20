@@ -38,6 +38,12 @@ type purchaseState struct {
 	status, how string
 	estimated   decimal.Decimal
 	closed      bool
+	// planLocked: a planned purchase of a project that was handed in; only finance managers change it then.
+	planLocked bool
+}
+
+func planLocked(status, projectStatus string) bool {
+	return status == PurchasePlanned && projectStatus != ProjectDraft && projectStatus != ProjectReturned
 }
 
 func flagsFor(st purchaseState, a purchaseAccess, threshold decimal.Decimal) (bool, PurchaseFlags) {
@@ -60,7 +66,10 @@ func purchaseFromRow(row workinggroupsdb.ListWorkingGroupPurchasesRow, p authori
 	}
 	requester := row.RequesterPersonID != nil && *row.RequesterPersonID == p.PersonID
 	needs, flags := flagsFor(
-		purchaseState{status: row.Status, how: row.How, estimated: dbMoney(row.EstimatedTotal), closed: row.PeriodClosed},
+		purchaseState{
+			status: row.Status, how: row.How, estimated: dbMoney(row.EstimatedTotal), closed: row.PeriodClosed,
+			planLocked: planLocked(row.Status, row.ProjectStatus),
+		},
 		purchaseAccess{finance: isFinance(p), member: row.CallerIsMember, lead: row.CallerIsLead, requester: requester},
 		threshold,
 	)
@@ -158,6 +167,9 @@ func (s *Service) GetPurchase(ctx context.Context, p authorization.Principal, id
 
 func validatePurchaseItem(in PurchaseItemInput) (string, *string, decimal.Decimal, error) {
 	item, err := validateShortText(in.Item, "item", MaxPurchaseItemRunes)
+	if err == nil {
+		err = noControl(item, "item")
+	}
 	if err != nil {
 		return "", nil, decimal.Zero, err
 	}
@@ -239,7 +251,7 @@ func (s *Service) CreatePurchases(
 		}
 		created := make([]uuid.UUID, 0, len(cleaned))
 		requester := p.PersonID
-		planned, err := projectForNewPurchases(ctx, q, input)
+		planned, err := projectForNewPurchases(ctx, q, p, input)
 		if err != nil {
 			return err
 		}
@@ -303,7 +315,10 @@ type purchaseCtx struct {
 }
 
 func (pc *purchaseCtx) state() purchaseState {
-	return purchaseState{status: pc.core.Status, how: pc.core.How, estimated: dbMoney(pc.core.EstimatedTotal), closed: pc.closed}
+	return purchaseState{
+		status: pc.core.Status, how: pc.core.How, estimated: dbMoney(pc.core.EstimatedTotal), closed: pc.closed,
+		planLocked: planLocked(pc.core.Status, pc.core.ProjectStatus),
+	}
 }
 
 // lockPurchase takes the group lock, the purchase lock and a share lock on its period, then decides what the caller
@@ -541,7 +556,7 @@ func (s *Service) DeletePurchase(ctx context.Context, p authorization.Principal,
 }
 
 func (st purchaseState) deletableBy(a purchaseAccess) bool {
-	return (a.requester && (st.status == PurchaseWanted || st.status == PurchasePlanned)) ||
+	return (a.requester && (st.status == PurchaseWanted || (st.status == PurchasePlanned && !st.planLocked))) ||
 		(a.finance && (st.status == PurchaseWanted || st.status == PurchaseDeclined || st.status == PurchasePlanned))
 }
 
@@ -638,7 +653,8 @@ func (s *Service) SetAttachment(
 		noVersion: true,
 		role:      roleRequesterLeadFinance, reload: true,
 		state: func(pc *purchaseCtx) bool {
-			return pc.core.Status == PurchaseWanted || pc.core.Status == PurchasePlanned
+			return pc.core.Status == PurchaseWanted ||
+				(pc.core.Status == PurchasePlanned && (!pc.state().planLocked || pc.access.finance))
 		},
 		change: func(tx pgx.Tx, pc *purchaseCtx) ([]*uuid.UUID, error) {
 			fileID := stored.ID

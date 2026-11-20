@@ -59,6 +59,8 @@ export interface WorkingGroupProject {
   /** Paid from external, or the planned total reaches the project threshold. */
   wirefNeeded: boolean;
   wirefRequestPending: boolean;
+  /** The request is pending and the project has no stored signature: sending needs one. */
+  signatureMissing?: boolean;
   hasRequestPdf: boolean;
   /** Finance managers only. */
   requestForm?: WorkingGroupProjectRequestForm | null;

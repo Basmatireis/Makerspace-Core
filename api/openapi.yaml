@@ -9345,9 +9345,9 @@ paths:
       operationId: sendWorkingGroupProjectToWiRef
       summary: Send the Projektantrag
       description: >-
-        Requires `working_groups.read` and `working_group_finances.manage`; only while `wirefRequestPending` (409 otherwise). Mails the request stored with the project.
+        Requires `working_groups.read` and `working_group_finances.manage`; only while `wirefRequestPending` (409 otherwise). Mails the request stored with the project. A project without a stored signature (`signatureMissing`) needs one in the body, or `useSavedSignature` with the caller's saved one (422 `signature_required` otherwise). Delivery is at least once: a crash between the mail and its record can send it again.
       security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProjectVersionRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SendWorkingGroupProjectToWiRefRequest"}}}}
       responses:
         "200": {description: Done., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupProject"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
@@ -22113,6 +22113,15 @@ components:
       properties:
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
+    SendWorkingGroupProjectToWiRefRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        signature: {type: string, format: byte, maxLength: 700000, description: "A PNG image, base64 encoded (at most 512 KiB); needed when the project has no stored signature."}
+        useSavedSignature: {type: boolean}
+
     WorkingGroupProjectReasonRequest:
       type: object
       additionalProperties: false
@@ -22312,6 +22321,7 @@ components:
         totals: {$ref: "#/components/schemas/WorkingGroupProjectTotals"}
         wirefNeeded: {type: boolean, description: "Paid from external, or the planned total reaches the project threshold."}
         wirefRequestPending: {type: boolean}
+        signatureMissing: {type: boolean, description: "The request is pending and the project has no stored signature: sending needs one."}
         hasRequestPdf: {type: boolean}
         requestForm: {allOf: [{$ref: "#/components/schemas/WorkingGroupProjectRequestForm"}], nullable: true, description: "Finance managers only."}
         canEdit: {type: boolean}

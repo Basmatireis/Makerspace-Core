@@ -217,6 +217,7 @@ type Project struct {
 	Totals              ProjectTotals
 	WiRefNeeded         bool
 	WiRefRequestPending bool
+	SignatureMissing    bool
 	HasRequestPDF       bool
 	RequestForm         *RequestForm
 	CanEdit             bool

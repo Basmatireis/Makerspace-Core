@@ -63,7 +63,7 @@ func projectDTO(v workinggroups.Project) openapi.WorkingGroupProject {
 		Id: v.ID, GroupId: v.GroupID, GroupName: v.GroupName, Title: v.Title, Goal: v.Goal, Benefit: v.Benefit,
 		StartsOn: wgDateNullable(v.StartsOn), EndsOn: wgDateNullable(v.EndsOn), People: int(v.People), PlannedIncome: v.PlannedIncome,
 		Alcohol: v.Alcohol, AdvanceRequested: v.AdvanceRequested, Status: openapi.WorkingGroupProjectStatus(v.Status),
-		WirefNeeded: v.WiRefNeeded, WirefRequestPending: v.WiRefRequestPending, HasRequestPdf: v.HasRequestPDF,
+		SignatureMissing: &v.SignatureMissing, WirefNeeded: v.WiRefNeeded, WirefRequestPending: v.WiRefRequestPending, HasRequestPdf: v.HasRequestPDF,
 		CanEdit: v.CanEdit, CanSubmit: v.CanSubmit, CanDecide: v.CanDecide, CanComplete: v.CanComplete,
 		CreatedAt: v.CreatedAt, Version: v.Version,
 		Totals: openapi.WorkingGroupProjectTotals{
@@ -556,7 +556,9 @@ func (s *Server) SendWorkingGroupProjectToWiRef(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.workingGroups.SendProjectToWiRef(ctx, p, r.ProjectId, r.Body.ExpectedVersion, requestIDPointer(ctx))
+	item, err := s.workingGroups.SendProjectToWiRef(
+		ctx, p, r.ProjectId, r.Body.ExpectedVersion, sendInputFrom(r.Body), requestIDPointer(ctx),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -665,12 +667,24 @@ func (s *Server) ConvertWorkingGroupPurchaseToProject(
 	return openapi.ConvertWorkingGroupPurchaseToProject201JSONResponse(projectDTO(item)), nil
 }
 
+func sendInputFrom(b *openapi.SendWorkingGroupProjectToWiRefRequest) workinggroups.RequestFormInput {
+	in := workinggroups.RequestFormInput{}
+	if b.Signature != nil {
+		in.Signature = *b.Signature
+	}
+	in.UseSavedSignature = b.UseSavedSignature != nil && *b.UseSavedSignature
+	return in
+}
+
 func (s *Server) PutWorkingGroupFinanceSignature(
 	ctx context.Context,
 	r openapi.PutWorkingGroupFinanceSignatureRequestObject,
 ) (openapi.PutWorkingGroupFinanceSignatureResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.workingGroups.CheckSignatureUpload(p); err != nil {
 		return nil, err
 	}
 	data, err := io.ReadAll(io.LimitReader(r.Body, workinggroups.MaxSignatureBytes+1))

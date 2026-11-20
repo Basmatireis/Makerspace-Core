@@ -6,6 +6,8 @@
 -- (status 'planned', no figure counts them) and become 'approved' when the project starts running.
 -- Person references are SET NULL; a deleted group takes its projects (the application deletes the stored files).
 -- Money is numeric(20,2) euros.
+-- The purchases' project reference is SET NULL, so the application must delete a project's planned purchases (and
+-- their files) before it deletes the project; a deleted group takes its purchases with it.
 CREATE TABLE working_group_projects (
     id uuid PRIMARY KEY,
     group_id uuid NOT NULL REFERENCES working_groups(id) ON DELETE CASCADE,
@@ -28,15 +30,19 @@ CREATE TABLE working_group_projects (
     request_form jsonb,
     request_signature_file_id uuid UNIQUE REFERENCES files(id) ON DELETE SET NULL,
     request_pdf_file_id uuid UNIQUE REFERENCES files(id) ON DELETE SET NULL,
+    -- Who signed the request: the signature image belongs to this person.
+    request_signed_by uuid REFERENCES people(id) ON DELETE SET NULL,
     completion_report text CHECK (completion_report IS NULL OR length(completion_report) <= 2000),
     version bigint NOT NULL DEFAULT 1 CHECK (version > 0),
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
-    CHECK (starts_on IS NULL OR ends_on IS NULL OR ends_on >= starts_on)
+    CHECK (starts_on IS NULL OR ends_on IS NULL OR ends_on >= starts_on),
+    CHECK (status NOT IN ('wiref', 'running', 'completed') OR paid_from IS NOT NULL)
 );
 
 CREATE INDEX working_group_projects_group_idx ON working_group_projects (group_id, created_at DESC, id DESC);
 CREATE INDEX working_group_projects_status_idx ON working_group_projects (status, created_at DESC, id DESC);
+CREATE INDEX working_group_projects_signed_by_idx ON working_group_projects (request_signed_by) WHERE request_signed_by IS NOT NULL;
 CREATE INDEX working_group_projects_requester_idx ON working_group_projects (requester_person_id) WHERE requester_person_id IS NOT NULL;
 
 CREATE TABLE working_group_project_items (
@@ -52,6 +58,7 @@ CREATE TABLE working_group_project_items (
 );
 
 CREATE INDEX working_group_project_items_project_idx ON working_group_project_items (project_id, position, id);
+CREATE INDEX working_group_project_items_chosen_offer_idx ON working_group_project_items (chosen_offer_id) WHERE chosen_offer_id IS NOT NULL;
 
 CREATE TABLE working_group_project_offers (
     id uuid PRIMARY KEY,
@@ -101,6 +108,7 @@ ALTER TABLE working_group_purchases
     ADD COLUMN project_item_id uuid REFERENCES working_group_project_items(id) ON DELETE SET NULL;
 
 CREATE INDEX working_group_purchases_project_idx ON working_group_purchases (project_id) WHERE project_id IS NOT NULL;
+CREATE INDEX working_group_purchases_project_item_idx ON working_group_purchases (project_item_id) WHERE project_item_id IS NOT NULL;
 
 -- The check constraints that mention the status are replaced with versions that know 'planned'.
 -- +goose StatementBegin

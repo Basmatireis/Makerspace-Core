@@ -151,6 +151,7 @@ func (s *Service) Execute(ctx context.Context, p authorization.Principal, id uui
 		exportFileID *uuid.UUID
 		staged       *files.StagedBlob
 		profileImage *uuid.UUID
+		signatures   []uuid.UUID
 	)
 	switch current.Kind {
 	case KindAccess:
@@ -169,6 +170,9 @@ func (s *Service) Execute(ctx context.Context, p authorization.Principal, id uui
 		}
 		exportFileID, status = &file.ID, StatusCompleted
 	case KindErasure:
+		if signatures, err = s.people.SignatureFiles(ctx, tx, []uuid.UUID{person.ID}); err != nil {
+			return Request{}, err
+		}
 		result, profileImage, err = s.erase(ctx, tx, p, person, requestID)
 		if err != nil {
 			return Request{}, err
@@ -229,6 +233,7 @@ func (s *Service) Execute(ctx context.Context, p authorization.Principal, id uui
 		return Request{}, err
 	}
 	staged = nil
+	s.people.DiscardSignatureFiles(ctx, signatures, requestID)
 	if profileImage != nil {
 		// The person is gone; the profile image blob is removed by the system like after a manual deletion.
 		if err := s.files.DeleteSystem(ctx, *profileImage, requestID); err != nil {

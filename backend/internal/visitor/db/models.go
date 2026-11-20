@@ -2684,6 +2684,7 @@ type WorkingGroupProject struct {
 	RequestForm            []byte
 	RequestSignatureFileID *uuid.UUID
 	RequestPdfFileID       *uuid.UUID
+	RequestSignedBy        *uuid.UUID
 	CompletionReport       *string
 	Version                int64
 	CreatedAt              time.Time

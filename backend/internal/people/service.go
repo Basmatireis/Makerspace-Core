@@ -503,6 +503,10 @@ func (s *Service) Delete(
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	signatures, err := s.SignatureFiles(ctx, tx, []uuid.UUID{id})
+	if err != nil {
+		return err
+	}
 	profileImage, err := s.DeleteInTransaction(ctx, tx, principal, id, expectedVersion, requestID)
 	if err != nil {
 		return err
@@ -510,6 +514,7 @@ func (s *Service) Delete(
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
+	s.DiscardSignatureFiles(ctx, signatures, requestID)
 	if profileImage != nil {
 		// The actor may have deleted their own Account. The Person deletion's
 		// audit event records the actor; subsequent file cleanup is system-owned.
@@ -1493,4 +1498,28 @@ func (s *Service) notifyRoleChange(
 		return nil
 	}
 	return s.inbox.RoleChanged(ctx, tx, personID, roleID, assigned, actorAccountID)
+}
+
+// SignatureFiles lists the saved finance signatures of people; collect them before a deletion or merge and hand them
+// to DiscardSignatureFiles after the commit.
+func (s *Service) SignatureFiles(ctx context.Context, tx pgx.Tx, personIDs []uuid.UUID) ([]uuid.UUID, error) {
+	return peopledb.New(tx).ListPersonSignatureFiles(ctx, uuidStrings(personIDs))
+}
+
+// DiscardSignatureFiles deletes the collected signature files that no saved signature refers to any more. The change
+// is committed; a file that cannot be removed now is only logged.
+func (s *Service) DiscardSignatureFiles(ctx context.Context, fileIDs []uuid.UUID, requestID *uuid.UUID) {
+	if len(fileIDs) == 0 || s.files == nil {
+		return
+	}
+	gone, err := peopledb.New(s.pool).ListUnreferencedSignatureFiles(ctx, uuidStrings(fileIDs))
+	if err != nil {
+		slog.WarnContext(ctx, "signature files were not checked after a person change")
+		return
+	}
+	for _, id := range gone {
+		if err := s.files.DeleteSystem(ctx, id, requestID); err != nil {
+			slog.WarnContext(ctx, "a saved signature file was not deleted", "file_id", id)
+		}
+	}
 }

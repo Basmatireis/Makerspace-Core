@@ -7,6 +7,7 @@ import (
 	"errors"
 	"image"
 	"image/png"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	requestsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/subjectrequests/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/workinggroups"
+	workinggroupsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/workinggroups/db"
 	"github.com/google/uuid"
 )
 
@@ -116,7 +118,7 @@ func (f projectFixture) project(t *testing.T, title, itemAmount string) workingg
 func (f projectFixture) planned(t *testing.T, p workinggroups.Project, price string) workinggroups.Purchase {
 	t.Helper()
 	link := "https://shop.example/part"
-	items, err := f.service.CreatePurchases(testContext(t), f.member, workinggroups.CreatePurchasesInput{
+	items, err := f.service.CreatePurchases(testContext(t), f.lead, workinggroups.CreatePurchasesInput{
 		GroupID: f.group.ID, How: workinggroups.HowSelf, ProjectID: &p.ID, ProjectItemID: &p.Items[0].ID,
 		Items: []workinggroups.PurchaseItemInput{{Item: "Part", Link: &link, Quantity: 1, UnitPrice: price}},
 	}, nil)
@@ -216,7 +218,10 @@ func TestWorkingGroupProjectDenialsPerOperation(t *testing.T) {
 			_, err := f.service.SetProjectPaidFrom(ctx, f.lead, p.ID, p.Version, "external", "", nil)
 			return err
 		},
-		"send": func() error { _, err := f.service.SendProjectToWiRef(ctx, f.lead, p.ID, p.Version, nil); return err },
+		"send": func() error {
+			_, err := f.service.SendProjectToWiRef(ctx, f.lead, p.ID, p.Version, workinggroups.RequestFormInput{}, nil)
+			return err
+		},
 		"advance": func() error {
 			_, err := f.service.MarkProjectAdvanceReceived(ctx, f.lead, p.ID, p.Version, nil)
 			return err
@@ -440,7 +445,7 @@ func TestWorkingGroupProjectNeedingTheWiRefSendsOneMailAndRecordsTheDecision(t *
 		t.Fatalf("request form visibility: member %v finance %v", member.RequestForm, p.RequestForm)
 	}
 	// Sending again is refused: it was sent.
-	_, err = f.service.SendProjectToWiRef(ctx, f.finance, p.ID, p.Version, nil)
+	_, err = f.service.SendProjectToWiRef(ctx, f.finance, p.ID, p.Version, workinggroups.RequestFormInput{}, nil)
 	if !apperror.IsCode(err, "wiref_request_not_pending") {
 		t.Fatalf("send again: %v", err)
 	}
@@ -503,12 +508,12 @@ func TestWorkingGroupProjectPaidFromChangeLeavesTheRequestPendingUntilSent(t *te
 	}
 	// A failing mail leaves it pending.
 	f.mail.fail = true
-	_, err = f.service.SendProjectToWiRef(ctx, f.finance, p.ID, p.Version, nil)
+	_, err = f.service.SendProjectToWiRef(ctx, f.finance, p.ID, p.Version, workinggroups.RequestFormInput{}, nil)
 	if !apperror.IsCode(err, "wiref_delivery_failed") {
 		t.Fatalf("failed send: %v", err)
 	}
 	f.mail.fail = false
-	p, err = f.service.SendProjectToWiRef(ctx, f.finance, p.ID, p.Version, nil)
+	p, err = f.service.SendProjectToWiRef(ctx, f.finance, p.ID, p.Version, workinggroups.RequestFormInput{}, nil)
 	if err != nil || p.WiRefRequestPending || f.mail.count() != 1 || !bytes.HasPrefix(f.mail.sent[0].attachment("Projektantrag.pdf"), []byte("%PDF")) {
 		t.Fatalf("send: %+v %v mails %d", p, err, f.mail.count())
 	}
@@ -649,5 +654,294 @@ func TestSubjectRequestExportHoldsTheSubjectsProjects(t *testing.T) {
 	}
 	if len(export["projects"]) != 1 || export["projects"][0]["title"] != "Subject project" || strings.Contains(string(document), "Colleague project") {
 		t.Fatalf("export = %s", document)
+	}
+}
+
+// bigWiRef is a project of one item at the offers threshold with three offers (the first with a file), handed in and
+// approved as paid externally: it waits for the wiRef.
+func (f projectFixture) bigWiRef(t *testing.T, title string) (workinggroups.Project, []uuid.UUID) {
+	t.Helper()
+	ctx := testContext(t)
+	p := f.project(t, title, "900")
+	var offers []uuid.UUID
+	for i, shop := range []string{"A", "B", "C"} {
+		var err error
+		if p, err = f.service.CreateProjectOffer(ctx, f.lead, p.ID, p.Items[0].ID, workinggroups.ProjectOfferInput{Shop: shop, Price: []string{"900", "850", "950"}[i]}, nil); err != nil {
+			t.Fatal(err)
+		}
+		offers = append(offers, p.Items[0].Offers[i].ID)
+	}
+	p, err := f.service.SetProjectOfferFile(ctx, f.lead, p.ID, offers[0], pdfUpload("offer.pdf"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f.approve(t, f.submit(t, p), workinggroups.PaidFromExternal), offers
+}
+
+func (f projectFixture) plannedIn(t *testing.T, who authorization.Principal, projectID uuid.UUID, itemID *uuid.UUID) error {
+	t.Helper()
+	link := "https://shop.example/x"
+	_, err := f.service.CreatePurchases(testContext(t), who, workinggroups.CreatePurchasesInput{
+		GroupID: f.group.ID, How: workinggroups.HowSelf, ProjectID: &projectID, ProjectItemID: itemID,
+		Items: []workinggroups.PurchaseItemInput{{Item: "Thing", Link: &link, Quantity: 1, UnitPrice: "5"}},
+	}, nil)
+	return err
+}
+
+func TestWorkingGroupPlannedPurchasesNeedTheLeadOrRequesterAndAnOpenPlan(t *testing.T) {
+	f := newProjectFixture(t, "wgp-plan")
+	ctx := testContext(t)
+	p := f.project(t, "Plan", "50")
+	// A plain member may not plan purchases; the lead may.
+	is(t, f.plannedIn(t, f.member, p.ID, &p.Items[0].ID), apperror.PermissionDenied)
+	if err := f.plannedIn(t, f.lead, p.ID, &p.Items[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	// A project of another group and an item of another project are refused.
+	foreign, err := f.service.CreateProject(ctx, f.otherMember, workinggroups.CreateProjectInput{
+		GroupID: f.otherGroup.ID, ProjectFields: workinggroups.ProjectFields{Title: "Foreign", People: 1, PlannedIncome: "0"},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.plannedIn(t, f.lead, foreign.ID, nil); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("cross-group project: %v", err)
+	}
+	other := f.project(t, "Other", "10")
+	if err := f.plannedIn(t, f.lead, p.ID, &other.Items[0].ID); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("item of another project: %v", err)
+	}
+	// Handed in: no planned purchases, and the requester may not delete the existing one.
+	p = f.submit(t, f.get(t, p.ID))
+	if err := f.plannedIn(t, f.lead, p.ID, &p.Items[0].ID); !apperror.IsCode(err, "working_group_project_state") {
+		t.Fatalf("submitted project: %v", err)
+	}
+	planned := p.Items[0].Purchases[0].ID
+	if err := f.service.DeletePurchase(ctx, f.lead, planned, nil); !apperror.IsCode(err, "working_group_purchase_state") {
+		t.Fatalf("requester deleting a planned purchase of a handed-in project: %v", err)
+	}
+	// In the wiRef state and once completed the same holds.
+	big, _ := f.bigWiRef(t, "Waiting")
+	if big.Status != workinggroups.ProjectWiRef {
+		t.Fatalf("status = %s", big.Status)
+	}
+	if err := f.plannedIn(t, f.lead, big.ID, &big.Items[0].ID); !apperror.IsCode(err, "working_group_project_state") {
+		t.Fatalf("wiref project: %v", err)
+	}
+	// A running project takes normal purchases.
+	run := f.project(t, "Running", "40")
+	f.planned(t, run, "40")
+	run = f.approve(t, f.submit(t, f.get(t, run.ID)), workinggroups.PaidFromGroup)
+	if err := f.plannedIn(t, f.member, run.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, pu := range f.get(t, run.ID).Items[0].Purchases {
+		if pu.Status == workinggroups.PurchasePlanned {
+			t.Fatal("running projects must not get planned purchases")
+		}
+	}
+	run, err = f.service.CompleteProject(ctx, f.lead, run.ID, f.get(t, run.ID).Version, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.plannedIn(t, f.lead, run.ID, nil); !apperror.IsCode(err, "working_group_project_state") {
+		t.Fatalf("completed project: %v", err)
+	}
+	// A finance manager may still delete it.
+	if err := f.service.DeletePurchase(ctx, f.finance, planned, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWorkingGroupDeleteCountsAndCleansProjectFiles(t *testing.T) {
+	f := newProjectFixture(t, "wgp-gdel")
+	ctx := testContext(t)
+	both, _ := groupPrincipal(t, f.pool, "wgp-gdel-both", "working_groups.read", "working_groups.manage", "working_group_finances.manage")
+	group := f.newGroup(t, "Projects wgp-gdel")
+	stored, err := f.fileService.StoreBytes(ctx, f.finance, "r.pdf", "application/pdf", pdfBytes, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	project := ids.New()
+	mergeExec(t, f.pool, `INSERT INTO working_group_projects(id, group_id, title, request_pdf_file_id) VALUES($1, $2, 'Draft', $3)`, project, group.ID, stored.ID)
+	got, err := workinggroupsdb.New(f.pool).ListWorkingGroupFileIDs(ctx, group.ID)
+	if err != nil || len(got) != 1 || got[0] != stored.ID {
+		t.Fatalf("file ids = %v %v", got, err)
+	}
+	// A draft is no finance record; a running project blocks like one.
+	mergeExec(t, f.pool, `UPDATE working_group_projects SET status = 'running', paid_from = 'group' WHERE id = $1`, project)
+	requireAppError(t, f.service.Delete(ctx, f.manager, group.ID, nil), http.StatusConflict, "working_group_has_finances")
+	mergeExec(t, f.pool, `UPDATE working_group_projects SET status = 'draft' WHERE id = $1`, project)
+	if err := f.service.Delete(ctx, both, group.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := f.fileService.Open(ctx, stored.ID); err == nil {
+		t.Fatal("the request PDF must be deleted with the group")
+	}
+}
+
+func TestWorkingGroupProjectMailSurvivesQuotesInNamesAndRefusesControlCharacters(t *testing.T) {
+	f := newProjectFixture(t, "wgp-name")
+	ctx := testContext(t)
+	p := f.project(t, "Names", "900")
+	for i, shop := range []string{"A", "B", "C"} {
+		var err error
+		if p, err = f.service.CreateProjectOffer(ctx, f.lead, p.ID, p.Items[0].ID, workinggroups.ProjectOfferInput{Shop: shop, Price: []string{"900", "850", "950"}[i]}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := "https://shop.example/m"
+	items, err := f.service.CreatePurchases(ctx, f.lead, workinggroups.CreatePurchasesInput{
+		GroupID: f.group.ID, How: workinggroups.HowSelf, ProjectID: &p.ID, ProjectItemID: &p.Items[0].ID,
+		Items: []workinggroups.PurchaseItemInput{{Item: "27\" Monitor", Link: &link, Quantity: 1, UnitPrice: "900"}},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.SetAttachment(ctx, f.lead, items[0].ID, pdfUpload("cart.pdf"), nil); err != nil {
+		t.Fatal(err)
+	}
+	p = f.approve(t, f.submit(t, f.get(t, p.ID)), workinggroups.PaidFromExternal)
+	if f.mail.count() != 1 {
+		t.Fatalf("mails = %d (%+v)", f.mail.count(), p)
+	}
+	found := false
+	for _, name := range f.mail.sent[0].names() {
+		if strings.ContainsAny(name, "\"\\\r\n") {
+			t.Fatalf("unsafe attachment name %q", name)
+		}
+		found = found || strings.Contains(name, "27' Monitor")
+	}
+	if !found {
+		t.Fatalf("names = %v", f.mail.sent[0].names())
+	}
+	for _, bad := range []string{"line\nbreak", "tab\there", "nul\x00"} {
+		if _, err := f.service.CreateProjectItem(ctx, f.lead, p.ID, workinggroups.ProjectItemInput{Text: bad, PlannedAmount: "1"}, nil); err == nil {
+			t.Fatalf("item text %q accepted", bad)
+		}
+	}
+	d := f.project(t, "Draft", "1")
+	if _, err := f.service.CreateProjectOffer(ctx, f.lead, d.ID, d.Items[0].ID, workinggroups.ProjectOfferInput{Shop: "bad\nshop", Price: "1"}, nil); err == nil {
+		t.Fatal("shop with a line break accepted")
+	}
+	if _, err := f.service.CreateProject(ctx, f.lead, workinggroups.CreateProjectInput{GroupID: f.group.ID, ProjectFields: workinggroups.ProjectFields{Title: "a\rb", People: 1, PlannedIncome: "0"}}, nil); err == nil {
+		t.Fatal("title with a carriage return accepted")
+	}
+	if _, err := f.service.CreatePurchases(ctx, f.member, workinggroups.CreatePurchasesInput{
+		GroupID: f.group.ID, How: workinggroups.HowSelf, Items: []workinggroups.PurchaseItemInput{{Item: "x\ny", Quantity: 1, UnitPrice: "1"}},
+	}, nil); err == nil {
+		t.Fatal("purchase item with a line break accepted")
+	}
+}
+
+func TestWorkingGroupProjectIdsOfAnotherProjectAreRefused(t *testing.T) {
+	f := newProjectFixture(t, "wgp-cross")
+	ctx := testContext(t)
+	p1, offers1 := f.bigWiRef(t, "One")
+	p2, offers2 := f.bigWiRef(t, "Two")
+	// Operations on project one with the item or offer of project two do not find them.
+	_, err := f.service.SetProjectOfferFile(ctx, f.finance, p1.ID, offers2[1], pdfUpload("x.pdf"), nil)
+	is(t, err, apperror.NotFound)
+	_, _, err = f.service.OpenProjectOfferFile(ctx, f.finance, p1.ID, offers2[0])
+	is(t, err, apperror.NotFound)
+	_, err = f.service.DeleteProjectOffer(ctx, f.finance, p1.ID, offers2[0], nil)
+	is(t, err, apperror.NotFound)
+	_, err = f.service.UpdateProjectItem(ctx, f.finance, p1.ID, p2.Items[0].ID, workinggroups.ProjectItemInput{Text: "x", PlannedAmount: "1"}, nil)
+	is(t, err, apperror.NotFound)
+	_, err = f.service.DeleteProjectItem(ctx, f.finance, p1.ID, p2.Items[0].ID, nil)
+	is(t, err, apperror.NotFound)
+	_, err = f.service.CreateProjectOffer(ctx, f.finance, p1.ID, p2.Items[0].ID, workinggroups.ProjectOfferInput{Shop: "x", Price: "1"}, nil)
+	is(t, err, apperror.NotFound)
+	// The decision cannot choose an offer of another project.
+	_, err = f.service.RecordWiRefDecision(ctx, f.finance, p1.ID, workinggroups.WiRefDecisionInput{
+		ExpectedVersion: f.get(t, p1.ID).Version, Number: "PA-1",
+		ChosenOffers: []workinggroups.ChosenOffer{{ItemID: p1.Items[0].ID, OfferID: offers2[1]}},
+	}, nil)
+	if !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("foreign offer: %v", err)
+	}
+	// Reading: outsiders see nothing, a plain member may read the offer but not the sent request.
+	_, _, err = f.service.OpenProjectOfferFile(ctx, f.outsider, p1.ID, offers1[0])
+	is(t, err, apperror.NotFound)
+	if _, reader, err := f.service.OpenProjectOfferFile(ctx, f.member, p1.ID, offers1[0]); err != nil {
+		t.Fatal(err)
+	} else {
+		_ = reader.Close()
+	}
+	_, _, err = f.service.OpenProjectRequestPDF(ctx, f.member, p1.ID)
+	is(t, err, apperror.PermissionDenied)
+}
+
+func TestWorkingGroupSendNeedsASignatureAndRecordsTheSigner(t *testing.T) {
+	f := newProjectFixture(t, "wgp-signer")
+	ctx := testContext(t)
+	p := f.project(t, "Unsigned", "60")
+	f.planned(t, p, "60")
+	// Approved without a signature: it does not need the wiRef.
+	p, err := f.service.ApproveProject(ctx, f.finance, f.submit(t, f.get(t, p.ID)).ID, workinggroups.ApproveProjectInput{
+		ExpectedVersion: f.get(t, p.ID).Version, PaidFrom: workinggroups.PaidFromGroup,
+	}, nil)
+	if err != nil || p.Status != workinggroups.ProjectRunning {
+		t.Fatalf("approve: %v", err)
+	}
+	p, err = f.service.SetProjectPaidFrom(ctx, f.finance, p.ID, p.Version, workinggroups.PaidFromExternal, "", nil)
+	if err != nil || !p.WiRefRequestPending || !p.SignatureMissing {
+		t.Fatalf("paid from: %+v %v", p, err)
+	}
+	_ = f.service.DeleteFinanceSignature(ctx, f.finance, nil)
+	_, err = f.service.SendProjectToWiRef(ctx, f.finance, p.ID, p.Version, workinggroups.RequestFormInput{}, nil)
+	if !apperror.IsCode(err, "signature_required") || f.mail.count() != 0 {
+		t.Fatalf("send without signature: %v mails %d", err, f.mail.count())
+	}
+	p, err = f.service.SendProjectToWiRef(ctx, f.finance, p.ID, p.Version, workinggroups.RequestFormInput{Signature: f.signature}, nil)
+	if err != nil || p.WiRefRequestPending || p.SignatureMissing || f.mail.count() != 1 {
+		t.Fatalf("send: %+v %v", p, err)
+	}
+	assertCount(t, f.pool, `SELECT count(*) FROM working_group_projects WHERE id = $1 AND request_signed_by = (SELECT person_id FROM accounts WHERE id = $2)`, 1, p.ID, f.finance.AccountID)
+}
+
+func (f projectFixture) savedSignature(t *testing.T, person uuid.UUID) uuid.UUID {
+	t.Helper()
+	stored, err := f.fileService.StoreBytes(testContext(t), f.finance, "s.png", "image/png", f.signature, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mergeExec(t, f.pool, `INSERT INTO working_group_finance_signatures(person_id, file_id) VALUES($1, $2)`, person, stored.ID)
+	return stored.ID
+}
+
+func TestSavedSignatureFilesAreDeletedWithMergeAndPersonDeletion(t *testing.T) {
+	f := newProjectFixture(t, "wgp-sigfile")
+	ctx := testContext(t)
+	actor, _ := groupPrincipal(t, f.pool, "wgp-sigfile-actor", append(mergePermissions, "people.delete")...)
+	target := insertGroupPerson(t, f.pool, "wgp-sigfile-target@example.test")
+	source := insertGroupPerson(t, f.pool, "wgp-sigfile-source@example.test")
+	targetFile, sourceFile := f.savedSignature(t, target), f.savedSignature(t, source)
+	if _, err := people.NewService(f.pool, f.fileService).Merge(ctx, actor, people.MergeInput{
+		MergeSelection:   people.MergeSelection{TargetPersonID: target, SourcePersonIDs: []uuid.UUID{source}},
+		ExpectedVersions: mergeVersions(t, f.pool, target, source),
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, reader, err := f.fileService.Open(ctx, targetFile); err != nil {
+		t.Fatalf("the target keeps its signature: %v", err)
+	} else {
+		_ = reader.Close()
+	}
+	if _, _, err := f.fileService.Open(ctx, sourceFile); err == nil {
+		t.Fatal("the merged person's signature file must be deleted")
+	}
+	// Deleting a person with a signature deletes the file too.
+	doomed := insertGroupPerson(t, f.pool, "wgp-sigfile-doomed@example.test")
+	doomedFile := f.savedSignature(t, doomed)
+	var version int64
+	if err := f.pool.QueryRow(ctx, `SELECT version FROM people WHERE id = $1`, doomed).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if err := people.NewService(f.pool, f.fileService).Delete(ctx, actor, doomed, version, nil); err != nil {
+		t.Skipf("the fixture person cannot be deleted here: %v", err)
+	}
+	if _, _, err := f.fileService.Open(ctx, doomedFile); err == nil {
+		t.Fatal("the deleted person's signature file must be deleted")
 	}
 }

@@ -260,6 +260,7 @@ SELECT
         + (SELECT count(*) FROM working_group_purchases WHERE requester_person_id = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_projects WHERE requester_person_id = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_project_history WHERE actor_person_id = ANY(($1::text[])::uuid[]))
+        + (SELECT count(*) FROM working_group_projects WHERE request_signed_by = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_finance_signatures WHERE person_id = ANY(($1::text[])::uuid[]))
         + (SELECT count(*) FROM working_group_finance_rules WHERE request_responsible_person_id = ANY(($1::text[])::uuid[])))::bigint AS working_group_tasks,
     (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY(($2::text[])::uuid[]))::bigint AS notifications,
@@ -1540,6 +1541,31 @@ func (q *Queries) ListPersonRolesByPeople(ctx context.Context, personIds []strin
 	return items, nil
 }
 
+const listPersonSignatureFiles = `-- name: ListPersonSignatureFiles :many
+SELECT file_id::uuid AS file_id FROM working_group_finance_signatures WHERE person_id = ANY(($1::text[])::uuid[])
+`
+
+// The saved finance signatures of the people; their files are deleted after a merge or a deletion.
+func (q *Queries) ListPersonSignatureFiles(ctx context.Context, ids []string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPersonSignatureFiles, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var file_id uuid.UUID
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProfileImageRequirements = `-- name: ListProfileImageRequirements :many
 SELECT p.id AS person_id, COALESCE(bool_or(r.profile_image_required), false)::boolean AS required
 FROM people p
@@ -1598,6 +1624,32 @@ func (q *Queries) ListRoleOptions(ctx context.Context) ([]ListRoleOptionsRow, er
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnreferencedSignatureFiles = `-- name: ListUnreferencedSignatureFiles :many
+SELECT f::uuid AS file_id FROM unnest(($1::text[])::uuid[]) AS f
+WHERE NOT EXISTS (SELECT 1 FROM working_group_finance_signatures s WHERE s.file_id = f)
+`
+
+// Of the given files, those no saved signature refers to any more.
+func (q *Queries) ListUnreferencedSignatureFiles(ctx context.Context, ids []string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listUnreferencedSignatureFiles, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var file_id uuid.UUID
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1930,6 +1982,9 @@ WITH tickets_moved AS (
 ), projects_moved AS (
     UPDATE working_group_projects AS pr SET requester_person_id = $2::uuid
     WHERE pr.requester_person_id = $1 RETURNING 1
+), signed_moved AS (
+    UPDATE working_group_projects AS sp SET request_signed_by = $2::uuid
+    WHERE sp.request_signed_by = $1 RETURNING 1
 ), project_history_moved AS (
     UPDATE working_group_project_history AS ph SET actor_person_id = $2::uuid
     WHERE ph.actor_person_id = $1 RETURNING 1
@@ -1945,7 +2000,7 @@ SELECT ((SELECT count(*) FROM tickets_moved) + (SELECT count(*) FROM followers_m
       + (SELECT count(*) FROM todos_moved) + (SELECT count(*) FROM comments_moved)
       + (SELECT count(*) FROM notes_moved) + (SELECT count(*) FROM machine_status_moved)
       + (SELECT count(*) FROM place_status_moved) + (SELECT count(*) FROM purchases_moved)
-      + (SELECT count(*) FROM projects_moved) + (SELECT count(*) FROM project_history_moved)
+      + (SELECT count(*) FROM projects_moved) + (SELECT count(*) FROM signed_moved) + (SELECT count(*) FROM project_history_moved)
       + (SELECT count(*) FROM finance_rules_moved) + (SELECT count(*) FROM signatures_moved))::bigint AS moved
 `
 

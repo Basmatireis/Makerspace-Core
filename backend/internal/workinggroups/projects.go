@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -174,10 +175,21 @@ func projectIs(statuses ...string) func(pc *projectCtx) bool {
 
 func planState(pc *projectCtx) bool { return pc.editPlan() }
 
+// noControl refuses control characters in a text that ends up in a file name or a mail header.
+func noControl(value, field string) error {
+	if strings.ContainsFunc(value, unicode.IsControl) {
+		return apperror.InvalidField(field)
+	}
+	return nil
+}
+
 func validateProjectFields(in ProjectFields) (ProjectFields, error) {
 	out := in
 	var err error
 	if out.Title, err = validateShortText(in.Title, "title", MaxProjectTitleRunes); err != nil {
+		return out, err
+	}
+	if err := noControl(out.Title, "title"); err != nil {
 		return out, err
 	}
 	if out.Goal, err = validateText(in.Goal, "goal", MaxProjectTextRunes, false); err != nil {
@@ -226,6 +238,9 @@ func validateLink(in *string) (*string, error) {
 
 func validateProjectItem(in ProjectItemInput) (string, decimal.Decimal, *string, *string, error) {
 	text, err := validateShortText(in.Text, "text", MaxItemTextRunes)
+	if err == nil {
+		err = noControl(text, "text")
+	}
 	if err != nil {
 		return "", decimal.Zero, nil, nil, err
 	}
@@ -313,6 +328,7 @@ func (s *Service) projectFromRow(
 			Left: moneyText(decimal.Max(decimal.Zero, planned.Sub(dbMoney(row.Counted)))),
 		},
 	}
+	project.SignatureMissing = project.WiRefRequestPending && !row.HasRequestSignature
 	if paidFrom != "" {
 		project.PaidFrom = &paidFrom
 	}
@@ -793,6 +809,9 @@ func (s *Service) CreateProjectOffer(
 				return nil, err
 			}
 			shop, err := validateShortText(input.Shop, "shop", MaxOfferShopRunes)
+			if err == nil {
+				err = noControl(shop, "shop")
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -963,7 +982,7 @@ func (s *Service) OpenProjectOfferFile(
 
 // projectForNewPurchases checks the project a purchase request refers to (under the group lock) and tells whether
 // the purchases are planned ones.
-func projectForNewPurchases(ctx context.Context, q *workinggroupsdb.Queries, input CreatePurchasesInput) (bool, error) {
+func projectForNewPurchases(ctx context.Context, q *workinggroupsdb.Queries, p authorization.Principal, input CreatePurchasesInput) (bool, error) {
 	if input.ProjectID == nil {
 		if input.ProjectItemID != nil {
 			return false, apperror.InvalidField("projectItemId")
@@ -985,7 +1004,15 @@ func projectForNewPurchases(ctx context.Context, q *workinggroupsdb.Queries, inp
 		}
 	}
 	switch core.Status {
-	case ProjectDraft, ProjectReturned, ProjectSubmitted, ProjectWiRef:
+	case ProjectDraft, ProjectReturned:
+		// Planned purchases belong to the plan: only the lead or the requester add them.
+		lead, err := q.IsWorkingGroupLead(ctx, workinggroupsdb.IsWorkingGroupLeadParams{GroupID: groupID, PersonID: p.PersonID})
+		if err != nil {
+			return false, err
+		}
+		if !lead && (core.RequesterPersonID == nil || *core.RequesterPersonID != p.PersonID) {
+			return false, apperror.PermissionDenied
+		}
 		return true, nil
 	case ProjectRunning:
 		return false, nil
@@ -1033,7 +1060,7 @@ func (s *Service) ConvertPurchaseToProject(
 		person := p.PersonID
 		title := row.Item
 		if utf8.RuneCountInString(title) > MaxProjectTitleRunes {
-			title = string([]rune(title)[:MaxProjectTitleRunes])
+			title = strings.TrimSpace(string([]rune(title)[:MaxProjectTitleRunes]))
 		}
 		if err := pc.q.CreateWorkingGroupProject(ctx, workinggroupsdb.CreateWorkingGroupProjectParams{
 			ID: id, GroupID: row.GroupID, Title: title, People: 1, PlannedIncome: "0.00", RequesterPersonID: &person,

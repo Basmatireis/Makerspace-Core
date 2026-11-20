@@ -187,7 +187,8 @@ type Querier interface {
 	SetWorkingGroupProjectOfferFile(ctx context.Context, arg SetWorkingGroupProjectOfferFileParams) error
 	SetWorkingGroupProjectPaidFrom(ctx context.Context, arg SetWorkingGroupProjectPaidFromParams) error
 	SetWorkingGroupProjectRequest(ctx context.Context, arg SetWorkingGroupProjectRequestParams) error
-	SetWorkingGroupProjectRequestPDF(ctx context.Context, arg SetWorkingGroupProjectRequestPDFParams) error
+	// Records the delivery once: a project that already has a send time is left alone.
+	SetWorkingGroupProjectRequestPDF(ctx context.Context, arg SetWorkingGroupProjectRequestPDFParams) (int64, error)
 	SetWorkingGroupProjectStatus(ctx context.Context, arg SetWorkingGroupProjectStatusParams) error
 	SetWorkingGroupProjectWiRef(ctx context.Context, arg SetWorkingGroupProjectWiRefParams) error
 	SetWorkingGroupPurchaseAttachment(ctx context.Context, arg SetWorkingGroupPurchaseAttachmentParams) error

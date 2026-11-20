@@ -1014,6 +1014,7 @@ export * from './semester';
 export * from './sendAccountEmailCodeResult';
 export * from './sendAccountEmailCodeResultDelivery';
 export * from './sendNotificationMessageRequest';
+export * from './sendWorkingGroupProjectToWiRefRequest';
 export * from './sentNotificationMessage';
 export * from './sentNotificationMessagePage';
 export * from './sentNotificationMessageRole';

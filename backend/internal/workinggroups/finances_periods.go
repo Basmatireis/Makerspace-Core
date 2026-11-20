@@ -315,7 +315,7 @@ func (s *Service) SetShare(
 			return err
 		}
 		rows, err := q.ListWorkingGroupBudgetFigures(ctx, workinggroupsdb.ListWorkingGroupBudgetFiguresParams{
-			PeriodID: periodID, AllGroups: true, CallerPersonID: p.PersonID, GroupID: &groupID,
+			PeriodID: periodID, AllGroups: true, CallerPersonID: p.PersonID, GroupID: &groupID, Today: dateParam(ptr(s.today())),
 		})
 		if err != nil {
 			return err
@@ -358,7 +358,7 @@ func (s *Service) GetBudget(ctx context.Context, p authorization.Principal, peri
 	}
 	finance := isFinance(p)
 	rows, err := q.ListWorkingGroupBudgetFigures(ctx, workinggroupsdb.ListWorkingGroupBudgetFiguresParams{
-		PeriodID: id, AllGroups: finance, CallerPersonID: p.PersonID,
+		PeriodID: id, AllGroups: finance, CallerPersonID: p.PersonID, Today: dateParam(ptr(s.today())),
 	})
 	if err != nil {
 		return Budget{}, err

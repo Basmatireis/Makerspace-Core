@@ -43,6 +43,7 @@ import type {
   PlanWorkingGroupTicketRequest,
   RedactWorkingGroupPurchaseRequest,
   ReorderWorkingGroupProjectItemsRequest,
+  SendWorkingGroupProjectToWiRefRequest,
   SetWorkingGroupBudgetShareRequest,
   SetWorkingGroupColumnsRequest,
   SetWorkingGroupFinanceRulesRequest,
@@ -1579,18 +1580,18 @@ export const getSendWorkingGroupProjectToWiRefUrl = (projectId: UUIDv7,) => {
 }
 
 /**
- * Requires `working_groups.read` and `working_group_finances.manage`; only while `wirefRequestPending` (409 otherwise). Mails the request stored with the project.
+ * Requires `working_groups.read` and `working_group_finances.manage`; only while `wirefRequestPending` (409 otherwise). Mails the request stored with the project. A project without a stored signature (`signatureMissing`) needs one in the body, or `useSavedSignature` with the caller's saved one (422 `signature_required` otherwise). Delivery is at least once: a crash between the mail and its record can send it again.
  * @summary Send the Projektantrag
  */
 export const sendWorkingGroupProjectToWiRef = async (projectId: UUIDv7,
-    workingGroupProjectVersionRequest: WorkingGroupProjectVersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
+    sendWorkingGroupProjectToWiRefRequest: SendWorkingGroupProjectToWiRefRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupProject> => {
 
   return apiFetch<WorkingGroupProject>(getSendWorkingGroupProjectToWiRefUrl(projectId),
   {
     ...options,
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
-    body: JSON.stringify(workingGroupProjectVersionRequest)
+    body: JSON.stringify(sendWorkingGroupProjectToWiRefRequest)
   }
 );}
 
