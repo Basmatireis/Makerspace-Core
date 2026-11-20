@@ -551,6 +551,20 @@ describe('sending to the WiRef', () => {
   });
 });
 
+describe('the project page', () => {
+  it('shows what each stage means and opens an item inside the cost plan', async () => {
+    const user = userEvent.setup();
+    serve(member, { projects: [project(1, { status: 'running', canEdit: false, canSubmit: false })] });
+    renderRoute(<App />, `/working-groups/projects/${pid(1)}`);
+
+    expect(await screen.findByText('Management decides')).toBeInTheDocument();
+    expect(screen.getByText('Buy and build')).toBeInTheDocument();
+    await user.click(await screen.findByText('Laser tube'));
+    const plan = screen.getByRole('region', { name: 'Cost plan and purchases' });
+    expect(await within(plan).findByText('Cost plan item')).toBeInTheDocument();
+  });
+});
+
 describe('purchases on a cost plan item', () => {
   const open = async (user: ReturnType<typeof userEvent.setup>) => {
     renderRoute(<App />, `/working-groups/projects/${pid(1)}`);

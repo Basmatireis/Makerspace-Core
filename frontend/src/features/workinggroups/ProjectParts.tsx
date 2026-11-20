@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Button, InlineNotification, Link, Tag } from '@carbon/react';
-import { Download, TrashCan } from '@carbon/icons-react';
+import { Checkmark, Download, TrashCan } from '@carbon/icons-react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkingGroupProject, WorkingGroupProjectItem, WorkingGroupPurchase } from '../../api/generated/models';
 import {
@@ -33,6 +33,8 @@ import { formatDateOnly } from './taskModel';
 import { useDialogOpener } from './useDialogOpener';
 import { taskErrorText, useWgMutation } from './useWgMutation';
 
+const STEP_HINT = ['The group writes it', 'Management decides', 'WiRef decides', 'Buy and build', 'Report handed in'];
+
 /** Dots on a line: Draft · Approval · WiRef · Running · Completed. */
 export function ProjectStepper({ project }: { project: WorkingGroupProject }) {
   const stage = projectStage(project);
@@ -50,8 +52,11 @@ export function ProjectStepper({ project }: { project: WorkingGroupProject }) {
           }
           aria-current={index === stage.index ? 'step' : undefined}
         >
-          <span className="wg-hsteps__dot" aria-hidden="true" />
+          <span className="wg-hsteps__dot" aria-hidden="true">
+            {index < stage.index && <Checkmark size={12} />}
+          </span>
           <span className="wg-hsteps__label">{index === stage.index ? stage.label : step}</span>
+          <small>{STEP_HINT[index]}</small>
         </li>
       ))}
     </ol>

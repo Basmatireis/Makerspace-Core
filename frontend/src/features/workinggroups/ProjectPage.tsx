@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button, InlineNotification, Link as CarbonLink, Select, SelectItem, Tag } from '@carbon/react';
-import { Checkmark, ErrorFilled } from '@carbon/icons-react';
+import { Add, ArrowRight, Checkmark, ErrorFilled } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { LinkedTasks } from './LinkParts';
@@ -52,10 +52,10 @@ import {
 import { projectOptions } from './projectQueries';
 import { AddPurchasesDialog, FilePreview, type PurchasePrefill } from './PurchaseDialogs';
 import { PurchasePanel } from './PurchasePanel';
-import { amountCents, PURCHASE_STATUS_LABEL } from './financeModel';
+import { amountCents, stageOf } from './financeModel';
 import { financeRulesOptions, purchasesOptions } from './financeQueries';
 import { workingGroupsOptions } from './queries';
-import { formatDateOnly } from './taskModel';
+import { firstName, formatDateOnly } from './taskModel';
 import { useDialogOpener } from './useDialogOpener';
 import { saveErrorText, useWgMutation } from './useWgMutation';
 import './workinggroups.scss';
@@ -160,270 +160,331 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
   const attachments = requestAttachments(project);
   const history = [...project.history].reverse();
 
+  const planted = (item: WorkingGroupProjectItem) => {
+    const active = byItem(item.id).filter((p) => p.status !== 'declined');
+    const got = active.reduce((sum, p) => sum + amountCents(p), 0);
+    const rest = toCents(item.plannedAmount) - got;
+    const caption =
+      active.length === 0
+        ? 'No purchase yet'
+        : rest > 0
+          ? `${formatCents(rest)} of the plan left`
+          : rest < 0
+            ? `${formatCents(-rest)} over the plan`
+            : 'Plan used up';
+    return { got, caption };
+  };
+  const left = toCents(project.totals.left);
+  const paidFromNote = !project.paidFrom
+    ? 'Set when the project is approved'
+    : project.paidFrom === 'external'
+      ? 'Does not use the group budget'
+      : `${formatMoney(project.totals.planned)} planned`;
+  const advanceNote = project.advanceRequested
+    ? project.advanceStatus === 'received'
+      ? 'Arrived'
+      : 'Asked for'
+    : 'Not asked for';
+  const detail = (key: string) =>
+    selectedItem && key === `item:${selectedItem.id}` ? (
+      <div className="wg-cplan__detail">
+        <ProjectItemPanel
+          key={selectedItem.id}
+          project={project}
+          item={selectedItem}
+          purchases={byItem(selectedItem.id)}
+          canPlan={canPlan}
+          canBuy={canBuyItem}
+          onBuy={makePurchase}
+          onGone={() => setSelected(null)}
+        />
+      </div>
+    ) : selectedPurchase && key === `purchase:${selectedPurchase.id}` ? (
+      <div className="wg-cplan__detail">
+        <PurchasePanel
+          key={selectedPurchase.id}
+          me={me.person.id}
+          isLead={group?.isLead ?? false}
+          finance={finance}
+          purchase={selectedPurchase}
+          onGone={() => setSelected(null)}
+        />
+      </div>
+    ) : null;
+  const subRow = (purchase: WorkingGroupPurchase) => (
+    <div key={purchase.id}>
+      <PurchaseSubRow
+        purchase={purchase}
+        picked={selected?.kind === 'purchase' && selected.id === purchase.id}
+        onSelect={() => setSelected({ kind: 'purchase', id: purchase.id })}
+      />
+      {detail(`purchase:${purchase.id}`)}
+    </div>
+  );
+
   return (
     <PageShell title={project.title} width="wide" breadcrumbs={CRUMBS}>
       {actionError && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={actionError} />
       )}
 
-      <div className="wg-pj-top">
-        <section className="wg-card wg-phead" aria-label="Project">
-          <div className="wg-phead__row">
-            <h2>{project.title}</h2>
-            <Tag type={PROJECT_STATUS_TAG[project.status]}>{PROJECT_STATUS_LABEL[project.status]}</Tag>
-          </div>
-          <p className="wg-muted">
-            {[who(project), dateRange(project, formatDateOnly), paidFromLabel(project), project.groupName]
-              .filter(Boolean)
-              .join(' · ')}
-          </p>
-          <ProjectStepper project={project} />
-        </section>
+      <div className="wg-pj-grid">
+        <div className="wg-pj-main">
+          <section className="wg-tile wg-phead" aria-label="Project">
+            <div className="wg-phead__top">
+              <div>
+                <p className="wg-label">Project · {project.groupName}</p>
+                <h2>{project.title}</h2>
+                <p className="wg-muted">
+                  {[who(project), dateRange(project, formatDateOnly), paidFromLabel(project)]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              </div>
+              <Tag type={PROJECT_STATUS_TAG[project.status]}>{PROJECT_STATUS_LABEL[project.status]}</Tag>
+            </div>
+            <ProjectStepper project={project} />
+          </section>
 
-        <section className="wg-card" aria-label="What happens next">
-          <h3>What happens next</h3>
-          <ReasonBlock project={project} />
-          {draftLike && (
-            <>
-              <ul className="wg-todo-list">
-                {rows.map((row) => (
-                  <li key={row.key} className={row.done ? 'is-done' : 'is-open'}>
-                    {row.done ? <Checkmark size={16} aria-label="Done" /> : <ErrorFilled size={16} aria-label="Open" />}
-                    {!row.done && row.itemId ? (
-                      <CarbonLink
-                        href="#"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          setSelected({ kind: 'item', id: row.itemId as string });
-                        }}
-                      >
-                        {row.label}
-                      </CarbonLink>
-                    ) : (
-                      <span>{row.label}</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              <div className="wg-panel-actions">
-                {project.canEdit && (
-                  <Button kind="tertiary" size="md" onClick={() => edit.open(true)}>
-                    Edit
-                  </Button>
-                )}
-                {project.canSubmit && (
+          <section className="wg-tile" aria-label="Cost plan and purchases">
+            <div className="wg-pj-cardhead">
+              <h3>Cost plan and purchases</h3>
+              <div className="wg-toolbar__actions">
+                {canPlan && (
                   <Button
-                    kind="primary"
+                    kind={canBuyItem ? 'tertiary' : 'primary'}
                     size="md"
-                    disabled={!checklist.complete || submit.isPending}
-                    onClick={() => submit.mutate(undefined)}
+                    renderIcon={Add}
+                    onClick={() => addItem.open(true)}
                   >
-                    Hand in for approval
+                    Add item
+                  </Button>
+                )}
+                {canBuyItem && (
+                  <Button kind="primary" size="md" renderIcon={Add} onClick={() => buy.open({ projectId: project.id })}>
+                    Add purchases
                   </Button>
                 )}
               </div>
-            </>
-          )}
-          {project.status === 'submitted' && (
-            <>
-              <p className="wg-muted">Waiting for management to decide.</p>
-              {project.canDecide && (
-                <div className="wg-panel-actions">
-                  <Button kind="danger--tertiary" size="md" onClick={() => reason.open('decline')}>
-                    Decline
-                  </Button>
-                  <Button kind="tertiary" size="md" onClick={() => reason.open('return')}>
-                    Return with a comment
-                  </Button>
-                  <Button kind="primary" size="md" onClick={() => approve.open(true)}>
-                    Approve
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-          {project.status === 'wiref' && (
-            <>
-              <p className="wg-muted">
-                {project.wirefRequestPending ? 'Not sent to the WiRef yet.' : 'Waiting for the WiRef.'}
-              </p>
-              {project.canDecide && (
-                <div className="wg-panel-actions">
-                  <Button kind="danger--tertiary" size="md" onClick={() => reason.open('wiref-decline')}>
-                    WiRef declined it
-                  </Button>
-                  <Button kind="primary" size="md" onClick={() => wiref.open(true)}>
-                    WiRef approved it
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-          {project.status === 'running' && (
-            <div className="wg-panel-actions">
-              {finance && project.advanceStatus === 'asked' && (
-                <Button
-                  kind="tertiary"
-                  size="md"
-                  disabled={advance.isPending}
-                  onClick={() => advance.mutate(undefined)}
-                >
-                  Advance arrived
-                </Button>
-              )}
-              {project.canComplete && (
-                <Button kind="primary" size="md" onClick={() => complete.open(true)}>
-                  Complete the project
-                </Button>
-              )}
             </div>
-          )}
-          {project.status === 'completed' && <p>{project.completionReport || 'The project is completed.'}</p>}
-          {project.status === 'declined' && <p className="wg-muted">This project was declined.</p>}
-        </section>
-      </div>
-
-      <div className="wg-pj-body">
-        <section className="wg-card" aria-label="Cost plan and purchases">
-          <div className="wg-pj-cardhead">
-            <h3>Cost plan and purchases</h3>
-            <div className="wg-toolbar__actions">
-              {canPlan && (
-                <Button kind="tertiary" size="md" onClick={() => addItem.open(true)}>
-                  Add item
-                </Button>
-              )}
-              {canBuyItem && (
-                <Button kind="primary" size="md" onClick={() => buy.open({ projectId: project.id })}>
-                  Add purchases
-                </Button>
-              )}
+            <div
+              className="wg-pbar"
+              role="img"
+              aria-label={`Spent ${formatCents(spent)}, requested or approved ${formatCents(requested)}, not bought yet ${formatCents(notBought)}`}
+            >
+              <span className="wg-pbar__seg is-spent" style={{ flexGrow: spent / barTotal }} />
+              <span className="wg-pbar__seg is-requested" style={{ flexGrow: requested / barTotal }} />
+              <span className="wg-pbar__seg is-left" style={{ flexGrow: notBought / barTotal }} />
             </div>
-          </div>
-          <div
-            className="wg-pbar"
-            role="img"
-            aria-label={`Spent ${formatCents(spent)}, requested or approved ${formatCents(requested)}, not bought yet ${formatCents(notBought)}`}
-          >
-            <span className="wg-pbar__seg is-spent" style={{ flexGrow: spent / barTotal }} />
-            <span className="wg-pbar__seg is-requested" style={{ flexGrow: requested / barTotal }} />
-            <span className="wg-pbar__seg is-left" style={{ flexGrow: notBought / barTotal }} />
-          </div>
-          <p className="wg-pbar__legend">
-            <span>Spent {formatCents(spent)}</span>
-            <span>Requested or approved {formatCents(requested)}</span>
-            <span>Not bought yet {formatCents(notBought)}</span>
-          </p>
+            <p className="wg-pbar__legend">
+              <span>
+                <i className="wg-dot is-spent" aria-hidden="true" />
+                Spent <strong>{formatCents(spent)}</strong>
+              </span>
+              <span>
+                <i className="wg-dot is-requested" aria-hidden="true" />
+                Requested or approved <strong>{formatCents(requested)}</strong>
+              </span>
+              <span>
+                <i className="wg-dot is-left" aria-hidden="true" />
+                Not bought yet <strong>{formatCents(notBought)}</strong>
+              </span>
+            </p>
 
-          {project.items.length === 0 ? (
-            <p className="wg-empty">No items yet.</p>
-          ) : (
-            <div className="wg-cplan">
-              <div className="wg-cplan__row wg-cplan__row--head" aria-hidden="true">
-                <span>Item</span>
-                <span>Planned</span>
-                <span>Purchases</span>
-                <span>Status</span>
-              </div>
-              {project.items.map((item) => {
-                const itemPurchases = byItem(item.id);
-                const status = itemStatus(item, itemPurchases);
-                const active = itemPurchases.filter((p) => p.status !== 'declined');
-                const picked = selected?.kind === 'item' && selected.id === item.id;
-                return (
-                  <div key={item.id}>
-                    <button
-                      type="button"
-                      className={`wg-cplan__row${picked ? ' is-selected' : ''}`}
-                      aria-pressed={picked}
-                      onClick={() => setSelected({ kind: 'item', id: item.id })}
-                    >
-                      <span>
-                        <strong>{item.text}</strong>
-                        <small>{itemCaption(item, rules.data?.offersThreshold)}</small>
-                      </span>
-                      <span>{formatMoney(item.plannedAmount)}</span>
-                      <span>{formatCents(active.reduce((sum, p) => sum + amountCents(p), 0))}</span>
-                      <span>
-                        <Tag size="sm" type={status.tag}>
-                          {status.label}
-                        </Tag>
-                      </span>
-                    </button>
-                    {itemPurchases.map((purchase) => (
-                      <PurchaseSubRow
-                        key={purchase.id}
-                        purchase={purchase}
-                        picked={selected?.kind === 'purchase' && selected.id === purchase.id}
-                        onSelect={() => setSelected({ kind: 'purchase', id: purchase.id })}
-                      />
-                    ))}
+            {project.items.length === 0 && loose.length === 0 ? (
+              <p className="wg-empty">No items yet.</p>
+            ) : (
+              <div className="wg-cplan">
+                <div className="wg-cplan__row wg-cplan__row--head" aria-hidden="true">
+                  <span>Item</span>
+                  <span>Planned</span>
+                  <span>Purchases</span>
+                  <span>Status</span>
+                </div>
+                {project.items.map((item) => {
+                  const itemPurchases = byItem(item.id);
+                  const status = itemStatus(item, itemPurchases);
+                  const { got, caption } = planted(item);
+                  const picked = selected?.kind === 'item' && selected.id === item.id;
+                  const offers = itemCaption(item, rules.data?.offersThreshold);
+                  return (
+                    <div key={item.id}>
+                      <button
+                        type="button"
+                        className={`wg-cplan__row${picked ? ' is-selected' : ''}`}
+                        aria-pressed={picked}
+                        onClick={() => setSelected(picked ? null : { kind: 'item', id: item.id })}
+                      >
+                        <span>
+                          <strong>{item.text}</strong>
+                          <small>{[offers, caption].filter(Boolean).join(' · ')}</small>
+                        </span>
+                        <span>
+                          <strong>{formatMoney(item.plannedAmount)}</strong>
+                        </span>
+                        <span>{itemPurchases.length > 0 ? formatCents(got) : '–'}</span>
+                        <span>
+                          <Tag size="sm" type={status.tag}>
+                            {status.label}
+                          </Tag>
+                        </span>
+                      </button>
+                      {detail(`item:${item.id}`)}
+                      {itemPurchases.map(subRow)}
+                    </div>
+                  );
+                })}
+                {loose.length > 0 && (
+                  <div>
+                    <p className="wg-cplan__group">Not in the plan</p>
+                    {loose.map(subRow)}
                   </div>
-                );
-              })}
-              {loose.length > 0 && (
-                <div>
-                  <p className="wg-cplan__group">Not in the plan</p>
-                  {loose.map((purchase) => (
-                    <PurchaseSubRow
-                      key={purchase.id}
-                      purchase={purchase}
-                      picked={selected?.kind === 'purchase' && selected.id === purchase.id}
-                      onSelect={() => setSelected({ kind: 'purchase', id: purchase.id })}
-                    />
-                  ))}
+                )}
+                <div className="wg-cplan__row wg-cplan__row--total">
+                  <span>Total</span>
+                  <span>{formatMoney(project.totals.planned)}</span>
+                  <span>{formatMoney(project.totals.inPurchases)}</span>
+                  <span>{left >= 0 ? `${formatCents(left)} left` : `${formatCents(-left)} over`}</span>
                 </div>
-              )}
-              <div className="wg-cplan__row wg-cplan__row--total">
-                <span>Total</span>
-                <span>{formatMoney(project.totals.planned)}</span>
-                <span>{formatMoney(project.totals.inPurchases)}</span>
-                <span />
               </div>
-            </div>
-          )}
-        </section>
+            )}
+          </section>
+        </div>
 
         <div className="wg-pj-side">
-          {selectedItem && (
-            <ProjectItemPanel
-              key={selectedItem.id}
-              project={project}
-              item={selectedItem}
-              purchases={byItem(selectedItem.id)}
-              canPlan={canPlan}
-              canBuy={canBuyItem}
-              onBuy={makePurchase}
-              onGone={() => setSelected(null)}
-            />
-          )}
-          {selectedPurchase && (
-            <PurchasePanel
-              key={selectedPurchase.id}
-              me={me.person.id}
-              isLead={group?.isLead ?? false}
-              finance={finance}
-              purchase={selectedPurchase}
-              onGone={() => setSelected(null)}
-            />
-          )}
+          <section className="wg-tile" aria-label="What happens next">
+            <h3>What happens next</h3>
+            <ReasonBlock project={project} />
+            {draftLike && (
+              <>
+                <p className="wg-muted">
+                  {checklist.complete ? 'Everything is there.' : 'Before it can go to approval:'}
+                </p>
+                <ul className="wg-todo-list">
+                  {rows.map((row) => (
+                    <li key={row.key} className={row.done ? 'is-done' : 'is-open'}>
+                      {row.done ? (
+                        <Checkmark size={16} aria-label="Done" />
+                      ) : (
+                        <ErrorFilled size={16} aria-label="Open" />
+                      )}
+                      {!row.done && row.itemId ? (
+                        <CarbonLink
+                          href="#"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            setSelected({ kind: 'item', id: row.itemId as string });
+                          }}
+                        >
+                          {row.label}
+                        </CarbonLink>
+                      ) : (
+                        <span>{row.label}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <div className="wg-next__actions">
+                  {project.canSubmit && (
+                    <Button
+                      kind="primary"
+                      size="md"
+                      renderIcon={ArrowRight}
+                      disabled={!checklist.complete || submit.isPending}
+                      onClick={() => submit.mutate(undefined)}
+                    >
+                      Hand in for approval
+                    </Button>
+                  )}
+                  {project.canEdit && (
+                    <Button kind="ghost" size="md" onClick={() => edit.open(true)}>
+                      Edit
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+            {project.status === 'submitted' && (
+              <>
+                <p className="wg-muted">Waiting for management to decide.</p>
+                {project.canDecide && (
+                  <div className="wg-next__actions">
+                    <Button kind="primary" size="md" renderIcon={ArrowRight} onClick={() => approve.open(true)}>
+                      Approve
+                    </Button>
+                    <Button kind="ghost" size="md" onClick={() => reason.open('return')}>
+                      Return with a comment
+                    </Button>
+                    <Button kind="danger--ghost" size="md" onClick={() => reason.open('decline')}>
+                      Decline
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+            {project.status === 'wiref' && (
+              <>
+                <p className="wg-muted">
+                  {project.wirefRequestPending ? 'Not sent to the WiRef yet.' : 'Waiting for the WiRef.'}
+                </p>
+                {project.canDecide && (
+                  <div className="wg-next__actions">
+                    <Button kind="primary" size="md" renderIcon={Checkmark} onClick={() => wiref.open(true)}>
+                      WiRef approved it
+                    </Button>
+                    <Button kind="danger--ghost" size="md" onClick={() => reason.open('wiref-decline')}>
+                      WiRef declined it
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+            {project.status === 'running' && (
+              <div className="wg-next__actions">
+                {project.canComplete && (
+                  <Button kind="primary" size="md" renderIcon={Checkmark} onClick={() => complete.open(true)}>
+                    Complete the project
+                  </Button>
+                )}
+                {finance && project.advanceStatus === 'asked' && (
+                  <Button kind="ghost" size="md" disabled={advance.isPending} onClick={() => advance.mutate(undefined)}>
+                    Advance arrived
+                  </Button>
+                )}
+              </div>
+            )}
+            {project.status === 'completed' && <p>{project.completionReport || 'The project is completed.'}</p>}
+            {project.status === 'declined' && <p className="wg-muted">This project was declined.</p>}
+          </section>
 
           {finance && (
-            <section className="wg-card" aria-label="Request for the WiRef">
-              <h3>Request for the WiRef</h3>
-              <p>
+            <section className="wg-tile" aria-label="Request for the WiRef">
+              <div className="wg-pj-cardhead">
+                <h3>Request for the WiRef</h3>
                 <Tag size="sm" type={project.hasRequestPdf && !project.wirefRequestPending ? 'green' : 'gray'}>
                   {project.hasRequestPdf && !project.wirefRequestPending ? 'Sent' : 'Not sent yet'}
                 </Tag>
-              </p>
+              </div>
+              <p className="wg-muted">Sent to the WiRef by e-mail once approved.</p>
               {attachments.length > 0 && (
-                <ul className="wg-plist">
+                <ul className="wg-plist wg-docs">
                   {attachments.map((entry) => (
                     <li key={entry}>{entry}</li>
                   ))}
                 </ul>
               )}
-              <div className="wg-panel-actions">
+              <div className="wg-next__actions">
+                {project.wirefRequestPending && (
+                  <Button
+                    kind="primary"
+                    size="md"
+                    renderIcon={ArrowRight}
+                    disabled={sendWiRef.isPending}
+                    onClick={() => (project.signatureMissing ? sendSigned.open(true) : sendWiRef.mutate(undefined))}
+                  >
+                    Send to the WiRef
+                  </Button>
+                )}
                 <Button kind="tertiary" size="md" onClick={() => preview.open(true)}>
                   Preview the form
                 </Button>
@@ -432,66 +493,76 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
                     Show the sent form
                   </Button>
                 )}
-                {project.wirefRequestPending && (
-                  <Button
-                    kind="primary"
-                    size="md"
-                    disabled={sendWiRef.isPending}
-                    onClick={() => (project.signatureMissing ? sendSigned.open(true) : sendWiRef.mutate(undefined))}
-                  >
-                    Send to the WiRef
-                  </Button>
-                )}
               </div>
             </section>
           )}
 
-          <section className="wg-card" aria-label="About">
+          <section className="wg-tile" aria-label="About">
             <h3>About</h3>
-            <p>{project.goal}</p>
-            <p className="wg-muted">{project.benefit}</p>
-            <dl className="wg-pa-facts">
-              <dt>Planned income</dt>
-              <dd>{formatMoney(project.plannedIncome)}</dd>
-              <dt>People</dt>
-              <dd>{project.people}</dd>
-              <dt>Paid from</dt>
-              <dd>
-                {finance && !isEndState(project) ? (
-                  <Select
-                    id="wg-paid-from"
-                    labelText="Paid from"
-                    hideLabel
-                    size="sm"
-                    value={project.paidFrom ?? ''}
-                    disabled={paidFrom.isPending}
-                    onChange={(event) => {
-                      if (event.target.value) paidFrom.mutate(event.target.value as WorkingGroupProjectPaidFrom);
-                    }}
-                  >
-                    {!project.paidFrom && <SelectItem value="" text="Not decided yet" />}
-                    {Object.entries(PAID_FROM_LABEL).map(([id, label]) => (
-                      <SelectItem key={id} value={id} text={label} />
-                    ))}
-                  </Select>
-                ) : (
-                  paidFromLabel(project)
-                )}
-              </dd>
-              <dt>WiRef number</dt>
-              <dd>{project.wirefNumber || '–'}</dd>
-              <dt>Advance</dt>
-              <dd>
-                {project.advanceRequested
-                  ? `${project.advanceAmount ? formatMoney(project.advanceAmount) : 'Whole planned amount'}${project.advanceStatus === 'received' ? ' · arrived' : ''}`
-                  : 'No'}
-              </dd>
+            <dl className="wg-about">
+              <div className="wg-about__full">
+                <dt>What we want to do</dt>
+                <dd>{project.goal || '–'}</dd>
+              </div>
+              <div className="wg-about__full">
+                <dt>What it improves</dt>
+                <dd>{project.benefit || '–'}</dd>
+              </div>
+              <div>
+                <dt>Planned income</dt>
+                <dd>{formatMoney(project.plannedIncome)}</dd>
+              </div>
+              <div>
+                <dt>People</dt>
+                <dd>{project.people}</dd>
+              </div>
+              <div>
+                <dt>Paid from</dt>
+                <dd>
+                  {finance && !isEndState(project) ? (
+                    <Select
+                      id="wg-paid-from"
+                      labelText="Paid from"
+                      hideLabel
+                      size="sm"
+                      value={project.paidFrom ?? ''}
+                      disabled={paidFrom.isPending}
+                      onChange={(event) => {
+                        if (event.target.value) paidFrom.mutate(event.target.value as WorkingGroupProjectPaidFrom);
+                      }}
+                    >
+                      {!project.paidFrom && <SelectItem value="" text="Not decided yet" />}
+                      {Object.entries(PAID_FROM_LABEL).map(([id, label]) => (
+                        <SelectItem key={id} value={id} text={label} />
+                      ))}
+                    </Select>
+                  ) : (
+                    paidFromLabel(project)
+                  )}
+                  <small>{paidFromNote}</small>
+                </dd>
+              </div>
+              <div>
+                <dt>WiRef number</dt>
+                <dd>{project.wirefNumber || '–'}</dd>
+              </div>
+              <div>
+                <dt>Advance from HTU</dt>
+                <dd>
+                  {project.advanceRequested
+                    ? project.advanceAmount
+                      ? formatMoney(project.advanceAmount)
+                      : 'Whole planned amount'
+                    : 'None'}
+                  <small>{advanceNote}</small>
+                </dd>
+              </div>
             </dl>
           </section>
 
           <LinkedTasks groupId={project.groupId} tasks={project.linkedTasks} />
 
-          <section className="wg-card" aria-label="History">
+          <section className="wg-tile" aria-label="History">
             <h3>History</h3>
             <ol className="wg-plist">
               {history.map((entry) => (
@@ -564,6 +635,7 @@ function PurchaseSubRow({
   picked: boolean;
   onSelect: () => void;
 }) {
+  const stage = stageOf(purchase);
   return (
     <button
       type="button"
@@ -572,12 +644,24 @@ function PurchaseSubRow({
       onClick={onSelect}
     >
       <span>
-        {purchase.item}
-        <small>{purchase.quantity} ×</small>
+        <strong>{purchase.item}</strong>
+        <small>
+          Purchase · {purchase.quantity} × · {purchase.requester ? firstName(purchase.requester) : 'Former member'} ·{' '}
+          {purchase.how === 'self' ? 'buys it, gets the money back' : 'collective order'}
+        </small>
       </span>
       <span />
       <span>{formatCents(amountCents(purchase))}</span>
-      <span>{PURCHASE_STATUS_LABEL[purchase.status]}</span>
+      <span
+        className={`wg-track${stage.declined ? ' is-declined' : ''}${stage.index === stage.steps.length - 1 && !stage.declined ? ' is-done' : ''}`}
+      >
+        <span className="wg-track__bar" aria-hidden="true">
+          {stage.steps.map((step, index) => (
+            <i key={step} className={index < stage.index ? 'is-past' : index === stage.index ? 'is-now' : ''} />
+          ))}
+        </span>
+        <span className="wg-track__l">{stage.label}</span>
+      </span>
     </button>
   );
 }
