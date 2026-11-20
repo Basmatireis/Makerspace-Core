@@ -34,7 +34,7 @@ export const openDaysGuides: GuideDefinition[] = [
       {
         id: 'semester',
         title: 'Your semester minimum',
-        body: 'Every supervisor and trainee staffs a minimum number of open days per semester. This tile counts yours.',
+        body: 'Every supervisor and trainee staffs a minimum number of open days per semester. The bar at the bottom of Next up counts yours.',
         target: '[data-guide="dashboard-semester"]',
         placement: 'bottom',
         highlight: 'element',
@@ -43,7 +43,7 @@ export const openDaysGuides: GuideDefinition[] = [
       {
         id: 'coming-up',
         title: 'Coming up',
-        body: 'All open days you have signed up for are listed here, in date order.',
+        body: 'Your next open day and what comes after it are listed here, in date order. The door icon lets you leave an open day.',
         target: '[data-guide="dashboard-coming-up"]',
         placement: 'top',
         highlight: 'element',

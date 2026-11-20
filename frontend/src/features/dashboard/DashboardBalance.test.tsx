@@ -401,24 +401,53 @@ describe('job statistics', () => {
     jobs,
   });
 
-  it('shows jobs, success rate, material in Benchys, machine time and the favourite machine', async () => {
-    serve({ statistics: statistics(jobStats()) }, [PermissionId.machine_jobsread]);
+  it('shows jobs with their outcomes, machine time per machine and material per type', async () => {
+    serve(
+      {
+        statistics: {
+          ...statistics(
+            jobStats({
+              machines: [
+                { name: 'Prusa MK4', machineSeconds: 7200, jobs: 3 },
+                { name: 'Laser', machineSeconds: 1800, jobs: 1 },
+              ],
+              materials: [
+                { name: 'PLA', dimension: 'mass', amount: 1200, jobs: 3 },
+                { name: 'Plywood', dimension: 'area', amount: 6000, jobs: 1 },
+              ],
+            }),
+          ),
+          membership: { membership: 'supervisor', since: '2026-03-02T10:00:00Z' },
+          lastStaffedAt: '2026-11-12T13:00:00Z',
+        },
+      },
+      [PermissionId.machine_jobsread],
+    );
     renderRoute(<App />, '/dashboard');
-    expect(await screen.findByText('75 % came out right')).toBeInTheDocument();
-    expect(screen.getByText('47 g')).toBeInTheDocument();
-    expect(screen.getByText('About 3 Benchys’ worth')).toBeInTheDocument();
+    expect(await screen.findByText('Machine time')).toBeInTheDocument();
     expect(screen.getByText('2.5 h')).toBeInTheDocument();
-    expect(screen.getByText('Favourite: Prusa MK4 (3 jobs)')).toBeInTheDocument();
+    expect(screen.getByText('Prusa MK4').nextElementSibling).toHaveTextContent('2 h');
+    expect(screen.getByRole('img', { name: '3 of 4 finished jobs came out right' })).toBeInTheDocument();
+    expect(screen.getByText('Failed').nextElementSibling).toHaveTextContent('1');
+    expect(screen.getByText('This month').nextElementSibling).toHaveTextContent(/^\d+$/);
+    expect(screen.getByText('1.2 kg')).toBeInTheDocument();
+    expect(screen.getByText('6,000 cm²')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Used about 3 Benchys and 0.01 % of a football field worth of material/),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Supervisor since').nextElementSibling).toHaveTextContent('Mar 2026');
+    expect(screen.getByText('Last time').nextElementSibling).toHaveTextContent('12 Nov');
   });
 
-  it('says so when not a single Benchy has been printed and shows kilograms for large amounts', async () => {
-    serve({ statistics: statistics(jobStats({ materialGrams: 1500, successRate: null, favouriteMachine: null })) }, [
+  it('says so when not a single Benchy has been printed and nothing is recorded yet', async () => {
+    serve({ statistics: statistics(jobStats({ materialGrams: 0, finishedJobs: 0, successRate: null })) }, [
       PermissionId.machine_jobsread,
     ]);
     renderRoute(<App />, '/dashboard');
-    expect(await screen.findByText('1.5 kg')).toBeInTheDocument();
-    expect(screen.getByText('About 100 Benchys’ worth')).toBeInTheDocument();
-    expect(screen.getByText('No favourite machine yet')).toBeInTheDocument();
+    expect(await screen.findByText('Not a single Benchy yet')).toBeInTheDocument();
+    expect(screen.getByText('No material recorded on your jobs yet.')).toBeInTheDocument();
+    expect(screen.getByText('No machine time yet')).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /came out right/ })).not.toBeInTheDocument();
   });
 
   it('loads the jobs-per-month chart lazily and hides it without jobs', async () => {
@@ -438,7 +467,7 @@ describe('job statistics', () => {
 });
 
 describe('open day deep links', () => {
-  it('links coming-up open days to their period', async () => {
+  it('links the next open day to its period', async () => {
     serve(
       {
         staffing: {
@@ -471,12 +500,9 @@ describe('open day deep links', () => {
       [PermissionId.open_daysread],
     );
     renderRoute(<App />, '/dashboard');
-    const panel = (await screen.findByText('Coming up')).closest('.cds--contained-list') as HTMLElement;
-    expect(within(panel).getByRole('link', { name: 'Open day · Autumn' })).toHaveAttribute(
-      'href',
-      `/open-days/${periodId}/days/${openDayId}`,
-    );
-    expect(screen.getByRole('link', { name: 'Open day details' })).toHaveAttribute(
+    expect(await screen.findByText('Signed up as supervisor')).toBeInTheDocument();
+    const nextUp = document.querySelector('[data-guide="dashboard-next-up"]') as HTMLElement;
+    expect(within(nextUp).getByRole('link', { name: /^(Today|Tomorrow|\w{3} \d{1,2} \w{3})$/ })).toHaveAttribute(
       'href',
       `/open-days/${periodId}/days/${openDayId}`,
     );

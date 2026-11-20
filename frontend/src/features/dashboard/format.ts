@@ -1,4 +1,4 @@
-import type { PublicOpenDay } from '../../api/generated/models';
+import type { ComingUpItem, PublicOpenDay } from '../../api/generated/models';
 import { APP_LOCALE, APP_TIME_ZONE, dateInAppTimeZone, formatTime } from '../../app/dateTime';
 
 const DAY_MS = 86_400_000;
@@ -109,3 +109,7 @@ export function plural(count: number, word: string): string {
 export function upcomingOpenDays(days: PublicOpenDay[], now: number): PublicOpenDay[] {
   return days.filter((day) => day.status !== 'cancelled' && new Date(day.endsAt).getTime() > now);
 }
+
+/** Whether the person may leave this coming-up item from the dashboard: their own open-day timeslot only. */
+export const leavable = (item: ComingUpItem, canLeave: boolean) =>
+  canLeave && item.kind === 'open_day' && item.openDayId !== undefined && item.timeslotId !== undefined;

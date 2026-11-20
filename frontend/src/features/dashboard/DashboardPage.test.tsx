@@ -140,10 +140,15 @@ describe('personal dashboard', () => {
     expect(screen.getByText('Short-staffed')).toBeInTheDocument();
     expect(screen.queryByText('Supervisor needed')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Your makerspace so far' })).toBeInTheDocument();
-    expect(screen.getByText('16 hours keeping the doors open')).toBeInTheDocument();
-    const comingUp = screen.getByText('Coming up').closest('.cds--contained-list') as HTMLElement;
-    expect(within(comingUp).getByText('Open day · Autumn')).toBeInTheDocument();
-    expect(within(comingUp).getByText('Maker Faire · Door')).toBeInTheDocument();
+    expect(screen.getByText('16 hours staffed')).toBeInTheDocument();
+    expect(screen.getByText('4 hours helping')).toBeInTheDocument();
+    expect(screen.getByText('20 h')).toBeInTheDocument();
+    // Next up lists the open day first and the event shift after it.
+    const nextUp = document.querySelector('[data-guide="dashboard-next-up"]') as HTMLElement;
+    expect(within(nextUp).getByText('Signed up as supervisor')).toBeInTheDocument();
+    expect(within(nextUp).getByText('After that')).toBeInTheDocument();
+    expect(within(nextUp).getByText(/Maker Faire · Door ·/)).toBeInTheDocument();
+    expect(within(nextUp).getByText('Signed up for this shift')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /calendar/i })).not.toBeInTheDocument();
   });
 
@@ -209,8 +214,8 @@ describe('personal dashboard', () => {
 
     renderRoute(<App />, '/dashboard');
 
-    expect(await screen.findByText(/^Trainee · Autumn$/)).toBeInTheDocument();
-    expect(screen.getByText(/open days as trainee · 2 staffed, 0 booked/)).toBeInTheDocument();
+    expect(await screen.findByText(/Autumn: 2 staffed, 0 booked/)).toBeInTheDocument();
+    expect(screen.getByText(/^open days as trainee$/)).toBeInTheDocument();
     expect(screen.getByText(/After 3 open days as trainee the Leitung makes you a supervisor/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Sign up as/ })).not.toBeInTheDocument();
   });
@@ -268,11 +273,7 @@ describe('personal dashboard', () => {
 
     renderRoute(<App />, '/dashboard');
 
-    const tooltip = await screen.findByText(/Actions for Open day · Autumn/, { selector: '.cds--tooltip-content' });
-    await user.click(tooltip.closest('.cds--popover-container')!.querySelector('button') as HTMLElement);
-    await user.click(
-      await screen.findByText('Leave open day', { selector: '.cds--overflow-menu-options__option-content' }),
-    );
+    await user.click(await screen.findByRole('button', { name: /^Leave open day / }));
     expect(left).toBeUndefined();
     const dialog = await screen.findByRole('dialog', { name: 'Leave this open day?' });
     await user.click(within(dialog).getByRole('button', { name: 'Leave open day' }));
@@ -314,7 +315,7 @@ describe('personal dashboard', () => {
     expect(within(list).getAllByRole('listitem')).toHaveLength(1);
     expect(screen.queryByText('Your makerspace so far')).not.toBeInTheDocument();
     expect(screen.queryByText('Coming up')).not.toBeInTheDocument();
-    expect(screen.queryByText(/This semester/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/open days this semester/)).not.toBeInTheDocument();
   });
 
   it('shows the lab rules notice to staff only when action is required and leads to the confirm page', async () => {
@@ -337,7 +338,7 @@ describe('personal dashboard', () => {
 
     renderRoute(<App />, '/dashboard');
 
-    expect(await screen.findByText(/^This semester/)).toBeInTheDocument();
+    expect(await screen.findByText(/open days this semester/)).toBeInTheDocument();
     expect(screen.queryByText('New Lab Rules')).not.toBeInTheDocument();
   });
 
