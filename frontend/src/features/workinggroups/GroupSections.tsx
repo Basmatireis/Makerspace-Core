@@ -196,7 +196,7 @@ export function PeopleSection({ group }: { group: WorkingGroup }) {
         <Failure
           title="Member not removed"
           error={remove.error}
-          specific={{ working_group_lead_required: 'The lead stays a member. Choose another lead first.' }}
+          specific={{ working_group_lead_required: 'Choose another lead first.' }}
         />
         <Table aria-label="Members" size="md">
           <TableHead>
@@ -266,7 +266,7 @@ export function PeopleSection({ group }: { group: WorkingGroup }) {
               <WorkingGroupPersonCombo
                 id={`wg-lead-${group.id}`}
                 titleText="Group lead"
-                helperText="Pick a member or search for anyone. The new lead becomes a member; the previous lead stays one."
+                helperText="The new lead becomes a member."
                 value={newLead ?? (group.lead ? { id: group.lead.personId, label: group.lead.displayName } : null)}
                 onChange={setNewLead}
                 suggestions={memberChoices}
@@ -353,7 +353,7 @@ export function MachinesAndPlacesSection({ group }: { group: WorkingGroup }) {
         <Failure
           title="Place not changed"
           error={addPlace.error ?? removePlace.error}
-          specific={{ working_group_place_exists: 'This group already has a place with this name.' }}
+          specific={{ working_group_place_exists: 'This name is taken.' }}
         />
         <Table aria-label="Places" size="md">
           <TableHead>
@@ -412,7 +412,7 @@ export function MachinesAndPlacesSection({ group }: { group: WorkingGroup }) {
               <TextInput
                 id={`wg-place-${group.id}`}
                 labelText="Add a place"
-                helperText="A room or area without a machine, such as the soldering corner."
+                helperText="A room or area without a machine."
                 invalid={Boolean(fieldState.error)}
                 invalidText={fieldState.error?.message}
                 {...field}

@@ -60,11 +60,7 @@ export function WorkingGroupsSettingsPage() {
       {list.isSuccess && editable.length === 0 && (
         <EmptyState
           title={canManage ? 'No working groups yet' : 'No group to edit'}
-          description={
-            canManage
-              ? 'Create the first working group to assign a lead, machines and places.'
-              : 'You can edit the groups you lead. Management can make you the lead of a group.'
-          }
+          description={canManage ? 'Create the first working group.' : 'You can edit the groups you lead.'}
         />
       )}
       {list.isSuccess && editable.length > 0 && (

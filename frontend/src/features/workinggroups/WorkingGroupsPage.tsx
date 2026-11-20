@@ -25,7 +25,7 @@ export function WorkingGroupsPage() {
         <QueryBoundary query={list}>
           <EmptyState
             title="No working groups yet"
-            description="Working groups look after machines and places of the makerspace."
+            description="Groups look after machines and places."
             action={
               canSetUp ? (
                 <Button as={Link} to="/settings/working-groups">

@@ -74,11 +74,11 @@ export function ReasonBlock({ project }: { project: WorkingGroupProject }) {
 }
 
 const SENTENCE: Record<WorkingGroupProject['status'], string> = {
-  draft: 'Still being prepared. Hand it in when the checklist is complete.',
+  draft: 'Hand it in once the checklist is complete.',
   submitted: 'Waiting for management to decide.',
   returned: 'Management asked for changes.',
   declined: 'This project was declined.',
-  wiref: 'Sent to the WiRef. Waiting for the decision.',
+  wiref: 'Sent to the WiRef.',
   running: 'Approved. Purchases can be made.',
   completed: 'The project is completed.',
 };

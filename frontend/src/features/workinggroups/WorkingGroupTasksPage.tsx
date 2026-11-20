@@ -244,7 +244,7 @@ export function WorkingGroupTasksPage() {
   if (groups.length === 0) {
     return (
       <PageShell title="Tickets & to-dos" breadcrumbs={[{ label: 'Working groups', to: '/working-groups' }]}>
-        <EmptyState title="No working groups yet" description="Tickets and to-dos belong to a working group." />
+        <EmptyState title="No working groups yet" description="Create a group first." />
       </PageShell>
     );
   }

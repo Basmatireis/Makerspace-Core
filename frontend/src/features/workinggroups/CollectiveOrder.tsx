@@ -4,6 +4,7 @@ import {
   Checkbox,
   InlineNotification,
   Link,
+  Pagination,
   Select,
   SelectItem,
   Table,
@@ -92,6 +93,7 @@ export function CollectiveOrder({
     });
   };
 
+  const [orderPage, setOrderPage] = useState({ page: 1, pageSize: 10 });
   const arrived = useWgMutation((order: { id: string; version: number }) =>
     arrivedWorkingGroupPurchaseOrder(order.id, { expectedVersion: order.version }),
   );
@@ -147,7 +149,7 @@ export function CollectiveOrder({
               ))}
               {waiting.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4}>Nothing waits for an order in this period.</TableCell>
+                  <TableCell colSpan={4}>Nothing to order.</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -253,64 +255,66 @@ export function CollectiveOrder({
             </TableRow>
           </TableHead>
           <TableBody>
-            {(orders.data?.items ?? []).map((order) => {
-              const members = purchases.filter((purchase) => purchase.orderId === order.id);
-              const groups = [...new Set(members.map((purchase) => purchase.groupName))].join(', ');
-              return (
-                <TableRow key={order.id}>
-                  <TableCell>{formatDate(order.createdAt)}</TableCell>
-                  <TableCell>{order.shop}</TableCell>
-                  <TableCell>{plural(order.purchaseIds.length, 'item')}</TableCell>
-                  <TableCell>{groups || '–'}</TableCell>
-                  <TableCell>{order.projectNumber ?? '–'}</TableCell>
-                  <TableCell>{formatCents(toCents(order.totalAmount))}</TableCell>
-                  <TableCell>
-                    <Tag size="sm" type={order.status === 'arrived' ? 'green' : 'purple'}>
-                      {order.status === 'arrived' ? 'Arrived' : 'Ordered'}
-                    </Tag>
-                  </TableCell>
-                  <TableCell>
-                    <div className="wg-order-actions">
-                      {order.hasInvoice ? (
-                        <Link
-                          href={getDownloadWorkingGroupPurchaseOrderInvoiceUrl(order.id)}
-                          target="_blank"
-                          rel="noopener"
-                        >
-                          Invoice
-                        </Link>
-                      ) : (
-                        <Button
-                          kind="ghost"
-                          size="sm"
-                          onClick={() => {
-                            invoiceTarget.current = order.id;
-                            invoiceInput.current?.click();
-                          }}
-                        >
-                          Upload invoice
-                        </Button>
-                      )}
-                      {order.hasInvoice && (
-                        <Button kind="ghost" size="sm" onClick={() => setRemoveInvoiceFor(order.id)}>
-                          Remove the invoice
-                        </Button>
-                      )}
-                      {order.status === 'ordered' && (
-                        <Button
-                          kind="tertiary"
-                          size="sm"
-                          disabled={arrived.isPending}
-                          onClick={() => arrived.mutate({ id: order.id, version: order.version })}
-                        >
-                          It arrived
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+            {(orders.data?.items ?? [])
+              .slice((orderPage.page - 1) * orderPage.pageSize, orderPage.page * orderPage.pageSize)
+              .map((order) => {
+                const members = purchases.filter((purchase) => purchase.orderId === order.id);
+                const groups = [...new Set(members.map((purchase) => purchase.groupName))].join(', ');
+                return (
+                  <TableRow key={order.id}>
+                    <TableCell>{formatDate(order.createdAt)}</TableCell>
+                    <TableCell>{order.shop}</TableCell>
+                    <TableCell>{plural(order.purchaseIds.length, 'item')}</TableCell>
+                    <TableCell>{groups || '–'}</TableCell>
+                    <TableCell>{order.projectNumber ?? '–'}</TableCell>
+                    <TableCell>{formatCents(toCents(order.totalAmount))}</TableCell>
+                    <TableCell>
+                      <Tag size="sm" type={order.status === 'arrived' ? 'green' : 'purple'}>
+                        {order.status === 'arrived' ? 'Arrived' : 'Ordered'}
+                      </Tag>
+                    </TableCell>
+                    <TableCell>
+                      <div className="wg-order-actions">
+                        {order.hasInvoice ? (
+                          <Link
+                            href={getDownloadWorkingGroupPurchaseOrderInvoiceUrl(order.id)}
+                            target="_blank"
+                            rel="noopener"
+                          >
+                            Invoice
+                          </Link>
+                        ) : (
+                          <Button
+                            kind="ghost"
+                            size="sm"
+                            onClick={() => {
+                              invoiceTarget.current = order.id;
+                              invoiceInput.current?.click();
+                            }}
+                          >
+                            Upload invoice
+                          </Button>
+                        )}
+                        {order.hasInvoice && (
+                          <Button kind="ghost" size="sm" onClick={() => setRemoveInvoiceFor(order.id)}>
+                            Remove the invoice
+                          </Button>
+                        )}
+                        {order.status === 'ordered' && (
+                          <Button
+                            kind="tertiary"
+                            size="sm"
+                            disabled={arrived.isPending}
+                            onClick={() => arrived.mutate({ id: order.id, version: order.version })}
+                          >
+                            It arrived
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             {orders.data && orders.data.items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8}>No orders yet.</TableCell>
@@ -318,6 +322,15 @@ export function CollectiveOrder({
             )}
           </TableBody>
         </Table>
+        {(orders.data?.items.length ?? 0) > 10 && (
+          <Pagination
+            page={orderPage.page}
+            pageSize={orderPage.pageSize}
+            pageSizes={[10, 20, 50, 100]}
+            totalItems={orders.data?.items.length ?? 0}
+            onChange={({ page, pageSize }) => setOrderPage({ page, pageSize })}
+          />
+        )}
       </section>
       <DestructiveActionDialog
         open={removeInvoiceFor !== null}

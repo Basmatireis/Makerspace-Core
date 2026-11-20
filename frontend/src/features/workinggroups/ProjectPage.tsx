@@ -247,7 +247,7 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
           {project.status === 'wiref' && (
             <>
               <p className="wg-muted">
-                {project.wirefRequestPending ? 'The request is not sent to the WiRef yet.' : 'Waiting for the WiRef.'}
+                {project.wirefRequestPending ? 'Not sent to the WiRef yet.' : 'Waiting for the WiRef.'}
               </p>
               {project.canDecide && (
                 <div className="wg-panel-actions">

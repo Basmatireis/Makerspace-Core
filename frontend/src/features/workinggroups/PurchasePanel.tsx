@@ -41,9 +41,7 @@ import { saveErrorText, taskErrorText, useWgMutation } from './useWgMutation';
 function sentence(purchase: WorkingGroupPurchase): string {
   switch (purchase.status) {
     case 'wanted':
-      return purchase.needsProject
-        ? 'This reaches the project limit and needs a project first.'
-        : 'Waiting for management to decide.';
+      return purchase.needsProject ? 'Needs a project first.' : 'Waiting for management to decide.';
     case 'approved':
       return purchase.how === 'self'
         ? 'Approved. Buy it and hand in the receipt.'

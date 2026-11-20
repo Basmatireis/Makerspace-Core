@@ -924,30 +924,35 @@
   justify-content: flex-end;
 }
 
-.wg-comments {
+.wg-rowcomments {
   display: grid;
-  gap: $spacing-02;
+  gap: $spacing-03;
   margin: $spacing-03 0 0;
   padding: 0;
   list-style: none;
   @include type-style('body-compact-01');
 }
 
-.wg-comment {
+.wg-rowcomment {
   display: flex;
   align-items: flex-start;
   gap: $spacing-03;
+  min-inline-size: 0;
 }
 
-.wg-initials {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  inline-size: 1.5rem;
-  block-size: 1.5rem;
-  border-radius: 50%;
-  background: theme.$layer-accent;
-  @include type-style('label-01');
+.wg-rowcomment__text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: $spacing-03;
+  min-inline-size: 0;
+}
+
+.wg-rowcomment__line {
+  flex: 1 1 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wg-side {

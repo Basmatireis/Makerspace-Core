@@ -211,13 +211,28 @@ describe('working group overview for people inside', () => {
     expected.forEach((text, index) => expect(kinds[index]).toContain(text));
     expect(kinds).toHaveLength(5);
 
-    // Four comments: the last three show, the first one is an "earlier" link.
-    expect(within(table).getByRole('link', { name: '1 earlier comment' })).toHaveAttribute(
+    // Four comments: the last three show, the first one is an "N more" link.
+    expect(within(table).getByRole('link', { name: '1 more' })).toHaveAttribute(
       'href',
       expect.stringContaining('/working-groups/tasks?group=' + printId),
     );
     expect(within(table).queryByText(/Comment number 1/)).not.toBeInTheDocument();
     expect(within(table).getByText(/Comment number 2/)).toBeInTheDocument();
+    const list = within(table).getByRole('list', { name: 'Latest comments on Printer jams' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(4);
+
+    // Open is an icon button with an accessible name, a link to the item.
+    // Carbon renders the label as the tooltip text that names the button.
+    expect(within(table).getAllByText('Open')).toHaveLength(3);
+
+    // Page sizes follow the app-wide 10/20/50/100 with 10 as the default.
+    const size = screen.getByRole('combobox', { name: /items per page/i });
+    expect(
+      within(size)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['10', '20', '50', '100']);
+    expect(size).toHaveValue('10');
 
     expect(screen.getByText('Open tickets')).toBeInTheDocument();
     expect(screen.getByText('Open to-dos')).toBeInTheDocument();

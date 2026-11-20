@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button, Link as CarbonLink, ListItem, ProgressBar, Tag, Tile, UnorderedList } from '@carbon/react';
-import { Add, ArrowRight, Launch, TrashCan } from '@carbon/icons-react';
+import { Add, Launch, TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { WorkingGroup, WorkingGroupNote, WorkingGroupSummary } from '../../api/generated/models';
@@ -16,9 +16,7 @@ import {
   workingGroupNotesOptions,
   workingGroupOptions,
   workingGroupStatusOptions,
-  workingGroupTicketOptions,
   workingGroupTicketsOptions,
-  workingGroupTodoOptions,
   workingGroupTodosOptions,
 } from './queries';
 import { STATUS_WINDOW_DAYS, backAround, taskLink, type StatusTarget } from './statusModel';
@@ -27,7 +25,6 @@ import {
   dateParts,
   dueHint,
   firstName,
-  initials,
   isOpen,
   personName,
   plural,
@@ -37,6 +34,7 @@ import {
   type Task,
 } from './taskModel';
 import { useDialogOpener } from './useDialogOpener';
+import { OpenButton, RowComments } from './RowComments';
 import { useNoteRemoval } from './useNoteRemoval';
 
 function isHttps(url: string | undefined): url is string {
@@ -136,37 +134,6 @@ const noteRow = (note: WorkingGroupNote): PinRow => ({
   note,
 });
 
-/** The last three comments of a ticket or to-do, fetched only while the row is on the visible page. */
-function RowComments({ task }: { task: Task }) {
-  const ticket = useQuery({ ...workingGroupTicketOptions(task.id), enabled: task.kind === 'ticket' });
-  const todo = useQuery({ ...workingGroupTodoOptions(task.id), enabled: task.kind === 'todo' });
-  const comments = (task.kind === 'ticket' ? ticket.data?.comments : todo.data?.comments) ?? [];
-  if (comments.length === 0) return null;
-  const earlier = comments.length - 3;
-  return (
-    <ul className="wg-comments" aria-label={`Comments on ${task.title}`}>
-      {earlier > 0 && (
-        <li>
-          <CarbonLink as={Link} to={taskLink(task)}>
-            {earlier} earlier {earlier === 1 ? 'comment' : 'comments'}
-          </CarbonLink>
-        </li>
-      )}
-      {comments.slice(-3).map((comment) => (
-        <li key={comment.id} className="wg-comment">
-          <span className="wg-initials" aria-hidden>
-            {initials(comment.author)}
-          </span>
-          <span>
-            <strong>{firstName(comment.author)}</strong> {comment.text}{' '}
-            <span className="wg-muted">{formatDate(comment.createdAt)}</span>
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function PinboardTable({
   groupId,
   rows,
@@ -201,18 +168,7 @@ function PinboardTable({
       className: 'wg-actions-cell',
       render: (row) => (
         <span className="wg-actions">
-          {row.task && (
-            <Button
-              as={Link}
-              to={taskLink(row.task)}
-              kind="ghost"
-              size="sm"
-              hasIconOnly
-              renderIcon={ArrowRight}
-              iconDescription="Open"
-              tooltipPosition="left"
-            />
-          )}
+          {row.task && <OpenButton task={row.task} />}
           {row.note && row.note.canDelete && (
             <Button
               kind="ghost"
@@ -242,7 +198,7 @@ function PinboardTable({
         defaultSort={{ key: '', direction: 'ASC' }}
         pageSizes={[10, 20, 50, 100]}
         toolbarAction={toolbarAction}
-        empty={{ title: 'Nothing pinned', description: 'Notes and open items of the group show up here.' }}
+        empty={{ title: 'Nothing pinned', description: 'Notes and open items show up here.' }}
       />
       {removal.dialog}
     </div>
@@ -341,7 +297,7 @@ function SideColumn({
         </DetailPanelSection>
         <DetailPanelSection title="Machines and places">
           {items.length === 0 ? (
-            <p>This group looks after no machines or places yet.</p>
+            <p>No machines or places yet.</p>
           ) : (
             <ul className="wg-items">
               {items.map((item) => {

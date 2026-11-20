@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, Link as CarbonLink, Tag, Tile } from '@carbon/react';
-import { Add, ArrowRight, ChevronDown, ChevronUp, TrashCan } from '@carbon/icons-react';
+import { Add, ChevronDown, ChevronUp, TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { WorkingGroupNote, WorkingGroupStatusItem } from '../../api/generated/models';
@@ -8,6 +8,7 @@ import { formatDate } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { DirectoryTable, type Column } from '../machinelogbook/shared/DirectoryTable';
 import PinboardSkeleton from './PinboardSkeleton';
+import { OpenButton, RowComments } from './RowComments';
 import { ChangeStatusDialog, PinNoteDialog, StatusTag } from './StatusParts';
 import { useDialogOpener } from './useDialogOpener';
 import { useNoteRemoval } from './useNoteRemoval';
@@ -19,14 +20,7 @@ import {
   workingGroupTicketsOptions,
   workingGroupTodosOptions,
 } from './queries';
-import {
-  STATUS_LABEL,
-  STATUS_SEVERITY,
-  STATUS_WINDOW_DAYS,
-  backAround,
-  taskLink,
-  type StatusTarget,
-} from './statusModel';
+import { STATUS_LABEL, STATUS_SEVERITY, STATUS_WINDOW_DAYS, backAround, type StatusTarget } from './statusModel';
 import {
   bucketOf,
   dueHint,
@@ -139,6 +133,7 @@ export default function DashboardPinboard() {
             <>
               <span className="wg-message">{row.task.title}</span>
               {hint && <span className={`wg-muted wg-hint--${hint.tone}`}>{hint.text}</span>}
+              {row.task.commentCount > 0 && <RowComments task={row.task} />}
             </>
           );
         }
@@ -232,16 +227,7 @@ export default function DashboardPinboard() {
             />
           ) : null
         ) : row.type === 'yours' ? (
-          <Button
-            as={Link}
-            to={taskLink(row.task)}
-            kind="ghost"
-            size="sm"
-            hasIconOnly
-            renderIcon={ArrowRight}
-            iconDescription="Open"
-            tooltipPosition="left"
-          />
+          <OpenButton task={row.task} />
         ) : null,
     },
   ];
