@@ -2812,6 +2812,7 @@ type WorkingGroupTicket struct {
 	ClosedAt         pgtype.Timestamptz
 	PurchaseID       *uuid.UUID
 	ProjectID        *uuid.UUID
+	PlannedAt        pgtype.Timestamptz
 }
 
 type WorkingGroupTicketFollower struct {

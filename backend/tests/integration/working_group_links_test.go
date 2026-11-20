@@ -108,7 +108,7 @@ func TestWorkingGroupTicketAndTodoLinksFollowTheirPermissionsAndVisibility(t *te
 	if err != nil || todoLinked.Todo.Link == nil || todoLinked.Todo.Link.ID != purchase.ID {
 		t.Fatalf("to-do link = %+v, %v", todoLinked.Todo.Link, err)
 	}
-	if _, err := f.service.SetTodoLink(ctx, f.member, todo.Todo.ID, workinggroups.LinkInput{ExpectedVersion: todo.Todo.Version, PurchaseID: &foreign[0].ID}, nil); !apperror.IsCode(err, "stale_write") {
+	if _, err := f.service.SetTodoLink(ctx, f.member, todo.Todo.ID, workinggroups.LinkInput{ExpectedVersion: todo.Todo.Version, PurchaseID: &purchase.ID}, nil); !apperror.IsCode(err, "stale_write") {
 		t.Fatalf("stale to-do link = %v", err)
 	}
 	inside, err := f.service.GetPurchase(ctx, f.member, purchase.ID)
@@ -181,14 +181,32 @@ func TestWorkingGroupTicketNotificationsReachAuthorAndFollowersNotTheActor(t *te
 	if _, err := f.service.FollowTicket(ctx, f.lead, id, nil); err != nil {
 		t.Fatal(err)
 	}
-	count := func(p authorization.Principal) int {
+	countRule := func(p authorization.Principal, ruleID uuid.UUID) int {
 		var n int
 		if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM inbox_recipients r JOIN inbox_notifications n ON n.id = r.notification_id
-			WHERE r.account_id = $1 AND n.kind = 'rule' AND n.rule_id = $2`, p.AccountID, rule.ID).Scan(&n); err != nil {
+			WHERE r.account_id = $1 AND n.kind = 'rule' AND n.rule_id = $2`, p.AccountID, ruleID).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
 		return n
 	}
+	count := func(p authorization.Principal) int { return countRule(p, rule.ID) }
+	// A person who is not concerned subscribes personally; a follower without working_groups.read is skipped.
+	spy, _ := groupPrincipal(t, f.pool, "wgnote-spy", "working_groups.read")
+	subscription, err := notifyrules.NewService(f.pool).CreateSubscription(ctx, spy, notifyrules.RuleInput{
+		Name: "Everything", Enabled: true,
+		Definition: notifyrules.Definition{
+			Trigger:    notifyrules.TriggerDef{Type: notifyrules.TriggerEvent, Event: "working_group_ticket_updated"},
+			Conditions: notifyrules.ConditionSet{Mode: notifyrules.ModeAll},
+			Actions: []notifyrules.Action{{
+				Channel: notifyrules.ChannelInApp, Recipients: []string{"me"}, Title: "{ticket} {change}", Body: "By {by}.",
+			}},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	noRead, noReadSeeded := principalWithPermissions(t, f.pool, "wgnote-noread")
+	mergeExec(t, f.pool, `INSERT INTO working_group_ticket_followers (ticket_id, person_id) VALUES ($1, $2)`, id, noReadSeeded.personID)
 
 	// Planning by the lead tells the author and the follower, not the lead and not people who follow nothing.
 	if _, err := f.service.PlanTicket(ctx, f.lead, id, workinggroups.PlanTicketInput{ColumnID: f.columnTodo}, nil); err != nil {
@@ -218,9 +236,12 @@ func TestWorkingGroupTicketNotificationsReachAuthorAndFollowersNotTheActor(t *te
 	if count(f.outsider) != 2 || count(f.third) != 4 || count(f.lead) != 2 {
 		t.Fatalf("after closing: author %d, follower %d, actor %d", count(f.outsider), count(f.third), count(f.lead))
 	}
+	if countRule(spy, subscription.ID) != 0 || count(noRead) != 0 || countRule(noRead, rule.ID) != 0 {
+		t.Fatalf("not concerned: subscriber %d, follower without read %d", countRule(spy, subscription.ID), count(noRead))
+	}
 	// Following is always about the caller: the follower list holds exactly the people who followed.
 	detail, err := f.service.GetTicket(ctx, f.member, id)
-	if err != nil || len(detail.Followers) != 2 {
+	if err != nil || len(detail.Followers) != 3 {
 		t.Fatalf("followers = %+v, %v", detail.Followers, err)
 	}
 	if _, err := f.service.FollowTicket(ctx, f.outsider, id, nil); !apperror.IsCode(err, "working_group_ticket_own") {
@@ -228,11 +249,15 @@ func TestWorkingGroupTicketNotificationsReachAuthorAndFollowersNotTheActor(t *te
 	}
 }
 
-func TestWorkingGroupActivityShowsOutsidersOnlyTicketEvents(t *testing.T) {
+func TestWorkingGroupActivityFollowsTheVisibilityOfItsRecords(t *testing.T) {
 	f := newProjectFixture(t, "wgact")
 	ctx := testContext(t)
 	ticket := f.newTicket(t, f.outsider, "Dirty lens")
 	if _, err := f.service.CloseTicket(ctx, f.lead, ticket.Ticket.ID, workinggroups.CloseTicketInput{Outcome: workinggroups.StatusDone}, nil); err != nil {
+		t.Fatal(err)
+	}
+	planned := f.newTicket(t, f.outsider, "Loose cable")
+	if _, err := f.service.PlanTicket(ctx, f.lead, planned.Ticket.ID, workinggroups.PlanTicketInput{ColumnID: f.columnTodo}, nil); err != nil {
 		t.Fatal(err)
 	}
 	f.newTodo(t, f.member, "Sweep")
@@ -245,49 +270,85 @@ func TestWorkingGroupActivityShowsOutsidersOnlyTicketEvents(t *testing.T) {
 	}
 	purchase := f.buy(t, f.member, workinggroups.HowSelf, "Lens", 1, "20.00")
 	f.financeFixture.approve(t, purchase.ID)
+	project := f.project(t, "Small", "80")
+	f.planned(t, project, "80")
+	project = f.submit(t, f.get(t, project.ID))
+	f.approve(t, project, workinggroups.PaidFromGroup)
 
-	kinds := func(p authorization.Principal, limit *int) []string {
+	feed := func(p authorization.Principal, limit *int) []workinggroups.ActivityEntry {
 		entries, err := f.service.ListActivity(ctx, p, f.group.ID, limit)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var out []string
-		for i, e := range entries {
-			out = append(out, e.Kind)
-			if i > 0 && e.At.After(entries[i-1].At) {
+		for i := 1; i < len(entries); i++ {
+			if entries[i].At.After(entries[i-1].At) {
 				t.Errorf("entries are not newest first at %d", i)
 			}
 		}
-		return out
+		return entries
 	}
-	outside := kinds(f.outsider, nil)
-	if len(outside) != 2 {
-		t.Fatalf("outsider feed = %v", outside)
+	has := func(entries []workinggroups.ActivityEntry, kinds ...string) map[string]bool {
+		found := map[string]bool{}
+		for _, e := range entries {
+			found[e.Kind] = true
+		}
+		for _, k := range kinds {
+			if !found[k] {
+				t.Errorf("feed lacks %s: %v", k, found)
+			}
+		}
+		return found
 	}
-	for _, kind := range outside {
-		if kind != "ticket_created" && kind != "ticket_closed" {
-			t.Errorf("outsider sees %s", kind)
+	ticketKinds := []string{"ticket_created", "ticket_planned", "ticket_closed"}
+	todoKinds := []string{"todo_done", "note_pinned"}
+	moneyKinds := []string{"purchase_submitted", "purchase_approved", "project_submitted", "project_approved"}
+	none := func(found map[string]bool, who string, kinds ...string) {
+		for _, k := range kinds {
+			if found[k] {
+				t.Errorf("%s sees %s", who, k)
+			}
 		}
 	}
-	// A finance manager who is no member counts as outside.
-	if got := kinds(f.finance, nil); len(got) != 2 {
-		t.Fatalf("finance feed = %v", got)
-	}
-	inside := kinds(f.member, nil)
-	for _, want := range []string{"ticket_created", "ticket_closed", "todo_done", "note_pinned", "purchase_submitted", "purchase_approved"} {
-		found := false
-		for _, kind := range inside {
-			found = found || kind == want
-		}
-		if !found {
-			t.Errorf("member feed lacks %s: %v", want, inside)
+
+	// Outsiders see the public ticket events only: no to-do, note, purchase or project title either.
+	outside := feed(f.outsider, nil)
+	none(has(outside, ticketKinds...), "outsider", append(append([]string{}, todoKinds...), moneyKinds...)...)
+	for _, e := range outside {
+		if e.Title != "Dirty lens" && e.Title != "Loose cable" {
+			t.Errorf("outsider sees the title %q", e.Title)
 		}
 	}
-	if got := kinds(f.manager, nil); len(got) != len(inside) {
-		t.Fatalf("manager feed = %v", got)
+	// working_groups.manage alone gives the group's tickets, to-dos and notes but no money.
+	managed := feed(f.manager, nil)
+	none(has(managed, append(append([]string{}, ticketKinds...), todoKinds...)...), "manager", moneyKinds...)
+	// A finance manager who is no member sees tickets and the money matters, not to-dos and notes.
+	finance := feed(f.finance, nil)
+	none(has(finance, append(append([]string{}, ticketKinds...), moneyKinds...)...), "finance manager", todoKinds...)
+	// Members see everything.
+	member := feed(f.member, nil)
+	has(member, append(append(append([]string{}, ticketKinds...), todoKinds...), moneyKinds...)...)
+
+	// Linking a planned ticket changes its version, not the time it was planned.
+	var plannedAt time.Time
+	for _, e := range member {
+		if e.Kind == "ticket_planned" {
+			plannedAt = e.At
+		}
 	}
+	if _, err := f.service.SetTicketLink(ctx, f.lead, planned.Ticket.ID, workinggroups.LinkInput{ExpectedVersion: planned.Ticket.Version + 1, PurchaseID: &purchase.ID}, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range feed(f.member, nil) {
+		if e.Kind == "ticket_planned" && !e.At.Equal(plannedAt) {
+			t.Errorf("planned event moved from %v to %v", plannedAt, e.At)
+		}
+		if e.Kind == "todo_done" && e.Actor != nil {
+			t.Errorf("the to-do's actor is unknown but shown: %+v", e.Actor)
+		}
+	}
+
 	one := 1
-	if got := kinds(f.member, &one); len(got) != 1 {
+	if got := feed(f.member, &one); len(got) != 1 {
 		t.Fatalf("limit 1 = %v", got)
 	}
 	for _, bad := range []int{0, 51} {
@@ -302,5 +363,121 @@ func TestWorkingGroupActivityShowsOutsidersOnlyTicketEvents(t *testing.T) {
 	nothing, _ := principalWithPermissions(t, f.pool, "wgact-noread")
 	if _, err := f.service.ListActivity(ctx, nothing, f.group.ID, nil); !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("without working_groups.read = %v", err)
+	}
+}
+
+func TestWorkingGroupLinksCheckTheTargetBeforeTheVersionAndHideLinksInLists(t *testing.T) {
+	f := newProjectFixture(t, "wglist")
+	ctx := testContext(t)
+	purchase := f.buy(t, f.member, workinggroups.HowSelf, "Lens", 1, "20.00")
+	foreign, err := f.service.CreatePurchases(ctx, f.otherMember, workinggroups.CreatePurchasesInput{
+		GroupID: f.otherGroup.ID, How: workinggroups.HowSelf,
+		Items: []workinggroups.PurchaseItemInput{{Item: "Foreign", Quantity: 1, UnitPrice: "5.00"}},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignProject, err := f.service.CreateProject(ctx, f.otherMember, workinggroups.CreateProjectInput{
+		GroupID:       f.otherGroup.ID,
+		ProjectFields: workinggroups.ProjectFields{Title: "Foreign project", Goal: "g", Benefit: "b", People: 1, PlannedIncome: "0"},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	both, _ := groupPrincipal(t, f.pool, "wglist-both", "working_groups.read", "working_group_finances.manage")
+	if _, err := f.service.AddMember(ctx, f.manager, f.group.ID, both.PersonID, nil); err != nil {
+		t.Fatal(err)
+	}
+	todo := f.newTodo(t, f.member, "Order")
+	stale := todo.Todo.Version + 5
+	for name, input := range map[string]workinggroups.LinkInput{
+		"purchase": {ExpectedVersion: stale, PurchaseID: &foreign[0].ID},
+		"project":  {ExpectedVersion: stale, ProjectID: &foreignProject.ID},
+	} {
+		// Somebody who does not see the target gets 404, somebody who does gets 422; never the stale-version 409.
+		if _, err := f.service.SetTodoLink(ctx, f.member, todo.Todo.ID, input, nil); !apperror.IsCode(err, "not_found") {
+			t.Errorf("%s unseen: %v", name, err)
+		}
+		if _, err := f.service.SetTodoLink(ctx, both, todo.Todo.ID, input, nil); !apperror.IsCode(err, "working_group_link_other_group") {
+			t.Errorf("%s of another group: %v", name, err)
+		}
+	}
+	missing := uuid.New()
+	if _, err := f.service.SetTodoLink(ctx, f.member, todo.Todo.ID, workinggroups.LinkInput{ExpectedVersion: stale, ProjectID: &missing}, nil); !apperror.IsCode(err, "not_found") {
+		t.Errorf("missing project: %v", err)
+	}
+
+	// Lists: the link shows for members and finance managers only.
+	linkedTodo, err := f.service.SetTodoLink(ctx, f.member, todo.Todo.ID, workinggroups.LinkInput{ExpectedVersion: todo.Todo.Version, PurchaseID: &purchase.ID}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticket := f.newTicket(t, f.outsider, "Dirty lens")
+	if _, err := f.service.SetTicketLink(ctx, f.lead, ticket.Ticket.ID, workinggroups.LinkInput{ExpectedVersion: ticket.Ticket.Version, PurchaseID: &purchase.ID}, nil); err != nil {
+		t.Fatal(err)
+	}
+	linkOf := func(p authorization.Principal) (ticketLink, todoLink bool) {
+		tickets, _, err := f.service.ListTickets(ctx, p, workinggroups.TicketFilter{GroupID: &f.group.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tk := range tickets {
+			if tk.ID == ticket.Ticket.ID {
+				ticketLink = tk.Link != nil
+			}
+		}
+		todos, err := f.service.ListTodos(ctx, p, &f.group.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, td := range todos {
+			if td.ID == linkedTodo.Todo.ID {
+				todoLink = td.Link != nil
+			}
+		}
+		return
+	}
+	if a, b := linkOf(f.member); !a || !b {
+		t.Errorf("member sees ticket link %v, to-do link %v", a, b)
+	}
+	if a, _ := linkOf(f.finance); !a {
+		t.Error("finance manager misses the ticket link")
+	}
+	if a, b := linkOf(f.outsider); a || b {
+		t.Errorf("outsider sees ticket link %v, to-do link %v", a, b)
+	}
+	if a, b := linkOf(f.manager); a || b {
+		t.Errorf("manager without membership or finance sees ticket link %v, to-do link %v", a, b)
+	}
+
+	// linkedTasks in the purchase and project lists reach people inside the group only; management alone sees no
+	// purchase or project at all.
+	if got, _, err := f.service.ListPurchases(ctx, f.manager, workinggroups.PurchaseFilter{GroupID: &f.group.ID}); err != nil || len(got) != 0 {
+		t.Fatalf("purchases for management = %v, %v", got, err)
+	}
+	project := f.project(t, "Laser upgrade", "100.00")
+	if _, err := f.service.SetTicketLink(ctx, f.lead, ticket.Ticket.ID, workinggroups.LinkInput{ExpectedVersion: ticket.Ticket.Version + 1, ProjectID: &project.ID}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, err := f.service.ListProjects(ctx, f.manager, workinggroups.ProjectFilter{GroupID: &f.group.ID}); err != nil || len(got) != 0 {
+		t.Fatalf("projects for management = %v, %v", got, err)
+	}
+	purchases, _, err := f.service.ListPurchases(ctx, f.finance, workinggroups.PurchaseFilter{GroupID: &f.group.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pu := range purchases {
+		if len(pu.LinkedTasks) != 0 {
+			t.Errorf("finance manager outside the group sees linked tasks of %s", pu.Item)
+		}
+	}
+	inside, _, err := f.service.ListPurchases(ctx, f.member, workinggroups.PurchaseFilter{GroupID: &f.group.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pu := range inside {
+		if pu.ID == purchase.ID && len(pu.LinkedTasks) != 1 {
+			t.Errorf("member sees %d linked tasks of the purchase", len(pu.LinkedTasks))
+		}
 	}
 }

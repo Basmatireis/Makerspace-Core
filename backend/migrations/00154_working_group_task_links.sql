@@ -5,7 +5,11 @@
 ALTER TABLE working_group_tickets
     ADD COLUMN purchase_id uuid REFERENCES working_group_purchases(id) ON DELETE SET NULL,
     ADD COLUMN project_id uuid REFERENCES working_group_projects(id) ON DELETE SET NULL,
+    ADD COLUMN planned_at timestamptz,
     ADD CONSTRAINT working_group_tickets_one_link CHECK (purchase_id IS NULL OR project_id IS NULL);
+
+-- When a ticket was planned, for the group's activity feed; later changes of a planned ticket keep it.
+UPDATE working_group_tickets SET planned_at = updated_at WHERE status = 'planned';
 
 ALTER TABLE working_group_todos
     ADD COLUMN purchase_id uuid REFERENCES working_group_purchases(id) ON DELETE SET NULL,
@@ -25,4 +29,4 @@ DROP INDEX working_group_tickets_purchase_idx;
 ALTER TABLE working_group_todos
     DROP CONSTRAINT working_group_todos_one_link, DROP COLUMN project_id, DROP COLUMN purchase_id;
 ALTER TABLE working_group_tickets
-    DROP CONSTRAINT working_group_tickets_one_link, DROP COLUMN project_id, DROP COLUMN purchase_id;
+    DROP CONSTRAINT working_group_tickets_one_link, DROP COLUMN planned_at, DROP COLUMN project_id, DROP COLUMN purchase_id;

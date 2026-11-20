@@ -118,7 +118,7 @@ type Querier interface {
 	ListExistingMachineIDs(ctx context.Context, ids []uuid.UUID) ([]uuid.UUID, error)
 	ListMachineGroupAssignments(ctx context.Context, ids []uuid.UUID) ([]ListMachineGroupAssignmentsRow, error)
 	// The recent events of a group, built from the tables themselves. Tickets are public; everything else is for people
-	// inside the group (inside = true). Events of a group's own non-public records are never selected for outsiders.
+	// inside the group (inside = true); purchases and projects are money matters and need see_money (a member of the group or a finance manager).
 	ListWorkingGroupActivity(ctx context.Context, arg ListWorkingGroupActivityParams) ([]ListWorkingGroupActivityRow, error)
 	ListWorkingGroupBookings(ctx context.Context, arg ListWorkingGroupBookingsParams) ([]ListWorkingGroupBookingsRow, error)
 	// The figures of every group (all_groups) or of the groups the caller is a member of, optionally of one group.

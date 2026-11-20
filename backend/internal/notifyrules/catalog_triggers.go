@@ -279,8 +279,9 @@ var activityTriggers = []Trigger{
 		Key: "working_group_ticket_updated", Area: "Working groups", Label: "A working-group ticket is answered or moves on",
 		Help: "Fires when a ticket of a working group gets a comment, is planned or is closed. The author of the ticket " +
 			"and the people who have the same problem are the recipients; the person who made the change is left out. " +
-			"Internal comments reach only the recipients who belong to the group.",
-		Subject: SubjectLab, Permission: authorization.WorkingGroupsRead,
+			"Internal comments reach only the recipients who belong to the group. Only the author and the followers can be told: " +
+			"roles or people a rule names, and personal subscriptions, never receive this trigger's events.",
+		Subject: SubjectLab, Permission: authorization.WorkingGroupsRead, RecipientsNeedPermission: true,
 		Fields: []Field{
 			{Key: "change", Label: "Change", Type: FieldEnum, Options: options(
 				"comment", "New comment", "planned", "Planned", "done", "Closed as done", "declined", "Closed as declined",

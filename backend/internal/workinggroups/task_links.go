@@ -114,14 +114,14 @@ func (s *Service) SetTicketLink(
 		if err := requireInside(ctx, q, p, core.GroupID); err != nil {
 			return err
 		}
+		if err := checkLinkTarget(ctx, q, p, core.GroupID, input); err != nil {
+			return err
+		}
 		if input.ExpectedVersion < 1 {
 			return apperror.Invalid("expectedVersion must be positive")
 		}
 		if core.Version != input.ExpectedVersion {
 			return apperror.StaleWrite
-		}
-		if err := checkLinkTarget(ctx, q, p, core.GroupID, input); err != nil {
-			return err
 		}
 		if sameID(core.PurchaseID, input.PurchaseID) && sameID(core.ProjectID, input.ProjectID) {
 			return nil
@@ -146,14 +146,14 @@ func (s *Service) SetTodoLink(
 	requestID *uuid.UUID,
 ) (TodoDetail, error) {
 	return s.changeTodo(ctx, p, id, func(q *workinggroupsdb.Queries, tx pgx.Tx, core workinggroupsdb.GetWorkingGroupTodoCoreRow) error {
+		if err := checkLinkTarget(ctx, q, p, core.GroupID, input); err != nil {
+			return err
+		}
 		if input.ExpectedVersion < 1 {
 			return apperror.Invalid("expectedVersion must be positive")
 		}
 		if core.Version != input.ExpectedVersion {
 			return apperror.StaleWrite
-		}
-		if err := checkLinkTarget(ctx, q, p, core.GroupID, input); err != nil {
-			return err
 		}
 		if sameID(core.PurchaseID, input.PurchaseID) && sameID(core.ProjectID, input.ProjectID) {
 			return nil
@@ -294,8 +294,16 @@ func (s *Service) ListActivity(ctx context.Context, p authorization.Principal, g
 	if err != nil {
 		return nil, err
 	}
+	// Purchases and projects follow the visibility of the purchase and project lists: members and finance managers,
+	// not working_groups.manage alone.
+	seeMoney := isFinance(p)
+	if !seeMoney {
+		if seeMoney, err = q.IsWorkingGroupMember(ctx, workinggroupsdb.IsWorkingGroupMemberParams{GroupID: groupID, PersonID: p.PersonID}); err != nil {
+			return nil, err
+		}
+	}
 	events, err := q.ListWorkingGroupActivity(ctx, workinggroupsdb.ListWorkingGroupActivityParams{
-		GroupID: groupID, Inside: inside, RowLimit: int32(rows),
+		GroupID: groupID, Inside: inside, SeeMoney: seeMoney, RowLimit: int32(rows),
 	})
 	if err != nil {
 		return nil, err

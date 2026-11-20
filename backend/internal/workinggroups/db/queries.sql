@@ -220,6 +220,7 @@ SET status = sqlc.arg(status),
     due_on = sqlc.narg(due_on)::date,
     column_id = sqlc.narg(column_id),
     closed_at = CASE WHEN sqlc.arg(status)::text IN ('done', 'declined') THEN now() ELSE NULL END,
+    planned_at = CASE WHEN sqlc.arg(status)::text = 'planned' THEN COALESCE(planned_at, now()) ELSE NULL END,
     version = version + 1,
     updated_at = now()
 WHERE id = sqlc.arg(id);
@@ -1109,7 +1110,7 @@ FROM (
 
 -- name: ListWorkingGroupActivity :many
 -- The recent events of a group, built from the tables themselves. Tickets are public; everything else is for people
--- inside the group (inside = true). Events of a group's own non-public records are never selected for outsiders.
+-- inside the group (inside = true); purchases and projects are money matters and need see_money (a member of the group or a finance manager).
 SELECT kind, at, actor_person_id, COALESCE(btrim(ap.first_name || ' ' || ap.last_name), '')::text AS actor_display_name,
        title, target_kind, target_id
 FROM (
@@ -1117,34 +1118,34 @@ FROM (
            'ticket'::text AS target_kind, t.id AS target_id
     FROM working_group_tickets t WHERE t.group_id = sqlc.arg(group_id)
     UNION ALL
-    SELECT 'ticket_planned', t.updated_at, NULL::uuid, t.subject, 'ticket', t.id
-    FROM working_group_tickets t WHERE t.group_id = sqlc.arg(group_id) AND t.status = 'planned'
+    SELECT 'ticket_planned', t.planned_at, NULL::uuid, t.subject, 'ticket', t.id
+    FROM working_group_tickets t WHERE t.group_id = sqlc.arg(group_id) AND t.planned_at IS NOT NULL
     UNION ALL
     SELECT 'ticket_closed', t.closed_at, NULL::uuid, t.subject, 'ticket', t.id
     FROM working_group_tickets t WHERE t.group_id = sqlc.arg(group_id) AND t.closed_at IS NOT NULL
     UNION ALL
-    SELECT 'todo_done', d.done_at, d.assignee_person_id, d.title, 'todo', d.id
+    SELECT 'todo_done', d.done_at, NULL::uuid, d.title, 'todo', d.id
     FROM working_group_todos d WHERE d.group_id = sqlc.arg(group_id) AND d.done_at IS NOT NULL AND sqlc.arg(inside)::boolean
     UNION ALL
     SELECT 'note_pinned', n.created_at, n.author_person_id, n.text, 'note', n.id
     FROM working_group_notes n WHERE n.group_id = sqlc.arg(group_id) AND sqlc.arg(inside)::boolean
     UNION ALL
     SELECT 'purchase_submitted', pu.created_at, pu.requester_person_id, pu.item, 'purchase', pu.id
-    FROM working_group_purchases pu WHERE pu.group_id = sqlc.arg(group_id) AND pu.status <> 'planned' AND sqlc.arg(inside)::boolean
+    FROM working_group_purchases pu WHERE pu.group_id = sqlc.arg(group_id) AND pu.status <> 'planned' AND sqlc.arg(see_money)::boolean
     UNION ALL
     SELECT 'purchase_approved', pu.approved_at, NULL::uuid, pu.item, 'purchase', pu.id
-    FROM working_group_purchases pu WHERE pu.group_id = sqlc.arg(group_id) AND pu.approved_at IS NOT NULL AND sqlc.arg(inside)::boolean
+    FROM working_group_purchases pu WHERE pu.group_id = sqlc.arg(group_id) AND pu.approved_at IS NOT NULL AND sqlc.arg(see_money)::boolean
     UNION ALL
     SELECT 'project_submitted', h.created_at, h.actor_person_id, pr.title, 'project', pr.id
     FROM working_group_project_history h JOIN working_group_projects pr ON pr.id = h.project_id
-    WHERE pr.group_id = sqlc.arg(group_id) AND h.status = 'submitted' AND sqlc.arg(inside)::boolean
+    WHERE pr.group_id = sqlc.arg(group_id) AND h.status = 'submitted' AND sqlc.arg(see_money)::boolean
     UNION ALL
     SELECT 'project_approved', a.created_at, a.actor_person_id, pr.title, 'project', pr.id
     FROM (
         SELECT DISTINCT ON (h.project_id) h.project_id, h.created_at, h.actor_person_id
         FROM working_group_project_history h WHERE h.status IN ('wiref', 'running') ORDER BY h.project_id, h.created_at
     ) a JOIN working_group_projects pr ON pr.id = a.project_id
-    WHERE pr.group_id = sqlc.arg(group_id) AND sqlc.arg(inside)::boolean
+    WHERE pr.group_id = sqlc.arg(group_id) AND sqlc.arg(see_money)::boolean
 ) ev
 LEFT JOIN people ap ON ap.id = ev.actor_person_id
 ORDER BY at DESC, target_id DESC, kind

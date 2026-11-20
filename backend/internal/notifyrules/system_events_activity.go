@@ -601,6 +601,7 @@ func (e *SystemEvents) WorkingGroupTicketUpdated(ctx context.Context, tx pgx.Tx,
 		},
 		Recipients:     map[string][]uuid.UUID{"author": change.Author, "followers": change.Followers},
 		ExcludedPeople: []uuid.UUID{change.ActorID},
+		Restricted:     true,
 		Subjects:       map[string]string{"ticket": change.TicketID.String()},
 		Link:           "/working-groups/tasks",
 	})

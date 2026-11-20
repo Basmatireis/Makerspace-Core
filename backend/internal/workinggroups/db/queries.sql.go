@@ -1905,43 +1905,44 @@ FROM (
            'ticket'::text AS target_kind, t.id AS target_id
     FROM working_group_tickets t WHERE t.group_id = $1
     UNION ALL
-    SELECT 'ticket_planned', t.updated_at, NULL::uuid, t.subject, 'ticket', t.id
-    FROM working_group_tickets t WHERE t.group_id = $1 AND t.status = 'planned'
+    SELECT 'ticket_planned', t.planned_at, NULL::uuid, t.subject, 'ticket', t.id
+    FROM working_group_tickets t WHERE t.group_id = $1 AND t.planned_at IS NOT NULL
     UNION ALL
     SELECT 'ticket_closed', t.closed_at, NULL::uuid, t.subject, 'ticket', t.id
     FROM working_group_tickets t WHERE t.group_id = $1 AND t.closed_at IS NOT NULL
     UNION ALL
-    SELECT 'todo_done', d.done_at, d.assignee_person_id, d.title, 'todo', d.id
+    SELECT 'todo_done', d.done_at, NULL::uuid, d.title, 'todo', d.id
     FROM working_group_todos d WHERE d.group_id = $1 AND d.done_at IS NOT NULL AND $2::boolean
     UNION ALL
     SELECT 'note_pinned', n.created_at, n.author_person_id, n.text, 'note', n.id
     FROM working_group_notes n WHERE n.group_id = $1 AND $2::boolean
     UNION ALL
     SELECT 'purchase_submitted', pu.created_at, pu.requester_person_id, pu.item, 'purchase', pu.id
-    FROM working_group_purchases pu WHERE pu.group_id = $1 AND pu.status <> 'planned' AND $2::boolean
+    FROM working_group_purchases pu WHERE pu.group_id = $1 AND pu.status <> 'planned' AND $3::boolean
     UNION ALL
     SELECT 'purchase_approved', pu.approved_at, NULL::uuid, pu.item, 'purchase', pu.id
-    FROM working_group_purchases pu WHERE pu.group_id = $1 AND pu.approved_at IS NOT NULL AND $2::boolean
+    FROM working_group_purchases pu WHERE pu.group_id = $1 AND pu.approved_at IS NOT NULL AND $3::boolean
     UNION ALL
     SELECT 'project_submitted', h.created_at, h.actor_person_id, pr.title, 'project', pr.id
     FROM working_group_project_history h JOIN working_group_projects pr ON pr.id = h.project_id
-    WHERE pr.group_id = $1 AND h.status = 'submitted' AND $2::boolean
+    WHERE pr.group_id = $1 AND h.status = 'submitted' AND $3::boolean
     UNION ALL
     SELECT 'project_approved', a.created_at, a.actor_person_id, pr.title, 'project', pr.id
     FROM (
         SELECT DISTINCT ON (h.project_id) h.project_id, h.created_at, h.actor_person_id
         FROM working_group_project_history h WHERE h.status IN ('wiref', 'running') ORDER BY h.project_id, h.created_at
     ) a JOIN working_group_projects pr ON pr.id = a.project_id
-    WHERE pr.group_id = $1 AND $2::boolean
+    WHERE pr.group_id = $1 AND $3::boolean
 ) ev
 LEFT JOIN people ap ON ap.id = ev.actor_person_id
 ORDER BY at DESC, target_id DESC, kind
-LIMIT $3
+LIMIT $4
 `
 
 type ListWorkingGroupActivityParams struct {
 	GroupID  uuid.UUID
 	Inside   bool
+	SeeMoney bool
 	RowLimit int32
 }
 
@@ -1956,9 +1957,14 @@ type ListWorkingGroupActivityRow struct {
 }
 
 // The recent events of a group, built from the tables themselves. Tickets are public; everything else is for people
-// inside the group (inside = true). Events of a group's own non-public records are never selected for outsiders.
+// inside the group (inside = true); purchases and projects are money matters and need see_money (a member of the group or a finance manager).
 func (q *Queries) ListWorkingGroupActivity(ctx context.Context, arg ListWorkingGroupActivityParams) ([]ListWorkingGroupActivityRow, error) {
-	rows, err := q.db.Query(ctx, listWorkingGroupActivity, arg.GroupID, arg.Inside, arg.RowLimit)
+	rows, err := q.db.Query(ctx, listWorkingGroupActivity,
+		arg.GroupID,
+		arg.Inside,
+		arg.SeeMoney,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -4751,6 +4757,7 @@ SET status = $1,
     due_on = $3::date,
     column_id = $4,
     closed_at = CASE WHEN $1::text IN ('done', 'declined') THEN now() ELSE NULL END,
+    planned_at = CASE WHEN $1::text = 'planned' THEN COALESCE(planned_at, now()) ELSE NULL END,
     version = version + 1,
     updated_at = now()
 WHERE id = $5
