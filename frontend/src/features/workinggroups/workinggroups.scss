@@ -1923,3 +1923,10 @@
     display: none;
   }
 }
+
+// Above a list with a panel: the two small tiles together are exactly as wide as the panel column below them.
+@media (min-width: 66rem) {
+  .wg-summary--panel {
+    grid-template-columns: minmax(0, 1fr) 12rem 12rem;
+  }
+}

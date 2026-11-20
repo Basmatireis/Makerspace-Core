@@ -280,7 +280,7 @@ export function PurchasesPage() {
         />
       }
     >
-      <div className="wg-summary">
+      <div className="wg-summary wg-summary--panel">
         {figures ? (
           <BudgetCard
             label="Budget"

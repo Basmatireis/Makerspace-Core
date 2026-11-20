@@ -242,7 +242,7 @@ export function ProjectsPage() {
         />
       }
     >
-      <div className="wg-summary">
+      <div className="wg-summary wg-summary--panel">
         {figures && period ? (
           <BudgetCard
             label="Budget"
