@@ -41,6 +41,7 @@ import {
   PROJECT_STATUS_LABEL,
   PROJECT_STATUS_TAG,
   checklistRows,
+  costPartition,
   dateRange,
   isEndState,
   itemCaption,
@@ -139,9 +140,8 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
   );
   const spent = toCents(project.totals.spent);
   const inPurchases = toCents(project.totals.inPurchases);
-  const requested = Math.max(0, inPurchases - spent);
-  const notBought = toCents(project.totals.left);
-  const barTotal = Math.max(1, spent + requested + notBought);
+  const planned = toCents(project.totals.planned);
+  const { requested, notRequested, over, barTotal } = costPartition(planned, spent, inPurchases);
   const selectedItem = selected?.kind === 'item' ? project.items.find((item) => item.id === selected.id) : undefined;
   const selectedPurchase = selected?.kind === 'purchase' ? purchases.find((p) => p.id === selected.id) : undefined;
 
@@ -168,13 +168,12 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
       active.length === 0
         ? 'No purchase yet'
         : rest > 0
-          ? `${formatCents(rest)} of the plan left`
+          ? `${formatCents(rest)} not requested yet`
           : rest < 0
             ? `${formatCents(-rest)} over the plan`
             : 'Plan used up';
     return { got, caption };
   };
-  const left = toCents(project.totals.left);
   const paidFromNote = !project.paidFrom
     ? 'Set when the project is approved'
     : project.paidFrom === 'external'
@@ -207,6 +206,7 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
           isLead={group?.isLead ?? false}
           finance={finance}
           purchase={selectedPurchase}
+          inline
           onGone={() => setSelected(null)}
         />
       </div>
@@ -231,17 +231,17 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
       <div className="wg-pj-grid">
         <div className="wg-pj-main">
           <section className="wg-tile wg-phead" aria-label="Project">
-            <div className="wg-phead__top">
-              <div>
-                <p className="wg-label">Project · {project.groupName}</p>
+            <div className="wg-phead__id">
+              <p className="wg-label">Project · {project.groupName}</p>
+              <div className="wg-phead__title">
                 <h2>{project.title}</h2>
-                <p className="wg-muted">
-                  {[who(project), dateRange(project, formatDateOnly), paidFromLabel(project)]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </p>
+                <Tag size="md" type={PROJECT_STATUS_TAG[project.status]}>
+                  {PROJECT_STATUS_LABEL[project.status]}
+                </Tag>
               </div>
-              <Tag type={PROJECT_STATUS_TAG[project.status]}>{PROJECT_STATUS_LABEL[project.status]}</Tag>
+              <p className="wg-muted">
+                {[who(project), dateRange(project, formatDateOnly), paidFromLabel(project)].filter(Boolean).join(' · ')}
+              </p>
             </div>
             <ProjectStepper project={project} />
           </section>
@@ -270,11 +270,13 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
             <div
               className="wg-pbar"
               role="img"
-              aria-label={`Spent ${formatCents(spent)}, requested or approved ${formatCents(requested)}, not bought yet ${formatCents(notBought)}`}
+              aria-label={`Spent ${formatCents(spent)}, requested or approved ${formatCents(requested)}, ${
+                over > 0 ? `over plan ${formatCents(over)}` : `not requested yet ${formatCents(notRequested)}`
+              }`}
             >
               <span className="wg-pbar__seg is-spent" style={{ flexGrow: spent / barTotal }} />
               <span className="wg-pbar__seg is-requested" style={{ flexGrow: requested / barTotal }} />
-              <span className="wg-pbar__seg is-left" style={{ flexGrow: notBought / barTotal }} />
+              <span className="wg-pbar__seg is-left" style={{ flexGrow: notRequested / barTotal }} />
             </div>
             <p className="wg-pbar__legend">
               <span>
@@ -287,7 +289,15 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
               </span>
               <span>
                 <i className="wg-dot is-left" aria-hidden="true" />
-                Not bought yet <strong>{formatCents(notBought)}</strong>
+                {over > 0 ? (
+                  <>
+                    Over plan <strong>{formatCents(over)}</strong>
+                  </>
+                ) : (
+                  <>
+                    Not requested yet <strong>{formatCents(notRequested)}</strong>
+                  </>
+                )}
               </span>
             </p>
 
@@ -344,7 +354,9 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
                   <span>Total</span>
                   <span>{formatMoney(project.totals.planned)}</span>
                   <span>{formatMoney(project.totals.inPurchases)}</span>
-                  <span>{left >= 0 ? `${formatCents(left)} left` : `${formatCents(-left)} over`}</span>
+                  <span>
+                    {over > 0 ? `${formatCents(over)} over plan` : `${formatCents(notRequested)} not requested yet`}
+                  </span>
                 </div>
               </div>
             )}
