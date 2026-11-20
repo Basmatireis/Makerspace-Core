@@ -87,6 +87,7 @@ type Querier interface {
 	GetWorkingGroupPlaceStatus(ctx context.Context, arg GetWorkingGroupPlaceStatusParams) (GetWorkingGroupPlaceStatusRow, error)
 	GetWorkingGroupProjectGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetWorkingGroupProjectItemProject(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	GetWorkingGroupProjectLinkTarget(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetWorkingGroupProjectOffer(ctx context.Context, id uuid.UUID) (GetWorkingGroupProjectOfferRow, error)
 	GetWorkingGroupProjectOfferProject(ctx context.Context, id uuid.UUID) (GetWorkingGroupProjectOfferProjectRow, error)
 	GetWorkingGroupProjectRequest(ctx context.Context, id uuid.UUID) (GetWorkingGroupProjectRequestRow, error)
@@ -95,6 +96,7 @@ type Querier interface {
 	GetWorkingGroupPurchaseFiles(ctx context.Context, id uuid.UUID) (GetWorkingGroupPurchaseFilesRow, error)
 	GetWorkingGroupPurchaseForProject(ctx context.Context, id uuid.UUID) (GetWorkingGroupPurchaseForProjectRow, error)
 	GetWorkingGroupPurchaseGroup(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	GetWorkingGroupPurchaseLinkTarget(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetWorkingGroupPurchaseOrderInvoice(ctx context.Context, id uuid.UUID) (*uuid.UUID, error)
 	GetWorkingGroupRequestDefaults(ctx context.Context) (GetWorkingGroupRequestDefaultsRow, error)
 	GetWorkingGroupTicketCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTicketCoreRow, error)
@@ -115,6 +117,9 @@ type Querier interface {
 	LinkWorkingGroupRunningPurchase(ctx context.Context, arg LinkWorkingGroupRunningPurchaseParams) error
 	ListExistingMachineIDs(ctx context.Context, ids []uuid.UUID) ([]uuid.UUID, error)
 	ListMachineGroupAssignments(ctx context.Context, ids []uuid.UUID) ([]ListMachineGroupAssignmentsRow, error)
+	// The recent events of a group, built from the tables themselves. Tickets are public; everything else is for people
+	// inside the group (inside = true). Events of a group's own non-public records are never selected for outsiders.
+	ListWorkingGroupActivity(ctx context.Context, arg ListWorkingGroupActivityParams) ([]ListWorkingGroupActivityRow, error)
 	ListWorkingGroupBookings(ctx context.Context, arg ListWorkingGroupBookingsParams) ([]ListWorkingGroupBookingsRow, error)
 	// The figures of every group (all_groups) or of the groups the caller is a member of, optionally of one group.
 	ListWorkingGroupBudgetFigures(ctx context.Context, arg ListWorkingGroupBudgetFiguresParams) ([]ListWorkingGroupBudgetFiguresRow, error)
@@ -125,6 +130,9 @@ type Querier interface {
 	ListWorkingGroupIncome(ctx context.Context, periodID uuid.UUID) ([]ListWorkingGroupIncomeRow, error)
 	ListWorkingGroupIncomeFigures(ctx context.Context) ([]ListWorkingGroupIncomeFiguresRow, error)
 	ListWorkingGroupItemStatuses(ctx context.Context) ([]ListWorkingGroupItemStatusesRow, error)
+	// Tickets and to-dos linked to the given purchases and projects, for people inside the group (a member or
+	// working_groups.manage) only.
+	ListWorkingGroupLinkedTasks(ctx context.Context, arg ListWorkingGroupLinkedTasksParams) ([]ListWorkingGroupLinkedTasksRow, error)
 	ListWorkingGroupMachineOptions(ctx context.Context) ([]ListWorkingGroupMachineOptionsRow, error)
 	ListWorkingGroupMachines(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupMachinesRow, error)
 	ListWorkingGroupMembers(ctx context.Context, groupID uuid.UUID) ([]ListWorkingGroupMembersRow, error)
@@ -150,6 +158,8 @@ type Querier interface {
 	ListWorkingGroupStatusChangesSince(ctx context.Context, windowStart time.Time) ([]ListWorkingGroupStatusChangesSinceRow, error)
 	ListWorkingGroupTicketComments(ctx context.Context, arg ListWorkingGroupTicketCommentsParams) ([]ListWorkingGroupTicketCommentsRow, error)
 	ListWorkingGroupTicketFollowers(ctx context.Context, ticketID uuid.UUID) ([]ListWorkingGroupTicketFollowersRow, error)
+	// The author and the followers of a ticket, each with whether they are a member of the ticket's group.
+	ListWorkingGroupTicketRecipients(ctx context.Context, arg ListWorkingGroupTicketRecipientsParams) ([]ListWorkingGroupTicketRecipientsRow, error)
 	// One query for the list and the single ticket: id, group and status are optional filters.
 	ListWorkingGroupTickets(ctx context.Context, arg ListWorkingGroupTicketsParams) ([]ListWorkingGroupTicketsRow, error)
 	ListWorkingGroupTodoComments(ctx context.Context, todoID *uuid.UUID) ([]ListWorkingGroupTodoCommentsRow, error)
@@ -201,8 +211,10 @@ type Querier interface {
 	SetWorkingGroupProjectWiRef(ctx context.Context, arg SetWorkingGroupProjectWiRefParams) error
 	SetWorkingGroupPurchaseAttachment(ctx context.Context, arg SetWorkingGroupPurchaseAttachmentParams) error
 	SetWorkingGroupPurchaseOrderInvoice(ctx context.Context, arg SetWorkingGroupPurchaseOrderInvoiceParams) error
+	SetWorkingGroupTicketLink(ctx context.Context, arg SetWorkingGroupTicketLinkParams) (int64, error)
 	SetWorkingGroupTicketState(ctx context.Context, arg SetWorkingGroupTicketStateParams) (int64, error)
 	SetWorkingGroupTodoDone(ctx context.Context, arg SetWorkingGroupTodoDoneParams) (int64, error)
+	SetWorkingGroupTodoLink(ctx context.Context, arg SetWorkingGroupTodoLinkParams) (int64, error)
 	// Shared lock for everything that books into the period, so a period cannot be closed under a running change.
 	ShareLockWorkingGroupBudgetPeriod(ctx context.Context, id uuid.UUID) (ShareLockWorkingGroupBudgetPeriodRow, error)
 	// A project that starts running turns its planned purchases into approved ones, in the period open today.

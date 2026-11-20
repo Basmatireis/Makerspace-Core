@@ -21,7 +21,7 @@ func (s *Service) ListTodos(ctx context.Context, p authorization.Principal, grou
 		return nil, err
 	}
 	rows, err := workinggroupsdb.New(s.pool).ListWorkingGroupTodos(ctx, workinggroupsdb.ListWorkingGroupTodosParams{
-		CallerPersonID: &p.PersonID, CallerManage: p.Has(authorization.WorkingGroupsManage), GroupID: groupID,
+		CallerPersonID: &p.PersonID, CallerManage: p.Has(authorization.WorkingGroupsManage), CallerFinance: isFinance(p), GroupID: groupID,
 		RowLimit: MaxTicketListRows,
 	})
 	if err != nil {
@@ -373,7 +373,7 @@ func (s *Service) changeTodo(
 
 func loadTodoDetail(ctx context.Context, q *workinggroupsdb.Queries, p authorization.Principal, id uuid.UUID) (TodoDetail, error) {
 	rows, err := q.ListWorkingGroupTodos(ctx, workinggroupsdb.ListWorkingGroupTodosParams{
-		CallerPersonID: &p.PersonID, CallerManage: p.Has(authorization.WorkingGroupsManage), ID: &id, RowLimit: 1,
+		CallerPersonID: &p.PersonID, CallerManage: p.Has(authorization.WorkingGroupsManage), CallerFinance: isFinance(p), ID: &id, RowLimit: 1,
 	})
 	if err != nil {
 		return TodoDetail{}, err
@@ -406,6 +406,7 @@ func todoFromRow(row workinggroupsdb.ListWorkingGroupTodosRow) Todo {
 		Assignee: personRef(row.AssigneePersonID, row.AssigneeName), CreatedBy: personRef(row.CreatedByPersonID, row.CreatorName),
 		DueOn: *due, ColumnID: row.ColumnID, RepeatEveryDays: repeat, Done: row.DoneAt.Valid, DoneAt: timeValue(row.DoneAt),
 		IsMine: row.IsMine, CommentCount: row.CommentCount, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Link: taskLink(row.LinkKind, row.LinkID, row.LinkTitle, row.LinkStatus),
 	}
 }
 

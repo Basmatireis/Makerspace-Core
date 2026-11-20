@@ -2810,6 +2810,8 @@ type WorkingGroupTicket struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	ClosedAt         pgtype.Timestamptz
+	PurchaseID       *uuid.UUID
+	ProjectID        *uuid.UUID
 }
 
 type WorkingGroupTicketFollower struct {
@@ -2831,4 +2833,6 @@ type WorkingGroupTodo struct {
 	Version           int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	PurchaseID        *uuid.UUID
+	ProjectID         *uuid.UUID
 }

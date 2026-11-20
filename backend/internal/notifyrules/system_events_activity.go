@@ -565,3 +565,43 @@ func (e *SystemEvents) JobCreated(ctx context.Context, tx pgx.Tx, jobID uuid.UUI
 		Link:          "/workshop/jobs/" + jobID.String(),
 	})
 }
+
+// WorkingGroupTicketChange is what happened to a ticket of a working group and who is concerned. The recipients are
+// already narrowed by the caller: for an internal comment only the people inside the group remain.
+type WorkingGroupTicketChange struct {
+	TicketID  uuid.UUID
+	Subject   string
+	GroupName string
+	// Change is comment, planned, done or declined.
+	Change    string
+	Internal  bool
+	ActorID   uuid.UUID
+	Author    []uuid.UUID
+	Followers []uuid.UUID
+}
+
+// WorkingGroupTicketUpdated raises working_group_ticket_updated; the actor is never notified of their own change.
+func (e *SystemEvents) WorkingGroupTicketUpdated(ctx context.Context, tx pgx.Tx, change WorkingGroupTicketChange) error {
+	if len(change.Author) == 0 && len(change.Followers) == 0 {
+		return nil
+	}
+	q := notifyrulesdb.New(tx)
+	actor, err := e.nameOf(ctx, q, &change.ActorID)
+	if err != nil {
+		return err
+	}
+	words := map[string]string{
+		"comment": "got a new comment", "planned": "was planned", "done": "was closed as done", "declined": "was closed as declined",
+	}
+	return e.emit(ctx, tx, Event{
+		Trigger: "working_group_ticket_updated",
+		Fields:  map[string]any{"change": change.Change, "internal": change.Internal},
+		Placeholders: map[string]string{
+			"ticket": change.Subject, "group": change.GroupName, "change": words[change.Change], "by": actor,
+		},
+		Recipients:     map[string][]uuid.UUID{"author": change.Author, "followers": change.Followers},
+		ExcludedPeople: []uuid.UUID{change.ActorID},
+		Subjects:       map[string]string{"ticket": change.TicketID.String()},
+		Link:           "/working-groups/tasks",
+	})
+}

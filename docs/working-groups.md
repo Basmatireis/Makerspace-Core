@@ -53,7 +53,18 @@ A person is **inside** a group when they are a member of it or hold `working_gro
 - Removing a member clears their assignments in that group; the tickets stay planned without an assignee.
 - A deleted person's tickets and comments stay; author and assignee are then absent ("Former member"). Their follows are deleted.
 - The list returns at most 500 tickets, newest first, and can be filtered by `groupId` and `status`. Each item carries `isFollowing`, `isMine` (author or assignee), the number of comments the caller may see and `inside`.
-- Notifications for planned and closed tickets are not sent yet.
+- **Notifications.** A new comment, planning a ticket and closing it raise the notification trigger `working_group_ticket_updated` (see [docs/notifications.md](notifications.md)). Recipients the trigger offers are `author` (the ticket's author, who is not among the followers) and `followers` (the people who have the same problem); the person who made the change is never notified. The application ships no rules: staff build rules on this trigger and so choose the channels, texts and conditions (`change` is `comment`, `planned`, `done` or `declined`; `internal` marks an internal comment), and every recipient's own notification preferences apply as for any rule. An **internal** comment is raised only for the author and followers who are members of the group. Placeholders: `{ticket}`, `{group}`, `{change}`, `{by}`; comment texts are never put into a notification. The notification opens `/working-groups/tasks`.
+- The follower list is personal data: it is covered by people merge, subject export, the privacy catalog, the staging anonymizer and hard deletion of a person or a ticket.
+
+## Linking work to a purchase or project
+
+A ticket or a to-do may be linked to **one purchase or one project of the same group** (for work that leads to buying something). `PUT /working-group-tickets/{ticketId}/link` and `PUT /working-group-todos/{todoId}/link` take `{expectedVersion, purchaseId?, projectId?}`; sending neither (or `null`) removes the link. Who may edit the ticket (inside the group; to-dos answer 404 outside it) may link it, and only to a target they may see: a member of the target's group or a finance manager, otherwise 404. A target of another group is refused with 422 `working_group_link_other_group`, both ids at once with 422 `working_group_link_ambiguous`, a stale version with 409 `stale_write`. The link change is audited (`working_group_ticket.linked`, `working_group_todo.linked`; ids only) and bumps the version. The database keeps at most one link per task (CHECK) and sets it to NULL when the purchase or project is deleted.
+
+Tickets and to-dos carry `link` `{kind, id, title, status}` only when the caller may see the target (members of the group and finance managers; not authors outside the group or management without membership). Purchases and projects carry `linkedTasks` `[{kind, id, title}]` of the tickets and to-dos linked to them, only for people inside the group (a member or `working_groups.manage`); everybody else gets an empty list.
+
+## Lately in a group
+
+`GET /working-groups/{groupId}/activity?limit=` (default 20, 1–50, newest first) lists the group's recent events, built from the group's own tables and not from the audit log: tickets created, planned and closed, to-dos done, notes pinned, purchases submitted and approved, projects submitted and approved. Each entry has `kind`, `at`, `title` (subject, title, item, project title or note text), `targetKind`, `targetId` and an `actor` where the record knows one (the ticket's author, the to-do's assignee, the note's author, the purchase's requester, the person who handed in or approved a project; absent for planned and closed tickets and approved purchases). People inside the group see everything; everybody else with `working_groups.read` (including finance managers who are not members) sees only the ticket events, which are public anyway. A ticket's planned event carries the time of its last change while it is planned.
 
 ## To-dos
 
@@ -158,6 +169,9 @@ Tickets, to-dos and comments are one privacy category ("Working group tickets an
 | `reopenWorkingGroupTicket` | `POST /working-group-tickets/{ticketId}/reopen` | inside |
 | `followWorkingGroupTicket` | `PUT /working-group-tickets/{ticketId}/follow` | read |
 | `unfollowWorkingGroupTicket` | `DELETE /working-group-tickets/{ticketId}/follow` | read |
+| `setWorkingGroupTicketLink` | `PUT /working-group-tickets/{ticketId}/link` | inside, and may see the target |
+| `setWorkingGroupTodoLink` | `PUT /working-group-todos/{todoId}/link` | inside, and may see the target |
+| `listWorkingGroupActivity` | `GET /working-groups/{groupId}/activity?limit=` | read (outside: ticket events only) |
 | `addWorkingGroupTicketComment` | `POST /working-group-tickets/{ticketId}/comments` | read (internal: inside) |
 | `listWorkingGroupTodos` | `GET /working-group-todos?groupId=` | inside (others: empty list) |
 | `createWorkingGroupTodo` | `POST /working-group-todos` | inside |

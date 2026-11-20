@@ -501,6 +501,7 @@ func workingGroupTicketDTO(item workinggroups.Ticket) openapi.WorkingGroupTicket
 		CreatedAt:     item.CreatedAt,
 		UpdatedAt:     item.UpdatedAt,
 		ClosedAt:      item.ClosedAt,
+		Link:          taskLinkDTO(item.Link),
 	}
 }
 
@@ -544,6 +545,7 @@ func workingGroupTodoDTO(item workinggroups.Todo) openapi.WorkingGroupTodo {
 		Version:      item.Version,
 		CreatedAt:    item.CreatedAt,
 		UpdatedAt:    item.UpdatedAt,
+		Link:         taskLinkDTO(item.Link),
 	}
 	if item.RepeatEveryDays != nil {
 		days := int32(*item.RepeatEveryDays)
@@ -572,4 +574,92 @@ func makerspaceLocation(cfg config.Config) *time.Location {
 		return time.UTC
 	}
 	return location
+}
+
+func taskLinkDTO(link *workinggroups.TaskLink) *openapi.WorkingGroupTaskLink {
+	if link == nil {
+		return nil
+	}
+	return &openapi.WorkingGroupTaskLink{
+		Kind: openapi.WorkingGroupTaskLinkKind(link.Kind), Id: link.ID, Title: link.Title, Status: link.Status,
+	}
+}
+
+func linkedTasksDTO(tasks []workinggroups.LinkedTask) *[]openapi.WorkingGroupLinkedTask {
+	out := make([]openapi.WorkingGroupLinkedTask, 0, len(tasks))
+	for _, task := range tasks {
+		out = append(out, openapi.WorkingGroupLinkedTask{Kind: openapi.WorkingGroupLinkedTaskKind(task.Kind), Id: task.ID, Title: task.Title})
+	}
+	return &out
+}
+
+func linkInput(body *openapi.SetWorkingGroupLinkRequest) workinggroups.LinkInput {
+	input := workinggroups.LinkInput{ExpectedVersion: body.ExpectedVersion}
+	if body.PurchaseId.IsSpecified() && !body.PurchaseId.IsNull() {
+		id := body.PurchaseId.MustGet()
+		input.PurchaseID = &id
+	}
+	if body.ProjectId.IsSpecified() && !body.ProjectId.IsNull() {
+		id := body.ProjectId.MustGet()
+		input.ProjectID = &id
+	}
+	return input
+}
+
+func (s *Server) SetWorkingGroupTicketLink(
+	ctx context.Context,
+	r openapi.SetWorkingGroupTicketLinkRequestObject,
+) (openapi.SetWorkingGroupTicketLinkResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	detail, err := s.workingGroups.SetTicketLink(ctx, p, r.TicketId, linkInput(r.Body), requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.SetWorkingGroupTicketLink200JSONResponse(workingGroupTicketDetailDTO(detail)), nil
+}
+
+func (s *Server) SetWorkingGroupTodoLink(
+	ctx context.Context,
+	r openapi.SetWorkingGroupTodoLinkRequestObject,
+) (openapi.SetWorkingGroupTodoLinkResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	detail, err := s.workingGroups.SetTodoLink(ctx, p, r.TodoId, linkInput(r.Body), requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.SetWorkingGroupTodoLink200JSONResponse(workingGroupTodoDetailDTO(detail)), nil
+}
+
+func (s *Server) ListWorkingGroupActivity(
+	ctx context.Context,
+	r openapi.ListWorkingGroupActivityRequestObject,
+) (openapi.ListWorkingGroupActivityResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := s.workingGroups.ListActivity(ctx, p, r.GroupId, r.Params.Limit)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]openapi.WorkingGroupActivityEntry, 0, len(entries))
+	for _, e := range entries {
+		items = append(items, openapi.WorkingGroupActivityEntry{
+			Kind: openapi.WorkingGroupActivityEntryKind(e.Kind), At: e.At, Actor: workingGroupPersonDTO(e.Actor), Title: e.Title,
+			TargetKind: openapi.WorkingGroupActivityEntryTargetKind(e.TargetKind), TargetId: e.TargetID,
+		})
+	}
+	return openapi.ListWorkingGroupActivity200JSONResponse{Items: items}, nil
 }

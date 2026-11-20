@@ -21,6 +21,7 @@
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 import type { WorkingGroupPerson } from './workingGroupPerson';
+import type { WorkingGroupTaskLink } from './workingGroupTaskLink';
 
 export interface WorkingGroupTodo {
   id: UUIDv7;
@@ -47,4 +48,6 @@ export interface WorkingGroupTodo {
   version: Version;
   createdAt: string;
   updatedAt: string;
+  /** The purchase or project the to-do is linked to; absent without a link and for a caller who may not see the target. */
+  link?: WorkingGroupTaskLink;
 }

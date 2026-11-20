@@ -204,7 +204,8 @@ WHERE group_id = sqlc.arg(group_id) AND column_id = sqlc.arg(from_column_id);
 DELETE FROM working_group_columns WHERE id = sqlc.arg(id) AND group_id = sqlc.arg(group_id);
 
 -- name: GetWorkingGroupTicketCore :one
-SELECT id, group_id, machine_id, status, author_person_id, assignee_person_id, due_on, column_id, version
+SELECT id, group_id, machine_id, status, author_person_id, assignee_person_id, due_on, column_id, version,
+       subject, purchase_id, project_id
 FROM working_group_tickets WHERE id = sqlc.arg(id);
 
 -- name: CreateWorkingGroupTicket :exec
@@ -243,9 +244,18 @@ SELECT t.id, t.group_id, g.name AS group_name, t.machine_id, mc.name AS machine_
        (sqlc.arg(caller_manage)::boolean OR EXISTS (
            SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = sqlc.arg(caller_person_id)
        ))::boolean AS inside,
-       t.version, t.created_at, t.updated_at, t.closed_at
+       t.version, t.created_at, t.updated_at, t.closed_at,
+       (CASE WHEN lv.ok AND t.purchase_id IS NOT NULL THEN 'purchase' WHEN lv.ok AND t.project_id IS NOT NULL THEN 'project' ELSE '' END)::text AS link_kind,
+       (CASE WHEN lv.ok THEN COALESCE(t.purchase_id, t.project_id) END)::uuid AS link_id,
+       (CASE WHEN lv.ok THEN COALESCE(lpu.item, lpr.title, '') ELSE '' END)::text AS link_title,
+       (CASE WHEN lv.ok THEN COALESCE(lpu.status, lpr.status, '') ELSE '' END)::text AS link_status
 FROM working_group_tickets t
 JOIN working_groups g ON g.id = t.group_id
+CROSS JOIN LATERAL (SELECT (sqlc.arg(caller_finance)::boolean OR EXISTS (
+    SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = sqlc.arg(caller_person_id)
+)) AS ok) lv
+LEFT JOIN working_group_purchases lpu ON lpu.id = t.purchase_id
+LEFT JOIN working_group_projects lpr ON lpr.id = t.project_id
 LEFT JOIN machines mc ON mc.id = t.machine_id
 LEFT JOIN people author ON author.id = t.author_person_id
 LEFT JOIN people assignee ON assignee.id = t.assignee_person_id
@@ -305,7 +315,8 @@ WHERE c.todo_id = sqlc.arg(todo_id)
 ORDER BY c.created_at, c.id;
 
 -- name: GetWorkingGroupTodoCore :one
-SELECT id, group_id, title, assignee_person_id, due_on, column_id, repeat_every_days, done_at, version
+SELECT id, group_id, title, assignee_person_id, due_on, column_id, repeat_every_days, done_at, version,
+       purchase_id, project_id
 FROM working_group_todos WHERE id = sqlc.arg(id);
 
 -- name: CreateWorkingGroupTodo :exec
@@ -340,9 +351,18 @@ SELECT t.id, t.group_id, g.name AS group_name, t.title,
        t.due_on, t.column_id, t.repeat_every_days, t.done_at,
        COALESCE(t.assignee_person_id = sqlc.arg(caller_person_id), false)::boolean AS is_mine,
        (SELECT count(*) FROM working_group_comments c WHERE c.todo_id = t.id)::bigint AS comment_count,
-       t.version, t.created_at, t.updated_at
+       t.version, t.created_at, t.updated_at,
+       (CASE WHEN lv.ok AND t.purchase_id IS NOT NULL THEN 'purchase' WHEN lv.ok AND t.project_id IS NOT NULL THEN 'project' ELSE '' END)::text AS link_kind,
+       (CASE WHEN lv.ok THEN COALESCE(t.purchase_id, t.project_id) END)::uuid AS link_id,
+       (CASE WHEN lv.ok THEN COALESCE(lpu.item, lpr.title, '') ELSE '' END)::text AS link_title,
+       (CASE WHEN lv.ok THEN COALESCE(lpu.status, lpr.status, '') ELSE '' END)::text AS link_status
 FROM working_group_todos t
 JOIN working_groups g ON g.id = t.group_id
+CROSS JOIN LATERAL (SELECT (sqlc.arg(caller_finance)::boolean OR EXISTS (
+    SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = sqlc.arg(caller_person_id)
+)) AS ok) lv
+LEFT JOIN working_group_purchases lpu ON lpu.id = t.purchase_id
+LEFT JOIN working_group_projects lpr ON lpr.id = t.project_id
 LEFT JOIN people assignee ON assignee.id = t.assignee_person_id
 LEFT JOIN people creator ON creator.id = t.created_by_person_id
 WHERE (sqlc.arg(caller_manage)::boolean OR EXISTS (
@@ -1043,3 +1063,89 @@ SELECT EXISTS (SELECT 1 FROM working_group_income WHERE cash_movement_id = sqlc.
 
 -- name: WorkingGroupPeriodHasBookedAhead :one
 SELECT EXISTS (SELECT 1 FROM working_group_income WHERE period_id = sqlc.arg(period_id) AND location = 'cash');
+
+-- name: SetWorkingGroupTicketLink :execrows
+UPDATE working_group_tickets
+SET purchase_id = sqlc.narg(purchase_id), project_id = sqlc.narg(project_id), version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id);
+
+-- name: SetWorkingGroupTodoLink :execrows
+UPDATE working_group_todos
+SET purchase_id = sqlc.narg(purchase_id), project_id = sqlc.narg(project_id), version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id);
+
+-- name: GetWorkingGroupPurchaseLinkTarget :one
+SELECT group_id FROM working_group_purchases WHERE id = sqlc.arg(id);
+
+-- name: GetWorkingGroupProjectLinkTarget :one
+SELECT group_id FROM working_group_projects WHERE id = sqlc.arg(id);
+
+-- name: ListWorkingGroupLinkedTasks :many
+-- Tickets and to-dos linked to the given purchases and projects, for people inside the group (a member or
+-- working_groups.manage) only.
+SELECT kind, id, title, purchase_id, project_id FROM (
+    SELECT 'ticket'::text AS kind, t.id, t.subject AS title, t.purchase_id, t.project_id, t.group_id, t.created_at
+    FROM working_group_tickets t
+    UNION ALL
+    SELECT 'todo'::text, d.id, d.title, d.purchase_id, d.project_id, d.group_id, d.created_at
+    FROM working_group_todos d
+) x
+WHERE (x.purchase_id = ANY(sqlc.arg(purchase_ids)::uuid[]) OR x.project_id = ANY(sqlc.arg(project_ids)::uuid[]))
+  AND (sqlc.arg(caller_manage)::boolean OR EXISTS (
+      SELECT 1 FROM working_group_members me WHERE me.group_id = x.group_id AND me.person_id = sqlc.arg(caller_person_id)
+  ))
+ORDER BY x.created_at, x.id;
+
+-- name: ListWorkingGroupTicketRecipients :many
+-- The author and the followers of a ticket, each with whether they are a member of the ticket's group.
+SELECT r.person_id, EXISTS (
+    SELECT 1 FROM working_group_members me WHERE me.group_id = sqlc.arg(group_id) AND me.person_id = r.person_id
+) AS inside
+FROM (
+    SELECT t.author_person_id AS person_id FROM working_group_tickets t WHERE t.id = sqlc.arg(ticket_id) AND t.author_person_id IS NOT NULL
+    UNION
+    SELECT f.person_id FROM working_group_ticket_followers f WHERE f.ticket_id = sqlc.arg(ticket_id)
+) r;
+
+-- name: ListWorkingGroupActivity :many
+-- The recent events of a group, built from the tables themselves. Tickets are public; everything else is for people
+-- inside the group (inside = true). Events of a group's own non-public records are never selected for outsiders.
+SELECT kind, at, actor_person_id, COALESCE(btrim(ap.first_name || ' ' || ap.last_name), '')::text AS actor_display_name,
+       title, target_kind, target_id
+FROM (
+    SELECT 'ticket_created'::text AS kind, t.created_at AS at, t.author_person_id AS actor_person_id, t.subject AS title,
+           'ticket'::text AS target_kind, t.id AS target_id
+    FROM working_group_tickets t WHERE t.group_id = sqlc.arg(group_id)
+    UNION ALL
+    SELECT 'ticket_planned', t.updated_at, NULL::uuid, t.subject, 'ticket', t.id
+    FROM working_group_tickets t WHERE t.group_id = sqlc.arg(group_id) AND t.status = 'planned'
+    UNION ALL
+    SELECT 'ticket_closed', t.closed_at, NULL::uuid, t.subject, 'ticket', t.id
+    FROM working_group_tickets t WHERE t.group_id = sqlc.arg(group_id) AND t.closed_at IS NOT NULL
+    UNION ALL
+    SELECT 'todo_done', d.done_at, d.assignee_person_id, d.title, 'todo', d.id
+    FROM working_group_todos d WHERE d.group_id = sqlc.arg(group_id) AND d.done_at IS NOT NULL AND sqlc.arg(inside)::boolean
+    UNION ALL
+    SELECT 'note_pinned', n.created_at, n.author_person_id, n.text, 'note', n.id
+    FROM working_group_notes n WHERE n.group_id = sqlc.arg(group_id) AND sqlc.arg(inside)::boolean
+    UNION ALL
+    SELECT 'purchase_submitted', pu.created_at, pu.requester_person_id, pu.item, 'purchase', pu.id
+    FROM working_group_purchases pu WHERE pu.group_id = sqlc.arg(group_id) AND pu.status <> 'planned' AND sqlc.arg(inside)::boolean
+    UNION ALL
+    SELECT 'purchase_approved', pu.approved_at, NULL::uuid, pu.item, 'purchase', pu.id
+    FROM working_group_purchases pu WHERE pu.group_id = sqlc.arg(group_id) AND pu.approved_at IS NOT NULL AND sqlc.arg(inside)::boolean
+    UNION ALL
+    SELECT 'project_submitted', h.created_at, h.actor_person_id, pr.title, 'project', pr.id
+    FROM working_group_project_history h JOIN working_group_projects pr ON pr.id = h.project_id
+    WHERE pr.group_id = sqlc.arg(group_id) AND h.status = 'submitted' AND sqlc.arg(inside)::boolean
+    UNION ALL
+    SELECT 'project_approved', a.created_at, a.actor_person_id, pr.title, 'project', pr.id
+    FROM (
+        SELECT DISTINCT ON (h.project_id) h.project_id, h.created_at, h.actor_person_id
+        FROM working_group_project_history h WHERE h.status IN ('wiref', 'running') ORDER BY h.project_id, h.created_at
+    ) a JOIN working_group_projects pr ON pr.id = a.project_id
+    WHERE pr.group_id = sqlc.arg(group_id) AND sqlc.arg(inside)::boolean
+) ev
+LEFT JOIN people ap ON ap.id = ev.actor_person_id
+ORDER BY at DESC, target_id DESC, kind
+LIMIT sqlc.arg(row_limit);

@@ -229,6 +229,8 @@ type Project struct {
 	History             []ProjectHistoryEntry
 	CreatedAt           time.Time
 	Version             int64
+	// LinkedTasks are the tickets and to-dos linked to the project, for people inside the group.
+	LinkedTasks []LinkedTask
 }
 
 // ProjectFilter narrows the project list.

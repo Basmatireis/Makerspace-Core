@@ -427,6 +427,9 @@ func (s *Service) queryProjects(
 		}
 		out = append(out, project)
 	}
+	if err := attachProjectTasks(ctx, q, p, out); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 

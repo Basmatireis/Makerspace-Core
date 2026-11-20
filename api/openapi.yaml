@@ -8515,6 +8515,30 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /working-groups/{groupId}/activity:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupId"}
+    get:
+      tags: [Working groups]
+      operationId: listWorkingGroupActivity
+      summary: Lately in the group
+      description: >-
+        Requires `working_groups.read`. The most recent events of the group, newest first, built from the group's own
+        records (not from the audit log): tickets created, planned and closed, to-dos done, notes pinned, purchases
+        submitted and approved, projects submitted and approved. People inside the group (a member or
+        `working_groups.manage`) see all of them; everybody else sees only the ticket events. `actor` is absent where
+        the record does not say who did it or the person was deleted.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 50, default: 20}}
+      responses:
+        "200": {description: Recent events., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupActivityList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /working-groups/{groupId}/columns:
     parameters:
       - {$ref: "#/components/parameters/WorkingGroupId"}
@@ -8766,7 +8790,7 @@ paths:
       operationId: listWorkingGroupIncome
       summary: List the income of a budget period
       description: >-
-        Requires `working_groups.read` and `working_group_finances.manage`. Income from the cash register, newest first; `periodId` defaults to the current period.
+        Requires `working_groups.read` and `working_group_finances.manage`. Income from the cash register, newest first; `periodId` defaults to the current period; without a current period the list is empty.
       security: [{sessionCookie: []}]
       parameters:
         - {name: periodId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -9002,7 +9026,7 @@ paths:
       operationId: uploadWorkingGroupPurchaseAttachment
       summary: Attach the offer or cart
       description: >-
-        Requires `working_groups.read` and being the requester, the lead of the group or holding `working_group_finances.manage`; only while the purchase is `wanted` or `approved`. PDF or image, at most 10 MiB. Replaces an earlier file.
+        Requires `working_groups.read` and being the requester, the lead of the group or holding `working_group_finances.manage`; only while the purchase is `wanted` (or `planned` in a project that is not locked yet), not once it is approved. PDF or image, at most 10 MiB. Replaces an earlier file.
       security: [{sessionCookie: [], csrfHeader: []}]
       parameters:
         - {name: X-File-Name, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
@@ -9996,6 +10020,30 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /working-group-tickets/{ticketId}/link:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTicketId"}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupTicketLink
+      summary: Link a ticket to a purchase or project
+      description: >-
+        Requires being inside the group (a member or `working_groups.manage`), like planning the ticket. Links the ticket
+        to at most one purchase or one project of the same group, or removes the link when neither id is sent. The
+        target must be one the caller may see (a member of the group or `working_group_finances.manage`; 404
+        otherwise) and belong to the ticket's group (422 `working_group_link_other_group`); both ids at once are
+        422. Optimistic locking (409 `stale_write`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupLinkRequest"}}}}
+      responses:
+        "200": {description: Ticket with its new link., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTicketDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /working-group-tickets/{ticketId}/comments:
     parameters:
       - {$ref: "#/components/parameters/WorkingGroupTicketId"}
@@ -10152,6 +10200,30 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /working-group-todos/{todoId}/link:
+    parameters:
+      - {$ref: "#/components/parameters/WorkingGroupTodoId"}
+    put:
+      tags: [Working groups]
+      operationId: setWorkingGroupTodoLink
+      summary: Link a to-do to a purchase or project
+      description: >-
+        Requires being inside the group (a member or `working_groups.manage`), like every to-do operation (404 otherwise). Links the to-do
+        to at most one purchase or one project of the same group, or removes the link when neither id is sent. The
+        target must be one the caller may see (a member of the group or `working_group_finances.manage`; 404
+        otherwise) and belong to the to-do's group (422 `working_group_link_other_group`); both ids at once are
+        422. Optimistic locking (409 `stale_write`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetWorkingGroupLinkRequest"}}}}
+      responses:
+        "200": {description: To-do with its new link., content: {application/json: {schema: {$ref: "#/components/schemas/WorkingGroupTodoDetail"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /working-group-todos/{todoId}/comments:
@@ -21915,6 +21987,7 @@ components:
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
         closedAt: {type: string, format: date-time}
+        link: {allOf: [{$ref: "#/components/schemas/WorkingGroupTaskLink"}], description: The purchase or project the ticket is linked to; absent without a link and for a caller who may not see the target.}
 
     WorkingGroupStatus:
       type: string
@@ -22421,6 +22494,7 @@ components:
         history: {type: array, items: {$ref: "#/components/schemas/WorkingGroupProjectHistoryEntry"}}
         createdAt: {type: string, format: date-time}
         version: {$ref: "#/components/schemas/Version"}
+        linkedTasks: {type: array, description: "Tickets and to-dos linked to it; only for people inside the group (empty otherwise).", items: {$ref: "#/components/schemas/WorkingGroupLinkedTask"}}
 
     WorkingGroupProjectList:
       type: object
@@ -22502,6 +22576,7 @@ components:
         canMarkRefunded: {type: boolean}
         canDelete: {type: boolean}
         version: {$ref: "#/components/schemas/Version"}
+        linkedTasks: {type: array, description: "Tickets and to-dos linked to it; only for people inside the group (empty otherwise).", items: {$ref: "#/components/schemas/WorkingGroupLinkedTask"}}
 
     WorkingGroupPurchaseList:
       type: object
@@ -22751,6 +22826,54 @@ components:
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+        link: {allOf: [{$ref: "#/components/schemas/WorkingGroupTaskLink"}], description: The purchase or project the to-do is linked to; absent without a link and for a caller who may not see the target.}
+
+    WorkingGroupTaskLink:
+      type: object
+      additionalProperties: false
+      required: [kind, id, title, status]
+      properties:
+        kind: {type: string, enum: [purchase, project]}
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        title: {type: string, description: The item of a purchase or the title of a project.}
+        status: {type: string, description: The status of the purchase or project.}
+
+    WorkingGroupLinkedTask:
+      type: object
+      additionalProperties: false
+      required: [kind, id, title]
+      properties:
+        kind: {type: string, enum: [ticket, todo]}
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        title: {type: string, description: The subject of a ticket or the title of a to-do.}
+
+    SetWorkingGroupLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        purchaseId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        projectId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+
+    WorkingGroupActivityEntry:
+      type: object
+      additionalProperties: false
+      required: [kind, at, title, targetKind, targetId]
+      properties:
+        kind: {type: string, enum: [ticket_created, ticket_planned, ticket_closed, todo_done, note_pinned, purchase_submitted, purchase_approved, project_submitted, project_approved]}
+        at: {type: string, format: date-time}
+        actor: {$ref: "#/components/schemas/WorkingGroupPerson"}
+        title: {type: string, description: "Subject, title, item or the text of the note."}
+        targetKind: {type: string, enum: [ticket, todo, note, purchase, project]}
+        targetId: {$ref: "#/components/schemas/UUIDv7"}
+
+    WorkingGroupActivityList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/WorkingGroupActivityEntry"}}
 
     WorkingGroupTodoList:
       type: object

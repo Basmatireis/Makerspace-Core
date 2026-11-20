@@ -132,6 +132,7 @@ func projectDTO(v workinggroups.Project) openapi.WorkingGroupProject {
 		}
 		out.History = append(out.History, entry)
 	}
+	out.LinkedTasks = linkedTasksDTO(v.LinkedTasks)
 	return out
 }
 

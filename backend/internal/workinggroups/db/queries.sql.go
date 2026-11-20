@@ -1346,6 +1346,17 @@ func (q *Queries) GetWorkingGroupProjectItemProject(ctx context.Context, id uuid
 	return project_id, err
 }
 
+const getWorkingGroupProjectLinkTarget = `-- name: GetWorkingGroupProjectLinkTarget :one
+SELECT group_id FROM working_group_projects WHERE id = $1
+`
+
+func (q *Queries) GetWorkingGroupProjectLinkTarget(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupProjectLinkTarget, id)
+	var group_id uuid.UUID
+	err := row.Scan(&group_id)
+	return group_id, err
+}
+
 const getWorkingGroupProjectOffer = `-- name: GetWorkingGroupProjectOffer :one
 SELECT id, item_id, shop, price::text AS price, file_id FROM working_group_project_offers WHERE id = $1
 `
@@ -1492,6 +1503,17 @@ func (q *Queries) GetWorkingGroupPurchaseGroup(ctx context.Context, id uuid.UUID
 	return group_id, err
 }
 
+const getWorkingGroupPurchaseLinkTarget = `-- name: GetWorkingGroupPurchaseLinkTarget :one
+SELECT group_id FROM working_group_purchases WHERE id = $1
+`
+
+func (q *Queries) GetWorkingGroupPurchaseLinkTarget(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getWorkingGroupPurchaseLinkTarget, id)
+	var group_id uuid.UUID
+	err := row.Scan(&group_id)
+	return group_id, err
+}
+
 const getWorkingGroupPurchaseOrderInvoice = `-- name: GetWorkingGroupPurchaseOrderInvoice :one
 SELECT invoice_file_id FROM working_group_purchase_orders WHERE id = $1
 `
@@ -1539,7 +1561,8 @@ func (q *Queries) GetWorkingGroupRequestDefaults(ctx context.Context) (GetWorkin
 }
 
 const getWorkingGroupTicketCore = `-- name: GetWorkingGroupTicketCore :one
-SELECT id, group_id, machine_id, status, author_person_id, assignee_person_id, due_on, column_id, version
+SELECT id, group_id, machine_id, status, author_person_id, assignee_person_id, due_on, column_id, version,
+       subject, purchase_id, project_id
 FROM working_group_tickets WHERE id = $1
 `
 
@@ -1553,6 +1576,9 @@ type GetWorkingGroupTicketCoreRow struct {
 	DueOn            pgtype.Date
 	ColumnID         *uuid.UUID
 	Version          int64
+	Subject          string
+	PurchaseID       *uuid.UUID
+	ProjectID        *uuid.UUID
 }
 
 func (q *Queries) GetWorkingGroupTicketCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTicketCoreRow, error) {
@@ -1568,12 +1594,16 @@ func (q *Queries) GetWorkingGroupTicketCore(ctx context.Context, id uuid.UUID) (
 		&i.DueOn,
 		&i.ColumnID,
 		&i.Version,
+		&i.Subject,
+		&i.PurchaseID,
+		&i.ProjectID,
 	)
 	return i, err
 }
 
 const getWorkingGroupTodoCore = `-- name: GetWorkingGroupTodoCore :one
-SELECT id, group_id, title, assignee_person_id, due_on, column_id, repeat_every_days, done_at, version
+SELECT id, group_id, title, assignee_person_id, due_on, column_id, repeat_every_days, done_at, version,
+       purchase_id, project_id
 FROM working_group_todos WHERE id = $1
 `
 
@@ -1587,6 +1617,8 @@ type GetWorkingGroupTodoCoreRow struct {
 	RepeatEveryDays  *int32
 	DoneAt           pgtype.Timestamptz
 	Version          int64
+	PurchaseID       *uuid.UUID
+	ProjectID        *uuid.UUID
 }
 
 func (q *Queries) GetWorkingGroupTodoCore(ctx context.Context, id uuid.UUID) (GetWorkingGroupTodoCoreRow, error) {
@@ -1602,6 +1634,8 @@ func (q *Queries) GetWorkingGroupTodoCore(ctx context.Context, id uuid.UUID) (Ge
 		&i.RepeatEveryDays,
 		&i.DoneAt,
 		&i.Version,
+		&i.PurchaseID,
+		&i.ProjectID,
 	)
 	return i, err
 }
@@ -1853,6 +1887,94 @@ func (q *Queries) ListMachineGroupAssignments(ctx context.Context, ids []uuid.UU
 	for rows.Next() {
 		var i ListMachineGroupAssignmentsRow
 		if err := rows.Scan(&i.MachineID, &i.GroupID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupActivity = `-- name: ListWorkingGroupActivity :many
+SELECT kind, at, actor_person_id, COALESCE(btrim(ap.first_name || ' ' || ap.last_name), '')::text AS actor_display_name,
+       title, target_kind, target_id
+FROM (
+    SELECT 'ticket_created'::text AS kind, t.created_at AS at, t.author_person_id AS actor_person_id, t.subject AS title,
+           'ticket'::text AS target_kind, t.id AS target_id
+    FROM working_group_tickets t WHERE t.group_id = $1
+    UNION ALL
+    SELECT 'ticket_planned', t.updated_at, NULL::uuid, t.subject, 'ticket', t.id
+    FROM working_group_tickets t WHERE t.group_id = $1 AND t.status = 'planned'
+    UNION ALL
+    SELECT 'ticket_closed', t.closed_at, NULL::uuid, t.subject, 'ticket', t.id
+    FROM working_group_tickets t WHERE t.group_id = $1 AND t.closed_at IS NOT NULL
+    UNION ALL
+    SELECT 'todo_done', d.done_at, d.assignee_person_id, d.title, 'todo', d.id
+    FROM working_group_todos d WHERE d.group_id = $1 AND d.done_at IS NOT NULL AND $2::boolean
+    UNION ALL
+    SELECT 'note_pinned', n.created_at, n.author_person_id, n.text, 'note', n.id
+    FROM working_group_notes n WHERE n.group_id = $1 AND $2::boolean
+    UNION ALL
+    SELECT 'purchase_submitted', pu.created_at, pu.requester_person_id, pu.item, 'purchase', pu.id
+    FROM working_group_purchases pu WHERE pu.group_id = $1 AND pu.status <> 'planned' AND $2::boolean
+    UNION ALL
+    SELECT 'purchase_approved', pu.approved_at, NULL::uuid, pu.item, 'purchase', pu.id
+    FROM working_group_purchases pu WHERE pu.group_id = $1 AND pu.approved_at IS NOT NULL AND $2::boolean
+    UNION ALL
+    SELECT 'project_submitted', h.created_at, h.actor_person_id, pr.title, 'project', pr.id
+    FROM working_group_project_history h JOIN working_group_projects pr ON pr.id = h.project_id
+    WHERE pr.group_id = $1 AND h.status = 'submitted' AND $2::boolean
+    UNION ALL
+    SELECT 'project_approved', a.created_at, a.actor_person_id, pr.title, 'project', pr.id
+    FROM (
+        SELECT DISTINCT ON (h.project_id) h.project_id, h.created_at, h.actor_person_id
+        FROM working_group_project_history h WHERE h.status IN ('wiref', 'running') ORDER BY h.project_id, h.created_at
+    ) a JOIN working_group_projects pr ON pr.id = a.project_id
+    WHERE pr.group_id = $1 AND $2::boolean
+) ev
+LEFT JOIN people ap ON ap.id = ev.actor_person_id
+ORDER BY at DESC, target_id DESC, kind
+LIMIT $3
+`
+
+type ListWorkingGroupActivityParams struct {
+	GroupID  uuid.UUID
+	Inside   bool
+	RowLimit int32
+}
+
+type ListWorkingGroupActivityRow struct {
+	Kind             string
+	At               time.Time
+	ActorPersonID    *uuid.UUID
+	ActorDisplayName string
+	Title            string
+	TargetKind       string
+	TargetID         uuid.UUID
+}
+
+// The recent events of a group, built from the tables themselves. Tickets are public; everything else is for people
+// inside the group (inside = true). Events of a group's own non-public records are never selected for outsiders.
+func (q *Queries) ListWorkingGroupActivity(ctx context.Context, arg ListWorkingGroupActivityParams) ([]ListWorkingGroupActivityRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupActivity, arg.GroupID, arg.Inside, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupActivityRow{}
+	for rows.Next() {
+		var i ListWorkingGroupActivityRow
+		if err := rows.Scan(
+			&i.Kind,
+			&i.At,
+			&i.ActorPersonID,
+			&i.ActorDisplayName,
+			&i.Title,
+			&i.TargetKind,
+			&i.TargetID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2255,6 +2377,69 @@ func (q *Queries) ListWorkingGroupItemStatuses(ctx context.Context) ([]ListWorki
 			&i.StatusChangedAt,
 			&i.ChangedByPersonID,
 			&i.ChangedByDisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkingGroupLinkedTasks = `-- name: ListWorkingGroupLinkedTasks :many
+SELECT kind, id, title, purchase_id, project_id FROM (
+    SELECT 'ticket'::text AS kind, t.id, t.subject AS title, t.purchase_id, t.project_id, t.group_id, t.created_at
+    FROM working_group_tickets t
+    UNION ALL
+    SELECT 'todo'::text, d.id, d.title, d.purchase_id, d.project_id, d.group_id, d.created_at
+    FROM working_group_todos d
+) x
+WHERE (x.purchase_id = ANY($1::uuid[]) OR x.project_id = ANY($2::uuid[]))
+  AND ($3::boolean OR EXISTS (
+      SELECT 1 FROM working_group_members me WHERE me.group_id = x.group_id AND me.person_id = $4
+  ))
+ORDER BY x.created_at, x.id
+`
+
+type ListWorkingGroupLinkedTasksParams struct {
+	PurchaseIds    []uuid.UUID
+	ProjectIds     []uuid.UUID
+	CallerManage   bool
+	CallerPersonID uuid.UUID
+}
+
+type ListWorkingGroupLinkedTasksRow struct {
+	Kind       string
+	ID         uuid.UUID
+	Title      string
+	PurchaseID *uuid.UUID
+	ProjectID  *uuid.UUID
+}
+
+// Tickets and to-dos linked to the given purchases and projects, for people inside the group (a member or
+// working_groups.manage) only.
+func (q *Queries) ListWorkingGroupLinkedTasks(ctx context.Context, arg ListWorkingGroupLinkedTasksParams) ([]ListWorkingGroupLinkedTasksRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupLinkedTasks,
+		arg.PurchaseIds,
+		arg.ProjectIds,
+		arg.CallerManage,
+		arg.CallerPersonID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupLinkedTasksRow{}
+	for rows.Next() {
+		var i ListWorkingGroupLinkedTasksRow
+		if err := rows.Scan(
+			&i.Kind,
+			&i.ID,
+			&i.Title,
+			&i.PurchaseID,
+			&i.ProjectID,
 		); err != nil {
 			return nil, err
 		}
@@ -3347,6 +3532,48 @@ func (q *Queries) ListWorkingGroupTicketFollowers(ctx context.Context, ticketID 
 	return items, nil
 }
 
+const listWorkingGroupTicketRecipients = `-- name: ListWorkingGroupTicketRecipients :many
+SELECT r.person_id, EXISTS (
+    SELECT 1 FROM working_group_members me WHERE me.group_id = $1 AND me.person_id = r.person_id
+) AS inside
+FROM (
+    SELECT t.author_person_id AS person_id FROM working_group_tickets t WHERE t.id = $2 AND t.author_person_id IS NOT NULL
+    UNION
+    SELECT f.person_id FROM working_group_ticket_followers f WHERE f.ticket_id = $2
+) r
+`
+
+type ListWorkingGroupTicketRecipientsParams struct {
+	GroupID  uuid.UUID
+	TicketID uuid.UUID
+}
+
+type ListWorkingGroupTicketRecipientsRow struct {
+	PersonID *uuid.UUID
+	Inside   bool
+}
+
+// The author and the followers of a ticket, each with whether they are a member of the ticket's group.
+func (q *Queries) ListWorkingGroupTicketRecipients(ctx context.Context, arg ListWorkingGroupTicketRecipientsParams) ([]ListWorkingGroupTicketRecipientsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkingGroupTicketRecipients, arg.GroupID, arg.TicketID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkingGroupTicketRecipientsRow{}
+	for rows.Next() {
+		var i ListWorkingGroupTicketRecipientsRow
+		if err := rows.Scan(&i.PersonID, &i.Inside); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkingGroupTickets = `-- name: ListWorkingGroupTickets :many
 SELECT t.id, t.group_id, g.name AS group_name, t.machine_id, mc.name AS machine_name, t.kind, t.subject, t.body,
        t.blocks_use, t.status,
@@ -3366,22 +3593,32 @@ SELECT t.id, t.group_id, g.name AS group_name, t.machine_id, mc.name AS machine_
        ($2::boolean OR EXISTS (
            SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = $1
        ))::boolean AS inside,
-       t.version, t.created_at, t.updated_at, t.closed_at
+       t.version, t.created_at, t.updated_at, t.closed_at,
+       (CASE WHEN lv.ok AND t.purchase_id IS NOT NULL THEN 'purchase' WHEN lv.ok AND t.project_id IS NOT NULL THEN 'project' ELSE '' END)::text AS link_kind,
+       (CASE WHEN lv.ok THEN COALESCE(t.purchase_id, t.project_id) END)::uuid AS link_id,
+       (CASE WHEN lv.ok THEN COALESCE(lpu.item, lpr.title, '') ELSE '' END)::text AS link_title,
+       (CASE WHEN lv.ok THEN COALESCE(lpu.status, lpr.status, '') ELSE '' END)::text AS link_status
 FROM working_group_tickets t
 JOIN working_groups g ON g.id = t.group_id
+CROSS JOIN LATERAL (SELECT ($3::boolean OR EXISTS (
+    SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = $1
+)) AS ok) lv
+LEFT JOIN working_group_purchases lpu ON lpu.id = t.purchase_id
+LEFT JOIN working_group_projects lpr ON lpr.id = t.project_id
 LEFT JOIN machines mc ON mc.id = t.machine_id
 LEFT JOIN people author ON author.id = t.author_person_id
 LEFT JOIN people assignee ON assignee.id = t.assignee_person_id
-WHERE ($3::uuid IS NULL OR t.id = $3::uuid)
-  AND ($4::uuid IS NULL OR t.group_id = $4::uuid)
-  AND ($5::text IS NULL OR t.status = $5::text)
+WHERE ($4::uuid IS NULL OR t.id = $4::uuid)
+  AND ($5::uuid IS NULL OR t.group_id = $5::uuid)
+  AND ($6::text IS NULL OR t.status = $6::text)
 ORDER BY (t.status IN ('done', 'declined')), t.created_at DESC, t.id DESC
-LIMIT $6
+LIMIT $7
 `
 
 type ListWorkingGroupTicketsParams struct {
 	CallerPersonID uuid.UUID
 	CallerManage   bool
+	CallerFinance  bool
 	ID             *uuid.UUID
 	GroupID        *uuid.UUID
 	Status         *string
@@ -3414,6 +3651,10 @@ type ListWorkingGroupTicketsRow struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	ClosedAt         pgtype.Timestamptz
+	LinkKind         string
+	LinkID           uuid.UUID
+	LinkTitle        string
+	LinkStatus       string
 }
 
 // One query for the list and the single ticket: id, group and status are optional filters.
@@ -3421,6 +3662,7 @@ func (q *Queries) ListWorkingGroupTickets(ctx context.Context, arg ListWorkingGr
 	rows, err := q.db.Query(ctx, listWorkingGroupTickets,
 		arg.CallerPersonID,
 		arg.CallerManage,
+		arg.CallerFinance,
 		arg.ID,
 		arg.GroupID,
 		arg.Status,
@@ -3459,6 +3701,10 @@ func (q *Queries) ListWorkingGroupTickets(ctx context.Context, arg ListWorkingGr
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ClosedAt,
+			&i.LinkKind,
+			&i.LinkID,
+			&i.LinkTitle,
+			&i.LinkStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -3521,22 +3767,32 @@ SELECT t.id, t.group_id, g.name AS group_name, t.title,
        t.due_on, t.column_id, t.repeat_every_days, t.done_at,
        COALESCE(t.assignee_person_id = $1, false)::boolean AS is_mine,
        (SELECT count(*) FROM working_group_comments c WHERE c.todo_id = t.id)::bigint AS comment_count,
-       t.version, t.created_at, t.updated_at
+       t.version, t.created_at, t.updated_at,
+       (CASE WHEN lv.ok AND t.purchase_id IS NOT NULL THEN 'purchase' WHEN lv.ok AND t.project_id IS NOT NULL THEN 'project' ELSE '' END)::text AS link_kind,
+       (CASE WHEN lv.ok THEN COALESCE(t.purchase_id, t.project_id) END)::uuid AS link_id,
+       (CASE WHEN lv.ok THEN COALESCE(lpu.item, lpr.title, '') ELSE '' END)::text AS link_title,
+       (CASE WHEN lv.ok THEN COALESCE(lpu.status, lpr.status, '') ELSE '' END)::text AS link_status
 FROM working_group_todos t
 JOIN working_groups g ON g.id = t.group_id
+CROSS JOIN LATERAL (SELECT ($2::boolean OR EXISTS (
+    SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = $1
+)) AS ok) lv
+LEFT JOIN working_group_purchases lpu ON lpu.id = t.purchase_id
+LEFT JOIN working_group_projects lpr ON lpr.id = t.project_id
 LEFT JOIN people assignee ON assignee.id = t.assignee_person_id
 LEFT JOIN people creator ON creator.id = t.created_by_person_id
-WHERE ($2::boolean OR EXISTS (
+WHERE ($3::boolean OR EXISTS (
           SELECT 1 FROM working_group_members me WHERE me.group_id = t.group_id AND me.person_id = $1
       ))
-  AND ($3::uuid IS NULL OR t.id = $3::uuid)
-  AND ($4::uuid IS NULL OR t.group_id = $4::uuid)
+  AND ($4::uuid IS NULL OR t.id = $4::uuid)
+  AND ($5::uuid IS NULL OR t.group_id = $5::uuid)
 ORDER BY (t.done_at IS NOT NULL), t.due_on, t.created_at, t.id
-LIMIT $5
+LIMIT $6
 `
 
 type ListWorkingGroupTodosParams struct {
 	CallerPersonID *uuid.UUID
+	CallerFinance  bool
 	CallerManage   bool
 	ID             *uuid.UUID
 	GroupID        *uuid.UUID
@@ -3561,12 +3817,17 @@ type ListWorkingGroupTodosRow struct {
 	Version           int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	LinkKind          string
+	LinkID            uuid.UUID
+	LinkTitle         string
+	LinkStatus        string
 }
 
 // To-dos exist only for people inside the group (a member or working_groups.manage); everybody else gets no rows.
 func (q *Queries) ListWorkingGroupTodos(ctx context.Context, arg ListWorkingGroupTodosParams) ([]ListWorkingGroupTodosRow, error) {
 	rows, err := q.db.Query(ctx, listWorkingGroupTodos,
 		arg.CallerPersonID,
+		arg.CallerFinance,
 		arg.CallerManage,
 		arg.ID,
 		arg.GroupID,
@@ -3597,6 +3858,10 @@ func (q *Queries) ListWorkingGroupTodos(ctx context.Context, arg ListWorkingGrou
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LinkKind,
+			&i.LinkID,
+			&i.LinkTitle,
+			&i.LinkStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -4459,6 +4724,26 @@ func (q *Queries) SetWorkingGroupPurchaseOrderInvoice(ctx context.Context, arg S
 	return err
 }
 
+const setWorkingGroupTicketLink = `-- name: SetWorkingGroupTicketLink :execrows
+UPDATE working_group_tickets
+SET purchase_id = $1, project_id = $2, version = version + 1, updated_at = now()
+WHERE id = $3
+`
+
+type SetWorkingGroupTicketLinkParams struct {
+	PurchaseID *uuid.UUID
+	ProjectID  *uuid.UUID
+	ID         uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupTicketLink(ctx context.Context, arg SetWorkingGroupTicketLinkParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setWorkingGroupTicketLink, arg.PurchaseID, arg.ProjectID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setWorkingGroupTicketState = `-- name: SetWorkingGroupTicketState :execrows
 UPDATE working_group_tickets
 SET status = $1,
@@ -4506,6 +4791,26 @@ type SetWorkingGroupTodoDoneParams struct {
 
 func (q *Queries) SetWorkingGroupTodoDone(ctx context.Context, arg SetWorkingGroupTodoDoneParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setWorkingGroupTodoDone, arg.Done, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setWorkingGroupTodoLink = `-- name: SetWorkingGroupTodoLink :execrows
+UPDATE working_group_todos
+SET purchase_id = $1, project_id = $2, version = version + 1, updated_at = now()
+WHERE id = $3
+`
+
+type SetWorkingGroupTodoLinkParams struct {
+	PurchaseID *uuid.UUID
+	ProjectID  *uuid.UUID
+	ID         uuid.UUID
+}
+
+func (q *Queries) SetWorkingGroupTodoLink(ctx context.Context, arg SetWorkingGroupTodoLinkParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setWorkingGroupTodoLink, arg.PurchaseID, arg.ProjectID, arg.ID)
 	if err != nil {
 		return 0, err
 	}

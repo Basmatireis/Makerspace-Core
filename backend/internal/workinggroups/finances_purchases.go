@@ -116,6 +116,9 @@ func (s *Service) queryPurchases(
 	for _, row := range rows {
 		items = append(items, purchaseFromRow(row, p, threshold))
 	}
+	if err := attachPurchaseTasks(ctx, q, p, items); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 

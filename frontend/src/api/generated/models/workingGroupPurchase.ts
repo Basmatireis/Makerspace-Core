@@ -21,6 +21,7 @@
 import type { Money } from './money';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
+import type { WorkingGroupLinkedTask } from './workingGroupLinkedTask';
 import type { WorkingGroupPerson } from './workingGroupPerson';
 import type { WorkingGroupPurchaseHow } from './workingGroupPurchaseHow';
 import type { WorkingGroupPurchaseStatus } from './workingGroupPurchaseStatus';
@@ -72,4 +73,6 @@ export interface WorkingGroupPurchase {
   canMarkRefunded: boolean;
   canDelete: boolean;
   version: Version;
+  /** Tickets and to-dos linked to it; only for people inside the group (empty otherwise). */
+  linkedTasks?: WorkingGroupLinkedTask[];
 }

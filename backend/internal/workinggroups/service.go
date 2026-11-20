@@ -45,6 +45,8 @@ type Service struct {
 	sending  sync.Map
 	// register tells how much cash the register holds, for booking cash ahead to the budget.
 	register CashRegister
+	// notifier tells ticket authors and followers about changes; nil sends nothing.
+	notifier TicketNotifier
 }
 
 func NewService(pool *pgxpool.Pool) *Service {

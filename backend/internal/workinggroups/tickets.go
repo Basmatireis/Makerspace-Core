@@ -32,6 +32,7 @@ func (s *Service) ListTickets(ctx context.Context, p authorization.Principal, fi
 	rows, err := workinggroupsdb.New(s.pool).ListWorkingGroupTickets(ctx, workinggroupsdb.ListWorkingGroupTicketsParams{
 		CallerPersonID: p.PersonID,
 		CallerManage:   p.Has(authorization.WorkingGroupsManage),
+		CallerFinance:  isFinance(p),
 		GroupID:        filter.GroupID,
 		Status:         status,
 		RowLimit:       MaxTicketListRows + 1,
@@ -142,8 +143,11 @@ func (s *Service) PlanTicket(
 		if err := setTicketState(ctx, q, id, StatusPlanned, input.AssigneePersonID, input.DueOn, &input.ColumnID); err != nil {
 			return err
 		}
-		return writeTaskAudit(ctx, tx, p, "working_group_ticket.planned", "working_group_ticket", id, requestID,
-			[]string{"status", "assigneePersonId", "dueOn", "columnId"})
+		if err := writeTaskAudit(ctx, tx, p, "working_group_ticket.planned", "working_group_ticket", id, requestID,
+			[]string{"status", "assigneePersonId", "dueOn", "columnId"}); err != nil {
+			return err
+		}
+		return s.notifyTicket(ctx, q, tx, p, core, "planned", false)
 	})
 }
 
@@ -236,7 +240,10 @@ func (s *Service) CloseTicket(
 			}
 			fields = append(fields, "comments")
 		}
-		return writeTaskAudit(ctx, tx, p, "working_group_ticket.closed", "working_group_ticket", id, requestID, fields)
+		if err := writeTaskAudit(ctx, tx, p, "working_group_ticket.closed", "working_group_ticket", id, requestID, fields); err != nil {
+			return err
+		}
+		return s.notifyTicket(ctx, q, tx, p, core, string(input.Outcome), false)
 	})
 }
 
@@ -327,8 +334,11 @@ func (s *Service) AddTicketComment(
 		}); err != nil {
 			return err
 		}
-		return writeTaskAudit(ctx, tx, p, "working_group_ticket.commented", "working_group_ticket", id, requestID,
-			[]string{"comments", "internal"})
+		if err := writeTaskAudit(ctx, tx, p, "working_group_ticket.commented", "working_group_ticket", id, requestID,
+			[]string{"comments", "internal"}); err != nil {
+			return err
+		}
+		return s.notifyTicket(ctx, q, tx, p, core, "comment", input.Internal)
 	})
 }
 
@@ -422,7 +432,7 @@ func setTicketState(
 
 func loadTicketDetail(ctx context.Context, q *workinggroupsdb.Queries, p authorization.Principal, id uuid.UUID) (TicketDetail, error) {
 	rows, err := q.ListWorkingGroupTickets(ctx, workinggroupsdb.ListWorkingGroupTicketsParams{
-		CallerPersonID: p.PersonID, CallerManage: p.Has(authorization.WorkingGroupsManage), ID: &id, RowLimit: 1,
+		CallerPersonID: p.PersonID, CallerManage: p.Has(authorization.WorkingGroupsManage), CallerFinance: isFinance(p), ID: &id, RowLimit: 1,
 	})
 	if err != nil {
 		return TicketDetail{}, err
@@ -462,6 +472,7 @@ func ticketFromRow(row workinggroupsdb.ListWorkingGroupTicketsRow) Ticket {
 		FollowerCount: row.FollowerCount, IsFollowing: row.IsFollowing, IsMine: row.IsMine,
 		CommentCount: row.CommentCount, Inside: row.Inside, Version: row.Version,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, ClosedAt: timeValue(row.ClosedAt),
+		Link: taskLink(row.LinkKind, row.LinkID, row.LinkTitle, row.LinkStatus),
 	}
 }
 

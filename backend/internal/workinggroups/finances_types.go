@@ -127,6 +127,8 @@ type Purchase struct {
 	ProjectItemID  *uuid.UUID
 	PurchaseFlags
 	Version int64
+	// LinkedTasks are the tickets and to-dos linked to the purchase, for people inside the group.
+	LinkedTasks []LinkedTask
 }
 
 // PurchaseFilter narrows the purchase list.

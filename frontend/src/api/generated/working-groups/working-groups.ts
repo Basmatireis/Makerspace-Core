@@ -34,6 +34,7 @@ import type {
   CreateWorkingGroupTodoRequest,
   DeclineWorkingGroupPurchaseRequest,
   GetWorkingGroupBudgetParams,
+  ListWorkingGroupActivityParams,
   ListWorkingGroupBookingsParams,
   ListWorkingGroupIncomeParams,
   ListWorkingGroupNotesParams,
@@ -49,6 +50,7 @@ import type {
   SetWorkingGroupBudgetShareRequest,
   SetWorkingGroupColumnsRequest,
   SetWorkingGroupFinanceRulesRequest,
+  SetWorkingGroupLinkRequest,
   SetWorkingGroupMachinesRequest,
   SetWorkingGroupStatusRequest,
   UUIDv7,
@@ -59,6 +61,7 @@ import type {
   UpdateWorkingGroupTodoRequest,
   VersionRequest,
   WorkingGroup,
+  WorkingGroupActivityList,
   WorkingGroupBooking,
   WorkingGroupBookingList,
   WorkingGroupBudget,
@@ -449,6 +452,39 @@ export const removeWorkingGroupPlace = async (groupId: string,
 );}
 
 
+export const getListWorkingGroupActivityUrl = (groupId: string,
+    params?: ListWorkingGroupActivityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/working-groups/${groupId}/activity?${stringifiedParams}` : `/api/v1/working-groups/${groupId}/activity`
+}
+
+/**
+ * Requires `working_groups.read`. The most recent events of the group, newest first, built from the group's own records (not from the audit log): tickets created, planned and closed, to-dos done, notes pinned, purchases submitted and approved, projects submitted and approved. People inside the group (a member or `working_groups.manage`) see all of them; everybody else sees only the ticket events. `actor` is absent where the record does not say who did it or the person was deleted.
+ * @summary Lately in the group
+ */
+export const listWorkingGroupActivity = async (groupId: string,
+    params?: ListWorkingGroupActivityParams, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupActivityList> => {
+
+  return apiFetch<WorkingGroupActivityList>(getListWorkingGroupActivityUrl(groupId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
 export const getSetWorkingGroupColumnsUrl = (groupId: string,) => {
 
 
@@ -803,7 +839,7 @@ export const getListWorkingGroupIncomeUrl = (params?: ListWorkingGroupIncomePara
 }
 
 /**
- * Requires `working_groups.read` and `working_group_finances.manage`. Income from the cash register, newest first; `periodId` defaults to the current period.
+ * Requires `working_groups.read` and `working_group_finances.manage`. Income from the cash register, newest first; `periodId` defaults to the current period; without a current period the list is empty.
  * @summary List the income of a budget period
  */
 export const listWorkingGroupIncome = async (params?: ListWorkingGroupIncomeParams, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupIncomeList> => {
@@ -1127,7 +1163,7 @@ export const getUploadWorkingGroupPurchaseAttachmentUrl = (purchaseId: UUIDv7,) 
 }
 
 /**
- * Requires `working_groups.read` and being the requester, the lead of the group or holding `working_group_finances.manage`; only while the purchase is `wanted` or `approved`. PDF or image, at most 10 MiB. Replaces an earlier file.
+ * Requires `working_groups.read` and being the requester, the lead of the group or holding `working_group_finances.manage`; only while the purchase is `wanted` (or `planned` in a project that is not locked yet), not once it is approved. PDF or image, at most 10 MiB. Replaces an earlier file.
  * @summary Attach the offer or cart
  */
 export const uploadWorkingGroupPurchaseAttachment = async (purchaseId: UUIDv7,
@@ -2544,6 +2580,31 @@ export const unfollowWorkingGroupTicket = async (ticketId: string, options?: Par
 );}
 
 
+export const getSetWorkingGroupTicketLinkUrl = (ticketId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-tickets/${ticketId}/link`
+}
+
+/**
+ * Requires being inside the group (a member or `working_groups.manage`), like planning the ticket. Links the ticket to at most one purchase or one project of the same group, or removes the link when neither id is sent. The target must be one the caller may see (a member of the group or `working_group_finances.manage`; 404 otherwise) and belong to the ticket's group (422 `working_group_link_other_group`); both ids at once are 422. Optimistic locking (409 `stale_write`).
+ * @summary Link a ticket to a purchase or project
+ */
+export const setWorkingGroupTicketLink = async (ticketId: string,
+    setWorkingGroupLinkRequest: SetWorkingGroupLinkRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTicketDetail> => {
+
+  return apiFetch<WorkingGroupTicketDetail>(getSetWorkingGroupTicketLinkUrl(ticketId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(setWorkingGroupLinkRequest)
+  }
+);}
+
+
 export const getAddWorkingGroupTicketCommentUrl = (ticketId: string,) => {
 
 
@@ -2793,6 +2854,31 @@ export const reopenWorkingGroupTodo = async (todoId: string, options?: Parameter
     method: 'POST'
 
 
+  }
+);}
+
+
+export const getSetWorkingGroupTodoLinkUrl = (todoId: string,) => {
+
+
+
+
+  return `/api/v1/working-group-todos/${todoId}/link`
+}
+
+/**
+ * Requires being inside the group (a member or `working_groups.manage`), like every to-do operation (404 otherwise). Links the to-do to at most one purchase or one project of the same group, or removes the link when neither id is sent. The target must be one the caller may see (a member of the group or `working_group_finances.manage`; 404 otherwise) and belong to the to-do's group (422 `working_group_link_other_group`); both ids at once are 422. Optimistic locking (409 `stale_write`).
+ * @summary Link a to-do to a purchase or project
+ */
+export const setWorkingGroupTodoLink = async (todoId: string,
+    setWorkingGroupLinkRequest: SetWorkingGroupLinkRequest, options?: Parameters<typeof apiFetch>[1]): Promise<WorkingGroupTodoDetail> => {
+
+  return apiFetch<WorkingGroupTodoDetail>(getSetWorkingGroupTodoLinkUrl(todoId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
+    body: JSON.stringify(setWorkingGroupLinkRequest)
   }
 );}
 

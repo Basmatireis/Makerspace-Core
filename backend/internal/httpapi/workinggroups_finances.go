@@ -53,6 +53,7 @@ func purchaseDTO(v workinggroups.Purchase) openapi.WorkingGroupPurchase {
 	if v.Requester != nil {
 		out.Requester = &openapi.WorkingGroupPerson{PersonId: v.Requester.ID, DisplayName: v.Requester.DisplayName}
 	}
+	out.LinkedTasks = linkedTasksDTO(v.LinkedTasks)
 	return out
 }
 

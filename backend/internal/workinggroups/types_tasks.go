@@ -63,6 +63,8 @@ type Ticket struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	ClosedAt      *time.Time
+	// Link is the purchase or project the ticket is linked to; nil without a link and when the caller may not see it.
+	Link *TaskLink
 }
 
 // Comment is a comment on a ticket or a to-do. Author is nil for a deleted person.
@@ -160,6 +162,8 @@ type Todo struct {
 	Version         int64
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	// Link is the purchase or project the to-do is linked to; nil without a link and when the caller may not see it.
+	Link *TaskLink
 }
 
 // TodoDetail is a to-do with its comments. NextTodoID names the to-do that marking a repeating one as done created.

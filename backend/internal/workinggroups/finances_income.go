@@ -108,8 +108,13 @@ func (s *Service) ListIncome(ctx context.Context, p authorization.Principal, per
 	} else {
 		today := s.today()
 		var err error
-		if id, err = q.CurrentWorkingGroupBudgetPeriodRead(ctx, dateParam(&today)); err != nil {
-			return nil, noRows(err)
+		id, err = q.CurrentWorkingGroupBudgetPeriodRead(ctx, dateParam(&today))
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Without a current period nothing can be booked: the cash register shows an empty list.
+			return []Income{}, nil
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 	if _, err := q.GetWorkingGroupBudgetPeriod(ctx, id); err != nil {

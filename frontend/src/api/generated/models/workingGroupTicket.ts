@@ -21,6 +21,7 @@
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 import type { WorkingGroupPerson } from './workingGroupPerson';
+import type { WorkingGroupTaskLink } from './workingGroupTaskLink';
 import type { WorkingGroupTicketKind } from './workingGroupTicketKind';
 import type { WorkingGroupTicketStatus } from './workingGroupTicketStatus';
 
@@ -61,4 +62,6 @@ export interface WorkingGroupTicket {
   createdAt: string;
   updatedAt: string;
   closedAt?: string;
+  /** The purchase or project the ticket is linked to; absent without a link and for a caller who may not see the target. */
+  link?: WorkingGroupTaskLink;
 }

@@ -275,4 +275,25 @@ var activityTriggers = []Trigger{
 		},
 		ThrottleSubjects: triggerSubjects("machine", "machine"),
 	},
+	{
+		Key: "working_group_ticket_updated", Area: "Working groups", Label: "A working-group ticket is answered or moves on",
+		Help: "Fires when a ticket of a working group gets a comment, is planned or is closed. The author of the ticket " +
+			"and the people who have the same problem are the recipients; the person who made the change is left out. " +
+			"Internal comments reach only the recipients who belong to the group.",
+		Subject: SubjectLab, Permission: authorization.WorkingGroupsRead,
+		Fields: []Field{
+			{Key: "change", Label: "Change", Type: FieldEnum, Options: options(
+				"comment", "New comment", "planned", "Planned", "done", "Closed as done", "declined", "Closed as declined",
+			)},
+			{Key: "internal", Label: "Comment is internal", Type: FieldBool},
+		},
+		Recipients: triggerSubjects("author", "The author of the ticket", "followers", "People who have the same problem"),
+		Placeholders: []Placeholder{
+			{"ticket", "Subject of the ticket", "Laser lens is dirty"},
+			{"group", "Working group", "Laser"},
+			{"change", "What happened", "was closed as done"},
+			{"by", "Who made the change", "Jana Huber"},
+		},
+		ThrottleSubjects: triggerSubjects("ticket", "ticket"),
+	},
 }
