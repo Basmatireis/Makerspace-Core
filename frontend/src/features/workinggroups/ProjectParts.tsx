@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
 import { Button, InlineNotification, Link, Tag } from '@carbon/react';
-import { Download } from '@carbon/icons-react';
+import { Download, TrashCan } from '@carbon/icons-react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkingGroupProject, WorkingGroupProjectItem, WorkingGroupPurchase } from '../../api/generated/models';
 import {
   deleteWorkingGroupProjectItem,
+  deleteWorkingGroupProjectOffer,
   downloadWorkingGroupProjectOfferFile,
   getDownloadWorkingGroupProjectOfferFileUrl,
 } from '../../api/generated/working-groups/working-groups';
@@ -178,6 +179,9 @@ export function ProjectItemPanel({
   const fileOpen = useDialogOpener<string>();
   const [confirm, setConfirm] = useState(false);
   const removeButton = useRef<HTMLButtonElement>(null);
+  const [offerGone, setOfferGone] = useState<WorkingGroupProjectItem['offers'][number] | null>(null);
+  const offerLauncher = useRef<HTMLElement | null>(null);
+  const removeOffer = useWgMutation((offerId: string) => deleteWorkingGroupProjectOffer(project.id, offerId));
   const remove = useWgMutation(() => deleteWorkingGroupProjectItem(project.id, item.id));
   const status = itemStatus(item, purchases);
   const inPurchases = purchases
@@ -258,26 +262,42 @@ export function ProjectItemPanel({
                     </Tag>
                   )}
                 </span>
-                {offer.hasFile && (
-                  <span className="wg-receipt">
-                    <Link
-                      href="#"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        fileOpen.open(offer.id);
+                <span className="wg-receipt">
+                  {offer.hasFile && (
+                    <>
+                      <Link
+                        href="#"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          fileOpen.open(offer.id);
+                        }}
+                      >
+                        Show the file
+                      </Link>
+                      <Link
+                        href={getDownloadWorkingGroupProjectOfferFileUrl(project.id, offer.id)}
+                        download
+                        aria-label={`Download the file of ${offer.shop}`}
+                      >
+                        <Download size={16} />
+                      </Link>
+                    </>
+                  )}
+                  {canOffer && (
+                    <Button
+                      kind="ghost"
+                      size="sm"
+                      hasIconOnly
+                      renderIcon={TrashCan}
+                      iconDescription="Remove offer"
+                      tooltipPosition="left"
+                      onClick={() => {
+                        removeOffer.reset();
+                        setOfferGone(offer);
                       }}
-                    >
-                      Show the file
-                    </Link>
-                    <Link
-                      href={getDownloadWorkingGroupProjectOfferFileUrl(project.id, offer.id)}
-                      download
-                      aria-label={`Download the file of ${offer.shop}`}
-                    >
-                      <Download size={16} />
-                    </Link>
-                  </span>
-                )}
+                    />
+                  )}
+                </span>
               </li>
             ))}
           </ul>
@@ -312,6 +332,19 @@ export function ProjectItemPanel({
         }
       >
         <p>{item.text}</p>
+      </DestructiveActionDialog>
+      <DestructiveActionDialog
+        open={offerGone !== null}
+        title="Remove offer"
+        fate="permanent"
+        confirmLabel="Remove offer"
+        pending={removeOffer.isPending}
+        error={removeOffer.isError ? taskErrorText(removeOffer.error, 'It could not be removed.') : undefined}
+        launcherButtonRef={offerLauncher}
+        onClose={() => setOfferGone(null)}
+        onConfirm={() => offerGone && removeOffer.mutate(offerGone.id, { onSuccess: () => setOfferGone(null) })}
+      >
+        <p>{offerGone ? `${offerGone.shop} · ${formatMoney(offerGone.price)}` : ''}</p>
       </DestructiveActionDialog>
       {edit.value && <ItemDialog project={project} item={item} onClose={edit.close} />}
       {offerDialog.value && <OfferDialog project={project} item={item} onClose={offerDialog.close} />}

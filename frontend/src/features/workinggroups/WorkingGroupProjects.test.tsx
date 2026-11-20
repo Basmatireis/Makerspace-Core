@@ -183,6 +183,10 @@ function serve(
           return HttpResponse.json(projects[0] ?? project(1));
         }),
     ),
+    http.delete('*/api/v1/working-group-projects/:id/offers/:offerId', ({ params }) => {
+      (served.bodies.deleteOffer ??= []).push(params.offerId);
+      return HttpResponse.json(projects[0] ?? project(1));
+    }),
     http.post('*/api/v1/working-group-purchases/:id/to-project', async ({ request }) => {
       await record('to-project', request);
       return HttpResponse.json(project(77, { title: 'From a purchase' }));
@@ -403,5 +407,140 @@ describe('approving with a signature', () => {
     expect(
       await within(dialog).findByText('Add a signature before the request goes to the WiRef.'),
     ).toBeInTheDocument();
+  });
+});
+
+const withOffers = (over: Partial<WorkingGroupProject> = {}) =>
+  project(1, {
+    items: [
+      {
+        id: itemId,
+        position: 1,
+        text: 'Laser tube',
+        plannedAmount: '300.00',
+        needsOffers: true,
+        offers: [
+          { id: offerA, shop: 'Shop A', price: '290.00', hasFile: false },
+          { id: offerB, shop: 'Shop B', price: '310.00', hasFile: false },
+        ],
+        purchases: [],
+      },
+    ],
+    ...over,
+  });
+
+describe('removing an offer', () => {
+  it('asks first and removes the offer', async () => {
+    const user = userEvent.setup();
+    const served = serve(member, { projects: [withOffers()] });
+    renderRoute(<App />, `/working-groups/projects/${pid(1)}`);
+
+    await user.click(await screen.findByText('Laser tube'));
+    const buttons = await screen.findAllByRole('button', { name: 'Remove offer' });
+    expect(buttons).toHaveLength(2);
+    await user.click(buttons[1]);
+    const dialog = await screen.findByRole('alertdialog');
+    expect(served.bodies.deleteOffer).toBeUndefined();
+    await user.click(within(dialog).getByRole('button', { name: 'Remove offer' }));
+    await waitFor(() => expect(served.bodies.deleteOffer).toEqual([offerB]));
+  });
+
+  it('offers no removal to someone who may not edit the plan', async () => {
+    const user = userEvent.setup();
+    serve(member, { projects: [withOffers({ canEdit: false, canSubmit: false, status: 'submitted' })] });
+    renderRoute(<App />, `/working-groups/projects/${pid(1)}`);
+
+    await user.click(await screen.findByText('Laser tube'));
+    await screen.findByText('Shop A · €290.00', { exact: false });
+    expect(screen.queryByRole('button', { name: 'Remove offer' })).not.toBeInTheDocument();
+  });
+});
+
+describe('sending to the WiRef', () => {
+  const pending = (over: Partial<WorkingGroupProject> = {}) =>
+    project(1, { status: 'running', wirefNeeded: true, wirefRequestPending: true, ...over });
+
+  it('sends directly when a signature is stored', async () => {
+    const user = userEvent.setup();
+    const served = serve(financeManager, { projects: [pending({ signatureMissing: false })] });
+    renderRoute(<App />, `/working-groups/projects/${pid(1)}`);
+
+    await user.click(await screen.findByRole('button', { name: 'Send to the WiRef' }));
+    await waitFor(() => expect(served.bodies['send-to-wiref']).toEqual([{ expectedVersion: 4 }]));
+  });
+
+  it('asks for a signature first when none is stored and sends the saved one', async () => {
+    const user = userEvent.setup();
+    URL.createObjectURL = vi.fn(() => 'blob:saved');
+    URL.revokeObjectURL = vi.fn();
+    const served = serve(financeManager, { projects: [pending({ signatureMissing: true })], signature: true });
+    renderRoute(<App />, `/working-groups/projects/${pid(1)}`);
+
+    await user.click(await screen.findByRole('button', { name: 'Send to the WiRef' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(served.bodies['send-to-wiref']).toBeUndefined();
+    await user.click(await within(dialog).findByRole('tab', { name: 'Saved signature' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Send to the WiRef' }));
+    await waitFor(() =>
+      expect(served.bodies['send-to-wiref']).toEqual([{ expectedVersion: 4, useSavedSignature: true }]),
+    );
+  });
+
+  it('does not send without a signature', async () => {
+    const user = userEvent.setup();
+    const served = serve(financeManager, { projects: [pending({ signatureMissing: true })] });
+    renderRoute(<App />, `/working-groups/projects/${pid(1)}`);
+
+    await user.click(await screen.findByRole('button', { name: 'Send to the WiRef' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Send to the WiRef' }));
+    expect(
+      await within(dialog).findByText('Add a signature before the request goes to the WiRef.'),
+    ).toBeInTheDocument();
+    expect(served.bodies['send-to-wiref']).toBeUndefined();
+  });
+});
+
+describe('purchases on a cost plan item', () => {
+  const open = async (user: ReturnType<typeof userEvent.setup>) => {
+    renderRoute(<App />, `/working-groups/projects/${pid(1)}`);
+    await user.click(await screen.findByText('Laser tube'));
+    await screen.findByText('Cost plan item');
+  };
+
+  it('is not offered to a member who neither leads nor requested the draft', async () => {
+    const user = userEvent.setup();
+    serve(member, { projects: [project(1, { canEdit: false, canSubmit: false })] });
+    await open(user);
+    expect(screen.queryByRole('button', { name: 'Add the purchase' })).not.toBeInTheDocument();
+  });
+
+  it('is offered to the requester of a draft', async () => {
+    const user = userEvent.setup();
+    serve(member, { projects: [project(1)] });
+    await open(user);
+    expect(screen.getByRole('button', { name: 'Add the purchase' })).toBeInTheDocument();
+  });
+
+  it('is not offered to the requester after the hand-in', async () => {
+    const user = userEvent.setup();
+    serve(member, { projects: [project(1, { status: 'submitted', canEdit: false, canSubmit: false })] });
+    await open(user);
+    expect(screen.queryByRole('button', { name: 'Add the purchase' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Make a purchase' })).not.toBeInTheDocument();
+  });
+
+  it('is not offered to a finance manager on a draft they do not own', async () => {
+    const user = userEvent.setup();
+    serve(financeManager, { projects: [project(1, { canEdit: true, canSubmit: false })] });
+    await open(user);
+    expect(screen.queryByRole('button', { name: 'Add the purchase' })).not.toBeInTheDocument();
+  });
+
+  it('is a normal purchase while the project runs', async () => {
+    const user = userEvent.setup();
+    serve(member, { projects: [project(1, { status: 'running', canEdit: false, canSubmit: false })] });
+    await open(user);
+    expect(screen.getByRole('button', { name: 'Make a purchase' })).toBeInTheDocument();
   });
 });

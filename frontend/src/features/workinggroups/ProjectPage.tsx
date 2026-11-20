@@ -26,7 +26,14 @@ import { hasPermission, PermissionId } from '../auth/permissions';
 import { formatMoney } from '../orders/formatting';
 import { formatCents, toCents } from '../orders/money';
 import { ApproveDialog } from './ApproveDialog';
-import { CompleteDialog, ItemDialog, ProjectDialog, ReasonDialog, WiRefDecisionDialog } from './ProjectDialogs';
+import {
+  CompleteDialog,
+  ItemDialog,
+  ProjectDialog,
+  ReasonDialog,
+  SendToWiRefDialog,
+  WiRefDecisionDialog,
+} from './ProjectDialogs';
 import { ProjectItemPanel, ProjectStepper, ReasonBlock } from './ProjectParts';
 import {
   PAID_FROM_LABEL,
@@ -102,6 +109,7 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
   const approve = useDialogOpener();
   const reason = useDialogOpener<'return' | 'decline' | 'wiref-decline'>();
   const wiref = useDialogOpener();
+  const sendSigned = useDialogOpener();
   const complete = useDialogOpener();
   const buy = useDialogOpener<PurchasePrefill | 'plain'>();
   const preview = useDialogOpener();
@@ -109,7 +117,7 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
 
   const draftLike = project.status === 'draft' || project.status === 'returned';
   const canPlan = project.canEdit || (finance && !isEndState(project));
-  const canBuyItem = project.status === 'running' || (draftLike && project.canEdit);
+  const canBuyItem = project.status === 'running' || (draftLike && project.canSubmit);
   const submit = useWgMutation(() => submitWorkingGroupProject(project.id, { expectedVersion: project.version }));
   const sendWiRef = useWgMutation(() =>
     sendWorkingGroupProjectToWiRef(project.id, { expectedVersion: project.version }),
@@ -287,9 +295,11 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
                   Add item
                 </Button>
               )}
-              <Button kind="primary" size="md" onClick={() => buy.open({ projectId: project.id })}>
-                Add purchases
-              </Button>
+              {canBuyItem && (
+                <Button kind="primary" size="md" onClick={() => buy.open({ projectId: project.id })}>
+                  Add purchases
+                </Button>
+              )}
             </div>
           </div>
           <div
@@ -429,7 +439,7 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
                     kind="primary"
                     size="md"
                     disabled={sendWiRef.isPending}
-                    onClick={() => sendWiRef.mutate(undefined)}
+                    onClick={() => (project.signatureMissing ? sendSigned.open(true) : sendWiRef.mutate(undefined))}
                   >
                     Send to the WiRef
                   </Button>
@@ -512,6 +522,7 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
       {addItem.value && <ItemDialog project={project} onClose={addItem.close} />}
       {approve.value && <ApproveDialog project={project} onClose={approve.close} />}
       {reason.value && <ReasonDialog project={project} mode={reason.value} onClose={reason.close} />}
+      {sendSigned.value && <SendToWiRefDialog project={project} onClose={sendSigned.close} />}
       {wiref.value && <WiRefDecisionDialog project={project} onClose={wiref.close} />}
       {complete.value && <CompleteDialog project={project} onClose={complete.close} />}
       {buy.value && group && (

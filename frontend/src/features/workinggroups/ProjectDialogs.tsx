@@ -9,7 +9,9 @@ import {
   createWorkingGroupProjectItem,
   createWorkingGroupProjectOffer,
   declineWorkingGroupProject,
+  putWorkingGroupFinanceSignature,
   recordWorkingGroupProjectWiRefDecision,
+  sendWorkingGroupProjectToWiRef,
   returnWorkingGroupProject,
   updateWorkingGroupProject,
   updateWorkingGroupProjectItem,
@@ -20,7 +22,8 @@ import { fromCents, moneyInputText, parseMoneyInput, toCents } from '../orders/m
 import { formatMoney } from '../orders/formatting';
 import { ACCEPTED_FILES, fileProblem } from './financeModel';
 import { Shell } from './PurchaseDialogs';
-import { taskErrorText, useWgMutation } from './useWgMutation';
+import { SignatureField, type SignatureValue } from './SignatureField';
+import { SIGNATURE_REQUIRED, taskErrorText, useWgMutation } from './useWgMutation';
 
 const moneyRule = (value: string) => parseMoneyInput(value) !== null || 'Enter an amount.';
 
@@ -467,6 +470,58 @@ export function CompleteDialog({ project, onClose }: { project: WorkingGroupProj
         value={report}
         onChange={(e) => setReport(e.target.value)}
       />
+    </Shell>
+  );
+}
+
+/** Sending the request to the WiRef when the project has no stored signature: sign here, optionally keep it. */
+export function SendToWiRefDialog({ project, onClose }: { project: WorkingGroupProject; onClose: () => void }) {
+  const [signature, setSignature] = useState<SignatureValue>(null);
+  const [savedAvailable, setSavedAvailable] = useState(false);
+  const [keep, setKeep] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const drawn = signature && 'png' in signature ? signature : null;
+  const send = useWgMutation(async () => {
+    if (!signature) return;
+    if (keep && drawn) {
+      const bytes = Uint8Array.from(atob(drawn.png), (c) => c.charCodeAt(0));
+      await putWorkingGroupFinanceSignature(new Blob([bytes], { type: 'image/png' }));
+    }
+    await sendWorkingGroupProjectToWiRef(project.id, {
+      expectedVersion: project.version,
+      ...(drawn ? { signature: drawn.png } : { useSavedSignature: true }),
+    });
+  });
+  return (
+    <Shell
+      heading="Send to the WiRef"
+      primary="Send to the WiRef"
+      size="md"
+      pending={send.isPending}
+      error={
+        send.isError
+          ? taskErrorText(send.error, 'It could not be sent. Reload and try again.')
+          : touched && !signature
+            ? SIGNATURE_REQUIRED
+            : undefined
+      }
+      onClose={onClose}
+      onSubmit={() => {
+        setTouched(true);
+        if (signature) send.mutate(undefined, { onSuccess: onClose });
+      }}
+    >
+      <p>{project.title}</p>
+      <SignatureField onChange={setSignature} onSavedAvailable={setSavedAvailable} />
+      {!savedAvailable || drawn ? (
+        <Checkbox
+          id="wg-send-keep"
+          labelText="Keep this signature for my next requests"
+          checked={keep}
+          disabled={!drawn}
+          onChange={(_, { checked }) => setKeep(checked)}
+        />
+      ) : null}
     </Shell>
   );
 }

@@ -11,6 +11,8 @@ export function useWgMutation<Variables>(run: (variables: Variables) => Promise<
   });
 }
 
+export const SIGNATURE_REQUIRED = 'Add a signature before the request goes to the WiRef.';
+
 export const TASK_CHANGED = 'This was changed by someone else.';
 
 const ERROR_TEXT: Record<string, string> = {
@@ -27,7 +29,7 @@ const ERROR_TEXT: Record<string, string> = {
   purchases_mixed_periods: 'Choose purchases of one period only.',
   working_group_has_finances: 'The group has purchases or budget shares and cannot be deleted.',
   project_checklist_open: 'The checklist is not complete yet.',
-  signature_required: 'Add a signature before the request goes to the WiRef.',
+  signature_required: SIGNATURE_REQUIRED,
   signature_invalid: 'The signature could not be read. Draw or upload it again.',
   project_state: 'This project was changed by someone else.',
   project_has_purchases: 'This item has purchases and cannot be removed.',
