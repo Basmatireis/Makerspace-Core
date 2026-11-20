@@ -1169,14 +1169,38 @@
 
 .wg-buyrow {
   display: grid;
-  grid-template-columns: minmax(8rem, 2fr) minmax(8rem, 2fr) 5rem 6rem auto auto;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) 4.5rem 5.5rem auto auto;
   gap: $spacing-03;
   align-items: end;
+  min-inline-size: 0;
+
+  > * {
+    min-inline-size: 0;
+  }
 }
 
-@media (max-width: 65.98rem) {
+// Wide: one row of column headers above the first item; narrow: every item is a small card with its own labels.
+@media (min-width: 42rem) {
+  .wg-buyrow:not(.wg-buyrow--first) .cds--label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 41.98rem) {
   .wg-buyrow {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-block-start: $spacing-04;
+    border-block-start: 1px solid theme.$border-subtle-01;
+  }
+
+  .wg-buyrow--first {
+    padding-block-start: 0;
+    border-block-start: 0;
   }
 }
 
@@ -1707,4 +1731,41 @@
   display: grid;
   gap: $spacing-05;
   min-inline-size: 0;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Dialog layout: related short fields side by side, stacked on a narrow screen
+// ---------------------------------------------------------------------------------------------------------------
+
+.wg-grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-05;
+
+  > * {
+    min-inline-size: 0;
+  }
+
+  .cds--date-picker,
+  .cds--date-picker-container,
+  .cds--date-picker--single .cds--date-picker__input,
+  .cds--date-picker-input__wrapper > span {
+    inline-size: 100%;
+  }
+}
+
+@media (max-width: 41.98rem) {
+  .wg-grid2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.wg-helper {
+  margin: 0;
+  @include type-style('helper-text-01');
+  color: theme.$text-secondary;
+}
+
+.wg-toolbar__note {
+  @include type-style('helper-text-01');
 }

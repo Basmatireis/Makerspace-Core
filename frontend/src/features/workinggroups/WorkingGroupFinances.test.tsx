@@ -264,6 +264,8 @@ describe('working group purchases', () => {
     await user.click(await screen.findByRole('button', { name: 'Add purchases' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByLabelText('Working group')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Printing')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Woodworking')).not.toBeInTheDocument();
   });
 
   it('offers a dropdown with the own groups only when a member is in several', async () => {

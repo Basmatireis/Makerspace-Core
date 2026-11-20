@@ -262,6 +262,7 @@ describe('working group projects', () => {
     await user.click(await screen.findByRole('button', { name: 'Start a project' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByLabelText('Working group')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Printing')).toBeInTheDocument();
   });
 
   it('says that only members may start when the server refuses', async () => {
@@ -277,7 +278,7 @@ describe('working group projects', () => {
     await user.click(await screen.findByRole('button', { name: 'Start a project' }));
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('Title'), 'Laser');
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Start project' }));
 
     expect(await within(dialog).findByText(/Only members of this working group can do this/)).toBeInTheDocument();
   });

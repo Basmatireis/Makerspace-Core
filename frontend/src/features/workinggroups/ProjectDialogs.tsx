@@ -95,8 +95,9 @@ export function ProjectDialog({
   const submit = handleSubmit((values) => save.mutate(values, { onSuccess: onClose }));
   return (
     <Shell
-      heading={project ? 'Edit project' : 'Start a project'}
-      primary="Save"
+      heading={project ? 'Edit project' : 'New project'}
+      label={groups.length === 1 || project ? (project?.groupName ?? groups[0]?.name) : undefined}
+      primary={project ? 'Save' : 'Start project'}
       size="md"
       pending={save.isPending}
       error={
@@ -121,40 +122,44 @@ export function ProjectDialog({
         invalidText={formState.errors.title?.message}
         {...register('title', { validate: (v) => v.trim() !== '' || 'Enter a title.' })}
       />
-      <TextArea id="wg-pj-goal" labelText="What we want to do" rows={3} {...register('goal')} />
-      <TextArea id="wg-pj-benefit" labelText="What it improves" rows={3} {...register('benefit')} />
-      <Controller
-        control={control}
-        name="startsOn"
-        render={({ field }) => (
-          <DateInput id="wg-pj-from" labelText="From" value={field.value} onChange={field.onChange} />
-        )}
-      />
-      <Controller
-        control={control}
-        name="endsOn"
-        render={({ field }) => (
-          <DateInput id="wg-pj-until" labelText="Until" value={field.value} onChange={field.onChange} />
-        )}
-      />
-      <TextInput
-        id="wg-pj-people"
-        labelText="People taking part"
-        inputMode="numeric"
-        invalid={Boolean(formState.errors.people)}
-        invalidText={formState.errors.people?.message}
-        {...register('people', {
-          validate: (v) => (Number.isInteger(Number(v)) && Number(v) > 0) || 'Enter a whole number.',
-        })}
-      />
-      <TextInput
-        id="wg-pj-income"
-        labelText="Planned income"
-        inputMode="decimal"
-        invalid={Boolean(formState.errors.plannedIncome)}
-        invalidText={formState.errors.plannedIncome?.message}
-        {...register('plannedIncome', { validate: moneyRule })}
-      />
+      <TextArea id="wg-pj-goal" labelText="What we want to do" rows={2} {...register('goal')} />
+      <TextArea id="wg-pj-benefit" labelText="What it improves" rows={2} {...register('benefit')} />
+      <div className="wg-grid2">
+        <Controller
+          control={control}
+          name="startsOn"
+          render={({ field }) => (
+            <DateInput id="wg-pj-from" labelText="From" value={field.value} onChange={field.onChange} />
+          )}
+        />
+        <Controller
+          control={control}
+          name="endsOn"
+          render={({ field }) => (
+            <DateInput id="wg-pj-until" labelText="Until" value={field.value} onChange={field.onChange} />
+          )}
+        />
+      </div>
+      <div className="wg-grid2">
+        <TextInput
+          id="wg-pj-people"
+          labelText="People taking part"
+          inputMode="numeric"
+          invalid={Boolean(formState.errors.people)}
+          invalidText={formState.errors.people?.message}
+          {...register('people', {
+            validate: (v) => (Number.isInteger(Number(v)) && Number(v) > 0) || 'Enter a whole number.',
+          })}
+        />
+        <TextInput
+          id="wg-pj-income"
+          labelText="Planned income"
+          inputMode="decimal"
+          invalid={Boolean(formState.errors.plannedIncome)}
+          invalidText={formState.errors.plannedIncome?.message}
+          {...register('plannedIncome', { validate: moneyRule })}
+        />
+      </div>
       <Controller
         control={control}
         name="alcohol"
@@ -191,6 +196,9 @@ export function ProjectDialog({
             validate: (v) => v.trim() === '' || parseMoneyInput(v) !== null || 'Enter an amount.',
           })}
         />
+      )}
+      {!project && (
+        <p className="wg-helper">You plan the costs on the next page. Nothing is sent before you hand it in.</p>
       )}
     </Shell>
   );
@@ -235,6 +243,8 @@ export function ItemDialog({
   return (
     <Shell
       heading={item ? 'Edit item' : 'Add item'}
+      label={project.title}
+      size="md"
       primary="Save"
       pending={save.isPending}
       error={save.isError ? taskErrorText(save.error, 'Check the fields and try again.') : undefined}
@@ -248,16 +258,18 @@ export function ItemDialog({
         invalidText={formState.errors.text?.message}
         {...register('text', { validate: (v) => v.trim() !== '' || 'Enter the item.' })}
       />
-      <TextInput
-        id="wg-item-amount"
-        labelText="Planned cost"
-        helperText="In total, not per piece."
-        inputMode="decimal"
-        invalid={Boolean(formState.errors.amount)}
-        invalidText={formState.errors.amount?.message}
-        {...register('amount', { validate: moneyRule })}
-      />
-      <TextInput id="wg-item-link" labelText="Link" {...register('link')} />
+      <div className="wg-grid2">
+        <TextInput
+          id="wg-item-amount"
+          labelText="Planned cost"
+          helperText="In total, not per piece."
+          inputMode="decimal"
+          invalid={Boolean(formState.errors.amount)}
+          invalidText={formState.errors.amount?.message}
+          {...register('amount', { validate: moneyRule })}
+        />
+        <TextInput id="wg-item-link" labelText="Link" {...register('link')} />
+      </div>
       <TextArea id="wg-item-note" labelText="Note" rows={2} {...register('note')} />
     </Shell>
   );
@@ -299,6 +311,8 @@ export function OfferDialog({
   return (
     <Shell
       heading="Add an offer"
+      label={project.title}
+      size="md"
       primary="Add"
       pending={save.isPending}
       error={save.isError ? taskErrorText(save.error, 'The offer was not saved.') : undefined}
@@ -310,23 +324,25 @@ export function OfferDialog({
       }}
     >
       <p>{item.text}</p>
-      <TextInput
-        id="wg-offer-shop"
-        labelText="Shop"
-        value={shop}
-        invalid={touched && shop.trim() === ''}
-        invalidText="Enter the shop."
-        onChange={(e) => setShop(e.target.value)}
-      />
-      <TextInput
-        id="wg-offer-price"
-        labelText="Price"
-        inputMode="decimal"
-        value={price}
-        invalid={touched && (cents === null || cents <= 0)}
-        invalidText="Enter the price."
-        onChange={(e) => setPrice(e.target.value)}
-      />
+      <div className="wg-grid2">
+        <TextInput
+          id="wg-offer-shop"
+          labelText="Shop"
+          value={shop}
+          invalid={touched && shop.trim() === ''}
+          invalidText="Enter the shop."
+          onChange={(e) => setShop(e.target.value)}
+        />
+        <TextInput
+          id="wg-offer-price"
+          labelText="Price"
+          inputMode="decimal"
+          value={price}
+          invalid={touched && (cents === null || cents <= 0)}
+          invalidText="Enter the price."
+          onChange={(e) => setPrice(e.target.value)}
+        />
+      </div>
       <div>
         <input
           ref={input}
