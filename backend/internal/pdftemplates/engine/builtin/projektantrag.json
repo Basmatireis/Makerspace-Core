@@ -464,19 +464,19 @@
      "header": "Artikel",
      "value": "{{purchase.item}}{{purchase.costItem | prefix(\" (\") | suffix(\")\")}} x {{purchase.quantity}}",
      "sub": "{{purchase.link}}",
-     "width": 95,
+     "width": 80,
      "align": "left"
     },
     {
      "header": "Angebot/Warenkorb",
      "value": "{{purchase.attached}}",
-     "width": 30,
+     "width": 38,
      "align": "left"
     },
     {
      "header": "Stückpreis (EUR)",
      "value": "{{purchase.unitPrice}}",
-     "width": 25,
+     "width": 32,
      "align": "right"
     }
    ],
