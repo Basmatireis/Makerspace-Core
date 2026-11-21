@@ -37,7 +37,9 @@ function dashboard(store: DemoStore): PersonalDashboard {
       openDayHours: 0,
       eventShifts: 0,
       eventShiftHours: 0,
+      lastStaffedAt: null,
       memberSince: store.user.person.memberSince,
+      membership: null,
     };
   }
   if (can(store, 'orders.read')) {

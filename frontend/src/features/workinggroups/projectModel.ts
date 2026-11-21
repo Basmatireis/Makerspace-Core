@@ -177,3 +177,31 @@ export function requestAttachments(project: WorkingGroupProject): string[] {
 
 export const who = (project: WorkingGroupProject) =>
   project.requester ? firstName(project.requester) : 'Former member';
+
+export interface CostPartition {
+  spent: number;
+  requested: number;
+  /** Planned money nobody has asked for yet; never negative. */
+  notRequested: number;
+  /** Money asked for or spent beyond the plan; zero within the plan. */
+  over: number;
+  /** The width the bar stands for: the larger of the plan and what was asked for or spent. */
+  barTotal: number;
+}
+
+/**
+ * Splits the plan into parts that add up to it: spent, requested or approved (in purchases, not spent yet) and not
+ * requested yet. Beyond the plan the surplus is shown as "over plan" and the bar grows to fit.
+ */
+export function costPartition(planned: number, spent: number, inPurchases: number): CostPartition {
+  const spentPart = Math.max(0, spent);
+  const requested = Math.max(0, inPurchases - spentPart);
+  const used = spentPart + requested;
+  return {
+    spent: spentPart,
+    requested,
+    notRequested: Math.max(0, planned - used),
+    over: Math.max(0, used - planned),
+    barTotal: Math.max(1, planned, used),
+  };
+}

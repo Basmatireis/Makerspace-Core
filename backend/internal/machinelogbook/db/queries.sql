@@ -1842,6 +1842,7 @@ WITH own AS (
 )
 SELECT count(*)::bigint AS jobs,
        count(*) FILTER (WHERE outcome = 'successful')::bigint AS successful_jobs,
+       count(*) FILTER (WHERE outcome IN ('failed', 'partial_failure'))::bigint AS failed_jobs,
        count(*) FILTER (WHERE outcome <> 'unknown')::bigint AS finished_jobs,
        COALESCE(sum(runtime_seconds), 0)::bigint AS machine_seconds,
        COALESCE((SELECT sum(u.quantity * material_unit_factor(COALESCE(u.material_unit, mat.unit, 'g'))) FROM machine_run_usages u
@@ -1860,6 +1861,36 @@ WHERE j.customer_person_id = sqlc.arg(person_id) AND j.deleted_at IS NULL
 GROUP BY m.id, m.name
 ORDER BY count(*) DESC, max(s.started_at) DESC, m.id
 LIMIT 1;
+
+-- name: ListOwnMachineTimes :many
+-- The machines with the most run time of the person's jobs; ties go to the one used last.
+SELECT m.name, sum(s.runtime_seconds)::bigint AS machine_seconds, count(*)::bigint AS jobs
+FROM machine_jobs j
+JOIN machine_job_run_summaries s ON s.job_id = j.id
+JOIN machines m ON m.id = j.machine_id
+WHERE j.customer_person_id = sqlc.arg(person_id) AND j.deleted_at IS NULL
+GROUP BY m.id, m.name
+HAVING sum(s.runtime_seconds) > 0
+ORDER BY sum(s.runtime_seconds) DESC, max(s.started_at) DESC, m.id
+LIMIT sqlc.arg(page_limit);
+
+-- name: ListOwnMaterialUses :many
+-- Active usage of the person's jobs per material type, in the base unit of the type's dimension, most jobs first.
+-- Usages without a material, of replaced runs or in a unit of another dimension than the type's are left out.
+SELECT t.name, material_unit_dimension(t.unit)::text AS dimension,
+       sum(u.quantity * material_unit_factor(COALESCE(u.material_unit, mat.unit)))::float8 AS amount,
+       count(DISTINCT j.id)::bigint AS jobs
+FROM machine_jobs j
+JOIN machine_job_run_summaries s ON s.job_id = j.id
+JOIN machine_runs r ON r.job_id = j.id AND r.state IS DISTINCT FROM 'replaced'
+JOIN machine_run_usages u ON u.run_id = r.id AND u.active
+JOIN materials mat ON mat.id = u.material_id
+JOIN material_types t ON t.id = mat.material_type_id
+WHERE j.customer_person_id = sqlc.arg(person_id) AND j.deleted_at IS NULL
+  AND material_unit_dimension(COALESCE(u.material_unit, mat.unit)) = material_unit_dimension(t.unit)
+GROUP BY t.id, t.name, t.unit
+ORDER BY count(DISTINCT j.id) DESC, sum(u.quantity * material_unit_factor(COALESCE(u.material_unit, mat.unit))) DESC, t.name, t.id
+LIMIT sqlc.arg(page_limit);
 
 -- name: ListOwnJobsPerMonth :many
 -- The person's jobs per calendar month (UTC, by first run start) from from_time's month up to now's month.

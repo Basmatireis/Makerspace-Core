@@ -105,6 +105,9 @@ export const workingGroupStatusOptions = queryOptions({
   queryFn: ({ signal }) => listWorkingGroupStatus({ signal }),
 });
 
+/** Entries the Lately tile shows at first; the overview reads the newest as the last activity from the same request. */
+export const LATELY_FIRST = 5;
+
 /** The latest events of a group, newest first. */
 export const workingGroupActivityOptions = (groupId: string, limit: number) =>
   queryOptions({

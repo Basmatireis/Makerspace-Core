@@ -230,7 +230,7 @@ export function LinkedTasks({
   return section ? (
     <DetailPanelSection title="From tickets and to-dos">{list}</DetailPanelSection>
   ) : (
-    <section className="wg-card" aria-label="From tickets and to-dos">
+    <section className="wg-tile" aria-label="From tickets and to-dos">
       <h3>From tickets and to-dos</h3>
       {list}
     </section>

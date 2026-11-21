@@ -3221,6 +3221,7 @@ WITH own AS (
 )
 SELECT count(*)::bigint AS jobs,
        count(*) FILTER (WHERE outcome = 'successful')::bigint AS successful_jobs,
+       count(*) FILTER (WHERE outcome IN ('failed', 'partial_failure'))::bigint AS failed_jobs,
        count(*) FILTER (WHERE outcome <> 'unknown')::bigint AS finished_jobs,
        COALESCE(sum(runtime_seconds), 0)::bigint AS machine_seconds,
        COALESCE((SELECT sum(u.quantity * material_unit_factor(COALESCE(u.material_unit, mat.unit, 'g'))) FROM machine_run_usages u
@@ -3233,6 +3234,7 @@ FROM own
 type GetOwnJobStatisticsRow struct {
 	Jobs           int64
 	SuccessfulJobs int64
+	FailedJobs     int64
 	FinishedJobs   int64
 	MachineSeconds int64
 	MaterialGrams  float64
@@ -3245,6 +3247,7 @@ func (q *Queries) GetOwnJobStatistics(ctx context.Context, personID *uuid.UUID) 
 	err := row.Scan(
 		&i.Jobs,
 		&i.SuccessfulJobs,
+		&i.FailedJobs,
 		&i.FinishedJobs,
 		&i.MachineSeconds,
 		&i.MaterialGrams,
@@ -6232,6 +6235,106 @@ func (q *Queries) ListOwnJobsPerMonth(ctx context.Context, arg ListOwnJobsPerMon
 	for rows.Next() {
 		var i ListOwnJobsPerMonthRow
 		if err := rows.Scan(&i.Month, &i.Jobs); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOwnMachineTimes = `-- name: ListOwnMachineTimes :many
+SELECT m.name, sum(s.runtime_seconds)::bigint AS machine_seconds, count(*)::bigint AS jobs
+FROM machine_jobs j
+JOIN machine_job_run_summaries s ON s.job_id = j.id
+JOIN machines m ON m.id = j.machine_id
+WHERE j.customer_person_id = $1 AND j.deleted_at IS NULL
+GROUP BY m.id, m.name
+HAVING sum(s.runtime_seconds) > 0
+ORDER BY sum(s.runtime_seconds) DESC, max(s.started_at) DESC, m.id
+LIMIT $2
+`
+
+type ListOwnMachineTimesParams struct {
+	PersonID  *uuid.UUID
+	PageLimit int32
+}
+
+type ListOwnMachineTimesRow struct {
+	Name           string
+	MachineSeconds int64
+	Jobs           int64
+}
+
+// The machines with the most run time of the person's jobs; ties go to the one used last.
+func (q *Queries) ListOwnMachineTimes(ctx context.Context, arg ListOwnMachineTimesParams) ([]ListOwnMachineTimesRow, error) {
+	rows, err := q.db.Query(ctx, listOwnMachineTimes, arg.PersonID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnMachineTimesRow{}
+	for rows.Next() {
+		var i ListOwnMachineTimesRow
+		if err := rows.Scan(&i.Name, &i.MachineSeconds, &i.Jobs); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOwnMaterialUses = `-- name: ListOwnMaterialUses :many
+SELECT t.name, material_unit_dimension(t.unit)::text AS dimension,
+       sum(u.quantity * material_unit_factor(COALESCE(u.material_unit, mat.unit)))::float8 AS amount,
+       count(DISTINCT j.id)::bigint AS jobs
+FROM machine_jobs j
+JOIN machine_job_run_summaries s ON s.job_id = j.id
+JOIN machine_runs r ON r.job_id = j.id AND r.state IS DISTINCT FROM 'replaced'
+JOIN machine_run_usages u ON u.run_id = r.id AND u.active
+JOIN materials mat ON mat.id = u.material_id
+JOIN material_types t ON t.id = mat.material_type_id
+WHERE j.customer_person_id = $1 AND j.deleted_at IS NULL
+  AND material_unit_dimension(COALESCE(u.material_unit, mat.unit)) = material_unit_dimension(t.unit)
+GROUP BY t.id, t.name, t.unit
+ORDER BY count(DISTINCT j.id) DESC, sum(u.quantity * material_unit_factor(COALESCE(u.material_unit, mat.unit))) DESC, t.name, t.id
+LIMIT $2
+`
+
+type ListOwnMaterialUsesParams struct {
+	PersonID  *uuid.UUID
+	PageLimit int32
+}
+
+type ListOwnMaterialUsesRow struct {
+	Name      string
+	Dimension string
+	Amount    float64
+	Jobs      int64
+}
+
+// Active usage of the person's jobs per material type, in the base unit of the type's dimension, most jobs first.
+// Usages without a material, of replaced runs or in a unit of another dimension than the type's are left out.
+func (q *Queries) ListOwnMaterialUses(ctx context.Context, arg ListOwnMaterialUsesParams) ([]ListOwnMaterialUsesRow, error) {
+	rows, err := q.db.Query(ctx, listOwnMaterialUses, arg.PersonID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnMaterialUsesRow{}
+	for rows.Next() {
+		var i ListOwnMaterialUsesRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.Dimension,
+			&i.Amount,
+			&i.Jobs,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

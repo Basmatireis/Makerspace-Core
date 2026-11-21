@@ -8,17 +8,15 @@ import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { useNow } from '../../app/useNow';
 import { useCurrentUser } from '../auth/auth';
 import { useBranding } from '../branding/branding';
-import { canAccessOpenDays, hasPermission, PermissionId } from '../auth/permissions';
+import { canAccessOpenDays, hasAnyPermission, hasPermission, PermissionId } from '../auth/permissions';
 import { BalanceTile } from './BalanceTile';
 import { ComingUpPanel } from './ComingUpPanel';
 import { NextOpenDayTile, UpcomingOpenDaysList } from './GuestOpenDays';
 import { LabRulesNotice, LabRulesTile } from './LabRules';
-import { JobsPerMonth } from './JobsPerMonth';
 import PinboardSkeleton from '../workinggroups/PinboardSkeleton';
 import { NextUpTile } from './NextUpTile';
 import { PayDialog } from './PayDialog';
 import { RecentJobsPanel, RecentOrdersPanel } from './RecentPanels';
-import { SemesterTile } from './SemesterTile';
 import { StatisticsSection } from './StatisticsSection';
 import { jobItems, orderItems, payableOrders } from './balance';
 import { pickGreeting, replayRandom, upcomingOpenDays } from './format';
@@ -78,9 +76,15 @@ export function DashboardPage() {
     hasPermission(currentUser, PermissionId.ordersfinalize);
   const payOrderIds = new Set(canPay && balance ? payableOrders(balance).map((order) => order.id) : []);
   const payItems = balance ? [...orderItems(balance), ...(canPayJobs ? jobItems(balance) : [])] : [];
-  const jobStats = data.statistics?.jobs;
-  const jobsChart = jobStats && jobStats.jobs > 0 ? <JobsPerMonth months={jobStats.jobsPerMonth} /> : null;
-  const showComing = data.staffing || comingUp.length > 0 || upcoming.length > 0 || data.staffing === undefined;
+  const canOpenEvents = hasAnyPermission(currentUser, [
+    'events.read',
+    'events.manage',
+    'events.staffing.manage',
+    'events.assign',
+  ]);
+  const pinboard = hasPermission(currentUser, PermissionId.working_groupsread);
+  // The wide column holds the pinboard; without it the side tiles share the row.
+  const wide = pinboard;
 
   return (
     <PageShell
@@ -105,65 +109,43 @@ export function DashboardPage() {
         </div>
       )}
       <div className="db-grid">
-        {hasPermission(currentUser, PermissionId.working_groupsread) && (
-          <Suspense fallback={<PinboardSkeleton />}>
-            <DashboardPinboard />
-          </Suspense>
-        )}
-        <div className="db-row">
-          {data.staffing ? (
-            <>
+        {data.statistics && <StatisticsSection statistics={data.statistics} now={now} />}
+        <div className={`db-main${wide ? '' : ' db-main--single'}`}>
+          {wide && (
+            <div className="db-main__wide">
+              {pinboard && (
+                <Suspense fallback={<PinboardSkeleton />}>
+                  <DashboardPinboard />
+                </Suspense>
+              )}
+            </div>
+          )}
+          <div className="db-main__side">
+            {data.staffing ? (
               <NextUpTile
-                next={comingUp[0] ?? null}
-                total={comingUp.length}
+                items={comingUp}
                 staffing={data.staffing}
                 now={now}
                 canSignUp={canSignUp}
                 canFindOpenDays={canFindOpenDays}
+                canOpenEvents={canOpenEvents}
               />
-              <SemesterTile staffing={data.staffing} canFindOpenDays={canFindOpenDays} />
-            </>
-          ) : (
-            <>
-              {labRulesStatus ? (
-                <LabRulesTile status={labRulesStatus} />
-              ) : (
+            ) : (
+              <>
+                {labRulesStatus && <LabRulesTile status={labRulesStatus} />}
                 <NextOpenDayTile next={upcoming[0]} now={now} />
-              )}
-              {labRulesStatus && <NextOpenDayTile next={upcoming[0]} now={now} />}
-            </>
-          )}
-          {balance && (
-            <BalanceTile
-              balance={balance}
-              canPay={canPay}
-              canPayJobs={canPayJobs}
-              hasPayable={payItems.length > 0}
-              onPay={() => setPaying(payItems.map((item) => item.id))}
-            />
-          )}
-        </div>
-        {data.statistics && <StatisticsSection statistics={data.statistics} now={now} />}
-        {(showComing || data.recentJobs) && (
-          <div className="db-row db-row--pair">
-            {showComing && (
-              <div>
-                {data.staffing === undefined && <UpcomingOpenDaysList days={upcoming} now={now} />}
-                {(data.staffing !== undefined || comingUp.length > 0) && (
-                  <ComingUpPanel
-                    items={comingUp}
-                    now={now}
-                    canLeave={canSignUp}
-                    canFindOpenDays={canFindOpenDays && data.staffing !== undefined}
-                  />
-                )}
-              </div>
+              </>
+            )}
+            {balance && (
+              <BalanceTile
+                balance={balance}
+                canPay={canPay}
+                canPayJobs={canPayJobs}
+                hasPayable={payItems.length > 0}
+                onPay={() => setPaying(payItems.map((item) => item.id))}
+              />
             )}
             {data.recentJobs && <RecentJobsPanel jobs={data.recentJobs} />}
-          </div>
-        )}
-        {(data.recentOrders || jobsChart) && (
-          <div className="db-row db-row--pair">
             {data.recentOrders && (
               <RecentOrdersPanel
                 orders={data.recentOrders}
@@ -171,9 +153,12 @@ export function DashboardPage() {
                 onPay={(order) => setPaying([order.id])}
               />
             )}
-            {jobsChart}
+            {data.staffing === undefined && <UpcomingOpenDaysList days={upcoming} now={now} />}
+            {data.staffing === undefined && comingUp.length > 0 && (
+              <ComingUpPanel items={comingUp} now={now} canLeave={canSignUp} canFindOpenDays={false} />
+            )}
           </div>
-        )}
+        </div>
       </div>
       {balance && paying !== null && (
         <PayDialog balance={balance} initialSelected={paying} canPayJobs={canPayJobs} onClose={() => setPaying(null)} />

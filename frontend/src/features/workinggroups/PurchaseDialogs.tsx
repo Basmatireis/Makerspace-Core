@@ -29,10 +29,11 @@ import { useNotify } from '../../app/toasts';
 import { formatCents, fromCents, moneyInputText, parseMoneyInput } from '../orders/money';
 import { ACCEPTED_FILES, fileHeaders, fileProblem, previewKind } from './financeModel';
 import { workingGroupKeys } from './queries';
-import { taskErrorText, useWgMutation } from './useWgMutation';
+import { createErrorText, taskErrorText, useWgMutation } from './useWgMutation';
 
 export function Shell({
   heading,
+  label,
   primary,
   pending,
   error,
@@ -42,6 +43,8 @@ export function Shell({
   children,
 }: {
   heading: string;
+  /** Small text above the title: the working group the dialog is about. */
+  label?: string;
   primary: string;
   pending: boolean;
   error?: string;
@@ -54,6 +57,9 @@ export function Shell({
     <Modal
       open
       size={size}
+      // A node, not a string: Carbon then names the dialog by `aria-label` (its heading) instead of by the label.
+      modalLabel={label ? <>{label}</> : undefined}
+      aria-label={heading}
       modalHeading={heading}
       primaryButtonText={pending ? 'Saving…' : primary}
       secondaryButtonText="Cancel"
@@ -194,8 +200,9 @@ export function AddPurchasesDialog({
       heading="Add purchases"
       primary={items.length > 1 ? `Add ${items.length} items` : 'Add'}
       pending={create.isPending}
-      error={create.isError ? taskErrorText(create.error, 'Check the fields and try again.') : undefined}
-      size="lg"
+      label={groups.length === 1 ? groups[0].name : undefined}
+      error={create.isError ? createErrorText(create.error, 'Check the fields and try again.') : undefined}
+      size="md"
       onClose={onClose}
       onSubmit={() => void submit()}
     >
@@ -207,25 +214,22 @@ export function AddPurchasesDialog({
         </Select>
       )}
       <FormGroup legendText="Items">
-        <Stack gap={5}>
+        <Stack gap={4}>
           {fields.map((field, index) => (
-            <div key={field.id} className="wg-buyrow">
+            <div key={field.id} className={index === 0 ? 'wg-buyrow wg-buyrow--first' : 'wg-buyrow'}>
               <TextInput
                 id={`wg-buy-item-${field.id}`}
                 labelText="Item"
-                hideLabel={index > 0}
                 {...register(`items.${index}.item`, { validate: (value) => value.trim() !== '' || 'Enter the item.' })}
               />
               <TextInput
                 id={`wg-buy-link-${field.id}`}
                 labelText="Link to the shop"
-                hideLabel={index > 0}
                 {...register(`items.${index}.link`)}
               />
               <TextInput
                 id={`wg-buy-qty-${field.id}`}
                 labelText="Amount"
-                hideLabel={index > 0}
                 inputMode="numeric"
                 {...register(`items.${index}.quantity`, {
                   validate: (value) =>
@@ -235,7 +239,6 @@ export function AddPurchasesDialog({
               <TextInput
                 id={`wg-buy-price-${field.id}`}
                 labelText="Price each"
-                hideLabel={index > 0}
                 inputMode="decimal"
                 {...register(`items.${index}.price`, {
                   validate: (value) => {
@@ -305,19 +308,24 @@ export function AddPurchasesDialog({
         control={control}
         name="how"
         render={({ field }) => (
-          <RadioButtonGroup
-            legendText="Who buys it?"
-            name="wg-buy-how"
-            orientation="vertical"
-            valueSelected={field.value}
-            onChange={(value) => {
-              field.onChange(value);
-              setValue('how', value as WorkingGroupPurchaseHow);
-            }}
-          >
-            <RadioButton id="wg-buy-central" value="central" labelText="Management, with the next collective order" />
-            <RadioButton id="wg-buy-self" value="self" labelText="I buy it myself. You get the money back." />
-          </RadioButtonGroup>
+          <div>
+            <RadioButtonGroup
+              legendText="Who buys it?"
+              name="wg-buy-how"
+              orientation="vertical"
+              valueSelected={field.value}
+              onChange={(value) => {
+                field.onChange(value);
+                setValue('how', value as WorkingGroupPurchaseHow);
+              }}
+            >
+              <RadioButton id="wg-buy-central" value="central" labelText="Management, with the next collective order" />
+              <RadioButton id="wg-buy-self" value="self" labelText="I buy it myself" />
+            </RadioButtonGroup>
+            <p className="wg-helper">
+              {field.value === 'self' ? 'You get the money back.' : 'It is bought with the next collective order.'}
+            </p>
+          </div>
         )}
       />
     </Shell>

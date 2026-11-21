@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiErrorCode } from '../../api/http-client';
+import { ApiError, apiErrorCode } from '../../api/http-client';
 import { workingGroupKeys } from './queries';
 
 /** A mutation of the working-group pages: whatever the outcome (also a stale write), everything is read again. */
@@ -51,4 +51,14 @@ export function saveErrorText(error: unknown): string | null {
     return 'Someone else changed this just now. The latest version is shown; try again.';
   }
   return taskErrorText(error, 'Not saved. Check your connection and try again.');
+}
+
+export const NOT_A_MEMBER = 'Only members of this working group can do this. Ask its lead to add you.';
+
+/** The message for a failed create that only members of the group may do: a refusal (403 or 404) is no input mistake. */
+export function createErrorText(error: unknown, fallback: string): string {
+  const code = apiErrorCode(error);
+  if (code && ERROR_TEXT[code]) return ERROR_TEXT[code];
+  if (error instanceof ApiError && (error.status === 403 || error.status === 404)) return NOT_A_MEMBER;
+  return fallback;
 }

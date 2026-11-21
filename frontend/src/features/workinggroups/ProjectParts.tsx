@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Button, InlineNotification, Link, Tag } from '@carbon/react';
-import { Download, TrashCan } from '@carbon/icons-react';
+import { ArrowRight, CheckmarkOutline, Download, TrashCan } from '@carbon/icons-react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkingGroupProject, WorkingGroupProjectItem, WorkingGroupPurchase } from '../../api/generated/models';
 import {
@@ -10,7 +10,7 @@ import {
   getDownloadWorkingGroupProjectOfferFileUrl,
 } from '../../api/generated/working-groups/working-groups';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
-import { DetailPanel, DetailPanelHead, DetailPanelSection } from '../../app/components/DetailPanel';
+import { DetailPanel, DetailPanelSection } from '../../app/components/DetailPanel';
 import { Fact, FactsGrid } from '../../app/components/Facts';
 import { formatDate } from '../../app/dateTime';
 import { formatMoney } from '../orders/formatting';
@@ -22,7 +22,6 @@ import {
   PROJECT_STATUS_TAG,
   PROJECT_STEPS,
   dateRange,
-  itemStatus,
   lastReason,
   paidFromLabel,
   projectStage,
@@ -30,8 +29,11 @@ import {
 } from './projectModel';
 import { FilePreview } from './PurchaseDialogs';
 import { formatDateOnly } from './taskModel';
+import { PanelHead, PanelSection } from './PanelHead';
 import { useDialogOpener } from './useDialogOpener';
 import { taskErrorText, useWgMutation } from './useWgMutation';
+
+const STEP_HINT = ['The group writes it', 'Management decides', 'WiRef decides', 'Buy and build', 'Report handed in'];
 
 /** Dots on a line: Draft · Approval · WiRef · Running · Completed. */
 export function ProjectStepper({ project }: { project: WorkingGroupProject }) {
@@ -50,8 +52,11 @@ export function ProjectStepper({ project }: { project: WorkingGroupProject }) {
           }
           aria-current={index === stage.index ? 'step' : undefined}
         >
-          <span className="wg-hsteps__dot" aria-hidden="true" />
+          <span className="wg-hsteps__dot" aria-hidden="true">
+            {index < stage.index && <CheckmarkOutline size={16} />}
+          </span>
           <span className="wg-hsteps__label">{index === stage.index ? stage.label : step}</span>
+          <small>{STEP_HINT[index]}</small>
         </li>
       ))}
     </ol>
@@ -88,72 +93,126 @@ export function ProjectPanel({
   project,
   purchases,
   onSelectPurchase,
+  onClose,
 }: {
   project: WorkingGroupProject;
   purchases: readonly WorkingGroupPurchase[];
   onSelectPurchase: (id: string) => void;
+  onClose?: () => void;
 }) {
   const navigate = useNavigate();
-  const spent = project.totals.spent;
+  const stage = projectStage(project);
+  const counts =
+    project.paidFrom === 'external'
+      ? 'From an external source'
+      : project.status === 'completed'
+        ? 'Counts as spent'
+        : project.status === 'running'
+          ? 'Reserved until it is paid'
+          : 'Not counted yet';
   return (
-    <DetailPanel>
-      <DetailPanelHead
+    <DetailPanel className="wg-panel">
+      <PanelHead
+        label={`Project · ${project.groupName}`}
         title={project.title}
-        meta={`Project · ${project.groupName}`}
-        secondary={[who(project), dateRange(project, formatDateOnly)].filter(Boolean).join(' · ')}
-        helper={
+        meta={[who(project), dateRange(project, formatDateOnly)]}
+        tags={
           <Tag size="sm" type={PROJECT_STATUS_TAG[project.status]}>
             {PROJECT_STATUS_LABEL[project.status]}
           </Tag>
         }
+        onClose={onClose}
       />
       <ReasonBlock project={project} />
-      <p className="wg-panel-body">{SENTENCE[project.status]}</p>
-      <div className="wg-panel-actions">
-        <Button kind="primary" size="md" onClick={() => void navigate(`/working-groups/projects/${project.id}`)}>
+      <p className="wg-panel__note">{SENTENCE[project.status]}</p>
+      <div className="wg-panel__actions">
+        <Button
+          kind="primary"
+          size="md"
+          renderIcon={ArrowRight}
+          onClick={() => void navigate(`/working-groups/projects/${project.id}`)}
+        >
           Open project
         </Button>
       </div>
       <FactsGrid columns={2}>
-        <Fact label="Planned">{formatMoney(project.totals.planned)}</Fact>
-        <Fact label="Stage">{projectStage(project).label}</Fact>
+        <Fact label="Planned" helper={counts}>
+          {formatMoney(project.totals.planned)}
+        </Fact>
+        <Fact label="Stage">
+          <StageTrack steps={PROJECT_STEPS} index={stage.index} label={stage.label} declined={stage.declined} />
+        </Fact>
         <Fact label="Paid from">{paidFromLabel(project)}</Fact>
-        <Fact label="WiRef number">{project.wirefNumber || '–'}</Fact>
-        <Fact label="Bought so far">{formatMoney(spent)}</Fact>
+        <Fact label="WiRef number">{project.wirefNumber || 'None yet'}</Fact>
+        <Fact label="Bought so far" helper={`of ${formatMoney(project.totals.planned)}`}>
+          {formatMoney(project.totals.spent)}
+        </Fact>
       </FactsGrid>
-      <DetailPanelSection title="Purchases">
+      <PanelSection title="Purchases" count={purchases.length}>
         {purchases.length === 0 ? (
-          <p className="wg-muted">No purchases yet.</p>
+          <p className="wg-panel__note">None yet.</p>
         ) : (
           <ul className="wg-plist">
             {purchases.map((purchase) => (
               <li key={purchase.id}>
-                <Link
-                  href="#"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    onSelectPurchase(purchase.id);
-                  }}
-                >
-                  {purchase.item}
-                </Link>
-                <span>{formatCents(amountCents(purchase))}</span>
+                <span className="wg-plist__main">
+                  <Link
+                    href="#"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onSelectPurchase(purchase.id);
+                    }}
+                  >
+                    {purchase.item}
+                  </Link>
+                  <small>{PURCHASE_STATUS_LABEL[purchase.status]}</small>
+                </span>
+                <span className="wg-plist__amount">{formatCents(amountCents(purchase))}</span>
               </li>
             ))}
           </ul>
         )}
-      </DetailPanelSection>
+      </PanelSection>
     </DetailPanel>
   );
 }
 
-const itemSentence = (item: WorkingGroupProjectItem, purchases: readonly WorkingGroupPurchase[]) => {
-  const status = itemStatus(item, purchases).label;
-  if (item.needsOffers && !item.chosenOfferId && purchases.length === 0) {
-    return `Three offers are needed. ${item.offers.length} of 3 added.`;
-  }
-  return `${status}.`;
-};
+/** A segmented stage bar with its label, as in the lists. */
+export function StageTrack({
+  steps,
+  index,
+  label,
+  declined,
+}: {
+  steps: readonly string[];
+  index: number;
+  label: string;
+  declined?: boolean;
+}) {
+  const done = !declined && index === steps.length - 1;
+  return (
+    <span
+      className={`wg-track${declined ? ' is-declined' : ''}${done ? ' is-done' : ''}`}
+      role="img"
+      aria-label={`Stage: ${label}, step ${index + 1} of ${steps.length}`}
+    >
+      <span className={`wg-track__bar${steps.length === 5 ? ' wg-track__bar--5' : ''}`} aria-hidden="true">
+        {steps.map((step, at) => (
+          <i key={step} className={at < index ? 'is-past' : at === index ? 'is-now' : ''} />
+        ))}
+      </span>
+      <span className="wg-track__l" aria-hidden="true">
+        {label}
+      </span>
+    </span>
+  );
+}
+
+/** Only what the row does not already say: a missing-offers hint. */
+const itemHint = (item: WorkingGroupProjectItem, purchases: readonly WorkingGroupPurchase[]) =>
+  item.needsOffers && !item.chosenOfferId && purchases.length === 0
+    ? `Three offers are needed. ${item.offers.length} of 3 added.`
+    : '';
 
 /** The panel of a selected cost plan item on the project page. */
 export function ProjectItemPanel({
@@ -183,7 +242,6 @@ export function ProjectItemPanel({
   const offerLauncher = useRef<HTMLElement | null>(null);
   const removeOffer = useWgMutation((offerId: string) => deleteWorkingGroupProjectOffer(project.id, offerId));
   const remove = useWgMutation(() => deleteWorkingGroupProjectItem(project.id, item.id));
-  const status = itemStatus(item, purchases);
   const inPurchases = purchases
     .filter((purchase) => purchase.status !== 'declined')
     .reduce((sum, purchase) => sum + amountCents(purchase), 0);
@@ -199,55 +257,48 @@ export function ProjectItemPanel({
   const canOffer = canPlan && item.needsOffers;
 
   return (
-    <DetailPanel>
-      <DetailPanelHead
-        title={item.text}
-        meta="Cost plan item"
-        helper={
-          <Tag size="sm" type={status.tag}>
-            {status.label}
-          </Tag>
-        }
-      />
-      <p className="wg-panel-body">{itemSentence(item, purchases)}</p>
-      <div className="wg-panel-actions">
-        {canPlan && (
-          <Button
-            ref={removeButton}
-            kind="danger--ghost"
-            size="md"
-            disabled={purchases.length > 0}
-            onClick={() => {
-              remove.reset();
-              setConfirm(true);
-            }}
-          >
-            Remove
-          </Button>
-        )}
-        {canPlan && (
-          <Button kind="tertiary" size="md" onClick={() => edit.open(true)}>
-            Edit
-          </Button>
-        )}
-        {canBuy && (
-          <Button kind="primary" size="md" onClick={() => onBuy(item)}>
-            {project.status === 'draft' || project.status === 'returned' ? 'Add the purchase' : 'Make a purchase'}
-          </Button>
-        )}
+    <div className="wg-inline">
+      <p className="wg-inline__meta">{['Cost plan item', itemHint(item, purchases)].filter(Boolean).join(' · ')}</p>
+      <div className="wg-inline__band">
+        <FactsGrid columns={4}>
+          <Fact label="Planned">{formatMoney(item.plannedAmount)}</Fact>
+          <Fact label="In purchases">{formatCents(inPurchases)}</Fact>
+          <Fact label="Not requested">{formatCents(left)}</Fact>
+          {host && (
+            <Fact label="Shop">
+              <Link href={item.link} target="_blank" rel="noopener noreferrer">
+                {host}
+              </Link>
+            </Fact>
+          )}
+        </FactsGrid>
+        <div className="wg-inline__actions">
+          {canPlan && (
+            <Button
+              ref={removeButton}
+              kind="danger--ghost"
+              size="sm"
+              disabled={purchases.length > 0}
+              onClick={() => {
+                remove.reset();
+                setConfirm(true);
+              }}
+            >
+              Remove
+            </Button>
+          )}
+          {canPlan && (
+            <Button kind="tertiary" size="sm" onClick={() => edit.open(true)}>
+              Edit
+            </Button>
+          )}
+          {canBuy && (
+            <Button kind="primary" size="sm" onClick={() => onBuy(item)}>
+              {project.status === 'draft' || project.status === 'returned' ? 'Add the purchase' : 'Make a purchase'}
+            </Button>
+          )}
+        </div>
       </div>
-      <FactsGrid columns={2}>
-        <Fact label="Planned">{formatMoney(item.plannedAmount)}</Fact>
-        <Fact label="In purchases">{formatCents(inPurchases)}</Fact>
-        <Fact label="Left">{formatCents(left)}</Fact>
-        {host && (
-          <Fact label="Shop">
-            <Link href={item.link} target="_blank" rel="noopener noreferrer">
-              {host}
-            </Link>
-          </Fact>
-        )}
-      </FactsGrid>
       {(item.needsOffers || item.offers.length > 0) && (
         <DetailPanelSection title="Offers">
           <p className="wg-muted">{item.offers.length} of 3</p>
@@ -357,7 +408,7 @@ export function ProjectItemPanel({
           onClose={fileOpen.close}
         />
       )}
-    </DetailPanel>
+    </div>
   );
 }
 

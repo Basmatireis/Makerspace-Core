@@ -137,7 +137,7 @@ describe('dashboard pinboard', () => {
       .slice(1)
       .map((row) => row.textContent ?? '');
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toContain('Yours');
+    expect(rows[0]).toContain('For you');
     expect(rows[0]).toContain('Clean the bed');
     expect(rows[1]).toContain('Table saw');
     expect(rows[1]).toContain('Out of order');
@@ -156,12 +156,16 @@ describe('dashboard pinboard', () => {
     // Not inside Woodworking and no management: no way to change the status.
     expect(within(table).queryByRole('button', { name: 'Change status' })).not.toBeInTheDocument();
 
-    const all = screen.getByRole('heading', { name: 'All machines and places' }).closest('section');
-    const names = within(all as HTMLElement)
+    // Every machine and place, per group, with how many of them work.
+    const all = screen.getByRole('heading', { name: /^All machines and places/ }).parentElement as HTMLElement;
+    expect(all).toHaveTextContent(/1 of 2 working/);
+    const names = within(all)
       .getAllByRole('listitem')
       .map((item) => item.textContent ?? '');
-    expect(names[0]).toContain('Table saw');
-    expect(names[1]).toContain('Prusa CORE One');
+    expect(names.some((name) => name.includes('Table saw') && name.includes('Out of order'))).toBe(true);
+    expect(names.some((name) => name.includes('Prusa CORE One'))).toBe(true);
+    expect(screen.getByRole('button', { name: 'Write a ticket' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'All tickets' })).toHaveAttribute('href', '/working-groups/tasks');
   });
 
   it('lets management pin a makerspace note and remove a note with the trash button', async () => {

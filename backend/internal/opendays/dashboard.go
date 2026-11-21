@@ -86,19 +86,35 @@ func (s *Service) NextOpenPlace(
 	}, nil
 }
 
+// OwnStatistics are the ended open days the current person staffed, all time.
+type OwnStatistics struct {
+	Staffed  int
+	Duration time.Duration
+	// LastStartedAt is the start of the latest ended timeslot they held; nil without any.
+	LastStartedAt *time.Time
+}
+
 // OwnStatistics counts the ended open days the current person staffed, all time, with the scheduled duration of
 // their ended timeslots.
 func (s *Service) OwnStatistics(
 	ctx context.Context,
 	principal authorization.Principal,
 	now time.Time,
-) (int, time.Duration, error) {
+) (OwnStatistics, error) {
 	row, err := opendaysdb.New(s.pool).GetOwnOpenDayStatistics(
 		ctx,
 		opendaysdb.GetOwnOpenDayStatisticsParams{PersonID: principal.PersonID, Now: now},
 	)
 	if err != nil {
-		return 0, 0, err
+		return OwnStatistics{}, err
 	}
-	return int(row.Staffed), time.Duration(row.ScheduledSeconds * float64(time.Second)), nil
+	result := OwnStatistics{
+		Staffed:  int(row.Staffed),
+		Duration: time.Duration(row.ScheduledSeconds * float64(time.Second)),
+	}
+	if last, ok := row.LastStartedAt.(time.Time); ok {
+		last = last.UTC()
+		result.LastStartedAt = &last
+	}
+	return result, nil
 }

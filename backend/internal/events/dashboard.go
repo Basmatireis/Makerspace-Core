@@ -43,18 +43,34 @@ func (s *Service) OwnComingUpShifts(
 	return items, nil
 }
 
+// OwnShiftStatistics are the ended shifts the current person worked, all time.
+type OwnShiftStatistics struct {
+	Shifts   int
+	Duration time.Duration
+	// LastStartedAt is the start of the latest of them; nil without any.
+	LastStartedAt *time.Time
+}
+
 // OwnShiftStatistics counts the ended shifts the current person worked, all time, with their scheduled duration.
 func (s *Service) OwnShiftStatistics(
 	ctx context.Context,
 	principal authorization.Principal,
 	now time.Time,
-) (int, time.Duration, error) {
+) (OwnShiftStatistics, error) {
 	row, err := eventsdb.New(s.pool).GetOwnShiftStatistics(
 		ctx,
 		eventsdb.GetOwnShiftStatisticsParams{PersonID: &principal.PersonID, Now: now},
 	)
 	if err != nil {
-		return 0, 0, err
+		return OwnShiftStatistics{}, err
 	}
-	return int(row.Shifts), time.Duration(row.ScheduledSeconds * float64(time.Second)), nil
+	result := OwnShiftStatistics{
+		Shifts:   int(row.Shifts),
+		Duration: time.Duration(row.ScheduledSeconds * float64(time.Second)),
+	}
+	if last, ok := row.LastStartedAt.(time.Time); ok {
+		last = last.UTC()
+		result.LastStartedAt = &last
+	}
+	return result, nil
 }

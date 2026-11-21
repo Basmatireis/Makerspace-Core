@@ -111,14 +111,15 @@ describe('working groups overview', () => {
     expect(await screen.findByRole('heading', { name: 'Printing' })).toBeInTheDocument();
     const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent);
     expect(tabs).toEqual(['Printing', 'Woodworking']);
-    expect(screen.getByText('Looks after the 3D printers. You are a member.')).toBeInTheDocument();
+    // The description stays in the group settings; the overview starts with the figures.
+    expect(screen.queryByText(/Looks after the 3D printers/)).not.toBeInTheDocument();
     expect(await screen.findByText('Prusa CORE One')).toBeInTheDocument();
     expect(screen.getByText('Filament shelf')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Group pinboard' })).toBeInTheDocument();
     const people = screen.getAllByRole('listitem').map((item) => item.textContent ?? '');
-    const leadAt = people.findIndex((text) => text.startsWith('Grace Hopper'));
+    const leadAt = people.findIndex((text) => text.includes('Grace Hopper'));
     expect(leadAt).toBeGreaterThanOrEqual(0);
-    expect(leadAt).toBeLessThan(people.findIndex((text) => text.startsWith('Ada Lovelace')));
+    expect(leadAt).toBeLessThan(people.findIndex((text) => text.includes('Ada Lovelace')));
     expect(people[leadAt]).toContain('Group lead');
     const chat = screen.getByRole('link', { name: /Open the group chat/ });
     expect(chat).toHaveAttribute('href', 'https://chat.example.test/printing');

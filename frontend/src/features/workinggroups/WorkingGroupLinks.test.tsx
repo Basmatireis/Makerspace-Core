@@ -230,9 +230,9 @@ describe('Lately', () => {
     expect(row).toHaveTextContent('Ada closed the ticket Alignment 1');
     expect(row).toHaveTextContent('1 hour ago');
     await userEvent.click(screen.getByRole('button', { name: 'Show more' }));
-    await waitFor(() => expect(limits).toEqual(['10', '50']));
+    await waitFor(() => expect(limits).toEqual(['5', '50']));
     await waitFor(() => expect(screen.getByText('Alignment 11')).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole('link', { name: 'Alignment 11' })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Alignment 6' })).toHaveFocus());
   });
 });
 

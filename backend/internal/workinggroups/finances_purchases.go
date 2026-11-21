@@ -78,8 +78,9 @@ func purchaseFromRow(row workinggroupsdb.ListWorkingGroupPurchasesRow, p authori
 		PeriodClosed: row.PeriodClosed, Item: row.Item, Link: row.Link, Quantity: row.Quantity,
 		UnitPrice: moneyText(dbMoney(row.UnitPrice)), EstimatedTotal: moneyText(dbMoney(row.EstimatedTotal)),
 		How: row.How, Status: row.Status, DeclineReason: row.DeclineReason,
-		Requester:    personRef(row.RequesterPersonID, row.RequesterDisplayName),
-		NeedsProject: needs, HasAttachment: row.HasAttachment, HasReceipt: row.HasReceipt, OrderID: row.OrderID,
+		Requester: personRef(row.RequesterPersonID, row.RequesterDisplayName),
+		// A purchase that already belongs to a project does not need one any more.
+		NeedsProject: needs && row.ProjectID == nil, HasAttachment: row.HasAttachment, HasReceipt: row.HasReceipt, OrderID: row.OrderID,
 		CreatedAt: row.CreatedAt, ApprovedAt: timeValue(row.ApprovedAt), DeclinedAt: timeValue(row.DeclinedAt),
 		OrderedAt: timeValue(row.OrderedAt), ReceivedAt: timeValue(row.ReceivedAt), BoughtAt: timeValue(row.BoughtAt),
 		RefundedAt: timeValue(row.RefundedAt), ProjectID: row.ProjectID, ProjectItemID: row.ProjectItemID,

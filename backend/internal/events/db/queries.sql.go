@@ -1544,7 +1544,8 @@ func (q *Queries) GetEventTaskList(ctx context.Context, arg GetEventTaskListPara
 
 const getOwnShiftStatistics = `-- name: GetOwnShiftStatistics :one
 SELECT count(*)::bigint AS shifts,
-       COALESCE(sum(extract(epoch FROM s.ends_at - s.starts_at)), 0)::float8 AS scheduled_seconds
+       COALESCE(sum(extract(epoch FROM s.ends_at - s.starts_at)), 0)::float8 AS scheduled_seconds,
+       max(s.starts_at) AS last_started_at
 FROM event_shift_assignments a
 JOIN event_shifts s ON s.id = a.shift_id AND s.status <> 'cancelled'
 WHERE a.person_id = $1 AND a.status = 'active' AND s.ends_at <= $2
@@ -1558,13 +1559,14 @@ type GetOwnShiftStatisticsParams struct {
 type GetOwnShiftStatisticsRow struct {
 	Shifts           int64
 	ScheduledSeconds float64
+	LastStartedAt    interface{}
 }
 
 // Ended shifts the person was actively assigned to, all time, with their scheduled duration in seconds.
 func (q *Queries) GetOwnShiftStatistics(ctx context.Context, arg GetOwnShiftStatisticsParams) (GetOwnShiftStatisticsRow, error) {
 	row := q.db.QueryRow(ctx, getOwnShiftStatistics, arg.PersonID, arg.Now)
 	var i GetOwnShiftStatisticsRow
-	err := row.Scan(&i.Shifts, &i.ScheduledSeconds)
+	err := row.Scan(&i.Shifts, &i.ScheduledSeconds, &i.LastStartedAt)
 	return i, err
 }
 

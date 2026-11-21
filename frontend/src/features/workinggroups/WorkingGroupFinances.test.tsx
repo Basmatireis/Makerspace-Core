@@ -241,6 +241,88 @@ describe('working group purchases', () => {
     });
   });
 
+  it('offers no purchase request to a finance manager who is in no group', async () => {
+    serve(financeManager, { member: false });
+    renderRoute(<App />, '/working-groups/purchases');
+
+    expect(await screen.findByText('Only members of a working group can request purchases.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add purchases' })).not.toBeInTheDocument();
+  });
+
+  it('offers a member only their own groups and names a single one as the label', async () => {
+    const user = userEvent.setup();
+    serve(member);
+    server.use(
+      http.get('*/api/v1/working-groups', () =>
+        HttpResponse.json({
+          items: [groupSummary(printId, 'Printing', true), groupSummary(woodId, 'Woodworking', false)],
+        }),
+      ),
+    );
+    renderRoute(<App />, '/working-groups/purchases');
+
+    await user.click(await screen.findByRole('button', { name: 'Add purchases' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByLabelText('Working group')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Printing')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Woodworking')).not.toBeInTheDocument();
+  });
+
+  it('offers a dropdown with the own groups only when a member is in several', async () => {
+    const user = userEvent.setup();
+    serve(financeManager);
+    server.use(
+      http.get('*/api/v1/working-groups', () =>
+        HttpResponse.json({
+          items: [
+            groupSummary(printId, 'Printing', true),
+            groupSummary(woodId, 'Woodworking', false),
+            groupSummary(pid(7), 'Textiles', true),
+          ],
+        }),
+      ),
+    );
+    renderRoute(<App />, '/working-groups/purchases?group=all');
+
+    await user.click(await screen.findByRole('button', { name: 'Add purchases' }));
+    const select = await screen.findByLabelText('Working group');
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Printing', 'Textiles']);
+  });
+
+  it('says that only members may request when the server refuses the batch', async () => {
+    const user = userEvent.setup();
+    serve(member);
+    server.use(
+      http.post('*/api/v1/working-group-purchases', () =>
+        HttpResponse.json({ code: 'forbidden', message: 'no' }, { status: 403 }),
+      ),
+    );
+    renderRoute(<App />, '/working-groups/purchases');
+
+    await user.click(await screen.findByRole('button', { name: 'Add purchases' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Item'), 'Nozzles');
+    await user.type(within(dialog).getByLabelText('Price each'), '5');
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }));
+
+    expect(await within(dialog).findByText(/Only members of this working group can do this/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Check the fields/)).not.toBeInTheDocument();
+  });
+
+  it('says that a planned purchase waits for its project to run', async () => {
+    const user = userEvent.setup();
+    serve(member, { purchases: [purchase(1, { status: 'planned' })] });
+    renderRoute(<App />, '/working-groups/purchases');
+
+    await user.click(await rowOf(/Item 1/));
+    expect(await screen.findByText('Planned in a project. It is bought once the project runs.')).toBeInTheDocument();
+    expect(screen.queryByText('Declined.')).not.toBeInTheDocument();
+  });
+
   it('approves and declines from the panel when the flags allow it', async () => {
     const user = userEvent.setup();
     const served = serve(financeManager, {
