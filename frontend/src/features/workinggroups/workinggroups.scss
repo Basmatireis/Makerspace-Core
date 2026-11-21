@@ -431,11 +431,12 @@
 .wg-track__bar i {
   flex: 1 1 0;
   block-size: 0.375rem;
-  background: theme.$layer-accent-01;
+  // Translucent so the steps still to come stay visible on every row background (zebra, hover, selected).
+  background: color-mix(in srgb, #{theme.$text-secondary} 35%, transparent);
 }
 
 .wg-track__bar i.is-past {
-  background: color-mix(in srgb, #{theme.$interactive} 45%, #{theme.$layer-accent-01});
+  background: color-mix(in srgb, #{theme.$interactive} 55%, transparent);
 }
 
 .wg-track__bar i.is-now {
