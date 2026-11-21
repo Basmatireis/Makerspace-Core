@@ -1152,7 +1152,8 @@
   content: '';
   position: absolute;
   inset-block-start: 0.4375rem;
-  inset-inline: -50% 50%;
+  // The line runs between the dots and stops short of them, so it never shows through a dot or its check mark.
+  inset-inline: calc(-50% + 0.75rem) calc(50% + 0.75rem);
   block-size: 2px;
   background: theme.$border-subtle-01;
 }
@@ -1175,7 +1176,6 @@
   block-size: 1rem;
   border-radius: 50%;
   border: 2px solid theme.$border-strong-01;
-  background: theme.$layer-01;
 }
 
 .wg-hsteps li.is-past .wg-hsteps__dot {
