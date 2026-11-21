@@ -7,7 +7,7 @@ import { styleLabel } from './styles';
  * touch a document they are given.
  */
 
-export type ExportKind = 'wiref' | 'cashbook' | 'receipt';
+export type ExportKind = 'wiref' | 'cashbook' | 'receipt' | 'projektantrag';
 
 /** `#rrggbb`, a reference to a colour style (`$c:<id>`) or `transparent`. */
 export type Color = string;
@@ -265,10 +265,12 @@ export interface BoxBlock extends BlockBase {
   fill?: Color;
   blocks: Block[];
 }
-/** The makerspace logo from the branding settings. */
+/** The makerspace logo from the branding settings, or the image variable `source` names (such as a signature). */
 export interface ImageBlock extends BlockBase {
   type: 'image';
   height: number;
+  /** An image variable of the export's data; without it the block draws the logo. */
+  source?: string;
 }
 export interface PictureBlock extends BlockBase {
   type: 'picture';
@@ -795,7 +797,9 @@ export function describe(n: TemplateNode, styles?: DocumentStyles): Description 
       kind = 'Columns';
       break;
     case 'image':
-      kind = `Logo · ${styleLabel(n.height, styles)} high`;
+      kind = n.source
+        ? `Image · ${n.source} · ${styleLabel(n.height, styles)} high`
+        : `Logo · ${styleLabel(n.height, styles)} high`;
       break;
     case 'signatures':
       kind = `Signature fields · ${n.labels.length}`;

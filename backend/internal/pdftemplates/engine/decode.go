@@ -273,7 +273,7 @@ var blockProps = map[string]map[string]prop{
 		"padding": length(0, maxGapOrPadding), "stroke": strokeWidth(), "color": simple(pColor),
 		"fill": simple(pColor), "blocks": simple(pBlocks),
 	},
-	BlockImage:   {"height": length(0, maxExtent)},
+	BlockImage:   {"height": length(0, maxExtent), "source": simple(pListPath)},
 	BlockPicture: {"asset": required(simple(pAsset))},
 	BlockGraphic: {"art": required(simple(pArt)), "color": simple(pColor)},
 	BlockQR:      {"value": simple(pExpr)},
@@ -360,8 +360,10 @@ func (v *validator) document(tree any) {
 	}
 	top := map[string]prop{
 		"schemaVersion": required(integer(SchemaVersion, SchemaVersion)), "name": required(simple(pString)),
-		"export": required(enum(string(KindWiRef), string(KindCashbook), string(KindReceipt))),
-		"page":   required(simple(pString)), "styles": simple(pString), "layers": simple(pString),
+		"export": required(enum(
+			string(KindWiRef), string(KindCashbook), string(KindReceipt), string(KindProjektantrag),
+		)),
+		"page": required(simple(pString)), "styles": simple(pString), "layers": simple(pString),
 		"header": simple(pBlocks), "body": simple(pBlocks), "footer": simple(pBlocks),
 	}
 	v.keys("", m, top)

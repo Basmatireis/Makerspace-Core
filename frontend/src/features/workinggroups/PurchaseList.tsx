@@ -94,7 +94,6 @@ function PurchaseRow({
   selected: boolean;
   onSelect: (id: string) => void;
 }) {
-  const stage = stageOf(purchase);
   const counts = countsAs(purchase);
   const who = purchase.requester ? firstName(purchase.requester) : 'Former member';
   const how = purchase.how === 'self' ? 'buys it, gets the money back' : 'collective order';
@@ -117,21 +116,29 @@ function PurchaseRow({
         </small>
       </span>
       {showGroup && <span className="wg-lfrom">{purchase.groupName}</span>}
-      <span
-        className={`wg-track${stage.declined ? ' is-declined' : ''}${stage.index === stage.steps.length - 1 && !stage.declined ? ' is-done' : ''}`}
-        role="img"
-        aria-label={`Stage: ${stage.label}, step ${stage.index + 1} of ${stage.steps.length}`}
-      >
-        <span className="wg-track__bar" aria-hidden="true">
-          {stage.steps.map((step, index) => (
-            <i key={step} className={index < stage.index ? 'is-past' : index === stage.index ? 'is-now' : ''} />
-          ))}
-        </span>
-        <span className="wg-track__l" aria-hidden="true">
-          {stage.label}
-        </span>
-      </span>
+      <PurchaseTrack purchase={purchase} />
     </button>
+  );
+}
+
+/** The stage bar of a purchase: Requested → Approved → Bought or Ordered → Money back or Arrived. */
+export function PurchaseTrack({ purchase }: { purchase: WorkingGroupPurchase }) {
+  const stage = stageOf(purchase);
+  return (
+    <span
+      className={`wg-track${stage.declined ? ' is-declined' : ''}${stage.index === stage.steps.length - 1 && !stage.declined ? ' is-done' : ''}`}
+      role="img"
+      aria-label={`Stage: ${stage.label}, step ${stage.index + 1} of ${stage.steps.length}`}
+    >
+      <span className="wg-track__bar" aria-hidden="true">
+        {stage.steps.map((step, index) => (
+          <i key={step} className={index < stage.index ? 'is-past' : index === stage.index ? 'is-now' : ''} />
+        ))}
+      </span>
+      <span className="wg-track__l" aria-hidden="true">
+        {stage.label}
+      </span>
+    </span>
   );
 }
 

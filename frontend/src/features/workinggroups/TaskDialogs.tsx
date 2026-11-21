@@ -3,7 +3,6 @@ import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import {
   Button,
   Checkbox,
-  FormGroup,
   IconButton,
   InlineNotification,
   Modal,
@@ -34,6 +33,8 @@ import { taskErrorText, useWgMutation } from './useWgMutation';
 
 function DialogShell({
   heading,
+  label,
+  size = 'sm',
   primary,
   pending,
   failed,
@@ -43,6 +44,9 @@ function DialogShell({
   children,
 }: {
   heading: string;
+  /** Small text above the title: the working group. */
+  label?: string;
+  size?: 'sm' | 'md';
   primary: string;
   pending: boolean;
   failed?: string;
@@ -54,7 +58,10 @@ function DialogShell({
   return (
     <Modal
       open
-      size="sm"
+      size={size}
+      // A node, not a string: Carbon then names the dialog by `aria-label` (its heading) instead of by the label.
+      modalLabel={label ? <>{label}</> : undefined}
+      aria-label={heading}
       modalHeading={heading}
       primaryButtonText={pending ? 'Saving…' : primary}
       secondaryButtonText="Cancel"
@@ -147,6 +154,8 @@ export function WriteTicketDialog({
   return (
     <DialogShell
       heading="Write a ticket"
+      label={groups.length === 1 ? groups[0].name : undefined}
+      size="md"
       primary="Send"
       pending={create.isPending}
       failed={create.isError ? CHECK_FIELDS : undefined}
@@ -154,8 +163,8 @@ export function WriteTicketDialog({
       onClose={onClose}
       onSubmit={() => void submit()}
     >
-      <FormGroup legendText="About">
-        <Stack gap={5}>
+      <div className="wg-grid2">
+        {groups.length > 1 && (
           <Select
             id="wg-ticket-group"
             labelText="Working group"
@@ -167,14 +176,14 @@ export function WriteTicketDialog({
               <SelectItem key={group.id} value={group.id} text={group.name} />
             ))}
           </Select>
-          <Select id="wg-ticket-machine" labelText="Machine or place" {...register('machineId')}>
-            <SelectItem value="" text="In general" />
-            {(detail.data?.machines ?? []).map((machine) => (
-              <SelectItem key={machine.id} value={machine.id} text={machine.name} />
-            ))}
-          </Select>
-        </Stack>
-      </FormGroup>
+        )}
+        <Select id="wg-ticket-machine" labelText="Machine or place" {...register('machineId')}>
+          <SelectItem value="" text="In general" />
+          {(detail.data?.machines ?? []).map((machine) => (
+            <SelectItem key={machine.id} value={machine.id} text={machine.name} />
+          ))}
+        </Select>
+      </div>
       <Controller
         control={control}
         name="kind"
@@ -291,6 +300,8 @@ export function NewTodoDialog({
   return (
     <DialogShell
       heading="New to-do"
+      label={groups.length === 1 ? groups[0].name : undefined}
+      size="md"
       primary="Add"
       pending={create.isPending}
       failed={create.isError ? CHECK_FIELDS : undefined}
@@ -325,27 +336,29 @@ export function NewTodoDialog({
           />
         )}
       />
-      <Select id="wg-todo-who" labelText="Who" {...register('assigneePersonId')}>
-        <SelectItem value="" text="Unassigned" />
-        {(detail.data?.members ?? []).map((member) => (
-          <SelectItem key={member.personId} value={member.personId} text={member.displayName} />
-        ))}
-      </Select>
-      <Controller
-        control={control}
-        name="dueOn"
-        rules={{ validate: (value) => value !== '' || 'Choose a date.' }}
-        render={({ field, fieldState }) => (
-          <DateInput
-            id="wg-todo-due"
-            labelText="Due"
-            value={field.value}
-            onChange={field.onChange}
-            invalid={Boolean(fieldState.error)}
-            invalidText={fieldState.error?.message}
-          />
-        )}
-      />
+      <div className="wg-grid2">
+        <Select id="wg-todo-who" labelText="Who" {...register('assigneePersonId')}>
+          <SelectItem value="" text="Unassigned" />
+          {(detail.data?.members ?? []).map((member) => (
+            <SelectItem key={member.personId} value={member.personId} text={member.displayName} />
+          ))}
+        </Select>
+        <Controller
+          control={control}
+          name="dueOn"
+          rules={{ validate: (value) => value !== '' || 'Choose a date.' }}
+          render={({ field, fieldState }) => (
+            <DateInput
+              id="wg-todo-due"
+              labelText="Due"
+              value={field.value}
+              onChange={field.onChange}
+              invalid={Boolean(fieldState.error)}
+              invalidText={fieldState.error?.message}
+            />
+          )}
+        />
+      </div>
       <Select id="wg-todo-repeat" labelText="Repeats" {...register('repeat')}>
         <SelectItem value="" text="Does not repeat" />
         {REPEAT_CHOICES.map((choice) => (
@@ -422,6 +435,8 @@ function PlanForm({
   return (
     <DialogShell
       heading="Plan it"
+      label={group.name}
+      size="md"
       primary="Plan it"
       pending={plan.isPending}
       failed={
@@ -431,19 +446,21 @@ function PlanForm({
       onClose={onClose}
       onSubmit={() => void submit()}
     >
-      <Select id="wg-plan-who" labelText="Who" {...register('assigneePersonId')}>
-        <SelectItem value="" text="Unassigned" />
-        {group.members.map((candidate) => (
-          <SelectItem key={candidate.personId} value={candidate.personId} text={candidate.displayName} />
-        ))}
-      </Select>
-      <Controller
-        control={control}
-        name="dueOn"
-        render={({ field }) => (
-          <DateInput id="wg-plan-due" labelText="Due" value={field.value} onChange={field.onChange} />
-        )}
-      />
+      <div className="wg-grid2">
+        <Select id="wg-plan-who" labelText="Who" {...register('assigneePersonId')}>
+          <SelectItem value="" text="Unassigned" />
+          {group.members.map((candidate) => (
+            <SelectItem key={candidate.personId} value={candidate.personId} text={candidate.displayName} />
+          ))}
+        </Select>
+        <Controller
+          control={control}
+          name="dueOn"
+          render={({ field }) => (
+            <DateInput id="wg-plan-due" labelText="Due" value={field.value} onChange={field.onChange} />
+          )}
+        />
+      </div>
       <Select id="wg-plan-column" labelText="Column" {...register('columnId')}>
         {group.columns.map((column) => (
           <SelectItem key={column.id} value={column.id} text={column.name} />

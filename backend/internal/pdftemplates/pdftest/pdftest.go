@@ -22,12 +22,16 @@ type Reporter interface {
 }
 
 // AssertData fails when data does not match the schema of the export exactly: every variable of the schema must
-// resolve in data (a list through its first entry, so lists must not be empty) and data must not contain keys the
-// schema does not know.
+// resolve in data (a list through its first entry, so the first entries must carry every field) and data must not
+// contain keys the schema does not know.
 func AssertData(t Reporter, kind engine.Kind, data engine.Data) {
 	t.Helper()
 	known := map[string]bool{}
 	for _, group := range engine.Schema(kind).Groups {
+		if group.List != "" {
+			// An empty list is reported by its own path; it is known like its fields.
+			known[group.List] = true
+		}
 		for _, field := range group.Fields {
 			known[field.Path] = true
 			root := strings.SplitN(strings.SplitN(field.Path, ".", 2)[0], "[", 2)[0]

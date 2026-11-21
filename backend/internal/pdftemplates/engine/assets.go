@@ -432,6 +432,29 @@ func (r *renderer) logo() *loadedAsset {
 	return loaded
 }
 
+// dataImage loads an image value of the data, such as a signature. Each value is registered once per rendering; an
+// empty value, one that is too large or one that is neither PNG nor JPEG draws nothing.
+func (r *renderer) dataImage(value Image) *loadedAsset {
+	if len(value.Data) == 0 || len(value.Data) > MaxAssetBytes {
+		return nil
+	}
+	contentType := sniff(value.Data)
+	if contentType != ContentTypePNG && contentType != ContentTypeJPEG {
+		return nil
+	}
+	key := string(value.Data)
+	if loaded, ok := r.dataImages[key]; ok {
+		return loaded
+	}
+	loaded := &loadedAsset{}
+	r.registerImage(loaded, fmt.Sprintf("data-%d", len(r.dataImages)), value.Data, contentType)
+	if r.dataImages == nil {
+		r.dataImages = map[string]*loadedAsset{}
+	}
+	r.dataImages[key] = loaded
+	return loaded
+}
+
 // drawImage places a raster image into the box, keeping its aspect ratio, anchored top left.
 func (r *renderer) drawImage(img *loadedAsset, x, y, w, h float64) {
 	if img.width <= 0 || img.height <= 0 {

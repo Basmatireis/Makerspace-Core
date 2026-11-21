@@ -137,8 +137,9 @@ export function ApproveDialog({ project, onClose }: { project: WorkingGroupProje
     <>
       <Shell
         heading="Approve the project"
+        label={project.groupName}
         primary={needsWiRef ? 'Approve and send to the WiRef' : 'Approve'}
-        size="lg"
+        size="md"
         pending={approve.isPending}
         error={
           approve.isError ? taskErrorText(approve.error, 'It could not be approved. Check the fields.') : undefined

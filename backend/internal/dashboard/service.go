@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"math"
 	"sort"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
 )
@@ -70,12 +72,22 @@ type ComingUpItem struct {
 	openSupervisorPlaces int
 }
 
+// Membership is the person's membership role with the time it was assigned.
+type Membership struct {
+	Membership roles.Membership
+	Since      time.Time
+}
+
 type Statistics struct {
 	OpenDaysStaffed int
 	OpenDayHours    float64
 	EventShifts     int
 	EventShiftHours float64
-	MemberSince     time.Time
+	// LastStaffedAt is the start of the latest ended open-day timeslot or event shift; nil before the first.
+	LastStaffedAt *time.Time
+	MemberSince   time.Time
+	// Membership is nil when the person holds no membership role.
+	Membership *Membership
 	// Jobs is nil when the principal may not read machine jobs.
 	Jobs *machinelogbook.OwnJobStatistics
 }
@@ -297,17 +309,24 @@ func (s *Service) statistics(
 	principal authorization.Principal,
 	now, memberSince time.Time,
 ) (*Statistics, error) {
-	days, dayDuration, err := s.opendays.OwnStatistics(ctx, principal, now)
+	days, err := s.opendays.OwnStatistics(ctx, principal, now)
 	if err != nil {
 		return nil, err
 	}
-	shifts, shiftDuration, err := s.events.OwnShiftStatistics(ctx, principal, now)
+	shifts, err := s.events.OwnShiftStatistics(ctx, principal, now)
 	if err != nil {
 		return nil, err
 	}
 	result := &Statistics{
-		OpenDaysStaffed: days, OpenDayHours: hours(dayDuration),
-		EventShifts: shifts, EventShiftHours: hours(shiftDuration), MemberSince: memberSince,
+		OpenDaysStaffed: days.Staffed, OpenDayHours: hours(days.Duration),
+		EventShifts: shifts.Shifts, EventShiftHours: hours(shifts.Duration), MemberSince: memberSince,
+		LastStaffedAt: later(days.LastStartedAt, shifts.LastStartedAt),
+	}
+	membership, err := dashboarddb.New(s.pool).GetOwnMembership(ctx, principal.PersonID)
+	if err == nil {
+		result.Membership = &Membership{Membership: roles.Membership(membership.Membership), Since: membership.AssignedAt.UTC()}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
 	}
 	if principal.Has(authorization.MachineJobsRead) {
 		jobs, err := s.jobs.OwnStatistics(ctx, principal)
@@ -317,6 +336,14 @@ func (s *Service) statistics(
 		result.Jobs = &jobs
 	}
 	return result, nil
+}
+
+// later returns the later of two optional times.
+func later(a, b *time.Time) *time.Time {
+	if a == nil || (b != nil && b.After(*a)) {
+		return b
+	}
+	return a
 }
 
 // hours rounds a duration to tenths of an hour.

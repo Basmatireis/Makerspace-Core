@@ -4,25 +4,6 @@
 @use '@carbon/styles/scss/theme' as theme;
 
 // Application-specific layout for the working-group pages; every control is a Carbon component.
-.wg-description {
-  max-inline-size: 48rem;
-  margin: 0;
-}
-
-.wg-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: $spacing-05;
-  align-items: start;
-}
-
-// Carbon's lg breakpoint (1056 px): from here on the side column sits next to the main one, in a 2:1 split.
-@media (min-width: 66rem) {
-  .wg-layout {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  }
-}
-
 .wg-row {
   display: flex;
   flex-wrap: wrap;
@@ -285,7 +266,9 @@
   padding: $spacing-05 $spacing-05 $spacing-02;
   text-transform: uppercase;
   color: theme.$text-secondary;
-  background: theme.$background;
+  // A band of its own between the rows (layer-02) and the page, in light and dark theme alike.
+  background: theme.$layer-01;
+  border-block-end: 1px solid theme.$border-subtle-01;
   @include type-style('label-01');
   font-weight: 600;
 }
@@ -450,11 +433,12 @@
 .wg-track__bar i {
   flex: 1 1 0;
   block-size: 0.375rem;
-  background: theme.$layer-accent-01;
+  // Translucent so the steps still to come stay visible on every row background (zebra, hover, selected).
+  background: color-mix(in srgb, #{theme.$text-secondary} 35%, transparent);
 }
 
 .wg-track__bar i.is-past {
-  background: color-mix(in srgb, #{theme.$interactive} 45%, #{theme.$layer-accent-01});
+  background: color-mix(in srgb, #{theme.$interactive} 55%, transparent);
 }
 
 .wg-track__bar i.is-now {
@@ -649,114 +633,8 @@
   align-items: start;
 }
 
-// ---- Overview and dashboard pinboard ------------------------------------------------------------------------
-
-.wg-layout--stats {
-  margin-block-end: $spacing-05;
-}
-
-.wg-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
-  gap: $spacing-05;
-}
-
-.wg-stat.cds--tile {
-  display: grid;
-  align-content: start;
-  gap: $spacing-02;
-}
-
-.wg-stat__label {
-  @include type-style('heading-compact-01');
-}
-
-.wg-stat__value {
-  @include type-style('productive-heading-04');
-}
-
-.wg-stat__detail,
-.wg-muted {
-  display: block;
-  color: theme.$text-secondary;
-  @include type-style('helper-text-01');
-}
-
-.wg-stat__row {
-  display: flex;
-  justify-content: space-between;
-  gap: $spacing-03;
-  @include type-style('body-compact-01');
-}
-
-.wg-usage {
-  display: grid;
-  gap: $spacing-03;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-
-  li {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 6rem auto;
-    align-items: center;
-    gap: $spacing-03;
-  }
-}
-
-.wg-usage__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .wg-focus:focus {
   outline: none;
-}
-
-.wg-card {
-  display: grid;
-  gap: $spacing-03;
-  padding: $spacing-04;
-  background: theme.$background;
-  cursor: pointer;
-}
-
-.wg-card[draggable='true'] {
-  cursor: grab;
-}
-
-.wg-card:hover {
-  background: theme.$layer-hover-01;
-}
-
-.wg-card.is-sel {
-  background: theme.$layer-selected-01;
-}
-
-.wg-card__top {
-  display: flex;
-  align-items: center;
-  gap: $spacing-03;
-  color: theme.$text-secondary;
-}
-
-.wg-card__title {
-  font-weight: 600;
-}
-
-.wg-card__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: $spacing-03;
-}
-
-.wg-card__who {
-  display: flex;
-  align-items: center;
-  gap: $spacing-03;
-  @include type-style('helper-text-01');
 }
 
 // Detail panel.
@@ -818,107 +696,12 @@
   align-items: start;
 }
 
-// ---- Overview and dashboard pinboard ------------------------------------------------------------------------
+// ---- Group overview and dashboard pinboard -------------------------------------------------------------------
 
-.wg-layout--stats {
-  margin-block-end: $spacing-05;
-}
-
-.wg-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
-  gap: $spacing-05;
-}
-
-.wg-stat.cds--tile {
-  display: grid;
-  align-content: start;
-  gap: $spacing-02;
-}
-
-.wg-stat__label {
-  @include type-style('heading-compact-01');
-}
-
-.wg-stat__value {
-  @include type-style('productive-heading-04');
-}
-
-.wg-stat__detail,
 .wg-muted {
   display: block;
   color: theme.$text-secondary;
   @include type-style('helper-text-01');
-}
-
-.wg-stat__row {
-  display: flex;
-  justify-content: space-between;
-  gap: $spacing-03;
-  @include type-style('body-compact-01');
-}
-
-.wg-usage {
-  display: grid;
-  gap: $spacing-03;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-
-  li {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 6rem auto;
-    align-items: center;
-    gap: $spacing-03;
-  }
-}
-
-.wg-usage__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wg-bar {
-  display: block;
-  block-size: 0.5rem;
-  background: theme.$layer-accent;
-
-  > span {
-    display: block;
-    block-size: 100%;
-    background: theme.$support-error;
-  }
-}
-
-.wg-card {
-  display: grid;
-  gap: $spacing-03;
-  min-inline-size: 0;
-}
-
-.wg-card__header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: $spacing-03;
-}
-
-.wg-card__title {
-  margin: 0;
-  @include type-style('productive-heading-03');
-}
-
-.wg-card__sub {
-  flex-basis: 100%;
-  margin: 0;
-  color: theme.$text-secondary;
-  @include type-style('body-compact-01');
-}
-
-.wg-message {
-  display: block;
 }
 
 .wg-actions {
@@ -926,99 +709,8 @@
   justify-content: flex-end;
 }
 
-.wg-rowcomments {
-  display: grid;
-  gap: $spacing-03;
-  margin: $spacing-03 0 0;
-  padding: 0;
-  list-style: none;
-  @include type-style('body-compact-01');
-}
-
-.wg-rowcomment {
-  display: flex;
-  align-items: flex-start;
-  gap: $spacing-03;
-  min-inline-size: 0;
-}
-
-.wg-rowcomment__text {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: $spacing-03;
-  min-inline-size: 0;
-}
-
-.wg-rowcomment__line {
-  flex: 1 1 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wg-side {
-  min-inline-size: 0;
-}
-
-.wg-todos,
-.wg-items {
-  display: grid;
-  gap: $spacing-04;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.wg-todo {
-  display: flex;
-  gap: $spacing-04;
-  align-items: flex-start;
-}
-
-.wg-date {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  align-content: center;
-  inline-size: 3rem;
-  padding-block: $spacing-02;
-  border: 1px solid theme.$border-subtle;
-  @include type-style('label-01');
-}
-
-.wg-date__day {
-  @include type-style('productive-heading-03');
-}
-
-.wg-date--error {
-  border-color: theme.$support-error;
-  color: theme.$support-error;
-}
-
-.wg-date--warning {
-  border-color: theme.$support-warning;
-}
-
 .wg-hint--error {
   color: theme.$support-error;
-}
-
-.wg-item {
-  display: grid;
-  gap: $spacing-02;
-  justify-items: start;
-}
-
-.wg-item__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: $spacing-03;
-}
-
-.wg-item__name {
-  @include type-style('heading-compact-01');
 }
 
 .wg-facts {
@@ -1169,14 +861,38 @@
 
 .wg-buyrow {
   display: grid;
-  grid-template-columns: minmax(8rem, 2fr) minmax(8rem, 2fr) 5rem 6rem auto auto;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) 4.5rem 5.5rem auto auto;
   gap: $spacing-03;
   align-items: end;
+  min-inline-size: 0;
+
+  > * {
+    min-inline-size: 0;
+  }
 }
 
-@media (max-width: 65.98rem) {
+// Wide: one row of column headers above the first item; narrow: every item is a small card with its own labels.
+@media (min-width: 42rem) {
+  .wg-buyrow:not(.wg-buyrow--first) .cds--label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 41.98rem) {
   .wg-buyrow {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-block-start: $spacing-04;
+    border-block-start: 1px solid theme.$border-subtle-01;
+  }
+
+  .wg-buyrow--first {
+    padding-block-start: 0;
+    border-block-start: 0;
   }
 }
 
@@ -1269,8 +985,33 @@
 // Projects.
 .wg-prow--group.wg-subrow {
   min-block-size: 3rem;
-  padding-inline-start: 2.5rem;
   background: theme.$layer-01;
+}
+
+.wg-subrow .wg-pamount strong,
+.wg-subrow .wg-lwhat__title {
+  font-weight: 400;
+}
+
+.wg-subrow .wg-lfrom {
+  color: theme.$text-secondary;
+}
+
+// A row that belongs to the row above: indented behind a "└" connector.
+.wg-tree {
+  position: relative;
+  padding-inline-start: $spacing-06;
+}
+
+.wg-tree::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: $spacing-02;
+  inline-size: $spacing-03;
+  block-size: 0.75rem;
+  border-inline-start: 1px solid theme.$border-strong-01;
+  border-block-end: 1px solid theme.$border-strong-01;
 }
 
 .wg-sublist {
@@ -1298,6 +1039,22 @@
   align-items: center;
 }
 
+.wg-plist__main {
+  display: grid;
+  gap: $spacing-01;
+  min-inline-size: 0;
+
+  small {
+    color: theme.$text-secondary;
+    @include type-style('helper-text-01');
+  }
+}
+
+.wg-plist__amount {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
 .wg-reason {
   margin: 0 0 $spacing-04;
   padding: $spacing-03 $spacing-04;
@@ -1309,41 +1066,56 @@
   margin: $spacing-02 0;
 }
 
-.wg-pj-top {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: $spacing-05;
-  margin-block: $spacing-04 $spacing-05;
-}
-
-.wg-pj-body {
+.wg-pj-grid {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
   gap: $spacing-05;
   align-items: start;
+  margin-block-start: $spacing-04;
 }
 
+// The project header and "What happens next" share the first row and its height, so the tiles below start level.
+.wg-pj-grid > .wg-tile {
+  align-self: stretch;
+}
+
+.wg-pj-main,
 .wg-pj-side {
   display: grid;
   gap: $spacing-05;
+  min-inline-size: 0;
 }
 
 @media (max-width: 65.98rem) {
-  .wg-pj-top,
-  .wg-pj-body {
+  .wg-pj-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-.wg-card {
+// A page tile: a plain block with the same padding and spacing everywhere (not the board card with its hover).
+.wg-tile {
+  min-inline-size: 0;
   padding: $spacing-05;
   background: theme.$layer-02;
   border: 1px solid theme.$border-subtle-01;
 }
 
-.wg-card h3 {
+.wg-tile > h3 {
   @include type-style('heading-02');
-  margin-block-end: $spacing-03;
+  margin: 0 0 $spacing-04;
+}
+
+.wg-tile > p {
+  margin: 0 0 $spacing-03;
+}
+
+.wg-tile > :last-child {
+  margin-block-end: 0;
+}
+
+.wg-tile .wg-panel-actions {
+  margin-block: $spacing-04 0;
+  justify-content: flex-end;
 }
 
 .wg-phead__row,
@@ -1356,9 +1128,18 @@
   justify-content: space-between;
 }
 
+.wg-pj-cardhead {
+  margin-block-end: $spacing-04;
+}
+
+.wg-pj-cardhead h3 {
+  @include type-style('heading-02');
+  margin: 0;
+}
+
 .wg-hsteps {
   display: flex;
-  margin: $spacing-05 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -1368,7 +1149,9 @@
   flex: 1;
   display: grid;
   justify-items: center;
-  gap: $spacing-02;
+  align-content: start;
+  gap: $spacing-01;
+  text-align: center;
   @include type-style('label-01');
   color: theme.$text-secondary;
 }
@@ -1376,8 +1159,9 @@
 .wg-hsteps li::before {
   content: '';
   position: absolute;
-  inset-block-start: 0.4rem;
-  inset-inline: -50% 50%;
+  inset-block-start: 0.4375rem;
+  // The line runs between the dots and stops short of them, so it never shows through a dot or its check mark.
+  inset-inline: calc(-50% + 0.75rem) calc(50% + 0.75rem);
   block-size: 2px;
   background: theme.$border-subtle-01;
 }
@@ -1391,18 +1175,23 @@
   background: theme.$support-success;
 }
 
+// The dot sits above the connecting line; a finished step shows Carbon's own check-mark outline.
 .wg-hsteps__dot {
   position: relative;
-  inline-size: 0.875rem;
-  block-size: 0.875rem;
+  display: grid;
+  place-items: center;
+  inline-size: 1rem;
+  block-size: 1rem;
   border-radius: 50%;
   border: 2px solid theme.$border-strong-01;
-  background: theme.$layer-02;
 }
 
 .wg-hsteps li.is-past .wg-hsteps__dot {
-  background: theme.$support-success;
-  border-color: theme.$support-success;
+  border: 0;
+
+  svg {
+    fill: theme.$support-success;
+  }
 }
 
 .wg-hsteps li.is-now {
@@ -1411,11 +1200,15 @@
 
 .wg-hsteps li.is-now .wg-hsteps__dot {
   border-color: theme.$support-success;
-  background: theme.$layer-02;
 }
 
 .wg-hsteps li.is-declined .wg-hsteps__dot {
   border-color: theme.$support-error;
+}
+
+.wg-hsteps small {
+  @include type-style('helper-text-01');
+  color: theme.$text-secondary;
 }
 
 .wg-todo-list {
@@ -1445,7 +1238,7 @@
   inline-size: 100%;
   min-inline-size: 0;
   overflow: hidden;
-  block-size: 0.75rem;
+  block-size: 1rem;
   margin-block: $spacing-04 $spacing-03;
   background: theme.$layer-accent-01;
 }
@@ -1456,6 +1249,30 @@
 
 .wg-pbar__seg.is-requested {
   background: theme.$support-info;
+}
+
+.wg-pbar__seg.is-left {
+  background: theme.$layer-accent-01;
+}
+
+.wg-dot {
+  display: inline-block;
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  margin-inline-end: $spacing-02;
+  border-radius: 50%;
+  background: theme.$layer-accent-01;
+  border: 1px solid theme.$border-strong-01;
+}
+
+.wg-dot.is-spent {
+  background: theme.$support-success;
+  border-color: theme.$support-success;
+}
+
+.wg-dot.is-requested {
+  background: theme.$support-info;
+  border-color: theme.$support-info;
 }
 
 .wg-pbar__legend {
@@ -1635,26 +1452,6 @@
   padding-block: $spacing-02;
 }
 
-// Lately feed
-.wg-lately {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-
-  li {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: $spacing-04;
-    padding-block: $spacing-03;
-    border-block-end: 1px solid var(--cds-border-subtle);
-  }
-
-  svg {
-    color: var(--cds-icon-secondary);
-  }
-}
-
 // Management overview
 .wg-gcards {
   display: grid;
@@ -1683,10 +1480,6 @@
   min-inline-size: 0;
 }
 
-.wg-card__header {
-  min-inline-size: 0;
-}
-
 // The status tiles of the management overview: "Waiting for you" wide, the four kinds equal beside it.
 .wg-mgsummary {
   display: grid;
@@ -1703,8 +1496,894 @@
   }
 }
 
-.wg-main {
+// ---------------------------------------------------------------------------------------------------------------
+// Dialog layout: related short fields side by side, stacked on a narrow screen
+// ---------------------------------------------------------------------------------------------------------------
+
+.wg-grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-05;
+
+  > * {
+    min-inline-size: 0;
+  }
+
+  .cds--date-picker,
+  .cds--date-picker-container,
+  .cds--date-picker--single .cds--date-picker__input,
+  .cds--date-picker-input__wrapper > span {
+    inline-size: 100%;
+  }
+}
+
+@media (max-width: 41.98rem) {
+  .wg-grid2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.wg-helper {
+  margin: 0;
+  @include type-style('helper-text-01');
+  color: theme.$text-secondary;
+}
+
+.wg-toolbar__note {
+  @include type-style('helper-text-01');
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Project page
+// ---------------------------------------------------------------------------------------------------------------
+
+.wg-label {
+  margin: 0 0 $spacing-02;
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+
+.wg-phead {
+  display: grid;
+  gap: $spacing-05;
+  align-items: center;
+}
+
+@media (min-width: 56rem) {
+  .wg-phead {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+    gap: $spacing-07;
+  }
+}
+
+.wg-phead__id {
+  min-inline-size: 0;
+
+  p {
+    margin: 0;
+  }
+}
+
+.wg-phead__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+  margin-block-end: $spacing-02;
+
+  h2 {
+    @include type-style('heading-04');
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .cds--tag {
+    flex: none;
+    margin: 0;
+    max-inline-size: none;
+  }
+}
+
+.wg-pbar__legend {
+  align-items: center;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: $spacing-02;
+  }
+}
+
+.wg-cplan__row--sub {
+  position: relative;
+  background: transparent;
+  padding-inline-start: $spacing-08;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: $spacing-06;
+    inline-size: $spacing-04;
+    block-size: 50%;
+    border-inline-start: 1px solid theme.$border-strong-01;
+    border-block-end: 1px solid theme.$border-strong-01;
+  }
+}
+
+.wg-cplan__row--sub .wg-track {
+  min-inline-size: 0;
+}
+
+.wg-cplan__row--total {
+  border-block-end: 0;
+}
+
+.wg-cplan__detail {
+  padding: $spacing-03 $spacing-04;
+  background: theme.$layer-01;
+  border-block-end: 1px solid theme.$border-subtle-01;
+}
+
+.wg-next__actions {
+  display: grid;
+  gap: $spacing-02;
+  margin-block-start: $spacing-04;
+
+  .cds--btn {
+    inline-size: 100%;
+    max-inline-size: none;
+  }
+
+  .cds--btn--ghost,
+  .cds--btn--danger--ghost {
+    justify-content: space-between;
+  }
+}
+
+.wg-docs {
+  margin-block-end: $spacing-03;
+}
+
+.wg-about {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-05 $spacing-05;
+  margin: 0;
+
+  > div {
+    min-inline-size: 0;
+  }
+
+  dt {
+    @include type-style('label-01');
+    color: theme.$text-secondary;
+    margin-block-end: $spacing-02;
+  }
+
+  dd {
+    margin: 0;
+    @include type-style('body-compact-01');
+  }
+
+  dd small {
+    display: block;
+    margin-block-start: $spacing-02;
+    @include type-style('helper-text-01');
+    color: theme.$text-secondary;
+  }
+}
+
+.wg-about__full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 41.98rem) {
+  .wg-hsteps small {
+    display: none;
+  }
+
+  .wg-hsteps li {
+    min-inline-size: 0;
+    padding-inline: $spacing-01;
+    font-size: 0.6875rem;
+    overflow-wrap: anywhere;
+  }
+
+  .wg-cplan__row--head {
+    display: none;
+  }
+}
+
+// Above a list with a panel: the two small tiles together are exactly as wide as the panel column below them.
+@media (min-width: 66rem) {
+  .wg-summary--panel {
+    grid-template-columns: minmax(0, 1fr) 12rem 12rem;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Group overview: stat tiles beside the machines tile, then the pinboard beside separate side tiles (2:1 from
+// Carbon's lg breakpoint; below it the side tiles come first, as in the prototype).
+// ---------------------------------------------------------------------------------------------------------------
+
+// Two page columns from Carbon's lg breakpoint: the stat tiles with the pinboard right under them on the left, the
+// machines tile and the side tiles on the right, each column as tall as its own content. On narrower screens the
+// side column dissolves so the order is stat tiles, machines, pinboard, side tiles.
+.wg-ov {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  align-items: start;
+}
+
+.wg-ov-main,
+.wg-ov-side-col {
   display: grid;
   gap: $spacing-05;
   min-inline-size: 0;
+}
+
+@media (min-width: 66rem) {
+  .wg-ov {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+
+  .wg-ov-stats,
+  .wg-ov-main {
+    grid-column: 1;
+  }
+
+  .wg-ov-side-col {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+@media (max-width: 65.98rem) {
+  .wg-ov-side-col {
+    display: contents;
+  }
+
+  .wg-ov-stats {
+    order: 1;
+  }
+
+  .wg-ov-machines {
+    order: 2;
+  }
+
+  .wg-ov-main {
+    order: 3;
+  }
+
+  .wg-ov-side-col > .wg-ov-side {
+    order: 4;
+  }
+}
+
+.wg-ov-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: $spacing-05;
+  min-inline-size: 0;
+}
+
+@media (max-width: 41.98rem) {
+  .wg-ov-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: $spacing-03;
+  }
+}
+
+.wg-ov-stat.cds--tile {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  align-content: start;
+  gap: $spacing-02;
+  min-block-size: 0;
+  min-inline-size: 0;
+  padding: $spacing-05;
+}
+
+.wg-ov-stat > svg {
+  fill: theme.$icon-secondary;
+}
+
+.wg-ov-stat__value {
+  @include type-style('heading-04');
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.wg-ov-stat__label {
+  @include type-style('heading-compact-01');
+}
+
+.wg-ov-stat__more {
+  display: grid;
+  align-content: end;
+  gap: $spacing-02;
+  margin-block-start: $spacing-03;
+  padding-block-start: $spacing-03;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+
+.wg-ov-stat__more:empty {
+  display: none;
+}
+
+.wg-ov-stat__foot {
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+
+.wg-kv {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-03;
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+
+  span {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    flex: none;
+    font-weight: 600;
+    color: theme.$text-primary;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.wg-ov-money {
+  display: block;
+  block-size: 0.375rem;
+  margin-block-end: $spacing-02;
+  background: theme.$layer-accent-01;
+
+  i {
+    display: block;
+    block-size: 100%;
+    background: theme.$interactive;
+  }
+}
+
+// The machines tile: name (a button that changes the status), the usable share of the 90 days, days off, tickets.
+.wg-ov-machines.cds--tile {
+  grid-template-rows: auto auto 1fr auto;
+}
+
+.wg-rank {
+  display: grid;
+  align-content: center;
+  margin: $spacing-02 0;
+  padding: 0;
+  list-style: none;
+}
+
+// One row per machine or place, faintly striped so each reads as one line; the stripe runs to the tile edge while
+// the text keeps the tile's start edge.
+.wg-rank__row {
+  display: grid;
+  margin-inline: (-$spacing-03);
+  padding-inline: $spacing-03;
+  grid-template-columns: minmax(0, 1fr) 3rem 4.75rem 4.5rem;
+  align-items: stretch;
+  column-gap: $spacing-03;
+  @include type-style('body-compact-01');
+}
+
+.wg-rank__row:nth-child(odd) {
+  background: color-mix(in srgb, #{theme.$layer-accent-01} 45%, transparent);
+}
+
+.wg-ov-machines--plain .wg-rank__row {
+  grid-template-columns: minmax(0, 1fr) 3rem 4.75rem;
+}
+
+.wg-rank__name,
+.wg-rank__v,
+.wg-rank__j {
+  padding-block: $spacing-02;
+}
+
+.wg-rank__name {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  justify-items: start;
+  min-inline-size: 0;
+
+  > span {
+    max-inline-size: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // The status line wraps to two lines at most; the full text is the tooltip.
+  small {
+    display: -webkit-box;
+    overflow: hidden;
+    color: theme.$text-secondary;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    @include type-style('helper-text-01');
+  }
+}
+
+.wg-rank__row--out_of_order .wg-rank__name small {
+  color: theme.$text-error;
+}
+
+.wg-rank__name .wg-rank__btn.cds--btn {
+  display: block;
+  max-inline-size: 100%;
+  min-block-size: 0;
+  block-size: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  color: theme.$text-primary;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  @include type-style('body-compact-01');
+}
+
+.wg-rank__name .wg-rank__btn.cds--btn:hover {
+  background: transparent;
+  color: theme.$link-primary-hover;
+  text-decoration: underline;
+}
+
+// The usable share in green, the days off at the end in the colour of the current status (warning once it is ok).
+.wg-rank__bar {
+  position: relative;
+  align-self: center;
+  display: block;
+  block-size: 0.375rem;
+  background: theme.$support-success;
+
+  i {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    background: theme.$support-warning;
+  }
+}
+
+.wg-rank__row--out_of_order .wg-rank__bar i {
+  background: theme.$support-error;
+}
+
+.wg-rank__row--maintenance .wg-rank__bar i {
+  background: theme.$support-info;
+}
+
+.wg-rank__bar--unknown {
+  background: theme.$layer-accent-01;
+}
+
+// Days off: a fixed column with one start edge.
+.wg-rank__v {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wg-rank__j {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  color: theme.$text-helper;
+  white-space: nowrap;
+  @include type-style('label-01');
+}
+
+// The pinboard card: heading with a count line, then the directory table.
+.wg-ov-board {
+  display: grid;
+  min-inline-size: 0;
+  background: theme.$layer-01;
+}
+
+.wg-ov-board__head {
+  padding: $spacing-05 $spacing-05 $spacing-06;
+}
+
+.wg-ov-board__title {
+  margin: 0;
+  @include type-style('heading-03');
+}
+
+.wg-ov-board__head .wg-muted {
+  margin-block-start: $spacing-01;
+  @include type-style('body-compact-01');
+}
+
+.wg-pinboard .cds--data-table td {
+  block-size: auto;
+  padding-block: $spacing-04;
+  vertical-align: top;
+}
+
+.wg-pinboard .cds--data-table td.wg-pin__kind,
+.wg-pinboard .cds--data-table td.wg-pin__when {
+  inline-size: 1%;
+  white-space: nowrap;
+}
+
+.wg-pinboard tr:has(.wg-pin--ticket) td,
+.wg-pinboard tr:has(.wg-pin--todo) td {
+  background: color-mix(in srgb, #{theme.$interactive} 7%, #{theme.$layer-01});
+}
+
+.wg-pinboard tr:has(.wg-pin--ticket) td:first-child,
+.wg-pinboard tr:has(.wg-pin--todo) td:first-child {
+  box-shadow: inset 4px 0 0 theme.$border-interactive;
+}
+
+.wg-pinboard tr:has(.wg-pin--overdue) td:first-child {
+  box-shadow: inset 4px 0 0 theme.$support-error;
+}
+
+.wg-msg {
+  display: grid;
+  gap: $spacing-01;
+  max-inline-size: 60ch;
+
+  strong {
+    font-weight: 600;
+  }
+}
+
+.wg-msg__line {
+  color: theme.$text-secondary;
+}
+
+.wg-from {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  min-inline-size: 0;
+}
+
+.wg-from__t {
+  display: grid;
+  min-inline-size: 0;
+
+  > span {
+    white-space: nowrap;
+  }
+
+  small {
+    color: theme.$text-secondary;
+    white-space: nowrap;
+    @include type-style('helper-text-01');
+  }
+}
+
+// The last comments under a pinboard or dashboard row: "N earlier comments", then one compact line each.
+.wg-rowcomments {
+  display: grid;
+  gap: $spacing-02;
+  margin: $spacing-03 0 0;
+  padding: 0;
+  list-style: none;
+  @include type-style('label-01');
+}
+
+.wg-rowcomment {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: $spacing-03;
+}
+
+.wg-rowcomment .wg-av {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  font-size: 0.5625rem;
+}
+
+.wg-rowcomment__line {
+  padding-block-start: 0.125rem;
+  color: theme.$text-secondary;
+
+  strong {
+    font-weight: 600;
+    color: theme.$text-primary;
+  }
+}
+
+.wg-rowcomment__time {
+  padding-block-start: 0.125rem;
+  color: theme.$text-secondary;
+  white-space: nowrap;
+}
+
+// On a phone the message column is narrow: the time moves under the comment.
+@media (max-width: 41.98rem) {
+  .wg-rowcomment {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .wg-rowcomment__time {
+    grid-column: 2;
+    padding-block-start: 0;
+  }
+}
+
+// Side tiles: Next to-dos, People, Lately.
+.wg-ov-side.cds--tile {
+  display: grid;
+  align-content: start;
+  gap: $spacing-03;
+  min-inline-size: 0;
+  padding: $spacing-05;
+}
+
+.wg-ov-side__title {
+  display: flex;
+  align-items: baseline;
+  gap: $spacing-03;
+  margin: 0;
+  @include type-style('heading-compact-02');
+
+  .wg-muted {
+    display: inline;
+    @include type-style('body-compact-01');
+  }
+}
+
+.wg-ov-rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-ov-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+  padding-block: $spacing-03;
+}
+
+.wg-ov-row__main {
+  display: grid;
+  flex: 1 1 auto;
+  gap: $spacing-01;
+  min-inline-size: 0;
+
+  small {
+    color: theme.$text-secondary;
+    @include type-style('helper-text-01');
+  }
+}
+
+.wg-ov-row--chat {
+  margin-block-start: $spacing-02;
+  padding-block-start: $spacing-04;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+
+.wg-when {
+  display: grid;
+  flex: none;
+  text-align: end;
+  white-space: nowrap;
+  @include type-style('body-compact-01');
+
+  small {
+    color: theme.$text-secondary;
+    @include type-style('label-01');
+  }
+}
+
+.wg-when--today,
+.wg-when--soon {
+  padding: $spacing-02 $spacing-03;
+}
+
+.wg-when--today {
+  background: color-mix(in srgb, #{theme.$support-error} 16%, #{theme.$layer-01});
+  box-shadow: inset -3px 0 0 theme.$support-error;
+}
+
+.wg-when--soon {
+  background: color-mix(in srgb, #{theme.$support-warning} 16%, #{theme.$layer-01});
+  box-shadow: inset -3px 0 0 theme.$support-warning;
+}
+
+.wg-lately {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: $spacing-03;
+    padding-block: $spacing-03;
+    @include type-style('body-compact-01');
+  }
+
+  li > svg {
+    margin: 0.375rem;
+    fill: theme.$icon-secondary;
+  }
+
+  time {
+    white-space: nowrap;
+  }
+}
+
+.wg-ov-row__main > .cds--link {
+  color: theme.$text-primary;
+}
+
+.wg-ov-row__main > .cds--link:hover {
+  color: theme.$link-primary-hover;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Project and purchase panels: label, title, dotted meta line, tags; one note line, one action row, then a
+// label-over-value facts grid and sub-sections with a count.
+// ---------------------------------------------------------------------------------------------------------------
+
+.wg-panel.detail-panel {
+  gap: $spacing-05;
+}
+
+.wg-ph {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.wg-ph__lines {
+  display: grid;
+  gap: $spacing-02;
+  min-inline-size: 0;
+
+  > * {
+    margin: 0;
+  }
+}
+
+.wg-ph__label {
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+
+.wg-ph__title {
+  @include type-style('heading-03');
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.wg-ph__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: $spacing-03;
+  @include type-style('body-compact-01');
+}
+
+.wg-ph__dot {
+  color: theme.$text-secondary;
+}
+
+.wg-ph__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+  margin-block-start: $spacing-02;
+
+  .cds--tag {
+    margin: 0;
+  }
+}
+
+.wg-ph__actions {
+  display: flex;
+  flex: none;
+  gap: $spacing-02;
+  margin: (-$spacing-03) (-$spacing-03) 0 0;
+}
+
+.wg-panel__note {
+  margin: 0;
+  color: theme.$text-secondary;
+  white-space: pre-wrap;
+  @include type-style('body-compact-01');
+}
+
+.wg-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+.wg-panel .facts-grid {
+  gap: $spacing-05 $spacing-05;
+}
+
+.wg-panel .facts-grid .wg-track {
+  margin-block-start: $spacing-02;
+}
+
+.wg-psec {
+  display: grid;
+  gap: $spacing-03;
+}
+
+.wg-psec__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $spacing-03;
+  margin: 0;
+  @include type-style('heading-compact-01');
+
+  span {
+    color: theme.$text-secondary;
+    font-weight: 400;
+  }
+}
+
+// Compact detail row under a cost plan row: one meta line, then the facts and the actions on one band.
+.wg-inline {
+  display: grid;
+  gap: $spacing-03;
+  min-inline-size: 0;
+}
+
+.wg-inline__meta {
+  margin: 0;
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+
+.wg-inline__band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: $spacing-03 $spacing-06;
+}
+
+.wg-inline .facts-grid {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: $spacing-03 $spacing-06;
+}
+
+.wg-inline .facts-grid__fact {
+  min-inline-size: 4.5rem;
+}
+
+.wg-inline__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: $spacing-02;
+  margin-inline-start: auto;
 }

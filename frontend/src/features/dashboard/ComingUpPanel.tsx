@@ -2,21 +2,16 @@ import {
   Button,
   ContainedList,
   ContainedListItem,
-  InlineNotification,
   Link as CarbonLink,
-  Modal,
   OverflowMenu,
   OverflowMenuItem,
 } from '@carbon/react';
 import { Calendar, Events } from '@carbon/icons-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ComingUpItem } from '../../api/generated/models';
-import { leaveOpenDay } from '../../api/generated/open-days/open-days';
-import { when } from './format';
-import { dashboardKeys } from './queries';
-
+import { leavable, when } from './format';
+import { LeaveOpenDayModal } from './LeaveOpenDay';
 type Props = {
   items: ComingUpItem[];
   now: number;
@@ -26,15 +21,7 @@ type Props = {
 
 /** Open-day duties and event shifts in one chronological list; the icon tells them apart. */
 export function ComingUpPanel({ items, now, canLeave, canFindOpenDays }: Props) {
-  const client = useQueryClient();
   const [leaving, setLeaving] = useState<ComingUpItem | null>(null);
-  const leave = useMutation({
-    mutationFn: (item: ComingUpItem) => leaveOpenDay(item.openDayId!, { timeslotId: item.timeslotId! }),
-    onSuccess: async () => {
-      setLeaving(null);
-      await client.invalidateQueries({ queryKey: dashboardKeys.personal() });
-    },
-  });
 
   return (
     <>
@@ -59,7 +46,7 @@ export function ComingUpPanel({ items, now, canLeave, canFindOpenDays }: Props) 
           items.map((item) => {
             const range = when(item.startsAt, item.endsAt, now);
             const openDay = item.kind === 'open_day';
-            const canLeaveThis = openDay && canLeave && item.openDayId !== undefined;
+            const canLeaveThis = leavable(item, canLeave);
             return (
               <ContainedListItem
                 key={`${item.kind}-${item.id}`}
@@ -92,38 +79,7 @@ export function ComingUpPanel({ items, now, canLeave, canFindOpenDays }: Props) 
           })
         )}
       </ContainedList>
-      <Modal
-        open={leaving !== null}
-        danger
-        size="xs"
-        modalHeading="Leave this open day?"
-        primaryButtonText={leave.isPending ? 'Leaving…' : 'Leave open day'}
-        secondaryButtonText="Stay signed up"
-        primaryButtonDisabled={leave.isPending}
-        onRequestClose={() => {
-          leave.reset();
-          setLeaving(null);
-        }}
-        onRequestSubmit={() => {
-          if (leaving?.openDayId && leaving.timeslotId) leave.mutate(leaving);
-        }}
-      >
-        {leaving && (
-          <p>
-            {leaving.title}: {when(leaving.startsAt, leaving.endsAt, now)}. The Leitung sees the open place on the
-            staffing page.
-          </p>
-        )}
-        {leave.isError && (
-          <InlineNotification
-            kind="error"
-            lowContrast
-            hideCloseButton
-            title="Could not leave the open day"
-            subtitle="Try again in a moment."
-          />
-        )}
-      </Modal>
+      <LeaveOpenDayModal item={leaving} now={now} onClose={() => setLeaving(null)} />
     </>
   );
 }

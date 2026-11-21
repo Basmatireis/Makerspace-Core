@@ -226,6 +226,10 @@ func (c *checker) block(b *Block, sc *scope, flow bool, region string) {
 		c.condition(id, b.When, sc)
 	case BlockInputLine:
 		c.expr(id, b.Label, sc, inBody)
+	case BlockImage:
+		if b.Source != "" {
+			c.imageSource(id, b.Source, sc)
+		}
 	case BlockPicture:
 		if _, err := uuid.Parse(b.Asset); err != nil {
 			c.out.error(id, "The picture names no uploaded image")
@@ -248,6 +252,18 @@ func (c *checker) block(b *Block, sc *scope, flow bool, region string) {
 }
 
 func (c *checker) blockID(b *Block) string { return b.ID }
+
+// imageSource checks that the source of an image block is an image variable of the data; the logo is placed
+// without a source.
+func (c *checker) imageSource(id, source string, sc *scope) {
+	_, canonical := c.ev.value(id, source, sc)
+	if canonical == "" {
+		return
+	}
+	if field, _ := c.ev.schema.lookup(canonical); field.typ != FieldImage || canonical == "makerspace.logo" {
+		c.out.error(id, fmt.Sprintf("“%s” is not an image of the data", truncateRunes(source, 60)))
+	}
+}
 
 func (c *checker) sheet(b *Block, sc *scope, flow bool) {
 	id := b.ID

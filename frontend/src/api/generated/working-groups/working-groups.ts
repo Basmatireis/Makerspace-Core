@@ -1699,7 +1699,7 @@ export const getSendWorkingGroupProjectToWiRefUrl = (projectId: UUIDv7,) => {
 }
 
 /**
- * Requires `working_groups.read` and `working_group_finances.manage`; only while `wirefRequestPending` (409 otherwise). Mails the request stored with the project. A project without a stored signature (`signatureMissing`) needs one in the body, or `useSavedSignature` with the caller's saved one (422 `signature_required` otherwise). Delivery is at least once: a crash between the mail and its record can send it again.
+ * Requires `working_groups.read` and `working_group_finances.manage`; only while `wirefRequestPending` (409 otherwise). Mails the request stored with the project as one PDF rendered with the effective Projektantrag template (form, advance request when asked for, cost plan with offers, planned purchases), with the offer and purchase files. A project without a stored signature (`signatureMissing`) needs one in the body, or `useSavedSignature` with the caller's saved one (422 `signature_required` otherwise). Delivery is at least once: a crash between the mail and its record can send it again.
  * @summary Send the Projektantrag
  */
 export const sendWorkingGroupProjectToWiRef = async (projectId: UUIDv7,
@@ -1774,7 +1774,7 @@ export const getPreviewWorkingGroupProjectRequestUrl = (projectId: UUIDv7,) => {
 }
 
 /**
- * Requires `working_groups.read` and `working_group_finances.manage`. Renders the PDF with the defaults of the rules and the project, overridden by the given fields; nothing is stored or sent.
+ * Requires `working_groups.read` and `working_group_finances.manage`. Renders the PDF with the effective Projektantrag template (published, else built-in; docs/pdf-templates.md) from the defaults of the rules and the project, overridden by the given fields; nothing is stored or sent.
  * @summary Preview the Projektantrag
  */
 export const previewWorkingGroupProjectRequest = async (projectId: UUIDv7,

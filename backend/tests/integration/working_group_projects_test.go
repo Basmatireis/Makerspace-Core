@@ -424,16 +424,20 @@ func TestWorkingGroupProjectNeedingTheWiRefSendsOneMailAndRecordsTheDecision(t *
 	if mail.subject != "Projektantrag: Big plan" {
 		t.Fatalf("subject = %q", mail.subject)
 	}
+	// One PDF from the Projektantrag template (form, advance request, cost plan, planned purchases) and the files.
 	names := strings.Join(mail.names(), "|")
-	for _, want := range []string{"Projektantrag.pdf", "Vorschussantrag.pdf", "Cost plan.pdf", "Purchases.pdf", "offer-b.pdf"} {
-		if !strings.Contains(names, want) {
-			t.Fatalf("attachments %q lack %s", names, want)
-		}
+	if names != "Projektantrag.pdf|Offer B - offer-b.pdf" {
+		t.Fatalf("attachments %q", names)
 	}
-	for _, name := range []string{"Projektantrag.pdf", "Vorschussantrag.pdf", "Cost plan.pdf", "Purchases.pdf"} {
-		if !bytes.HasPrefix(mail.attachment(name), []byte("%PDF")) {
-			t.Fatalf("%s is not a PDF", name)
-		}
+	sent := mail.attachment("Projektantrag.pdf")
+	if !bytes.HasPrefix(sent, []byte("%PDF")) {
+		t.Fatal("the Projektantrag is not a PDF")
+	}
+	pages := pdfPageTexts(t, sent)
+	if len(pages) != 4 || !strings.Contains(pages[0], "Projektantrag") || !strings.Contains(pages[1], "Vorschussantrag") ||
+		!strings.Contains(pages[1], "900,00") || !strings.Contains(pages[2], "Kostenplan:Bigplan") || !strings.Contains(pages[2], "850,00") ||
+		!strings.Contains(pages[3], "KeinegeplantenEinkäufe") {
+		t.Fatalf("projektantrag pages %q", pages)
 	}
 	file, reader, err := f.service.OpenProjectRequestPDF(ctx, f.finance, p.ID)
 	if err != nil || !strings.HasPrefix(readAll(t, reader), "%PDF") || file.Size == 0 {
@@ -536,7 +540,8 @@ func TestWorkingGroupPurchaseConvertsToAProject(t *testing.T) {
 		len(p.Items[0].Purchases) != 1 || p.Items[0].Purchases[0].Status != workinggroups.PurchasePlanned || p.Title != "Laser tube" {
 		t.Fatalf("convert: %+v %v", p, err)
 	}
-	if got := f.getPurchase(t, purchase.ID); got.Status != workinggroups.PurchasePlanned || got.ProjectID == nil || *got.ProjectID != p.ID {
+	// A purchase planned in a (draft) project no longer needs a project.
+	if got := f.getPurchase(t, purchase.ID); got.Status != workinggroups.PurchasePlanned || got.ProjectID == nil || *got.ProjectID != p.ID || got.NeedsProject {
 		t.Fatalf("purchase = %+v", got)
 	}
 	_, err = f.service.ConvertPurchaseToProject(ctx, f.member, purchase.ID, purchase.Version+1, nil)

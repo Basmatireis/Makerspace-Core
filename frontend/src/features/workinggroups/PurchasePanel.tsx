@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Download } from '@carbon/icons-react';
 import { Button, InlineNotification, Link, OverflowMenu, OverflowMenuItem, Tag } from '@carbon/react';
-import { useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import type { WorkingGroupPurchase } from '../../api/generated/models';
 import {
   approveWorkingGroupPurchase,
@@ -16,7 +16,7 @@ import {
   uploadWorkingGroupPurchaseAttachment,
 } from '../../api/generated/working-groups/working-groups';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
-import { DetailPanel, DetailPanelHead, DetailPanelSection } from '../../app/components/DetailPanel';
+import { DetailPanel, DetailPanelSection } from '../../app/components/DetailPanel';
 import { Fact, FactsGrid } from '../../app/components/Facts';
 import { formatDate } from '../../app/dateTime';
 import { formatMoney } from '../orders/formatting';
@@ -32,10 +32,11 @@ import {
   fileHeaders,
   fileProblem,
   countsAs,
-  stageOf,
 } from './financeModel';
 import { LinkedTasks } from './LinkParts';
-import { firstName, personName } from './taskModel';
+import { PanelHead } from './PanelHead';
+import { PurchaseTrack } from './PurchaseList';
+import { personName } from './taskModel';
 import { useDialogOpener } from './useDialogOpener';
 import { saveErrorText, taskErrorText, useWgMutation } from './useWgMutation';
 
@@ -55,7 +56,9 @@ function sentence(purchase: WorkingGroupPurchase): string {
       return 'It arrived.';
     case 'refunded':
       return 'The money was returned.';
-    default:
+    case 'planned':
+      return 'Planned in a project. It is bought once the project runs.';
+    case 'declined':
       return purchase.declineReason ? `Declined: ${purchase.declineReason}` : 'Declined.';
   }
 }
@@ -67,12 +70,17 @@ export function PurchasePanel({
   isLead,
   finance,
   onGone,
+  onClose,
+  inline = false,
 }: {
   purchase: WorkingGroupPurchase;
   me: string;
   isLead: boolean;
   finance: boolean;
   onGone: () => void;
+  onClose?: () => void;
+  /** Compact detail row under the purchase's own row: no head, one meta line, facts and actions on one band. */
+  inline?: boolean;
 }) {
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -106,155 +114,203 @@ export function PurchasePanel({
     (isLead || purchase.requester?.personId === me);
   const error =
     fileError ?? saveErrorText(toProject.error ?? approve.error ?? arrived.error ?? refunded.error ?? attach.error);
-  const stage = stageOf(purchase);
   const counts = countsAs(purchase);
   const busy = approve.isPending || arrived.isPending || refunded.isPending;
 
-  return (
-    <DetailPanel>
-      <DetailPanelHead
-        title={purchase.item}
-        meta={`Purchase · ${purchase.groupName}`}
-        secondary={`${purchase.quantity} × ${formatMoney(purchase.unitPrice)} · ${
-          purchase.requester ? firstName(purchase.requester) : 'Former member'
-        } · ${formatDate(purchase.createdAt)}`}
-        actions={
-          hasMore && (
-            <OverflowMenu ref={menu} aria-label="More actions" iconDescription="More actions" flipped size="md">
-              {finance && <OverflowMenuItem itemText="Remove personal data…" onClick={() => redact.open(true)} />}
-              {purchase.canDelete && (
-                <OverflowMenuItem
-                  itemText="Delete"
-                  isDelete
-                  hasDivider={finance}
-                  onClick={() => {
-                    deleteButton.current = menu.current?.querySelector('button') ?? null;
-                    remove.reset();
-                    setConfirmDelete(true);
-                  }}
-                />
-              )}
-            </OverflowMenu>
-          )
-        }
-        helper={
-          <>
-            <Tag size="sm" type={PURCHASE_STATUS_TAG[purchase.status]}>
-              {PURCHASE_STATUS_LABEL[purchase.status]}
+  const moreMenu = hasMore && (
+    <OverflowMenu
+      ref={menu}
+      aria-label="More actions"
+      iconDescription="More actions"
+      flipped
+      size={inline ? 'sm' : 'md'}
+    >
+      {finance && <OverflowMenuItem itemText="Remove personal data…" onClick={() => redact.open(true)} />}
+      {purchase.canDelete && (
+        <OverflowMenuItem
+          itemText="Delete"
+          isDelete
+          hasDivider={finance}
+          onClick={() => {
+            deleteButton.current = menu.current?.querySelector('button') ?? null;
+            remove.reset();
+            setConfirmDelete(true);
+          }}
+        />
+      )}
+    </OverflowMenu>
+  );
+  const size = inline ? 'sm' : 'md';
+
+  const head = (
+    <PanelHead
+      label={`Purchase · ${purchase.groupName}`}
+      title={purchase.item}
+      meta={[
+        `${purchase.quantity} × ${formatMoney(purchase.unitPrice)}`,
+        personName(purchase.requester),
+        formatDate(purchase.createdAt),
+      ]}
+      tags={
+        <>
+          <Tag size="sm" type={PURCHASE_STATUS_TAG[purchase.status]}>
+            {PURCHASE_STATUS_LABEL[purchase.status]}
+          </Tag>
+          {purchase.needsProject && (
+            <Tag size="sm" type="red">
+              Needs a project
             </Tag>
-            {purchase.needsProject && (
-              <Tag size="sm" type="magenta">
-                Needs a project
-              </Tag>
-            )}
-          </>
-        }
-      />
-      {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={error} />}
-      <p className="wg-panel-body">{sentence(purchase)}</p>
-
-      <div className="wg-panel-actions">
-        {canTurn && (
-          <Button
-            kind="primary"
-            size="md"
-            disabled={toProject.isPending}
-            onClick={() =>
-              toProject.mutate(undefined, {
-                onSuccess: (created) => void navigate(`/working-groups/projects/${(created as { id: string }).id}`),
-              })
-            }
-          >
-            Turn into a project
+          )}
+        </>
+      }
+      actions={moreMenu}
+      onClose={onClose}
+    />
+  );
+  const actionButtons = (
+    <>
+      {canTurn && (
+        <Button
+          kind="primary"
+          size={size}
+          disabled={toProject.isPending}
+          onClick={() =>
+            toProject.mutate(undefined, {
+              onSuccess: (created) => void navigate(`/working-groups/projects/${(created as { id: string }).id}`),
+            })
+          }
+        >
+          Turn into a project
+        </Button>
+      )}
+      {canAttach && (
+        <>
+          <input
+            ref={fileInput}
+            type="file"
+            className="wg-visually-hidden"
+            tabIndex={-1}
+            accept={ACCEPTED_FILES}
+            aria-label="Offer or cart file"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (!file) return;
+              const problem = fileProblem(file);
+              setFileError(problem);
+              if (!problem) attach.mutate(file);
+            }}
+          />
+          <Button kind="tertiary" size={size} disabled={attach.isPending} onClick={() => fileInput.current?.click()}>
+            {purchase.hasAttachment ? 'Replace the file' : 'Attach a file'}
           </Button>
-        )}
-        {canAttach && (
-          <>
-            <input
-              ref={fileInput}
-              type="file"
-              className="wg-visually-hidden"
-              tabIndex={-1}
-              accept={ACCEPTED_FILES}
-              aria-label="Offer or cart file"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = '';
-                if (!file) return;
-                const problem = fileProblem(file);
-                setFileError(problem);
-                if (!problem) attach.mutate(file);
-              }}
-            />
-            <Button kind="tertiary" size="md" disabled={attach.isPending} onClick={() => fileInput.current?.click()}>
-              {purchase.hasAttachment ? 'Replace the file' : 'Attach a file'}
-            </Button>
-          </>
-        )}
-        {purchase.canDecline && (
-          <Button kind="tertiary" size="md" onClick={() => decline.open(true)}>
-            Decline
-          </Button>
-        )}
-        {purchase.canApprove && !purchase.needsProject && (
-          <Button kind="primary" size="md" disabled={busy} onClick={() => approve.mutate()}>
-            Approve
-          </Button>
-        )}
-        {purchase.canHandInReceipt && (
-          <Button kind="primary" size="md" onClick={() => receipt.open(true)}>
-            Hand in the receipt
-          </Button>
-        )}
-        {purchase.canMarkArrived && (
-          <Button kind="primary" size="md" disabled={busy} onClick={() => arrived.mutate()}>
-            It arrived
-          </Button>
-        )}
-        {purchase.canMarkRefunded && (
-          <Button kind="primary" size="md" disabled={busy} onClick={() => refunded.mutate()}>
-            Money returned
-          </Button>
-        )}
-      </div>
-
-      <FactsGrid columns={2}>
-        <Fact label="Amount" helper={COUNTS_LABEL[counts]}>
-          {formatCents(amountCents(purchase))}
-        </Fact>
-        <Fact label="Stage">{stage.label}</Fact>
-        <Fact label="Who buys">{purchase.how === 'self' ? personName(purchase.requester) : 'Management'}</Fact>
-        <Fact label="Period">{purchase.periodName}</Fact>
-        {purchase.link && /^https?:\/\//i.test(purchase.link) && (
-          <Fact label="Shop">
-            <Link href={purchase.link} target="_blank" rel="noopener noreferrer">
-              {safeHost(purchase.link)}
+        </>
+      )}
+      {purchase.canDecline && (
+        <Button kind="tertiary" size={size} onClick={() => decline.open(true)}>
+          Decline
+        </Button>
+      )}
+      {purchase.canApprove && !purchase.needsProject && (
+        <Button kind="primary" size={size} disabled={busy} onClick={() => approve.mutate()}>
+          Approve
+        </Button>
+      )}
+      {purchase.canHandInReceipt && (
+        <Button kind="primary" size={size} onClick={() => receipt.open(true)}>
+          Hand in the receipt
+        </Button>
+      )}
+      {purchase.canMarkArrived && (
+        <Button kind="primary" size={size} disabled={busy} onClick={() => arrived.mutate()}>
+          It arrived
+        </Button>
+      )}
+      {purchase.canMarkRefunded && (
+        <Button kind="primary" size={size} disabled={busy} onClick={() => refunded.mutate()}>
+          Money returned
+        </Button>
+      )}
+    </>
+  );
+  const facts = (
+    <FactsGrid columns={inline ? 4 : 2}>
+      <Fact label="Amount" helper={COUNTS_LABEL[counts]}>
+        {formatCents(amountCents(purchase))}
+      </Fact>
+      <Fact label="Stage">
+        <PurchaseTrack purchase={purchase} />
+      </Fact>
+      <Fact label="Who buys" helper={purchase.how === 'self' ? 'Gets the money back' : 'Collective order'}>
+        {purchase.how === 'self' ? personName(purchase.requester) : 'Management'}
+      </Fact>
+      {!(inline && purchase.projectId) && (
+        <Fact label="Paid from" helper={purchase.projectId ? 'Project' : purchase.periodName}>
+          {purchase.projectId ? (
+            <Link as={RouterLink} to={`/working-groups/projects/${purchase.projectId}`}>
+              Its project
             </Link>
-          </Fact>
-        )}
-        {purchase.hasAttachment && (
-          <Fact label="Offer or cart">
-            <div className="wg-receipt">
-              <Link
-                href="#"
-                onClick={(event) => {
-                  event.preventDefault();
-                  offer.open(true);
-                }}
-              >
-                Show the file
-              </Link>
-              <Link
-                href={getDownloadWorkingGroupPurchaseAttachmentUrl(purchase.id)}
-                download
-                aria-label="Download offer or cart"
-              >
-                <Download size={16} />
-              </Link>
+          ) : (
+            'Group budget'
+          )}
+        </Fact>
+      )}
+      {purchase.link && /^https?:\/\//i.test(purchase.link) && (
+        <Fact label="Shop">
+          <Link href={purchase.link} target="_blank" rel="noopener noreferrer">
+            {safeHost(purchase.link)}
+          </Link>
+        </Fact>
+      )}
+      {purchase.hasAttachment && (
+        <Fact label="Offer or cart">
+          <div className="wg-receipt">
+            <Link
+              href="#"
+              onClick={(event) => {
+                event.preventDefault();
+                offer.open(true);
+              }}
+            >
+              Show the file
+            </Link>
+            <Link
+              href={getDownloadWorkingGroupPurchaseAttachmentUrl(purchase.id)}
+              download
+              aria-label="Download offer or cart"
+            >
+              <Download size={16} />
+            </Link>
+          </div>
+        </Fact>
+      )}
+    </FactsGrid>
+  );
+  return (
+    <DetailPanel className={inline ? 'wg-inline' : 'wg-panel'}>
+      {inline ? null : head}
+      {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={error} />}
+
+      {inline ? (
+        <>
+          <p className="wg-inline__meta">
+            {[sentence(purchase), personName(purchase.requester), formatDate(purchase.createdAt)].join(' · ')}
+          </p>
+          <div className="wg-inline__band">
+            {facts}
+            <div className="wg-inline__actions">
+              {actionButtons}
+              {moreMenu}
             </div>
-          </Fact>
-        )}
-      </FactsGrid>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="wg-panel__note">{sentence(purchase)}</p>
+          <div className="wg-panel__actions">{actionButtons}</div>
+          {facts}
+        </>
+      )}
 
       <LinkedTasks section groupId={purchase.groupId} tasks={purchase.linkedTasks} />
 

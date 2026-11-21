@@ -9,8 +9,8 @@ import { Avatar } from './TaskList';
 const SHOWN = 3;
 
 /**
- * The latest three comments of a ticket or to-do under its list row. The list responses carry them (newest first), so
- * a row needs no request of its own.
+ * The latest three comments of a ticket or to-do under its list row, oldest first, with a link to the earlier ones.
+ * The list responses carry them (newest first), so a row needs no request of its own.
  */
 export function RowComments({ task }: { task: Task }) {
   const latest = (task.ticket ?? task.todo)?.latestComments ?? [];
@@ -19,23 +19,24 @@ export function RowComments({ task }: { task: Task }) {
   const more = task.commentCount - comments.length;
   return (
     <ul className="wg-rowcomments" aria-label={`Latest comments on ${task.title}`}>
-      {comments.map((comment) => (
-        <li key={comment.id} className="wg-rowcomment">
-          <Avatar name={comment.author} />
-          <span className="wg-rowcomment__text">
-            <strong>{firstName(comment.author)}</strong>
-            <span className="wg-muted">{relativeTime(comment.createdAt)}</span>
-            <span className="wg-rowcomment__line">{comment.text}</span>
-          </span>
-        </li>
-      ))}
       {more > 0 && (
-        <li>
-          <CarbonLink as={Link} to={taskLink(task)}>
-            {more} more
+        <li className="wg-rowcomments__more">
+          <CarbonLink as={Link} to={taskLink(task)} size="sm">
+            {more} earlier {more === 1 ? 'comment' : 'comments'}
           </CarbonLink>
         </li>
       )}
+      {comments.map((comment) => (
+        <li key={comment.id} className="wg-rowcomment">
+          <Avatar name={comment.author} />
+          <span className="wg-rowcomment__line">
+            <strong>{firstName(comment.author)}</strong> {comment.text}
+          </span>
+          <time className="wg-rowcomment__time" dateTime={comment.createdAt}>
+            {relativeTime(comment.createdAt)}
+          </time>
+        </li>
+      ))}
     </ul>
   );
 }

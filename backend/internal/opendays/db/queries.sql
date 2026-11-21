@@ -354,7 +354,8 @@ LIMIT 1;
 -- Ended scheduled open days the person staffed, all time, with the scheduled duration of their ended timeslots in
 -- seconds.
 SELECT count(DISTINCT a.open_day_id)::bigint AS staffed,
-       COALESCE(sum(extract(epoch FROM t.ends_at - t.starts_at)), 0)::float8 AS scheduled_seconds
+       COALESCE(sum(extract(epoch FROM t.ends_at - t.starts_at)), 0)::float8 AS scheduled_seconds,
+       max(t.starts_at) AS last_started_at
 FROM open_day_assignments a
 JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
 JOIN open_day_timeslots t ON t.id = a.timeslot_id

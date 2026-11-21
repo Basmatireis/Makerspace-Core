@@ -119,7 +119,7 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 		}
 		if key == "exportKind" {
 			// A PDF template change names the export it concerns, one of a fixed set, never template content.
-			if text, ok := value.(string); !ok || (text != "wiref" && text != "cashbook" && text != "receipt") {
+			if text, ok := value.(string); !ok || (text != "wiref" && text != "cashbook" && text != "receipt" && text != "projektantrag") {
 				return fmt.Errorf("invalid audit %s metadata", key)
 			}
 			continue

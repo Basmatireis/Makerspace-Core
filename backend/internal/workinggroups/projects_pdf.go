@@ -1,69 +1,46 @@
 package workinggroups
 
 import (
-	"bytes"
-	"fmt"
-	"image/png"
+	"context"
 	"strings"
 
-	"github.com/go-pdf/fpdf"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates/engine"
+	"github.com/shopspring/decimal"
 )
 
-// TODO(pdf-templates): the Projektantrag and its attachments are drawn directly with fpdf because the template
-// engine (backend/internal/pdftemplates) only knows its closed set of export kinds (wiref, cashbook, receipt); a
-// "projektantrag" kind needs a schema, a built-in document and an editor entry. Move these renderers there.
+// requestFileName is the name of the Projektantrag when the template gives none.
+const requestFileName = "Projektantrag.pdf"
 
-type pdfPage struct {
-	pdf *fpdf.Fpdf
-	tr  func(string) string
+// PDFRenderer renders the effective template of an export (the published version, or the built-in default). The
+// PDF template service implements it; without one the built-in default is used.
+type PDFRenderer interface {
+	RenderEffective(
+		ctx context.Context,
+		kind engine.Kind,
+		data engine.Data,
+		can func(permission string) bool,
+	) (pdf []byte, filename string, err error)
 }
 
-func newPDFPage(title string) *pdfPage {
-	pdf := fpdf.New("P", "mm", "A4", "")
-	pdf.SetMargins(20, 20, 20)
-	pdf.SetAutoPageBreak(true, 20)
-	pdf.SetTitle(title, true)
-	pdf.AddPage()
-	page := &pdfPage{pdf: pdf, tr: pdf.UnicodeTranslatorFromDescriptor("")}
-	pdf.SetFont("Helvetica", "B", 16)
-	pdf.CellFormat(0, 10, page.tr(title), "", 1, "L", false, 0, "")
-	pdf.Ln(4)
-	return page
-}
-
-func (p *pdfPage) field(label, value string) {
-	p.pdf.SetFont("Helvetica", "B", 9)
-	p.pdf.SetTextColor(90, 90, 90)
-	p.pdf.CellFormat(0, 5, p.tr(label), "", 1, "L", false, 0, "")
-	p.pdf.SetFont("Helvetica", "", 11)
-	p.pdf.SetTextColor(0, 0, 0)
-	if strings.TrimSpace(value) == "" {
-		value = "-"
+// WithPDFTemplates makes the Projektantrag follow the published template and show the branding logo.
+func (s *Service) WithPDFTemplates(renderer PDFRenderer) *Service {
+	if renderer != nil {
+		s.pdf = renderer
 	}
-	p.pdf.MultiCell(0, 6, p.tr(value), "", "L", false)
-	p.pdf.Ln(2)
+	return s
 }
 
-func (p *pdfPage) row(left, right string, bold bool) {
-	style := ""
-	if bold {
-		style = "B"
+// renderRequest renders the Projektantrag with its advance request, cost plan and planned purchases as one PDF. It
+// is a system rendering: the export has no fields that need a permission.
+func (s *Service) renderRequest(ctx context.Context, project Project, f RequestForm, signature []byte) ([]byte, string, error) {
+	pdf, name, err := s.pdf.RenderEffective(ctx, engine.KindProjektantrag, projektantragData(project, f, signature), nil)
+	if err != nil {
+		return nil, "", err
 	}
-	p.pdf.SetFont("Helvetica", style, 10)
-	x, y := p.pdf.GetX(), p.pdf.GetY()
-	p.pdf.MultiCell(125, 6, p.tr(left), "B", "L", false)
-	endY := p.pdf.GetY()
-	p.pdf.SetXY(x+125, y)
-	p.pdf.CellFormat(25, endY-y, p.tr(right), "B", 1, "R", false, 0, "")
-	p.pdf.SetY(endY)
-}
-
-func (p *pdfPage) bytes() ([]byte, error) {
-	var out bytes.Buffer
-	if err := p.pdf.Output(&out); err != nil {
-		return nil, err
+	if name == "" {
+		name = requestFileName
 	}
-	return out.Bytes(), nil
+	return pdf, name, nil
 }
 
 func yesNo(v bool) string {
@@ -83,99 +60,94 @@ func unitLabel(kind string) string {
 	return "Referat/Studi-Lab"
 }
 
-func germanDate(iso string) string {
-	if len(iso) == 10 {
-		return iso[8:10] + "." + iso[5:7] + "." + iso[0:4]
+func paidFromLabel(paidFrom *string) string {
+	if paidFrom == nil {
+		return ""
 	}
-	return iso
+	switch *paidFrom {
+	case PaidFromGroup:
+		return "Gruppenbudget"
+	case PaidFromExternal:
+		return "Externe Quelle"
+	}
+	return ""
 }
 
-func (p *pdfPage) signature(data []byte) {
-	if len(data) == 0 {
-		return
-	}
-	cfg, err := png.DecodeConfig(bytes.NewReader(data))
-	if err != nil || cfg.Width == 0 {
-		return
-	}
-	width := 60.0
-	height := width * float64(cfg.Height) / float64(cfg.Width)
-	if height > 30 {
-		height = 30
-		width = height * float64(cfg.Width) / float64(cfg.Height)
-	}
-	if p.pdf.GetY()+height > 270 {
-		p.pdf.AddPage()
-	}
-	opts := fpdf.ImageOptions{ImageType: "PNG", ReadDpi: false}
-	p.pdf.RegisterImageOptionsReader("signature", opts, bytes.NewReader(data))
-	p.pdf.ImageOptions("signature", p.pdf.GetX(), p.pdf.GetY(), width, height, false, opts, 0, "")
-	p.pdf.SetY(p.pdf.GetY() + height + 2)
+var purchaseStatusLabels = map[string]string{
+	PurchasePlanned: "Geplant", PurchaseWanted: "Gewünscht", PurchaseApproved: "Genehmigt",
+	PurchaseOrdered: "Bestellt", PurchaseReceived: "Erhalten", PurchaseBought: "Gekauft",
+	PurchaseRefunded: "Rückerstattet", PurchaseDeclined: "Abgelehnt",
 }
 
-// renderProjektantrag draws the form of the HTU Projektantrag.
-func renderProjektantrag(f RequestForm, signature []byte) ([]byte, error) {
-	page := newPDFPage("Projektantrag")
-	page.field("Organisationseinheit", unitLabel(f.UnitKind)+": "+f.UnitName)
-	page.field("PA-Nummer (wird von der WiRef ausgefuellt)", f.Number)
-	page.field("Projektname", f.ProjectName)
-	page.field("Alkohol", yesNo(f.Alcohol))
-	page.field("Zeitraum", strings.TrimSpace(germanDate(f.StartsOn)+" - "+germanDate(f.EndsOn)))
-	page.field("Geplante Personenanzahl", fmt.Sprint(f.People))
-	page.field("Vorschuss", yesNo(f.Advance))
-	page.field("Beschreibung", f.Description)
-	page.field("Geplante maximale Ausgaben (EUR)", f.MaxExpenses)
-	page.field("Geplante maximale Einnahmen (EUR)", f.MaxIncome)
-	page.field("Kostenstellenverantwortliche Person", strings.TrimSpace(f.ResponsibleFirstName+" "+f.ResponsibleLastName))
-	page.field("Datum, Ort", strings.TrimSpace(germanDate(f.Date)+", "+f.Place))
-	page.field("Unterschrift", "")
-	page.signature(signature)
-	return page.bytes()
+func optionalText(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
 }
 
-// renderAdvanceRequest is the one-page request for an advance.
-func renderAdvanceRequest(project Project, f RequestForm, amount string) ([]byte, error) {
-	page := newPDFPage("Vorschussantrag")
-	page.field("Projekt", f.ProjectName)
-	page.field("Gruppe", project.GroupName)
-	page.field("Organisationseinheit", unitLabel(f.UnitKind)+": "+f.UnitName)
-	page.field("Vorschussbetrag (EUR)", amount)
-	page.field("Kostenstellenverantwortliche Person", strings.TrimSpace(f.ResponsibleFirstName+" "+f.ResponsibleLastName))
-	page.field("Datum, Ort", strings.TrimSpace(germanDate(f.Date)+", "+f.Place))
-	return page.bytes()
-}
-
-// renderCostPlan lists the items with their planned amounts.
-func renderCostPlan(project Project) ([]byte, error) {
-	page := newPDFPage("Cost plan: " + project.Title)
-	for _, item := range project.Items {
-		text := item.Text
-		if item.Link != nil {
-			text += "\n" + *item.Link
+// projektantragData is the data of the Projektantrag template (engine.Schema(engine.KindProjektantrag)). Amounts are
+// the decimal strings of the project; dates are civil "YYYY-MM-DD" dates or empty.
+func projektantragData(project Project, f RequestForm, signature []byte) engine.Data {
+	advance := project.Totals.Planned
+	if project.AdvanceAmount != nil {
+		advance = *project.AdvanceAmount
+	}
+	items := make([]map[string]any, 0, len(project.Items))
+	purchases := []map[string]any{}
+	for i, item := range project.Items {
+		chosen := ""
+		offers := make([]map[string]any, 0, len(item.Offers))
+		for _, o := range item.Offers {
+			isChosen := item.ChosenOfferID != nil && *item.ChosenOfferID == o.ID
+			if isChosen {
+				chosen = o.Shop
+			}
+			offers = append(offers, map[string]any{
+				"shop": o.Shop, "price": o.Price, "chosen": yesNo(isChosen),
+				// The mail carries the offer files of the items that need offers.
+				"attached": yesNo(o.HasFile && item.NeedsOffers),
+			})
 		}
-		page.row(text, item.PlannedAmount, false)
-	}
-	page.row("Total (EUR)", project.Totals.Planned, true)
-	return page.bytes()
-}
-
-// renderPurchases lists the planned purchases of a project with their links.
-func renderPurchases(project Project) ([]byte, error) {
-	page := newPDFPage("Purchases: " + project.Title)
-	for _, item := range project.Items {
+		items = append(items, map[string]any{
+			"position": i + 1, "text": item.Text, "link": optionalText(item.Link), "note": optionalText(item.Note),
+			"plannedAmount": item.PlannedAmount, "needsOffers": yesNo(item.NeedsOffers), "chosenOffer": chosen,
+			"offers": offers,
+		})
 		for _, pu := range item.Purchases {
 			if pu.Status == PurchaseDeclined {
 				continue
 			}
-			text := fmt.Sprintf("%s (%s) x %d", pu.Item, item.Text, pu.Quantity)
-			if pu.Link != nil {
-				text += "\n" + *pu.Link
+			total := ""
+			if price, err := decimal.NewFromString(pu.UnitPrice); err == nil {
+				total = price.Mul(decimal.NewFromInt32(pu.Quantity)).StringFixed(2)
 			}
-			if pu.HasAttachment {
-				text += "\n(offer or cart attached)"
-			}
-			page.row(text, pu.UnitPrice, false)
+			purchases = append(purchases, map[string]any{
+				"item": pu.Item, "costItem": item.Text, "quantity": int(pu.Quantity), "unitPrice": pu.UnitPrice,
+				"total": total, "link": optionalText(pu.Link), "status": purchaseStatusLabels[pu.Status],
+				"attached": yesNo(pu.HasAttachment),
+			})
 		}
 	}
-	return page.bytes()
+	data := engine.Data{
+		"form": map[string]any{
+			"unitKind": unitLabel(f.UnitKind), "unitName": f.UnitName, "number": f.Number,
+			"projectName": f.ProjectName, "alcohol": yesNo(f.Alcohol), "startsOn": f.StartsOn, "endsOn": f.EndsOn,
+			"people": f.People, "advance": yesNo(f.Advance), "description": f.Description,
+			"maxExpenses": f.MaxExpenses, "maxIncome": f.MaxIncome,
+			"responsibleFirstName": f.ResponsibleFirstName, "responsibleLastName": f.ResponsibleLastName,
+			"responsibleName": strings.TrimSpace(f.ResponsibleFirstName + " " + f.ResponsibleLastName),
+			"place":           f.Place, "date": f.Date,
+		},
+		"project": map[string]any{
+			"title": project.Title, "group": project.GroupName, "goal": project.Goal, "benefit": project.Benefit,
+			"paidFrom": paidFromLabel(project.PaidFrom), "wirefNumber": project.WiRefNumber,
+			"plannedTotal": project.Totals.Planned, "plannedIncome": project.PlannedIncome,
+		},
+		"advance":   map[string]any{"amount": advance},
+		"items":     items,
+		"purchases": purchases,
+		"signature": engine.Image{Data: signature},
+	}
+	return data
 }

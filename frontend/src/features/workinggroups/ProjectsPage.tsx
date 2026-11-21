@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Button, InlineNotification, Modal, Search, Tag } from '@carbon/react';
+import { Button, InlineNotification, Modal, Search } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { WorkingGroupProject, WorkingGroupPurchase } from '../../api/generated/models';
@@ -15,6 +15,7 @@ import { formatCents, toCents } from '../orders/money';
 import { BudgetCard, type Figures } from './BudgetParts';
 import { ProjectDialog } from './ProjectDialogs';
 import { ProjectPanel } from './ProjectParts';
+import { PurchaseTrack } from './PurchaseList';
 import { PurchasePanel } from './PurchasePanel';
 import {
   PROJECT_BUCKETS,
@@ -27,11 +28,11 @@ import {
   who,
 } from './projectModel';
 import { projectsOptions } from './projectQueries';
-import { PURCHASE_STATUS_LABEL, PURCHASE_STATUS_TAG, amountCents, sortPeriods } from './financeModel';
+import { COUNTS_LABEL, amountCents, countsAs, sortPeriods } from './financeModel';
 import { budgetOptions, budgetPeriodsOptions, purchasesOptions } from './financeQueries';
 import { orderGroups, workingGroupsOptions } from './queries';
 import { Tile } from './TaskSummary';
-import { firstName, formatDateOnly } from './taskModel';
+import { formatDateOnly, personName } from './taskModel';
 import { useDialogOpener } from './useDialogOpener';
 import './workinggroups.scss';
 
@@ -60,6 +61,8 @@ export function ProjectsPage() {
         : (own[0]?.id ?? (finance ? ALL : ''));
   const groupId = scope === ALL || scope === '' ? undefined : scope;
   const selectedGroup = groups.find((group) => group.id === groupId);
+  // Only members of a group start its projects, whatever the group filter shows.
+  const startGroups = selectedGroup ? own.filter((group) => group.id === selectedGroup.id) : own;
 
   const periods = useMemo(() => sortPeriods(periodsQuery.data?.items ?? []), [periodsQuery.data]);
   const [chosenPeriod, setChosenPeriod] = useState<string | null>(null);
@@ -194,6 +197,7 @@ export function ProjectsPage() {
       finance={finance}
       purchase={selectedPurchase}
       onGone={() => setSelected(null)}
+      onClose={panelFits ? () => setSelected(null) : undefined}
     />
   ) : selectedProject ? (
     <ProjectPanel
@@ -201,6 +205,7 @@ export function ProjectsPage() {
       project={selectedProject}
       purchases={byProject.get(selectedProject.id) ?? []}
       onSelectPurchase={(id) => setSelected({ kind: 'purchase', id })}
+      onClose={panelFits ? () => setSelected(null) : undefined}
     />
   ) : (
     <DetailPanel>
@@ -240,7 +245,7 @@ export function ProjectsPage() {
         />
       }
     >
-      <div className="wg-summary">
+      <div className="wg-summary wg-summary--panel">
         {figures && period ? (
           <BudgetCard
             label="Budget"
@@ -311,9 +316,13 @@ export function ProjectsPage() {
               onReset={() => setFilters({})}
             />
             <div className="wg-toolbar__actions">
-              <Button kind="primary" size="md" onClick={() => start.open(true)}>
-                Start a project
-              </Button>
+              {startGroups.length > 0 ? (
+                <Button kind="primary" size="md" onClick={() => start.open(true)}>
+                  Start a project
+                </Button>
+              ) : (
+                <span className="wg-muted wg-toolbar__note">Only members of a working group can start projects.</span>
+              )}
             </div>
           </div>
           {projectsQuery.data?.truncated && (
@@ -377,9 +386,9 @@ export function ProjectsPage() {
         </Modal>
       )}
 
-      {start.value && (
+      {start.value && startGroups.length > 0 && (
         <ProjectDialog
-          groups={selectedGroup ? [selectedGroup] : visibleGroups}
+          groups={startGroups}
           initialGroupId={selectedGroup?.id ?? ''}
           onClose={start.close}
           onSaved={(created) => void navigate(`/working-groups/projects/${created.id}`)}
@@ -454,19 +463,19 @@ function ProjectRow({
                 >
                   <span className="wg-pamount">
                     <strong>{formatCents(amountCents(purchase))}</strong>
+                    <small>{COUNTS_LABEL[countsAs(purchase)]}</small>
                   </span>
-                  <span className="wg-lwhat">
+                  <span className="wg-lwhat wg-tree">
                     <span className="wg-lwhat__title">{purchase.item}</span>
                     <small>
-                      {purchase.quantity} × · {purchase.requester ? firstName(purchase.requester) : 'Former member'}
+                      Purchase · {purchase.quantity} × ·{' '}
+                      {purchase.requester ? personName(purchase.requester) : 'Former member'}
                     </small>
                   </span>
-                  <span />
-                  <span>
-                    <Tag size="sm" type={PURCHASE_STATUS_TAG[purchase.status]}>
-                      {PURCHASE_STATUS_LABEL[purchase.status]}
-                    </Tag>
+                  <span className="wg-lfrom">
+                    {purchase.how === 'self' ? 'Bought by a member' : 'Collective order'}
                   </span>
+                  <PurchaseTrack purchase={purchase} />
                 </button>
               </li>
             );

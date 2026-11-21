@@ -1,6 +1,15 @@
 import { useState } from 'react';
-import { Button, Link as CarbonLink, Tag, Tile } from '@carbon/react';
-import { Add, ChevronDown, ChevronUp, TrashCan } from '@carbon/icons-react';
+import { Button, Tag } from '@carbon/react';
+import {
+  Add,
+  CheckmarkFilled,
+  ChevronDown,
+  ChevronUp,
+  ErrorFilled,
+  InformationFilled,
+  TrashCan,
+  WarningAltFilled,
+} from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { WorkingGroupNote, WorkingGroupStatusItem } from '../../api/generated/models';
@@ -10,6 +19,7 @@ import { DirectoryTable, type Column } from '../machinelogbook/shared/DirectoryT
 import PinboardSkeleton from './PinboardSkeleton';
 import { OpenButton, RowComments } from './RowComments';
 import { ChangeStatusDialog, PinNoteDialog, StatusTag } from './StatusParts';
+import { WriteTicketDialog } from './TaskDialogs';
 import { useDialogOpener } from './useDialogOpener';
 import { useNoteRemoval } from './useNoteRemoval';
 import {
@@ -33,11 +43,19 @@ import {
   type Task,
 } from './taskModel';
 import './workinggroups.scss';
+import '../dashboard/pinboard.scss';
 
 type Row =
   | { id: string; type: 'yours'; task: Task }
   | { id: string; type: 'status'; item: WorkingGroupStatusItem }
   | { id: string; type: 'note'; note: WorkingGroupNote };
+
+const STATUS_ICON = {
+  ok: CheckmarkFilled,
+  limited: WarningAltFilled,
+  maintenance: InformationFilled,
+  out_of_order: ErrorFilled,
+} as const;
 
 const notOkFirst = (a: WorkingGroupStatusItem, b: WorkingGroupStatusItem) =>
   STATUS_SEVERITY[a.status] - STATUS_SEVERITY[b.status] || a.name.localeCompare(b.name);
@@ -52,8 +70,8 @@ function noteTag(note: WorkingGroupNote) {
 }
 
 /**
- * The working-groups part of the dashboard: a pinboard of what needs attention (yours, machines and places that are
- * not ok, notes) and a grid of every machine and place. It loads lazily and shows nothing until its data is there.
+ * The working-groups part of the dashboard: a pinboard of what needs attention (for you, machines and places that are
+ * not ok, notes) and, in the same card, every machine and place per group. It loads lazily.
  */
 export default function DashboardPinboard() {
   const currentUser = useCurrentUser();
@@ -67,6 +85,7 @@ export default function DashboardPinboard() {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const change = useDialogOpener<StatusTarget>();
   const pin = useDialogOpener();
+  const write = useDialogOpener();
   const removal = useNoteRemoval();
 
   if (groups.isPending || status.isPending || notes.isPending) return <PinboardSkeleton />;
@@ -98,6 +117,11 @@ export default function DashboardPinboard() {
       .map((note): Row => ({ id: `note:${note.id}`, type: 'note', note })),
   ];
 
+  const broken = items.filter((item) => item.status !== 'ok').length;
+  const grouped = new Map<string, WorkingGroupStatusItem[]>();
+  for (const item of items) grouped.set(item.group.name, [...(grouped.get(item.group.name) ?? []), item]);
+  const byGroup = [...grouped].sort(([a], [b]) => a.localeCompare(b));
+
   const target = (item: WorkingGroupStatusItem): StatusTarget => ({
     kind: item.kind,
     id: item.id,
@@ -114,8 +138,8 @@ export default function DashboardPinboard() {
       header: 'Kind',
       render: (row) =>
         row.type === 'yours' ? (
-          <Tag size="sm" type="purple">
-            Yours
+          <Tag size="sm" type="teal">
+            For you
           </Tag>
         ) : row.type === 'status' ? (
           <StatusTag status={row.item.status} />
@@ -130,20 +154,26 @@ export default function DashboardPinboard() {
         if (row.type === 'yours') {
           const hint = dueHint(row.task, today);
           return (
-            <>
-              <span className="wg-message">{row.task.title}</span>
+            <div className="db-pb__msg">
+              <span className="db-pb__line">{row.task.title}</span>
               {hint && <span className={`wg-muted wg-hint--${hint.tone}`}>{hint.text}</span>}
               {row.task.commentCount > 0 && <RowComments task={row.task} />}
-            </>
+            </div>
           );
         }
-        if (row.type === 'note') return <span className="wg-message">{row.note.text}</span>;
+        if (row.type === 'note')
+          return (
+            <div className="db-pb__msg">
+              <span className="db-pb__line">{row.note.text}</span>
+            </div>
+          );
         const { item } = row;
         const open = expanded.has(row.id);
         const until = backAround(item.until);
         return (
-          <>
+          <div className="db-pb__msg">
             <Button
+              className="db-pb__toggle"
               kind="ghost"
               size="sm"
               renderIcon={open ? ChevronUp : ChevronDown}
@@ -173,7 +203,7 @@ export default function DashboardPinboard() {
                 </>
               )}
             </div>
-          </>
+          </div>
         );
       },
     },
@@ -183,7 +213,13 @@ export default function DashboardPinboard() {
       narrow: true,
       render: (row) => {
         if (row.type === 'yours') return row.task.groupName;
-        if (row.type === 'status') return row.item.group.name;
+        if (row.type === 'status')
+          return (
+            <>
+              {row.item.group.name}
+              <span className="wg-muted">Workshop status</span>
+            </>
+          );
         return (
           <>
             {personName(row.note.author)}
@@ -197,15 +233,24 @@ export default function DashboardPinboard() {
       header: 'When',
       narrow: true,
       render: (row) =>
-        row.type === 'yours'
-          ? row.task.dueOn
-            ? formatDateOnly(row.task.dueOn)
-            : ''
-          : row.type === 'status'
-            ? row.item.changedAt
-              ? formatDate(row.item.changedAt)
-              : ''
-            : formatDate(row.note.createdAt),
+        row.type === 'yours' ? (
+          row.task.dueOn ? (
+            formatDateOnly(row.task.dueOn)
+          ) : (
+            ''
+          )
+        ) : row.type === 'status' ? (
+          row.item.until ? (
+            <>
+              {formatDateOnly(row.item.until.slice(0, 10))}
+              <span className="wg-muted">Expected back</span>
+            </>
+          ) : (
+            'No date yet'
+          )
+        ) : (
+          formatDate(row.note.createdAt)
+        ),
     },
     {
       key: 'actions',
@@ -234,12 +279,34 @@ export default function DashboardPinboard() {
 
   return (
     <>
-      <section className="wg-card" aria-label="Pinboard">
-        <header className="wg-card__header">
-          <h2 className="wg-card__title">Pinboard</h2>
-          <CarbonLink as={Link} to="/working-groups">
-            Working groups
-          </CarbonLink>
+      <section className="db-pb" aria-labelledby="db-pb-title">
+        <header className="db-pb__head">
+          <div>
+            <h2 id="db-pb-title" className="wg-card__title">
+              Pinboard
+            </h2>
+            <p className="wg-muted">
+              {broken > 0
+                ? `${broken} of ${items.length} machines and places are not fully usable`
+                : 'Everything works'}{' '}
+              · {notes.data.items.length} {notes.data.items.length === 1 ? 'note' : 'notes'}
+            </p>
+          </div>
+          <div className="db-pb__actions">
+            <Button as={Link} to="/working-groups/tasks" kind="ghost">
+              All tickets
+            </Button>
+            {groups.data.items.length > 0 && (
+              <Button kind="tertiary" onClick={() => write.open(true)}>
+                Write a ticket
+              </Button>
+            )}
+            {manage && (
+              <Button renderIcon={Add} onClick={() => pin.open(true)}>
+                Pin a note
+              </Button>
+            )}
+          </div>
         </header>
         <div id={removal.frameId} tabIndex={-1} className="wg-focus">
           <DirectoryTable
@@ -251,49 +318,57 @@ export default function DashboardPinboard() {
             totalCount={rows.length}
             searchText={(row) =>
               row.type === 'yours'
-                ? `Yours ${row.task.title} ${row.task.groupName}`
+                ? `For you ${row.task.title} ${row.task.groupName}`
                 : row.type === 'status'
                   ? `${STATUS_LABEL[row.item.status]} ${row.item.name} ${row.item.note ?? ''} ${row.item.group.name}`
                   : `${row.note.text} ${personName(row.note.author)} ${row.note.groupName ?? ''}`
             }
             defaultSort={{ key: '', direction: 'ASC' }}
             pageSizes={[10, 20, 50, 100]}
-            toolbarAction={
-              manage ? (
-                <Button renderIcon={Add} onClick={() => pin.open(true)}>
-                  Pin a note
-                </Button>
-              ) : undefined
-            }
             onRowClick={(row) => {
               if (row.type === 'status') toggle(row.id);
             }}
             empty={{ title: 'Nothing pinned', description: 'Everything is working and nothing is pinned.' }}
           />
         </div>
+        {items.length > 0 && (
+          <div className="db-pb__all">
+            <h3 className="db-pb__allhead">
+              All machines and places
+              <span className="wg-muted">
+                {items.length - broken} of {items.length} working
+              </span>
+            </h3>
+            <div className="db-pb__groups">
+              {byGroup.map(([groupName, groupItems]) => (
+                <section key={groupName} className="db-pb__group" aria-label={groupName}>
+                  <h4 className="db-pb__grouphead">
+                    {groupName}
+                    <span className="wg-muted">
+                      {groupItems.filter((item) => item.status === 'ok').length} of {groupItems.length} working
+                    </span>
+                  </h4>
+                  <ul>
+                    {groupItems.map((item) => {
+                      const Icon = STATUS_ICON[item.status];
+                      return (
+                        <li key={item.id} className={`db-pb__item db-pb__item--${item.status}`}>
+                          <Icon size={16} aria-hidden />
+                          <span className="db-pb__name">{item.name}</span>
+                          <span className="db-pb__state">{STATUS_LABEL[item.status]}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
-      {items.length > 0 && (
-        <section className="wg-all" aria-labelledby="wg-all-title">
-          <h2 id="wg-all-title" className="wg-card__title">
-            All machines and places
-          </h2>
-          <ul className="wg-all__grid">
-            {items.map((item) => (
-              <li key={item.id}>
-                <Tile className="wg-all__tile">
-                  <span className="wg-item__head">
-                    <span className="wg-item__name">{item.name}</span>
-                    <StatusTag status={item.status} />
-                  </span>
-                  <span className="wg-muted">{item.group.name}</span>
-                </Tile>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
       {change.value && <ChangeStatusDialog target={change.value} onClose={change.close} />}
       {pin.value && <PinNoteDialog onClose={pin.close} />}
+      {write.value && <WriteTicketDialog groups={groups.data.items} initialGroupId="" onClose={write.close} />}
       {removal.dialog}
     </>
   );

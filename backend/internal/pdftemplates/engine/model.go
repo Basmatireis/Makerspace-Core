@@ -18,10 +18,13 @@ const (
 	KindCashbook Kind = "cashbook"
 	// KindReceipt is the receipt of an order.
 	KindReceipt Kind = "receipt"
+	// KindProjektantrag is the Projektantrag of a working-group project with its advance request, cost plan and
+	// planned purchases, mailed to the wiRef.
+	KindProjektantrag Kind = "projektantrag"
 )
 
 // Kinds lists every export in a stable order.
-var Kinds = []Kind{KindWiRef, KindCashbook, KindReceipt}
+var Kinds = []Kind{KindWiRef, KindCashbook, KindReceipt, KindProjektantrag}
 
 // ParseKind accepts the wire name of an export.
 func ParseKind(value string) (Kind, bool) {

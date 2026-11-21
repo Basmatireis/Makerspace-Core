@@ -1,0 +1,493 @@
+{
+ "schemaVersion": 1,
+ "name": "Projektantrag",
+ "export": "projektantrag",
+ "page": {
+  "size": "A4",
+  "orientation": "portrait",
+  "margins": [
+   20,
+   20,
+   20,
+   20
+  ],
+  "font": "Helvetica",
+  "baseSize": 11,
+  "locale": "de",
+  "filename": "Projektantrag.pdf"
+ },
+ "styles": {
+  "colors": [
+   {
+    "id": "text",
+    "name": "Text",
+    "value": "#000000"
+   },
+   {
+    "id": "muted",
+    "name": "Label",
+    "value": "#5a5a5a"
+   },
+   {
+    "id": "subtle",
+    "name": "Small",
+    "value": "#5a5a5a"
+   }
+  ],
+  "text": [
+   {
+    "id": "title",
+    "name": "Title",
+    "font": "Helvetica",
+    "size": 16,
+    "weight": 600,
+    "lineHeight": 1.6,
+    "color": "$c:text"
+   },
+   {
+    "id": "section",
+    "name": "Section",
+    "font": "Helvetica",
+    "size": 11,
+    "weight": 600,
+    "lineHeight": 1.5,
+    "color": "$c:text"
+   },
+   {
+    "id": "label",
+    "name": "Label",
+    "font": "Helvetica",
+    "size": 9,
+    "weight": 600,
+    "lineHeight": 1.6,
+    "color": "$c:muted"
+   },
+   {
+    "id": "value",
+    "name": "Value",
+    "font": "Helvetica",
+    "size": 11,
+    "weight": 400,
+    "lineHeight": 1.55,
+    "color": "$c:text"
+   },
+   {
+    "id": "tableHead",
+    "name": "Table header",
+    "font": "Helvetica",
+    "size": 10,
+    "weight": 600,
+    "lineHeight": 1.7,
+    "color": "$c:text"
+   },
+   {
+    "id": "cell",
+    "name": "Table cell",
+    "font": "Helvetica",
+    "size": 10,
+    "weight": 400,
+    "lineHeight": 1.7,
+    "color": "$c:text"
+   },
+   {
+    "id": "cellBold",
+    "name": "Table total",
+    "font": "Helvetica",
+    "size": 10,
+    "weight": 600,
+    "lineHeight": 1.7,
+    "color": "$c:text"
+   },
+   {
+    "id": "small",
+    "name": "Small",
+    "font": "Helvetica",
+    "size": 8.5,
+    "weight": 400,
+    "lineHeight": 1.4,
+    "color": "$c:subtle"
+   }
+  ],
+  "sizes": []
+ },
+ "layers": [],
+ "header": [],
+ "body": [
+  {
+   "id": "form-title",
+   "type": "heading",
+   "title": "Document title",
+   "text": "Projektantrag",
+   "textStyle": "title"
+  },
+  {
+   "id": "form-unit",
+   "type": "value",
+   "title": "Organizational unit",
+   "label": "Organisationseinheit",
+   "value": "{{form.unitKind}}: {{form.unitName}}",
+   "labelStyle": "label",
+   "textStyle": "value"
+  },
+  {
+   "id": "form-number",
+   "type": "value",
+   "title": "PA number",
+   "label": "PA-Nummer (wird von der WiRef ausgefüllt)",
+   "value": "{{form.number | default(\"-\")}}",
+   "labelStyle": "label",
+   "textStyle": "value"
+  },
+  {
+   "id": "form-project",
+   "type": "value",
+   "title": "Project name",
+   "label": "Projektname",
+   "value": "{{form.projectName | default(\"-\")}}",
+   "labelStyle": "label",
+   "textStyle": "value"
+  },
+  {
+   "id": "form-alcohol",
+   "type": "value",
+   "title": "Alcohol",
+   "label": "Alkohol",
+   "value": "{{form.alcohol}}",
+   "labelStyle": "label",
+   "textStyle": "value"
+  },
+  {
+   "id": "form-period",
+   "type": "value",
+   "title": "Period",
+   "label": "Zeitraum",
+   "value": "{{form.startsOn | default(\"\")}} - {{form.endsOn | default(\"\")}}",
+   "labelStyle": "label",
+   "textStyle": "value"
+  },
+  {
+   "id": "form-people",
+   "type": "value",
+   "title": "Planned number of people",
+   "label": "Geplante Personenanzahl",
+   "value": "{{form.people}}",
+   "labelStyle": "label",
+   "textStyle": "value"
+  },
+  {
+   "id": "form-advance",
+   "type": "value",
+   "title": "Advance",
+   "label": "Vorschuss",
+   "value": "{{form.advance}}",
+   "labelStyle": "label",
+   "textStyle": "value"
+  },
+  {
+   "id": "form-description",
+   "type": "value",
+   "title": "Description",
+   "label": "Beschreibung",
+   "value": "{{form.description | default(\"-\")}}",
+   "labelStyle": "label",
+   "textStyle": "value"
+  },
+  {
+   "id": "form-expenses",
+   "type": "value",
+   "title": "Planned maximum expenses",
+   "label": "Geplante maximale Ausgaben (EUR)",
+   "value": "{{form.maxExpenses}}",
+   "labelStyle": "label",
+   "textStyle": "value"
+  },
+  {
+   "id": "form-income",
+   "type": "value",
+   "title": "Planned maximum income",
+   "label": "Geplante maximale Einnahmen (EUR)",
+   "value": "{{form.maxIncome}}",
+   "labelStyle": "label",
+   "textStyle": "value"
+  },
+  {
+   "id": "form-responsible",
+   "type": "value",
+   "title": "Person responsible for the cost centre",
+   "label": "Kostenstellenverantwortliche Person",
+   "value": "{{form.responsibleName | default(\"-\")}}",
+   "labelStyle": "label",
+   "textStyle": "value"
+  },
+  {
+   "id": "form-date-place",
+   "type": "value",
+   "title": "Date and place",
+   "label": "Datum, Ort",
+   "value": "{{form.date}}{{form.place | prefix(\", \")}}",
+   "labelStyle": "label",
+   "textStyle": "value"
+  },
+  {
+   "id": "form-signature-label",
+   "type": "text",
+   "title": "Signature label",
+   "text": "Unterschrift",
+   "textStyle": "label"
+  },
+  {
+   "id": "form-signature",
+   "type": "image",
+   "title": "Signature",
+   "source": "signature",
+   "height": 20
+  },
+  {
+   "id": "advance",
+   "type": "if",
+   "title": "Vorschussantrag, when an advance is requested",
+   "when": {
+    "path": "form.advance",
+    "op": "eq",
+    "value": "Ja"
+   },
+   "then": [
+    {
+     "id": "advance-break",
+     "type": "pagebreak",
+     "title": "New page"
+    },
+    {
+     "id": "advance-title",
+     "type": "heading",
+     "title": "Advance request title",
+     "text": "Vorschussantrag",
+     "textStyle": "title"
+    },
+    {
+     "id": "advance-project",
+     "type": "value",
+     "title": "Project",
+     "label": "Projekt",
+     "value": "{{form.projectName | default(\"-\")}}",
+     "labelStyle": "label",
+     "textStyle": "value"
+    },
+    {
+     "id": "advance-group",
+     "type": "value",
+     "title": "Group",
+     "label": "Gruppe",
+     "value": "{{project.group | default(\"-\")}}",
+     "labelStyle": "label",
+     "textStyle": "value"
+    },
+    {
+     "id": "advance-unit",
+     "type": "value",
+     "title": "Organizational unit",
+     "label": "Organisationseinheit",
+     "value": "{{form.unitKind}}: {{form.unitName}}",
+     "labelStyle": "label",
+     "textStyle": "value"
+    },
+    {
+     "id": "advance-amount",
+     "type": "value",
+     "title": "Advance amount",
+     "label": "Vorschussbetrag (EUR)",
+     "value": "{{advance.amount}}",
+     "labelStyle": "label",
+     "textStyle": "value"
+    },
+    {
+     "id": "advance-responsible",
+     "type": "value",
+     "title": "Person responsible for the cost centre",
+     "label": "Kostenstellenverantwortliche Person",
+     "value": "{{form.responsibleName | default(\"-\")}}",
+     "labelStyle": "label",
+     "textStyle": "value"
+    },
+    {
+     "id": "advance-date-place",
+     "type": "value",
+     "title": "Date and place",
+     "label": "Datum, Ort",
+     "value": "{{form.date}}{{form.place | prefix(\", \")}}",
+     "labelStyle": "label",
+     "textStyle": "value"
+    }
+   ],
+   "else": []
+  },
+  {
+   "id": "cost-break",
+   "type": "pagebreak",
+   "title": "New page"
+  },
+  {
+   "id": "cost-title",
+   "type": "heading",
+   "title": "Cost plan title",
+   "text": "Kostenplan: {{project.title}}",
+   "textStyle": "title"
+  },
+  {
+   "id": "cost-items",
+   "type": "table",
+   "title": "Cost plan items",
+   "source": "items",
+   "as": "item",
+   "emptyText": "Keine Positionen",
+   "columns": [
+    {
+     "header": "Position",
+     "value": "{{item.text}}",
+     "sub": "{{item.link}}",
+     "width": 125,
+     "align": "left"
+    },
+    {
+     "header": "Betrag (EUR)",
+     "value": "{{item.plannedAmount}}",
+     "width": 25,
+     "align": "right"
+    }
+   ],
+   "totals": [
+    {
+     "label": "Summe (EUR)",
+     "value": "{{project.plannedTotal}}",
+     "bold": true
+    }
+   ],
+   "repeatHeader": true,
+   "headerStyle": "tableHead",
+   "bodyStyle": "cell",
+   "totalsStyle": "cellBold",
+   "subStyle": "small",
+   "headerRule": "$c:text",
+   "rowRule": "$c:text"
+  },
+  {
+   "id": "offers",
+   "type": "repeat",
+   "title": "Comparison offers per item",
+   "source": "items",
+   "as": "item",
+   "blocks": [
+    {
+     "id": "offers-item",
+     "type": "if",
+     "title": "Items with comparison offers",
+     "when": {
+      "path": "item.needsOffers",
+      "op": "eq",
+      "value": "Ja"
+     },
+     "then": [
+      {
+       "id": "offers-space",
+       "type": "spacer",
+       "title": "Space above the offers",
+       "height": 4
+      },
+      {
+       "id": "offers-heading",
+       "type": "heading",
+       "title": "Item name",
+       "text": "Vergleichsangebote: {{item.text}}",
+       "textStyle": "section"
+      },
+      {
+       "id": "offers-table",
+       "type": "table",
+       "title": "Offers of the item",
+       "source": "item.offers",
+       "as": "offer",
+       "emptyText": "Keine Angebote",
+       "columns": [
+        {
+         "header": "Anbieter",
+         "value": "{{offer.shop}}",
+         "width": 85,
+         "align": "left"
+        },
+        {
+         "header": "Datei angehängt",
+         "value": "{{offer.attached}}",
+         "width": 40,
+         "align": "left"
+        },
+        {
+         "header": "Preis (EUR)",
+         "value": "{{offer.price}}",
+         "width": 25,
+         "align": "right"
+        }
+       ],
+       "repeatHeader": true,
+       "headerStyle": "tableHead",
+       "bodyStyle": "cell",
+       "totalsStyle": "cellBold",
+       "subStyle": "small",
+       "headerRule": "$c:text",
+       "rowRule": "$c:text"
+      }
+     ],
+     "else": []
+    }
+   ]
+  },
+  {
+   "id": "purchases-break",
+   "type": "pagebreak",
+   "title": "New page"
+  },
+  {
+   "id": "purchases-title",
+   "type": "heading",
+   "title": "Planned purchases title",
+   "text": "Geplante Einkäufe: {{project.title}}",
+   "textStyle": "title"
+  },
+  {
+   "id": "purchases-table",
+   "type": "table",
+   "title": "Planned purchases",
+   "source": "purchases",
+   "as": "purchase",
+   "emptyText": "Keine geplanten Einkäufe",
+   "columns": [
+    {
+     "header": "Artikel",
+     "value": "{{purchase.item}}{{purchase.costItem | prefix(\" (\") | suffix(\")\")}} x {{purchase.quantity}}",
+     "sub": "{{purchase.link}}",
+     "width": 80,
+     "align": "left"
+    },
+    {
+     "header": "Angebot/Warenkorb",
+     "value": "{{purchase.attached}}",
+     "width": 38,
+     "align": "left"
+    },
+    {
+     "header": "Stückpreis (EUR)",
+     "value": "{{purchase.unitPrice}}",
+     "width": 32,
+     "align": "right"
+    }
+   ],
+   "repeatHeader": true,
+   "headerStyle": "tableHead",
+   "bodyStyle": "cell",
+   "totalsStyle": "cellBold",
+   "subStyle": "small",
+   "headerRule": "$c:text",
+   "rowRule": "$c:text"
+  }
+ ],
+ "footer": []
+}

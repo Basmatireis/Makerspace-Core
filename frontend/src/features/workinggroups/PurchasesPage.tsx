@@ -230,7 +230,9 @@ export function PurchasesPage() {
     },
   ];
 
+  // Booking a cost is for finance managers in any group; requesting purchases only for the groups the caller is in.
   const addGroups = selectedGroup ? [selectedGroup] : visibleGroups;
+  const requestGroups = selectedGroup ? own.filter((group) => group.id === selectedGroup.id) : own;
   const goneAfterDelete = () => {
     setSelectedId(null);
     listRef.current?.focus();
@@ -248,6 +250,7 @@ export function PurchasesPage() {
         setSelectedId(null);
         listRef.current?.focus();
       }}
+      onClose={panelFits ? () => setSelectedId(null) : undefined}
     />
   ) : (
     <DetailPanel>
@@ -278,7 +281,7 @@ export function PurchasesPage() {
         />
       }
     >
-      <div className="wg-summary">
+      <div className="wg-summary wg-summary--panel">
         {figures ? (
           <BudgetCard
             label="Budget"
@@ -380,9 +383,15 @@ export function PurchasesPage() {
                     Book a cost
                   </Button>
                 )}
-                <Button kind="primary" size="md" onClick={() => add.open(true)}>
-                  Add purchases
-                </Button>
+                {requestGroups.length > 0 ? (
+                  <Button kind="primary" size="md" onClick={() => add.open(true)}>
+                    Add purchases
+                  </Button>
+                ) : (
+                  <span className="wg-muted wg-toolbar__note">
+                    Only members of a working group can request purchases.
+                  </span>
+                )}
               </div>
             </div>
             {purchasesQuery.data?.truncated && (
@@ -427,8 +436,8 @@ export function PurchasesPage() {
         </Modal>
       )}
 
-      {add.value && (
-        <AddPurchasesDialog groups={addGroups} initialGroupId={selectedGroup?.id ?? ''} onClose={add.close} />
+      {add.value && requestGroups.length > 0 && (
+        <AddPurchasesDialog groups={requestGroups} initialGroupId={selectedGroup?.id ?? ''} onClose={add.close} />
       )}
       {book.value && (
         <BookCostDialog

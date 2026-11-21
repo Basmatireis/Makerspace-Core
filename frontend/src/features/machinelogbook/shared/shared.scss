@@ -142,6 +142,9 @@
   .mj-table-container .cds--table-toolbar .cds--toolbar-content > .cds--search {
     flex: 1 1 0;
     inline-size: auto;
+    // Without a minimum a collapsed (expandable) search shrinks to 0 and shares the row with the full-width primary
+    // button, so its icon lands on top of the button.
+    min-inline-size: 3rem;
     max-inline-size: none;
   }
   .mj-table-container .cds--table-toolbar .cds--toolbar-content > .cds--btn--icon-only,

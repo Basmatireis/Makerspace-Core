@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PersonalJobStatistics } from './personalJobStatistics';
+import type { PersonalMembership } from './personalMembership';
 
 /**
  * All-time figures from scheduled durations of ended assignments.
@@ -32,6 +33,13 @@ export interface PersonalStatistics {
   eventShifts: number;
   /** @minimum 0 */
   eventShiftHours: number;
+  /**
+     * Start of the latest ended open-day timeslot or event shift the person worked; null before the first.
+     * @nullable
+     */
+  lastStaffedAt: string | null;
   memberSince: string;
+  /** The person's current membership role and when it was assigned; null without one. */
+  membership: PersonalMembership | null;
   jobs?: PersonalJobStatistics;
 }

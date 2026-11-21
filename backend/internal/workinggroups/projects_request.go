@@ -23,7 +23,6 @@ import (
 	workinggroupsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/workinggroups/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/shopspring/decimal"
 )
 
 const (
@@ -343,7 +342,8 @@ func (s *Service) PreviewProjectRequest(ctx context.Context, p authorization.Pri
 	if err != nil {
 		return nil, err
 	}
-	return renderProjektantrag(form, signature)
+	pdf, _, err := s.renderRequest(ctx, project, form, signature)
+	return pdf, err
 }
 
 // OpenProjectRequestPDF opens the Projektantrag that was mailed.
@@ -461,12 +461,12 @@ func (s *Service) sendRequest(
 		}
 		newSignature = &stored.ID
 	}
-	pdf, err := renderProjektantrag(form, signature)
+	pdf, pdfName, err := s.renderRequest(ctx, project, form, signature)
 	if err != nil {
 		s.discardFiles(newSignature)
 		return err
 	}
-	attachments, listed, err := s.requestAttachments(ctx, q, project, form, pdf)
+	attachments, listed, err := s.requestAttachments(ctx, q, project, pdfName, pdf)
 	if err != nil {
 		s.discardFiles(newSignature)
 		return err
@@ -486,7 +486,7 @@ func (s *Service) sendRequest(
 	// The mail has left: its delivery is recorded even when the copy of the PDF cannot be stored. Across a process
 	// crash between the send and this record the delivery is at least once.
 	var pdfID *uuid.UUID
-	if stored, err := s.files.StoreBytes(ctx, p, "Projektantrag.pdf", "application/pdf", pdf, requestID); err != nil {
+	if stored, err := s.files.StoreBytes(ctx, p, pdfName, "application/pdf", pdf, requestID); err != nil {
 		slog.ErrorContext(ctx, "store sent projektantrag failed")
 	} else {
 		pdfID = &stored.ID
@@ -551,39 +551,16 @@ func sanitizeFileName(name string) string {
 	return strings.TrimSpace(b.String())
 }
 
-// requestAttachments are the generated PDFs and the stored files of a project; what exceeds the size bound is
-// returned as names to list in the body.
+// requestAttachments are the Projektantrag (rendered with its advance request, cost plan and planned purchases as one
+// PDF) and the stored files of a project; what exceeds the size bound is returned as names to list in the body.
 func (s *Service) requestAttachments(
 	ctx context.Context,
 	q *workinggroupsdb.Queries,
 	project Project,
-	form RequestForm,
+	name string,
 	projektantrag []byte,
 ) ([]mailservice.Attachment, []string, error) {
-	pdf := func(name string, data []byte) mailservice.Attachment {
-		return mailservice.Attachment{Name: name, ContentType: "application/pdf", Data: data}
-	}
-	out := []mailservice.Attachment{pdf("Projektantrag.pdf", projektantrag)}
-	if form.Advance {
-		amount := project.Totals.Planned
-		if project.AdvanceAmount != nil {
-			amount = *project.AdvanceAmount
-		}
-		data, err := renderAdvanceRequest(project, form, amount)
-		if err != nil {
-			return nil, nil, err
-		}
-		out = append(out, pdf("Vorschussantrag.pdf", data))
-	}
-	costPlan, err := renderCostPlan(project)
-	if err != nil {
-		return nil, nil, err
-	}
-	purchases, err := renderPurchases(project)
-	if err != nil {
-		return nil, nil, err
-	}
-	out = append(out, pdf("Cost plan.pdf", costPlan), pdf("Purchases.pdf", purchases))
+	out := []mailservice.Attachment{{Name: name, ContentType: "application/pdf", Data: projektantrag}}
 	total := 0
 	for _, a := range out {
 		total += len(a.Data)
@@ -639,8 +616,6 @@ func (s *Service) requestAttachments(
 	}
 	return out, listed, nil
 }
-
-var _ = decimal.Zero
 
 // CheckSignatureUpload is the refusal an upload handler runs before it reads the body.
 func (s *Service) CheckSignatureUpload(p authorization.Principal) error {

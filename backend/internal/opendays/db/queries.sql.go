@@ -747,7 +747,8 @@ func (q *Queries) GetOpenDayForUpdate(ctx context.Context, id uuid.UUID) (OpenDa
 
 const getOwnOpenDayStatistics = `-- name: GetOwnOpenDayStatistics :one
 SELECT count(DISTINCT a.open_day_id)::bigint AS staffed,
-       COALESCE(sum(extract(epoch FROM t.ends_at - t.starts_at)), 0)::float8 AS scheduled_seconds
+       COALESCE(sum(extract(epoch FROM t.ends_at - t.starts_at)), 0)::float8 AS scheduled_seconds,
+       max(t.starts_at) AS last_started_at
 FROM open_day_assignments a
 JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
 JOIN open_day_timeslots t ON t.id = a.timeslot_id
@@ -762,6 +763,7 @@ type GetOwnOpenDayStatisticsParams struct {
 type GetOwnOpenDayStatisticsRow struct {
 	Staffed          int64
 	ScheduledSeconds float64
+	LastStartedAt    interface{}
 }
 
 // Ended scheduled open days the person staffed, all time, with the scheduled duration of their ended timeslots in
@@ -769,7 +771,7 @@ type GetOwnOpenDayStatisticsRow struct {
 func (q *Queries) GetOwnOpenDayStatistics(ctx context.Context, arg GetOwnOpenDayStatisticsParams) (GetOwnOpenDayStatisticsRow, error) {
 	row := q.db.QueryRow(ctx, getOwnOpenDayStatistics, arg.PersonID, arg.Now)
 	var i GetOwnOpenDayStatisticsRow
-	err := row.Scan(&i.Staffed, &i.ScheduledSeconds)
+	err := row.Scan(&i.Staffed, &i.ScheduledSeconds, &i.LastStartedAt)
 	return i, err
 }
 

@@ -7,7 +7,8 @@ import (
 
 // The built-in templates are in effect while an export has no published version. The wiRef and cashbook defaults
 // reproduce the documents of release 0.19 (invoicing/pdf.go and the HTU Kassabuch form of orders/cashbook_pdf.go,
-// with its geometry); the receipt is new.
+// with its geometry); the receipt is new; the Projektantrag reproduces the form, advance request, cost plan and
+// planned purchases that workinggroups drew directly before, as one document.
 //
 //go:embed builtin/*.json
 var builtinFiles embed.FS

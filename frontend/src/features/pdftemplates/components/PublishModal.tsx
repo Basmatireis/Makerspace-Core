@@ -6,6 +6,8 @@ const EFFECT: Record<PdfTemplateExport, string> = {
   wiref: 'Invoice requests forwarded to wiRef from now on are rendered with it.',
   cashbook: 'Cashbook exports use it from now on. Exports made earlier are not changed.',
   receipt: 'Receipts downloaded from now on use it.',
+  projektantrag:
+    'Projektanträge previewed or mailed to wiRef from now on use it. Requests that were already sent keep their stored PDF.',
 };
 
 export interface PublishModalProps {

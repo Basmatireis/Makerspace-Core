@@ -1,7 +1,12 @@
 package engine
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
+	"math"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -34,6 +39,8 @@ func SampleData(kind Kind) Data {
 		return sampleCashbook()
 	case KindReceipt:
 		return sampleReceipt()
+	case KindProjektantrag:
+		return sampleProjektantrag()
 	}
 	return Data{}
 }
@@ -190,6 +197,82 @@ func sampleReceipt() Data {
 			{"reference": "P-2026-000818", "method": "Cash", "paidAt": paidAt, "amount": money("31.20")},
 		},
 	}
+}
+
+func sampleProjektantrag() Data {
+	offer := func(shop, price, chosen, attached string) map[string]any {
+		return map[string]any{"shop": shop, "price": money(price), "chosen": chosen, "attached": attached}
+	}
+	return Data{
+		"form": map[string]any{
+			"unitKind": "Referat/Studi-Lab", "unitName": "Studienlabor Makerspace Robotics", "number": "",
+			"projectName": "Robot arm for the open lab", "alcohol": "Nein", "startsOn": "2026-12-01",
+			"endsOn": "2027-02-28", "people": 6, "advance": "Ja",
+			"description": "A six-axis robot arm that visitors can program on open days.\n" +
+				"Members learn kinematics and control; the arm stays in the lab for workshops.",
+			"maxExpenses": money("1240.00"), "maxIncome": money("0.00"), "responsibleFirstName": "Alex",
+			"responsibleLastName": "Example", "responsibleName": "Alex Example", "place": "Graz",
+			"date": "2026-11-18",
+		},
+		"signature": Image{Data: sampleSignature()},
+		"project": map[string]any{
+			"title": "Robot arm for the open lab", "group": "Robotics", "goal": "A six-axis robot arm that visitors can program on open days.",
+			"benefit":  "Members learn kinematics and control; the arm stays in the lab for workshops.",
+			"paidFrom": "Gruppenbudget", "wirefNumber": "", "plannedTotal": money("1240.00"),
+			"plannedIncome": money("0.00"),
+		},
+		"advance": map[string]any{"amount": money("600.00")},
+		"items": []map[string]any{
+			{
+				"position": 1, "text": "Servo motors (6 pcs)", "link": "https://shop.example/servo",
+				"note": "", "plannedAmount": money("780.00"), "needsOffers": "Ja", "chosenOffer": "",
+				"offers": []map[string]any{
+					offer("Sample Robotics", "780.00", "Nein", "Ja"),
+					offer("Example Motion", "812.50", "Nein", "Ja"),
+					offer("Demo Parts", "799.00", "Nein", "Nein"),
+				},
+			},
+			{
+				"position": 2, "text": "Aluminium profiles and fasteners", "link": "", "note": "Cut to length",
+				"plannedAmount": money("310.00"), "needsOffers": "Nein", "chosenOffer": "",
+				"offers": []map[string]any{},
+			},
+			{
+				"position": 3, "text": "Controller board", "link": "https://shop.example/controller", "note": "",
+				"plannedAmount": money("150.00"), "needsOffers": "Nein", "chosenOffer": "",
+				"offers": []map[string]any{},
+			},
+		},
+		"purchases": []map[string]any{
+			{
+				"item": "Controller board", "costItem": "Controller board", "quantity": 1,
+				"unitPrice": money("149.90"), "total": money("149.90"), "link": "https://shop.example/controller",
+				"status": "Geplant", "attached": "Ja",
+			},
+		},
+	}
+}
+
+// sampleSignature draws a fictitious signature stroke as a PNG with a transparent background.
+func sampleSignature() []byte {
+	const w, h = 240, 80
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	ink := color.NRGBA{R: 22, G: 40, B: 110, A: 255}
+	for i := 0; i <= 2000; i++ {
+		t := float64(i) / 2000
+		x := 12 + t*(w-24)
+		y := h/2 + 18*math.Sin(t*5*math.Pi)*math.Exp(-t*1.2) + 6*math.Sin(t*23*math.Pi)
+		for dx := -1; dx <= 1; dx++ {
+			for dy := -1; dy <= 1; dy++ {
+				img.SetNRGBA(int(x)+dx, int(y)+dy, ink)
+			}
+		}
+	}
+	var out bytes.Buffer
+	if err := png.Encode(&out, img); err != nil {
+		return nil
+	}
+	return out.Bytes()
 }
 
 // sampleSheet are the form table locals the variable examples show.

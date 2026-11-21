@@ -1,0 +1,144 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
+
+// The dashboard pinboard card (lazy chunk): header with actions, the table and every machine and place per group.
+
+.db-pb {
+  display: grid;
+  min-inline-size: 0;
+  background: theme.$layer-01;
+}
+
+.db-pb__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: $spacing-04 $spacing-06;
+  padding: $spacing-05;
+}
+
+.db-pb__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+.db-pb__all {
+  padding: $spacing-05;
+}
+
+.db-pb__allhead,
+.db-pb__grouphead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $spacing-03;
+  @include type-style('heading-compact-01');
+}
+
+.db-pb__allhead {
+  margin-block-end: $spacing-04;
+}
+
+.db-pb__grouphead {
+  margin-block-end: $spacing-02;
+  padding-block-end: $spacing-03;
+  border-block-end: 1px solid theme.$border-subtle-01;
+}
+
+.db-pb__allhead .wg-muted,
+.db-pb__grouphead .wg-muted {
+  font-weight: 400;
+  @include type-style('helper-text-01');
+}
+
+.db-pb__groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-06 $spacing-07;
+}
+
+.db-pb__item {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  min-block-size: 2rem;
+  @include type-style('body-compact-01');
+}
+
+.db-pb__item svg {
+  flex: none;
+}
+
+.db-pb__name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  min-inline-size: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-pb__state {
+  flex: none;
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+
+.db-pb__item--ok svg {
+  fill: theme.$support-success;
+}
+
+.db-pb__item--ok .db-pb__state {
+  display: none;
+}
+
+.db-pb__item--limited svg {
+  fill: theme.$support-warning;
+}
+
+.db-pb__item--maintenance svg {
+  fill: theme.$support-info;
+}
+
+.db-pb__item--out_of_order svg,
+.db-pb__item--out_of_order .db-pb__state {
+  color: theme.$support-error;
+  fill: theme.$support-error;
+}
+
+@media (max-width: 41.98rem) {
+  .db-pb__groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// One tidy block per row: every line starts on the same edge with a small, even gap. The toggle of a machine row
+// looks like a line of text with the chevron right behind the name.
+.db-pb__msg {
+  display: grid;
+  gap: $spacing-01;
+  justify-items: start;
+  min-inline-size: 0;
+}
+
+.db-pb__msg .wg-muted {
+  margin: 0;
+}
+
+.db-pb__line {
+  @include type-style('body-compact-01');
+}
+
+.db-pb__msg .db-pb__toggle.cds--btn {
+  min-block-size: 0;
+  block-size: auto;
+  padding: 0 calc(#{$spacing-05} + #{$spacing-03}) 0 0;
+  text-align: start;
+  @include type-style('body-compact-01');
+}
+
+.db-pb__msg .db-pb__toggle .cds--btn__icon {
+  inset-inline-end: 0;
+}
