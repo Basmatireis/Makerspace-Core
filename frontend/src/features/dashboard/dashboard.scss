@@ -33,7 +33,8 @@
 }
 
 .db-main--single .db-main__side {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  // auto-fill keeps empty tracks, so a lone tile keeps its column width instead of stretching over the whole row.
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
   align-items: start;
 }
 
