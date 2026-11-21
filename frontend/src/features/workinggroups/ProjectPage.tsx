@@ -229,23 +229,122 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
       )}
 
       <div className="wg-pj-grid">
-        <div className="wg-pj-main">
-          <section className="wg-tile wg-phead" aria-label="Project">
-            <div className="wg-phead__id">
-              <p className="wg-label">Project · {project.groupName}</p>
-              <div className="wg-phead__title">
-                <h2>{project.title}</h2>
-                <Tag size="md" type={PROJECT_STATUS_TAG[project.status]}>
-                  {PROJECT_STATUS_LABEL[project.status]}
-                </Tag>
-              </div>
-              <p className="wg-muted">
-                {[who(project), dateRange(project, formatDateOnly), paidFromLabel(project)].filter(Boolean).join(' · ')}
-              </p>
+        <section className="wg-tile wg-phead" aria-label="Project">
+          <div className="wg-phead__id">
+            <p className="wg-label">Project · {project.groupName}</p>
+            <div className="wg-phead__title">
+              <h2>{project.title}</h2>
+              <Tag size="md" type={PROJECT_STATUS_TAG[project.status]}>
+                {PROJECT_STATUS_LABEL[project.status]}
+              </Tag>
             </div>
-            <ProjectStepper project={project} />
-          </section>
-
+            <p className="wg-muted">
+              {[who(project), dateRange(project, formatDateOnly), paidFromLabel(project)].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <ProjectStepper project={project} />
+        </section>
+        <section className="wg-tile" aria-label="What happens next">
+          <h3>What happens next</h3>
+          <ReasonBlock project={project} />
+          {draftLike && (
+            <>
+              <p className="wg-muted">
+                {checklist.complete ? 'Everything is there.' : 'Before it can go to approval:'}
+              </p>
+              <ul className="wg-todo-list">
+                {rows.map((row) => (
+                  <li key={row.key} className={row.done ? 'is-done' : 'is-open'}>
+                    {row.done ? <Checkmark size={16} aria-label="Done" /> : <ErrorFilled size={16} aria-label="Open" />}
+                    {!row.done && row.itemId ? (
+                      <CarbonLink
+                        href="#"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          setSelected({ kind: 'item', id: row.itemId as string });
+                        }}
+                      >
+                        {row.label}
+                      </CarbonLink>
+                    ) : (
+                      <span>{row.label}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <div className="wg-next__actions">
+                {project.canSubmit && (
+                  <Button
+                    kind="primary"
+                    size="md"
+                    renderIcon={ArrowRight}
+                    disabled={!checklist.complete || submit.isPending}
+                    onClick={() => submit.mutate(undefined)}
+                  >
+                    Hand in for approval
+                  </Button>
+                )}
+                {project.canEdit && (
+                  <Button kind="ghost" size="md" onClick={() => edit.open(true)}>
+                    Edit
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+          {project.status === 'submitted' && (
+            <>
+              <p className="wg-muted">Waiting for management to decide.</p>
+              {project.canDecide && (
+                <div className="wg-next__actions">
+                  <Button kind="primary" size="md" renderIcon={ArrowRight} onClick={() => approve.open(true)}>
+                    Approve
+                  </Button>
+                  <Button kind="ghost" size="md" onClick={() => reason.open('return')}>
+                    Return with a comment
+                  </Button>
+                  <Button kind="danger--ghost" size="md" onClick={() => reason.open('decline')}>
+                    Decline
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+          {project.status === 'wiref' && (
+            <>
+              <p className="wg-muted">
+                {project.wirefRequestPending ? 'Not sent to the WiRef yet.' : 'Waiting for the WiRef.'}
+              </p>
+              {project.canDecide && (
+                <div className="wg-next__actions">
+                  <Button kind="primary" size="md" renderIcon={Checkmark} onClick={() => wiref.open(true)}>
+                    WiRef approved it
+                  </Button>
+                  <Button kind="danger--ghost" size="md" onClick={() => reason.open('wiref-decline')}>
+                    WiRef declined it
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+          {project.status === 'running' && (
+            <div className="wg-next__actions">
+              {project.canComplete && (
+                <Button kind="primary" size="md" renderIcon={Checkmark} onClick={() => complete.open(true)}>
+                  Complete the project
+                </Button>
+              )}
+              {finance && project.advanceStatus === 'asked' && (
+                <Button kind="ghost" size="md" disabled={advance.isPending} onClick={() => advance.mutate(undefined)}>
+                  Advance arrived
+                </Button>
+              )}
+            </div>
+          )}
+          {project.status === 'completed' && <p>{project.completionReport || 'The project is completed.'}</p>}
+          {project.status === 'declined' && <p className="wg-muted">This project was declined.</p>}
+        </section>
+        <div className="wg-pj-main">
           <section className="wg-tile" aria-label="Cost plan and purchases">
             <div className="wg-pj-cardhead">
               <h3>Cost plan and purchases</h3>
@@ -364,111 +463,6 @@ function ProjectView({ project }: { project: WorkingGroupProject }) {
         </div>
 
         <div className="wg-pj-side">
-          <section className="wg-tile" aria-label="What happens next">
-            <h3>What happens next</h3>
-            <ReasonBlock project={project} />
-            {draftLike && (
-              <>
-                <p className="wg-muted">
-                  {checklist.complete ? 'Everything is there.' : 'Before it can go to approval:'}
-                </p>
-                <ul className="wg-todo-list">
-                  {rows.map((row) => (
-                    <li key={row.key} className={row.done ? 'is-done' : 'is-open'}>
-                      {row.done ? (
-                        <Checkmark size={16} aria-label="Done" />
-                      ) : (
-                        <ErrorFilled size={16} aria-label="Open" />
-                      )}
-                      {!row.done && row.itemId ? (
-                        <CarbonLink
-                          href="#"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            setSelected({ kind: 'item', id: row.itemId as string });
-                          }}
-                        >
-                          {row.label}
-                        </CarbonLink>
-                      ) : (
-                        <span>{row.label}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                <div className="wg-next__actions">
-                  {project.canSubmit && (
-                    <Button
-                      kind="primary"
-                      size="md"
-                      renderIcon={ArrowRight}
-                      disabled={!checklist.complete || submit.isPending}
-                      onClick={() => submit.mutate(undefined)}
-                    >
-                      Hand in for approval
-                    </Button>
-                  )}
-                  {project.canEdit && (
-                    <Button kind="ghost" size="md" onClick={() => edit.open(true)}>
-                      Edit
-                    </Button>
-                  )}
-                </div>
-              </>
-            )}
-            {project.status === 'submitted' && (
-              <>
-                <p className="wg-muted">Waiting for management to decide.</p>
-                {project.canDecide && (
-                  <div className="wg-next__actions">
-                    <Button kind="primary" size="md" renderIcon={ArrowRight} onClick={() => approve.open(true)}>
-                      Approve
-                    </Button>
-                    <Button kind="ghost" size="md" onClick={() => reason.open('return')}>
-                      Return with a comment
-                    </Button>
-                    <Button kind="danger--ghost" size="md" onClick={() => reason.open('decline')}>
-                      Decline
-                    </Button>
-                  </div>
-                )}
-              </>
-            )}
-            {project.status === 'wiref' && (
-              <>
-                <p className="wg-muted">
-                  {project.wirefRequestPending ? 'Not sent to the WiRef yet.' : 'Waiting for the WiRef.'}
-                </p>
-                {project.canDecide && (
-                  <div className="wg-next__actions">
-                    <Button kind="primary" size="md" renderIcon={Checkmark} onClick={() => wiref.open(true)}>
-                      WiRef approved it
-                    </Button>
-                    <Button kind="danger--ghost" size="md" onClick={() => reason.open('wiref-decline')}>
-                      WiRef declined it
-                    </Button>
-                  </div>
-                )}
-              </>
-            )}
-            {project.status === 'running' && (
-              <div className="wg-next__actions">
-                {project.canComplete && (
-                  <Button kind="primary" size="md" renderIcon={Checkmark} onClick={() => complete.open(true)}>
-                    Complete the project
-                  </Button>
-                )}
-                {finance && project.advanceStatus === 'asked' && (
-                  <Button kind="ghost" size="md" disabled={advance.isPending} onClick={() => advance.mutate(undefined)}>
-                    Advance arrived
-                  </Button>
-                )}
-              </div>
-            )}
-            {project.status === 'completed' && <p>{project.completionReport || 'The project is completed.'}</p>}
-            {project.status === 'declined' && <p className="wg-muted">This project was declined.</p>}
-          </section>
-
           {finance && (
             <section className="wg-tile" aria-label="Request for the WiRef">
               <div className="wg-pj-cardhead">

@@ -1072,6 +1072,11 @@
   margin-block-start: $spacing-04;
 }
 
+// The project header and "What happens next" share the first row and its height, so the tiles below start level.
+.wg-pj-grid > .wg-tile {
+  align-self: stretch;
+}
+
 .wg-pj-main,
 .wg-pj-side {
   display: grid;
