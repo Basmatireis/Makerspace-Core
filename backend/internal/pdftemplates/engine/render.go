@@ -62,6 +62,12 @@ type Logo struct {
 	Data []byte
 }
 
+// Image is an image value of the data, such as a signature: PNG or JPEG data, sniffed by content. An image block
+// whose source names the variable draws it; in text it is empty.
+type Image struct {
+	Data []byte
+}
+
 // Branding is what the makerspace.* variables show.
 type Branding struct {
 	Name        string
@@ -188,11 +194,13 @@ type renderer struct {
 	fonts     map[string]bool
 	assets    map[string]*loadedAsset
 	logoAsset *loadedAsset
-	page      int
-	items     int
-	boxes     map[boxKey]int
-	boxOrder  []Box
-	styles    styleIndex
+	// dataImages are the image values of the data that were drawn, by their content.
+	dataImages map[string]*loadedAsset
+	page       int
+	items      int
+	boxes      map[boxKey]int
+	boxOrder   []Box
+	styles     styleIndex
 }
 
 type boxKey struct {

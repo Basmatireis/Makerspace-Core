@@ -216,6 +216,9 @@ func (r *renderer) blockItems(b *Block, sc *scope, width float64, body bool) ([]
 		}
 		return []item{it}, nil
 	case BlockImage:
+		if b.Source != "" {
+			return r.dataImageItem(b, sc, width), nil
+		}
 		return r.logoItem(b), nil
 	case BlockSignatures:
 		return []item{r.signaturesItem(b, sc, width)}, nil
@@ -602,6 +605,29 @@ func (r *renderer) logoItem(b *Block) []item {
 	return []item{{
 		id: b.ID, h: h, w: w, natural: w,
 		draw: func(x, y, _ float64) { r.drawImage(logo, x, y, w, h) },
+	}}
+}
+
+// dataImageItem draws the image value a source names, such as a signature, at the block's height and at most the
+// available width. Without an image it draws nothing.
+func (r *renderer) dataImageItem(b *Block, sc *scope, width float64) []item {
+	h := r.mm(b.Height, 12)
+	value, _ := r.ev.value(b.ID, b.Source, sc)
+	img, ok := value.(Image)
+	if h <= 0 || !ok {
+		return nil
+	}
+	loaded := r.dataImage(img)
+	if loaded == nil || loaded.failed != "" || loaded.width <= 0 || loaded.height <= 0 {
+		return nil
+	}
+	w := h * loaded.width / loaded.height
+	if w > width {
+		w, h = width, width*loaded.height/loaded.width
+	}
+	return []item{{
+		id: b.ID, h: h, after: blockAfter, w: w, natural: w,
+		draw: func(x, y, _ float64) { r.drawImage(loaded, x, y, w, h) },
 	}}
 }
 

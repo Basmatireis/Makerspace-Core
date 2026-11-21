@@ -183,7 +183,7 @@ export const deletePdfTemplateAsset = async (assetId: UUIDv7, options?: Paramete
 );}
 
 
-export const getGetPdfTemplateUrl = (_export: 'wiref' | 'cashbook' | 'receipt',) => {
+export const getGetPdfTemplateUrl = (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',) => {
 
 
 
@@ -195,7 +195,7 @@ export const getGetPdfTemplateUrl = (_export: 'wiref' | 'cashbook' | 'receipt',)
  * Requires pdf_templates.manage. The schema lists the variables and filters the template may use; examples come from sample data only.
  * @summary Read the draft and published template of an export with its built-in default and variable schema
  */
-export const getPdfTemplate = async (_export: 'wiref' | 'cashbook' | 'receipt', options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplateDetail> => {
+export const getPdfTemplate = async (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag', options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplateDetail> => {
 
   return apiFetch<PdfTemplateDetail>(getGetPdfTemplateUrl(_export),
   {
@@ -207,7 +207,7 @@ export const getPdfTemplate = async (_export: 'wiref' | 'cashbook' | 'receipt', 
 );}
 
 
-export const getListPdfTemplateVersionsUrl = (_export: 'wiref' | 'cashbook' | 'receipt',) => {
+export const getListPdfTemplateVersionsUrl = (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',) => {
 
 
 
@@ -219,7 +219,7 @@ export const getListPdfTemplateVersionsUrl = (_export: 'wiref' | 'cashbook' | 'r
  * Requires pdf_templates.manage.
  * @summary List the versions of an export, newest first
  */
-export const listPdfTemplateVersions = async (_export: 'wiref' | 'cashbook' | 'receipt', options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplateVersionMeta[]> => {
+export const listPdfTemplateVersions = async (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag', options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplateVersionMeta[]> => {
 
   return apiFetch<PdfTemplateVersionMeta[]>(getListPdfTemplateVersionsUrl(_export),
   {
@@ -231,7 +231,7 @@ export const listPdfTemplateVersions = async (_export: 'wiref' | 'cashbook' | 'r
 );}
 
 
-export const getGetPdfTemplateVersionUrl = (_export: 'wiref' | 'cashbook' | 'receipt',
+export const getGetPdfTemplateVersionUrl = (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',
     versionId: UUIDv7,) => {
 
 
@@ -244,7 +244,7 @@ export const getGetPdfTemplateVersionUrl = (_export: 'wiref' | 'cashbook' | 'rec
  * Requires pdf_templates.manage.
  * @summary Read one version with its document
  */
-export const getPdfTemplateVersion = async (_export: 'wiref' | 'cashbook' | 'receipt',
+export const getPdfTemplateVersion = async (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',
     versionId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplateVersion> => {
 
   return apiFetch<PdfTemplateVersion>(getGetPdfTemplateVersionUrl(_export,versionId),
@@ -257,7 +257,7 @@ export const getPdfTemplateVersion = async (_export: 'wiref' | 'cashbook' | 'rec
 );}
 
 
-export const getRestorePdfTemplateVersionUrl = (_export: 'wiref' | 'cashbook' | 'receipt',
+export const getRestorePdfTemplateVersionUrl = (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',
     versionId: UUIDv7,) => {
 
 
@@ -270,7 +270,7 @@ export const getRestorePdfTemplateVersionUrl = (_export: 'wiref' | 'cashbook' | 
  * Requires pdf_templates.manage. Replaces the current draft, if any, with the document of the given version.
  * @summary Copy an earlier version into the draft
  */
-export const restorePdfTemplateVersion = async (_export: 'wiref' | 'cashbook' | 'receipt',
+export const restorePdfTemplateVersion = async (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',
     versionId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplateVersion> => {
 
   return apiFetch<PdfTemplateVersion>(getRestorePdfTemplateVersionUrl(_export,versionId),
@@ -283,7 +283,7 @@ export const restorePdfTemplateVersion = async (_export: 'wiref' | 'cashbook' | 
 );}
 
 
-export const getSavePdfTemplateDraftUrl = (_export: 'wiref' | 'cashbook' | 'receipt',) => {
+export const getSavePdfTemplateDraftUrl = (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',) => {
 
 
 
@@ -295,7 +295,7 @@ export const getSavePdfTemplateDraftUrl = (_export: 'wiref' | 'cashbook' | 'rece
  * Requires pdf_templates.manage. Drafts may be saved with problems (returned in `problems`); a document that violates the structure is refused with 422 `pdf_template_invalid`, one that exceeds the size limits with `pdf_template_too_large`. 409 when `expectedRevision` is stale.
  * @summary Create or replace the draft
  */
-export const savePdfTemplateDraft = async (_export: 'wiref' | 'cashbook' | 'receipt',
+export const savePdfTemplateDraft = async (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',
     savePdfTemplateDraftRequest: SavePdfTemplateDraftRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplateDraftResult> => {
 
   return apiFetch<PdfTemplateDraftResult>(getSavePdfTemplateDraftUrl(_export),
@@ -308,7 +308,7 @@ export const savePdfTemplateDraft = async (_export: 'wiref' | 'cashbook' | 'rece
 );}
 
 
-export const getDiscardPdfTemplateDraftUrl = (_export: 'wiref' | 'cashbook' | 'receipt',) => {
+export const getDiscardPdfTemplateDraftUrl = (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',) => {
 
 
 
@@ -320,7 +320,7 @@ export const getDiscardPdfTemplateDraftUrl = (_export: 'wiref' | 'cashbook' | 'r
  * Requires pdf_templates.manage.
  * @summary Discard the draft
  */
-export const discardPdfTemplateDraft = async (_export: 'wiref' | 'cashbook' | 'receipt', options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+export const discardPdfTemplateDraft = async (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag', options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
   return apiFetch<void>(getDiscardPdfTemplateDraftUrl(_export),
   {
@@ -332,7 +332,7 @@ export const discardPdfTemplateDraft = async (_export: 'wiref' | 'cashbook' | 'r
 );}
 
 
-export const getPublishPdfTemplateDraftUrl = (_export: 'wiref' | 'cashbook' | 'receipt',) => {
+export const getPublishPdfTemplateDraftUrl = (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',) => {
 
 
 
@@ -344,7 +344,7 @@ export const getPublishPdfTemplateDraftUrl = (_export: 'wiref' | 'cashbook' | 'r
  * Requires pdf_templates.manage. The previous published version is archived. 409 when `expectedRevision` is stale or there is no draft; 422 `pdf_template_has_problems` while the document has any error.
  * @summary Publish the draft
  */
-export const publishPdfTemplateDraft = async (_export: 'wiref' | 'cashbook' | 'receipt',
+export const publishPdfTemplateDraft = async (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',
     publishPdfTemplateRequest: PublishPdfTemplateRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplateVersion> => {
 
   return apiFetch<PdfTemplateVersion>(getPublishPdfTemplateDraftUrl(_export),
@@ -357,7 +357,7 @@ export const publishPdfTemplateDraft = async (_export: 'wiref' | 'cashbook' | 'r
 );}
 
 
-export const getPreviewPdfTemplateUrl = (_export: 'wiref' | 'cashbook' | 'receipt',) => {
+export const getPreviewPdfTemplateUrl = (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',) => {
 
 
 
@@ -366,10 +366,10 @@ export const getPreviewPdfTemplateUrl = (_export: 'wiref' | 'cashbook' | 'receip
 }
 
 /**
- * Requires pdf_templates.manage; a `record` source additionally needs the permission of the export (wiref: external_invoice_requests.read and orders.read; cashbook: payments.read and cash_movements.read; receipt: orders.read) and fields the caller may not read are rendered empty and listed in `redacted`. Nothing is stored.
+ * Requires pdf_templates.manage; a `record` source additionally needs the permission of the export (wiref: external_invoice_requests.read and orders.read; cashbook: payments.read and cash_movements.read; receipt: orders.read; projektantrag has no records, only the sample) and fields the caller may not read are rendered empty and listed in `redacted`. Nothing is stored.
  * @summary Render a possibly unsaved document
  */
-export const previewPdfTemplate = async (_export: 'wiref' | 'cashbook' | 'receipt',
+export const previewPdfTemplate = async (_export: 'wiref' | 'cashbook' | 'receipt' | 'projektantrag',
     previewPdfTemplateRequest: PreviewPdfTemplateRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PdfTemplatePreview> => {
 
   return apiFetch<PdfTemplatePreview>(getPreviewPdfTemplateUrl(_export),

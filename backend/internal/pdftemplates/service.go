@@ -1,5 +1,5 @@
 // Package pdftemplates owns the editable PDF templates of the exports (wiRef invoice request, cashbook, order
-// receipt): the versions of every template (one draft, one published version, archived history), the uploaded
+// receipt, Projektantrag of a working-group project): the versions of every template (one draft, one published version, archived history), the uploaded
 // images templates may place, previews with sample or real records, and the effective template the real exports
 // render with. The layout and rendering itself is the pure engine in the engine package; this package adds
 // authorization, persistence, audit and the record sources of previews.
@@ -45,7 +45,8 @@ type RecordSource interface {
 	RecordData(ctx context.Context, p authorization.Principal, id string) (engine.Data, error)
 }
 
-// Records are the record sources of the three exports; a nil source offers no real records.
+// Records are the record sources of the exports; a nil source offers no real records. The Projektantrag has none:
+// its preview uses the sample only.
 type Records struct {
 	WiRef    RecordSource
 	Cashbook RecordSource

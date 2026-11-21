@@ -135,6 +135,37 @@ var schemaGroups = map[Kind][]groupDef{
 		}},
 		{name: "Payments (list)", list: "payments", fields: paymentFields("payments[]")},
 	},
+	KindProjektantrag: {
+		{name: "Projektantrag form", fields: []fieldDef{
+			f("form.unitKind", FieldText), f("form.unitName", FieldText), f("form.number", FieldText),
+			f("form.projectName", FieldText), f("form.alcohol", FieldText), f("form.startsOn", FieldDate),
+			f("form.endsOn", FieldDate), f("form.people", FieldNumber), f("form.advance", FieldText),
+			f("form.description", FieldText), f("form.maxExpenses", FieldMoney), f("form.maxIncome", FieldMoney),
+			f("form.responsibleFirstName", FieldText), f("form.responsibleLastName", FieldText),
+			f("form.responsibleName", FieldText), f("form.place", FieldText), f("form.date", FieldDate),
+		}},
+		{name: "Signature", fields: []fieldDef{f("signature", FieldImage)}},
+		{name: "Project", fields: []fieldDef{
+			f("project.title", FieldText), f("project.group", FieldText), f("project.goal", FieldText),
+			f("project.benefit", FieldText), f("project.paidFrom", FieldText), f("project.wirefNumber", FieldText),
+			f("project.plannedTotal", FieldMoney), f("project.plannedIncome", FieldMoney),
+		}},
+		{name: "Advance", fields: []fieldDef{f("advance.amount", FieldMoney)}},
+		{name: "Cost plan items (list)", list: "items", fields: []fieldDef{
+			f("items[].position", FieldNumber), f("items[].text", FieldText), f("items[].link", FieldText),
+			f("items[].note", FieldText), f("items[].plannedAmount", FieldMoney), f("items[].needsOffers", FieldText),
+			f("items[].chosenOffer", FieldText),
+		}},
+		{name: "Offers of an item (list)", list: "items[].offers", fields: []fieldDef{
+			f("items[].offers[].shop", FieldText), f("items[].offers[].price", FieldMoney),
+			f("items[].offers[].chosen", FieldText), f("items[].offers[].attached", FieldText),
+		}},
+		{name: "Planned purchases (list)", list: "purchases", fields: []fieldDef{
+			f("purchases[].item", FieldText), f("purchases[].costItem", FieldText), f("purchases[].quantity", FieldNumber),
+			f("purchases[].unitPrice", FieldMoney), f("purchases[].total", FieldMoney), f("purchases[].link", FieldText),
+			f("purchases[].status", FieldText), f("purchases[].attached", FieldText),
+		}},
+	},
 }
 
 func paymentFields(prefix string) []fieldDef {
@@ -230,6 +261,52 @@ var fieldDocs = map[string]string{
 	"payment.method":                     "Method of that payment",
 	"payment.paidAt":                     "When that payment was recorded",
 	"payment.amount":                     "Amount of that payment",
+	"form.unitKind":                      `Kind of the organizational unit: "Stv", "UV" or "Referat/Studi-Lab"`,
+	"form.unitName":                      "Name of the organizational unit",
+	"form.number":                        "PA number the wiRef assigns; empty until it has decided",
+	"form.projectName":                   "Project name as entered on the form",
+	"form.alcohol":                       `"Ja" when the project involves alcohol, else "Nein"`,
+	"form.startsOn":                      "First day of the project; may be empty",
+	"form.endsOn":                        "Last day of the project; may be empty",
+	"form.people":                        "Planned number of people",
+	"form.advance":                       `"Ja" when an advance is requested, else "Nein"`,
+	"form.description":                   "Description of the project (goal and benefit)",
+	"form.maxExpenses":                   "Planned maximum expenses",
+	"form.maxIncome":                     "Planned maximum income",
+	"form.responsibleFirstName":          "First name of the person responsible for the cost centre",
+	"form.responsibleLastName":           "Last name of the person responsible for the cost centre",
+	"form.responsibleName":               "First and last name of the person responsible for the cost centre",
+	"form.place":                         "Place of signing",
+	"form.date":                          "Date of signing",
+	"signature":                          "Signature image of the person who signs the form; place it with the Image element and this source",
+	"project.title":                      "Title of the project",
+	"project.group":                      "Name of the working group",
+	"project.goal":                       "Goal of the project",
+	"project.benefit":                    "Benefit of the project; may be empty",
+	"project.paidFrom":                   `"Gruppenbudget" or "Externe Quelle"; empty while undecided`,
+	"project.wirefNumber":                "PA number the wiRef assigned; empty until it has decided",
+	"project.plannedTotal":               "Sum of the planned amounts of the cost plan",
+	"project.plannedIncome":              "Planned income of the project",
+	"advance.amount":                     "Requested advance: the advance amount, else the planned total; shown when form.advance is Ja",
+	"items[].position":                   "Position of the item in the cost plan, from 1",
+	"items[].text":                       "What the item is",
+	"items[].link":                       "Link to the item; may be empty",
+	"items[].note":                       "Note on the item; may be empty",
+	"items[].plannedAmount":              "Planned amount of the item",
+	"items[].needsOffers":                `"Ja" when the item needs comparison offers, else "Nein"`,
+	"items[].chosenOffer":                "Shop of the offer the wiRef chose; empty until it has decided",
+	"items[].offers[].shop":              "Shop of the offer",
+	"items[].offers[].price":             "Price of the offer",
+	"items[].offers[].chosen":            `"Ja" for the offer the wiRef chose, else "Nein"`,
+	"items[].offers[].attached":          `"Ja" when the offer file is attached to the mail, else "Nein"`,
+	"purchases[].item":                   "What is bought",
+	"purchases[].costItem":               "Cost plan item the purchase belongs to; may be empty",
+	"purchases[].quantity":               "Quantity",
+	"purchases[].unitPrice":              "Price per unit",
+	"purchases[].total":                  "Quantity × unit price",
+	"purchases[].link":                   "Link to the article; may be empty",
+	"purchases[].status":                 "Status of the purchase in German, e.g. Geplant, Genehmigt, Gekauft",
+	"purchases[].attached":               `"Ja" when an offer or cart is attached to the mail, else "Nein"`,
 	"makerspace.name":                    "Organization name from the branding settings",
 	"makerspace.displayName":             "Display name of the application from the branding settings",
 	"makerspace.address":                 "Address from the branding settings",
@@ -242,6 +319,22 @@ var fieldDocs = map[string]string{
 	"sheet.sumIn":                        "Sum of this sheet's money in",
 	"sheet.sumOut":                       "Sum of this sheet's money out",
 	"sheet.balance":                      "Balance at the end of this sheet",
+}
+
+// kindDocs are the descriptions that differ between exports; they take precedence over fieldDocs.
+var kindDocs = map[Kind]map[string]string{
+	KindProjektantrag: {
+		"items":          "Items of the cost plan; loop over them with a table or repeat",
+		"items[].offers": "Comparison offers of an item; loop over them inside an item loop, e.g. item.offers",
+		"purchases":      "Planned purchases of the project, without declined ones",
+	},
+}
+
+func describe(kind Kind, path string) string {
+	if text, ok := kindDocs[kind][path]; ok {
+		return text
+	}
+	return fieldDocs[path]
 }
 
 // filterOrder lists the filters as the editor shows them.
@@ -318,13 +411,13 @@ func Schema(kind Kind) SchemaInfo {
 	}, sampleRoot(kind, sample))
 	info := SchemaInfo{Filters: Filters()}
 	for _, g := range append(append([]groupDef(nil), schemaGroups[kind]...), commonGroup) {
-		group := Group{Name: g.name, List: g.list, Description: fieldDocs[g.list], Fields: []Field{}}
+		group := Group{Name: g.name, List: g.list, Description: describe(kind, g.list), Fields: []Field{}}
 		for _, field := range g.fields {
 			group.Fields = append(group.Fields, Field{
 				Path:        field.path,
 				Type:        field.typ,
 				Permission:  field.permission,
-				Description: fieldDocs[field.path],
+				Description: describe(kind, field.path),
 				Example:     ex.example(field),
 			})
 		}

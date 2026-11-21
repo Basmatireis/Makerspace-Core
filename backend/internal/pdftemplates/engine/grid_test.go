@@ -201,6 +201,8 @@ func TestBuiltinsAreEditable(t *testing.T) {
 		KindWiRef:    "[]",
 		KindCashbook: "[sheets-all-payments]",
 		KindReceipt:  "[single-payment single-payment-note]",
+		// The sample requests an advance and has a planned purchase, so every part is drawn.
+		KindProjektantrag: "[]",
 	}
 	for _, kind := range Kinds {
 		doc := Builtin(kind)

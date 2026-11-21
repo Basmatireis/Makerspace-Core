@@ -694,6 +694,8 @@ func isEmpty(value any) bool {
 	switch v := value.(type) {
 	case nil:
 		return true
+	case Image:
+		return len(v.Data) == 0
 	case string:
 		return v == ""
 	case bool:

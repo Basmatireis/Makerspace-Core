@@ -26,4 +26,5 @@ export const PdfTemplateExport = {
   PdfTemplateExportWiref: 'wiref',
   PdfTemplateExportCashbook: 'cashbook',
   PdfTemplateExportReceipt: 'receipt',
+  PdfTemplateExportProjektantrag: 'projektantrag',
 } as const;
