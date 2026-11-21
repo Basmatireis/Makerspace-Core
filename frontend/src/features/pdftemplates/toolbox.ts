@@ -70,7 +70,10 @@ const INFO: Record<ToolType, Omit<ToolInfo, 'label'>> = {
   ellipse: { icon: CircleStroke, description: 'Circle or oval', key: 'O' },
   line: { icon: LineThin, description: 'Straight rule, e.g. a form line or fold mark', key: 'L' },
   picture: { icon: Image, description: 'Uploaded PNG or JPEG', key: 'I' },
-  image: { icon: Image, description: 'Makerspace logo from the branding settings' },
+  image: {
+    icon: Image,
+    description: 'Makerspace logo from the branding settings, or an image of the data such as a signature',
+  },
   graphic: { icon: Shapes, description: 'Vector artwork uploaded as SVG' },
   qr: { icon: QrCode, description: 'Encodes a value, e.g. the order number' },
   barcode: { icon: Barcode, description: 'Code 128 of a value' },

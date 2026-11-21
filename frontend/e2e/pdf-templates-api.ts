@@ -11,7 +11,7 @@ import { currentUser, ids, timestamp } from './open-days-api';
  * answers 501 and is recorded in `unexpected`.
  */
 
-type Kind = 'wiref' | 'cashbook' | 'receipt';
+type Kind = 'wiref' | 'cashbook' | 'receipt' | 'projektantrag';
 type Doc = Record<string, unknown> & { layers: Block[]; header: Block[]; body: Block[]; footer: Block[] };
 type Block = Record<string, unknown> & { id: string; type: string; elements?: Block[] };
 type Version = {
@@ -48,7 +48,12 @@ const nodeId = (suffix: string) => `0192f6f8-743e-7c77-a349-cd07c3e8c${suffix}`;
 export function builtinDocument(kind: Kind = 'wiref'): Doc {
   return {
     schemaVersion: 1,
-    name: kind === 'wiref' ? 'wiRef invoice request' : kind === 'cashbook' ? 'Cashbook' : 'Order receipt',
+    name: {
+      wiref: 'wiRef invoice request',
+      cashbook: 'Cashbook',
+      receipt: 'Order receipt',
+      projektantrag: 'Projektantrag',
+    }[kind],
     export: kind,
     page: {
       size: 'A4',
@@ -120,13 +125,18 @@ const schema = {
   filters: [{ name: 'currency', description: 'Formats an amount with the currency.' }],
 };
 
-/** The three built-in templates of the engine, as the backend serves them: the real documents, with every block type. */
+/** The built-in templates of the engine, as the backend serves them: the real documents, with every block type. */
 export function realBuiltins(): Record<Kind, Doc> {
   const read = (kind: Kind) =>
     JSON.parse(
       readFileSync(new URL(`../../backend/internal/pdftemplates/engine/builtin/${kind}.json`, import.meta.url), 'utf8'),
     ) as Doc;
-  return { wiref: read('wiref'), cashbook: read('cashbook'), receipt: read('receipt') };
+  return {
+    wiref: read('wiref'),
+    cashbook: read('cashbook'),
+    receipt: read('receipt'),
+    projektantrag: read('projektantrag'),
+  };
 }
 
 /**
@@ -310,7 +320,7 @@ export async function installPdfTemplatesApi(page: Page, world: World) {
     if (path === '/pdf-templates' && method === 'GET')
       return json(
         route,
-        (['wiref', 'cashbook', 'receipt'] as Kind[]).map((kind) => ({
+        (['wiref', 'cashbook', 'receipt', 'projektantrag'] as Kind[]).map((kind) => ({
           export: kind,
           name: builtinDocument(kind).name,
           published: kind === 'wiref' ? meta(world.published) : null,
@@ -318,7 +328,7 @@ export async function installPdfTemplatesApi(page: Page, world: World) {
         })),
       );
     if (path === '/pdf-templates/assets' && method === 'GET') return json(route, []);
-    let match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt)$/);
+    let match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt|projektantrag)$/);
     if (match && method === 'GET') {
       const kind = match[1] as Kind;
       return json(route, {
@@ -330,18 +340,18 @@ export async function installPdfTemplatesApi(page: Page, world: World) {
         previewSources: [{ id: 'order-1042', label: 'Invoice request IR-2026-0042' }],
       });
     }
-    match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt)\/versions$/);
+    match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt|projektantrag)\/versions$/);
     if (match && method === 'GET')
       return json(
         route,
         world.versions.map((v) => meta(v)),
       );
-    match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt)\/versions\/([^/]+)$/);
+    match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt|projektantrag)\/versions\/([^/]+)$/);
     if (match && method === 'GET') {
       const found = world.versions.find((v) => v.id === match![2]);
       return found ? json(route, found) : json(route, { code: 'not_found', message: 'Unknown version.' }, 404);
     }
-    match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt)\/versions\/([^/]+)\/restore$/);
+    match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt|projektantrag)\/versions\/([^/]+)\/restore$/);
     if (match && method === 'POST') {
       const found = world.versions.find((v) => v.id === match![2]);
       if (!found) return json(route, { code: 'not_found', message: 'Unknown version.' }, 404);
@@ -350,7 +360,7 @@ export async function installPdfTemplatesApi(page: Page, world: World) {
       world.versions = [world.draft, ...world.versions.filter((v) => v.state !== 'draft')];
       return json(route, world.draft);
     }
-    match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt)\/draft$/);
+    match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt|projektantrag)\/draft$/);
     if (match && method === 'PUT') {
       const { document } = body as { document: Doc };
       const number = world.draft?.version ?? Math.max(0, ...world.versions.map((v) => v.version)) + 1;
@@ -363,7 +373,7 @@ export async function installPdfTemplatesApi(page: Page, world: World) {
       world.versions = world.versions.filter((v) => v.state !== 'draft');
       return route.fulfill({ status: 204 });
     }
-    match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt)\/publish$/);
+    match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt|projektantrag)\/publish$/);
     if (match && method === 'POST') {
       if (!world.draft) return json(route, { code: 'no_draft', message: 'There is no draft.' }, 409);
       world.versions = world.versions.map((v) => (v.state === 'published' ? { ...v, state: 'archived' as const } : v));
@@ -372,7 +382,7 @@ export async function installPdfTemplatesApi(page: Page, world: World) {
       world.draft = null;
       return json(route, world.published);
     }
-    match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt)\/preview$/);
+    match = path.match(/^\/pdf-templates\/(wiref|cashbook|receipt|projektantrag)\/preview$/);
     if (match && method === 'POST') {
       if (world.previewFails)
         return json(route, { code: 'pdf_render_failed', message: 'The renderer is unavailable.' }, 500);

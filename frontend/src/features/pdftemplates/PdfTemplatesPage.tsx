@@ -13,7 +13,7 @@ import { pdfTemplateQuery } from './queries';
 const kindOf = (value: string | null): PdfTemplateExport => EXPORT_KINDS.find((k) => k === value) ?? 'wiref';
 
 /**
- * Settings › PDF templates: edit the PDFs Core produces (wiRef invoice request, cashbook sheet, order receipt). The editor
+ * Settings › PDF templates: edit the PDFs Core produces (wiRef invoice request, cashbook sheet, order receipt, Projektantrag). The editor
  * fills the area below the app header like the signage screen editor; while the template loads or fails to, the usual
  * settings frame with the document selector is shown.
  */

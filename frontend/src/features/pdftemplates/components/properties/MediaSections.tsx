@@ -9,15 +9,36 @@ import type {
   RectBlock,
 } from '../../model';
 import { ColorField } from '../fields/ColorField';
-import { CheckField, ExprField, NumField } from '../fields/Inputs';
+import { CheckField, ExprField, NumField, SelectField } from '../fields/Inputs';
+import { usePanel } from '../fields/panelContext';
 import { SizeField } from '../fields/SizeField';
 import { AssetSelect } from './AssetSelect';
 import { PositionEditor } from './PositionEditor';
 import { Hint, type NodeSectionProps } from './shared';
 
+/** The logo of the branding settings is placed without a source; other image variables need one. */
+const LOGO_PATH = 'makerspace.logo';
+
 export function ImageSection({ node, set }: NodeSectionProps<ImageBlock>) {
+  const { schema } = usePanel();
+  const images = schema.groups.flatMap((g) => g.fields).filter((f) => f.type === 'image' && f.path !== LOGO_PATH);
+  const options = [
+    { value: '', label: 'Logo from the branding settings' },
+    ...images.map((f) => ({ value: f.path, label: f.path })),
+  ];
+  if (node.source && !images.some((f) => f.path === node.source)) {
+    options.push({ value: node.source, label: `${node.source} (not an image of this export)` });
+  }
   return (
     <>
+      {options.length > 1 && (
+        <SelectField
+          label="Image"
+          value={node.source ?? ''}
+          options={options}
+          onChange={(v, kind) => set({ source: v || undefined }, kind)}
+        />
+      )}
       <NumField
         label="Height (mm)"
         value={node.height}
@@ -25,7 +46,11 @@ export function ImageSection({ node, set }: NodeSectionProps<ImageBlock>) {
         min={1}
         onChange={(v, kind) => set({ height: v ?? 12 }, kind)}
       />
-      <Hint>The logo comes from the branding settings. Nothing is loaded from the internet.</Hint>
+      <Hint>
+        {node.source
+          ? 'The image comes with the data of each document; without one nothing is drawn. It is never wider than the column.'
+          : 'The logo comes from the branding settings. Nothing is loaded from the internet.'}
+      </Hint>
     </>
   );
 }
