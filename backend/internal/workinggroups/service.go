@@ -16,6 +16,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/pdftemplates"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -47,10 +48,12 @@ type Service struct {
 	register CashRegister
 	// notifier tells ticket authors and followers about changes; nil sends nothing.
 	notifier TicketNotifier
+	// pdf renders the Projektantrag with the effective template.
+	pdf PDFRenderer
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool, location: time.UTC}
+	return &Service{pool: pool, location: time.UTC, pdf: pdftemplates.BuiltinRenderer{}}
 }
 
 // WithLocation sets the makerspace time zone that decides what "today" is for repeating to-dos. The default is UTC.

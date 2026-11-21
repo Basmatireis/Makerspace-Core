@@ -247,7 +247,7 @@ func TestPDFTemplateVersionLifecycleOverHTTP(t *testing.T) {
 	assertNoStoreAndRequestID(t, response)
 	var summaries []openapi.PdfTemplateSummary
 	decodeResponse(t, response, &summaries)
-	if len(summaries) != 3 || summaries[0].Export != "wiref" || !summaries[0].Draft.IsNull() || !summaries[0].Published.IsNull() {
+	if len(summaries) != 4 || summaries[0].Export != "wiref" || summaries[3].Export != "projektantrag" || !summaries[0].Draft.IsNull() || !summaries[0].Published.IsNull() {
 		t.Fatalf("summaries = %+v", summaries)
 	}
 
