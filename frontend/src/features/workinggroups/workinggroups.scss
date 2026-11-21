@@ -266,7 +266,9 @@
   padding: $spacing-05 $spacing-05 $spacing-02;
   text-transform: uppercase;
   color: theme.$text-secondary;
-  background: theme.$background;
+  // A band of its own between the rows (layer-02) and the page, in light and dark theme alike.
+  background: theme.$layer-01;
+  border-block-end: 1px solid theme.$border-subtle-01;
   @include type-style('label-01');
   font-weight: 600;
 }
