@@ -162,3 +162,15 @@
 .mj-skip-list li + li {
   margin-block-start: $spacing-01;
 }
+
+/* Connector problems above the Workshop's jobs: the notice spans the page and lists one machine per line. */
+.mj-machine-problems {
+  max-inline-size: none;
+  margin-block-end: $spacing-05;
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+}

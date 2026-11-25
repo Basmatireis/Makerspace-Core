@@ -21,7 +21,7 @@
 import type { MachineAttentionCode } from './machineAttentionCode';
 
 export interface MachineAttention {
-  /** connector_offline: the assigned connector has not been heard from for 90 seconds or reports the printer disconnected. connector_error: the connector reports the printer degraded or an error code. printer_error_open: the printer reports an error that has not cleared. out_of_order: the machine is in maintenance. runs_unassigned: ended recorded runs of the machine wait for a job. */
+  /** connector_offline: the assigned connector has not been heard from for 90 seconds or reports the printer disconnected. connector_error: the connector reports the printer degraded or an error code. printer_storage_unavailable: the printer reports its status, but the connector cannot fetch print files and timelapses from its storage (for example ftps_timeout or storage_worker_stalled). printer_error_open: the printer reports an error that has not cleared. out_of_order: the machine is in maintenance. runs_unassigned: ended recorded runs of the machine wait for a job. */
   code: MachineAttentionCode;
   /** Short English sentence for people. */
   message: string;

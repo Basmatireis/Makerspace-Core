@@ -54,11 +54,25 @@ const consumptionTitle: Record<MachineRunConsumptionStatus['state'], string> = {
 
 /** Refinements of a reason by its `detail` code; the detail is then explained and not shown raw. */
 const consumptionDetailText: Record<string, Record<string, string>> = {
+  artifact_retrieval_failed: {
+    ftps_timeout:
+      'The printer’s file storage stopped answering, so the connector could not fetch the print file. Restart the printer; the connector fetches the file afterwards while the printer still has it.',
+    ftps_authentication_failed:
+      'The printer rejected the access code, so the connector could not fetch the print file. Check the access code in the printer setup.',
+    ftps_control_connect_failed:
+      'The connector could not reach the printer’s file storage (port 990), so it could not fetch the print file.',
+  },
   artifact_rejected: {
     artifact_too_large:
       'The print file was rejected on the way to Core: the proxy in front of Core answered 413 (file too large). Raise the proxy’s body size limit or let the connector reach Core directly.',
   },
 };
+
+/** Why a recorded run has no print file, when the consumption status names a print-file problem; null otherwise. */
+export function printFileMissingMessage(status: MachineRunConsumptionStatus | null | undefined): string | null {
+  if (!status?.reason?.startsWith('artifact_')) return null;
+  return consumptionReasonMessage(status.reason, status.detail);
+}
 
 const detailMessage = (reason: string | null | undefined, detail: string | null | undefined) =>
   (reason && detail ? consumptionDetailText[reason]?.[detail] : undefined) ?? null;

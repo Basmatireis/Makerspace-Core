@@ -21,7 +21,7 @@ import { StackCard } from '../../../app/components/CardList';
 import { formatDate } from '../../../app/dateTime';
 import { useNotify } from '../../../app/toasts';
 import { copyToClipboard } from '../../profile/copyToClipboard';
-import { formatFileSize, timelapseMessage } from '../recording/recordingText';
+import { formatFileSize, printFileMissingMessage, timelapseMessage } from '../recording/recordingText';
 import { plateImages } from '../recording/thumbnails';
 import '../styles/jobs.scss';
 import './jobs.scss';
@@ -66,7 +66,10 @@ function Stage({ slide }: { slide: Slide }) {
     return recording.artifact ? (
       <Empty title="No preview in the print file" />
     ) : (
-      <Empty title="Print file not stored" detail="Recorded runs bring their 3MF here." />
+      <Empty
+        title="Print file not stored"
+        detail={printFileMissingMessage(recording.consumptionStatus) ?? 'Recorded runs bring their 3MF here.'}
+      />
     );
   }
   if (recording.timelapse)

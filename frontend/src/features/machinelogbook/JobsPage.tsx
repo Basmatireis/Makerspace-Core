@@ -1,5 +1,6 @@
 import { useSearchParams } from 'react-router-dom';
 import { PageShell } from '../../app/PageShell';
+import { MachineProblemsNotice } from './components/MachineProblemsNotice';
 import { PageSectionTabs } from './components/machineParts';
 import { JobsWorkspace } from './jobs/JobsPanels';
 import { JobsRecycleBin } from './RecycleBinPage';
@@ -32,6 +33,7 @@ export function JobsPage() {
         />
       }
     >
+      {tab !== 'bin' && <MachineProblemsNotice />}
       {tab === 'all' && <JobsWorkspace key="all" />}
       {tab === 'attention' && <JobsWorkspace key="attention" attention />}
       {tab === 'bin' && <JobsRecycleBin />}
