@@ -254,7 +254,8 @@ func (a *bambuH2DAdapter) noteRunEnded(ctx context.Context, runID uuid.UUID) err
 }
 
 // processTimelapses takes due baselines and searches for ended runs. Failures
-// are recorded per run and never degrade the assignment.
+// are recorded per run; a printer whose storage cannot be reached is also
+// returned as errTimelapseStorage, so the assignment shows it.
 func (a *bambuH2DAdapter) processTimelapses(ctx context.Context) error {
 	features := a.recordingFeatures()
 	if features == nil || !features.TimelapseEnabled {
@@ -271,7 +272,7 @@ func (a *bambuH2DAdapter) processTimelapses(ctx context.Context) error {
 				return deferErr
 			}
 		}
-		return nil
+		return &timelapseStorageError{err: err}
 	}
 	defer func() { _ = client.Close() }()
 	listing, listErr := client.List(ctx, bambuTimelapseDirectory)
@@ -297,8 +298,18 @@ func (a *bambuH2DAdapter) processTimelapses(ctx context.Context) error {
 			return err
 		}
 	}
+	if listErr != nil {
+		return &timelapseStorageError{err: listErr}
+	}
 	return nil
 }
+
+// timelapseStorageError is a printer storage the timelapse lookup could not
+// reach; per-run bookkeeping errors are returned as they are.
+type timelapseStorageError struct{ err error }
+
+func (e *timelapseStorageError) Error() string { return e.err.Error() }
+func (e *timelapseStorageError) Unwrap() error { return e.err }
 
 func maxTimelapseBytes(features *RecordingFeatures) int64 {
 	if features.TimelapseMaxBytes > 0 {

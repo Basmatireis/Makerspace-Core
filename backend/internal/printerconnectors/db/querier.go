@@ -79,6 +79,9 @@ type Querier interface {
 	ListActiveSpoolsByNFCTags(ctx context.Context, tagUids []string) ([]ListActiveSpoolsByNFCTagsRow, error)
 	// tray_uuids must be lower case; the match is case-insensitive like LockActiveSpoolByTrayUUID.
 	ListActiveSpoolsByTrayUUIDs(ctx context.Context, trayUuids []string) ([]ListActiveSpoolsByTrayUUIDsRow, error)
+	// Active assignments with the facts their connector problem is derived from, and ended or disabled assignments
+	// whose problem was notified (so the notification is resolved). Locked for the problem watch; a concurrent run skips them.
+	ListAssignmentProblemFacts(ctx context.Context) ([]ListAssignmentProblemFactsRow, error)
 	// Same matching rule as LockAvailableSlotByExternalIDs, without the lock.
 	ListConfiguredSlotsByExternalIDs(ctx context.Context, machineIds []uuid.UUID) ([]ListConfiguredSlotsByExternalIDsRow, error)
 	// Newest first, with the display names of the machine and of the resource while they exist.
@@ -120,6 +123,7 @@ type Querier interface {
 	RevokeConnectorCredentials(ctx context.Context, connectorID uuid.UUID) error
 	RevokeOpenEnrollments(ctx context.Context, connectorID uuid.UUID) error
 	RevokeRetiringCredentials(ctx context.Context, connectorID uuid.UUID) error
+	SetAssignmentProblem(ctx context.Context, arg SetAssignmentProblemParams) error
 	SetConnectorUpdateStatus(ctx context.Context, arg SetConnectorUpdateStatusParams) (PrinterConnector, error)
 	SetConnectorUpdaterAvailable(ctx context.Context, arg SetConnectorUpdaterAvailableParams) error
 	SetObservedRunReport(ctx context.Context, arg SetObservedRunReportParams) (int64, error)

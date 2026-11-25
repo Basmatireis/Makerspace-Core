@@ -20,7 +20,7 @@
  */
 
 /**
- * connector_offline: the assigned connector has not been heard from for 90 seconds or reports the printer disconnected. connector_error: the connector reports the printer degraded or an error code. printer_error_open: the printer reports an error that has not cleared. out_of_order: the machine is in maintenance. runs_unassigned: ended recorded runs of the machine wait for a job.
+ * connector_offline: the assigned connector has not been heard from for 90 seconds or reports the printer disconnected. connector_error: the connector reports the printer degraded or an error code. printer_storage_unavailable: the printer reports its status, but the connector cannot fetch print files and timelapses from its storage (for example ftps_timeout or storage_worker_stalled). printer_error_open: the printer reports an error that has not cleared. out_of_order: the machine is in maintenance. runs_unassigned: ended recorded runs of the machine wait for a job.
  */
 export type MachineAttentionCode = typeof MachineAttentionCode[keyof typeof MachineAttentionCode];
 
@@ -28,6 +28,7 @@ export type MachineAttentionCode = typeof MachineAttentionCode[keyof typeof Mach
 export const MachineAttentionCode = {
   connector_offline: 'connector_offline',
   connector_error: 'connector_error',
+  printer_storage_unavailable: 'printer_storage_unavailable',
   printer_error_open: 'printer_error_open',
   out_of_order: 'out_of_order',
   runs_unassigned: 'runs_unassigned',

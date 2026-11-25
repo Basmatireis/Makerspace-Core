@@ -403,6 +403,36 @@ var coreTriggers = []Trigger{
 		ThrottleSubjects: triggerSubjects("machine", "machine", "code", "error code"),
 	},
 	{
+		Key: "printer_connector_problem", Area: "Workshop", Label: "A printer connector has a problem",
+		Help: "Fires when a printer's connector goes offline, cannot talk to the printer, or cannot fetch print files " +
+			"and timelapses from it, once the problem has lasted two minutes. It fires again only after the problem " +
+			"cleared or changed its kind; clearing ends waiting escalations.",
+		Subject: SubjectLab, Permission: authorization.MachinesRead,
+		Fields: []Field{
+			{Key: "problem", Label: "Problem", Type: FieldEnum, Options: options(
+				"offline", "Connector offline", "storage", "Print files and timelapses cannot be fetched",
+				"connection", "Cannot talk to the printer", "other", "Other problem",
+			)},
+			{Key: "machine", Label: "Machine", Type: FieldEnum, OptionsFrom: SourcePrinters},
+			{Key: "code", Label: "Diagnostic code", Type: FieldText},
+			{Key: "printing", Label: "A print is running", Type: FieldBool},
+		},
+		Recipients: triggerSubjects(
+			"operator", "Operator of the running print", "present", "Everyone checked in right now",
+		),
+		Placeholders: []Placeholder{
+			{"machine", "Machine", "Bambu Lab H2D"},
+			{"problem", "Kind of problem", "Print files and timelapses cannot be fetched"},
+			{"message", "What it means", "The printer's file storage does not answer, so print files and timelapses are not fetched. Restarting the printer usually helps (ftps_timeout)."},
+			{"code", "Diagnostic code, empty when there is none", "ftps_timeout"},
+			{"codeNote", "Code in brackets, empty without a code", " (ftps_timeout)"},
+			{"run", "Run being printed", "R-2026-000418"},
+			{"runNote", "\" during run …\", empty when nothing is printing", " during run R-2026-000418"},
+		},
+		Resolutions:      []Choice{{"problem_cleared", "The problem is cleared"}},
+		ThrottleSubjects: triggerSubjects("machine", "machine", "problem", "problem"),
+	},
+	{
 		Key: "run_finished", Area: "Workshop", Label: "A print or run finishes",
 		Help: "Fires when the machine's final report sets the run's outcome, or when a running manual run is cancelled. " +
 			"Runs without a job notify nobody.",

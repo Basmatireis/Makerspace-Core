@@ -324,12 +324,14 @@ const (
 	AttentionOrderOutdated          AttentionCode = "order_outdated"
 	AttentionConnectorOffline       AttentionCode = "connector_offline"
 	AttentionConnectorError         AttentionCode = "connector_error"
-	AttentionPrinterErrorOpen       AttentionCode = "printer_error_open"
-	AttentionOutOfOrder             AttentionCode = "out_of_order"
-	AttentionRunsUnassigned         AttentionCode = "runs_unassigned"
-	AttentionLowStock               AttentionCode = "low_stock"
-	AttentionRemainderLow           AttentionCode = "remainder_low"
-	AttentionRanOutDuringRun        AttentionCode = "ran_out_during_run"
+	// AttentionPrinterStorageUnavailable: the printer reports its status, but print files and timelapses cannot be fetched.
+	AttentionPrinterStorageUnavailable AttentionCode = "printer_storage_unavailable"
+	AttentionPrinterErrorOpen          AttentionCode = "printer_error_open"
+	AttentionOutOfOrder                AttentionCode = "out_of_order"
+	AttentionRunsUnassigned            AttentionCode = "runs_unassigned"
+	AttentionLowStock                  AttentionCode = "low_stock"
+	AttentionRemainderLow              AttentionCode = "remainder_low"
+	AttentionRanOutDuringRun           AttentionCode = "ran_out_during_run"
 )
 
 // Attention is one reason to look at an item, with a short English message for people.

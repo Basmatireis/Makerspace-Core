@@ -1590,6 +1590,10 @@ type PrinterConnectorAssignment struct {
 	CameraHealth                *string
 	CameraViewers               int32
 	CameraReportedAt            pgtype.Timestamptz
+	ProblemKind                 *string
+	ProblemCode                 *string
+	ProblemSince                pgtype.Timestamptz
+	ProblemNotifiedAt           pgtype.Timestamptz
 }
 
 type PrinterConnectorCredential struct {

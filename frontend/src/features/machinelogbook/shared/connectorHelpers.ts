@@ -28,6 +28,10 @@ export function connectorDiagnostic(code: string): string {
     return 'More than one exact print-file match was found. Remove or rename the duplicate printer files; the run remains recorded.';
   if (normalized.includes('artifact_not_available'))
     return 'The exact print file is not available in the printer root or cache. Check attached printer storage; the run remains recorded.';
+  if (normalized.includes('ftps_timeout'))
+    return 'The printer’s file storage stopped answering, so print files and timelapses are not fetched. Restart the printer; the connector retries on its own.';
+  if (normalized.includes('storage_worker_stalled'))
+    return 'The connector has been stuck fetching print files and timelapses for more than 20 minutes. Restart the printer, then the connector if it persists.';
   if (normalized.includes('ftps_control_connect'))
     return 'The printer accepted status connections, but its FTPS control port could not be reached. Check port 990, LAN-only mode, and local network routing.';
   if (normalized.includes('ftps_data_connect') || normalized.includes('ftps_passive'))
