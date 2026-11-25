@@ -288,6 +288,10 @@ func (c *Client) UploadArtifact(
 		transfer.AssignmentID,
 		transfer.RunID,
 	)
+	// Archives reach hundreds of megabytes; the short API timeout would cut every
+	// larger upload off mid-body and retry it until the transfer expires.
+	ctx, cancel := context.WithTimeout(ctx, longTransferTimeout)
+	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodPut, c.base.String()+requestPath, file)
 	if err != nil {
 		return ArtifactUploadResult{}, err
@@ -298,7 +302,7 @@ func (c *Client) UploadArtifact(
 	request.Header.Set("X-Artifact-Filename", transfer.FileName)
 	request.Header.Set("X-Artifact-SHA256", transfer.SHA256)
 	request.ContentLength = transfer.SizeBytes
-	response, err := c.http.Do(request)
+	response, err := c.longClient().Do(request)
 	if err != nil {
 		return ArtifactUploadResult{}, err
 	}

@@ -74,8 +74,39 @@ type BambuFTPSClient struct {
 	secrets  BambuH2DSecrets
 	tls      *tls.Config
 	dialer   net.Dialer
-	conn     net.Conn
-	text     *textproto.Conn
+	// idleTimeout bounds every read and write on the control and data
+	// connections. A printer that stops answering mid-session otherwise blocks
+	// the assignment's retrieval worker for good, and with it every later
+	// archive and timelapse lookup.
+	idleTimeout time.Duration
+	conn        net.Conn
+	text        *textproto.Conn
+	stopOnDone  func() bool
+}
+
+// bambuFTPSIdleTimeout is how long one read or write may wait for the printer.
+// Transfers of any size keep going as long as data keeps flowing.
+const bambuFTPSIdleTimeout = time.Minute
+
+// idleDeadlineConn renews its deadline before every read and write, so a
+// connection fails once it stalls for longer than timeout.
+type idleDeadlineConn struct {
+	net.Conn
+	timeout time.Duration
+}
+
+func (c idleDeadlineConn) Read(p []byte) (int, error) {
+	if err := c.SetReadDeadline(time.Now().Add(c.timeout)); err != nil {
+		return 0, err
+	}
+	return c.Conn.Read(p)
+}
+
+func (c idleDeadlineConn) Write(p []byte) (int, error) {
+	if err := c.SetWriteDeadline(time.Now().Add(c.timeout)); err != nil {
+		return 0, err
+	}
+	return c.Conn.Write(p)
 }
 
 func NewBambuFTPSClient(settings BambuH2DSettings, secrets BambuH2DSecrets) (*BambuFTPSClient, error) {
@@ -84,10 +115,11 @@ func NewBambuFTPSClient(settings BambuH2DSettings, secrets BambuH2DSecrets) (*Ba
 		return nil, err
 	}
 	return &BambuFTPSClient{
-		settings: settings,
-		secrets:  secrets,
-		tls:      tlsConfig,
-		dialer:   net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second},
+		settings:    settings,
+		secrets:     secrets,
+		tls:         tlsConfig,
+		dialer:      net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second},
+		idleTimeout: bambuFTPSIdleTimeout,
 	}, nil
 }
 
@@ -103,13 +135,15 @@ func (c *BambuFTPSClient) Connect(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("connect to Bambu FTPS: %w", err)
 	}
-	tlsConn := tls.Client(raw, c.tls.Clone())
+	tlsConn := tls.Client(idleDeadlineConn{Conn: raw, timeout: c.idleTimeout}, c.tls.Clone())
 	if err = tlsConn.HandshakeContext(ctx); err != nil {
 		_ = raw.Close()
 		return fmt.Errorf("negotiate Bambu FTPS control TLS: %w", err)
 	}
 	c.conn = tlsConn
 	c.text = textproto.NewConn(tlsConn)
+	// Cancelling the caller's context ends the session even while a command waits.
+	c.stopOnDone = context.AfterFunc(ctx, func() { _ = raw.Close() })
 	if _, _, err = c.text.ReadResponse(220); err != nil {
 		_ = c.Close()
 		return fmt.Errorf("read Bambu FTPS greeting: %w", err)
@@ -145,6 +179,10 @@ func (c *BambuFTPSClient) login() error {
 }
 
 func (c *BambuFTPSClient) Close() error {
+	if c.stopOnDone != nil {
+		c.stopOnDone()
+		c.stopOnDone = nil
+	}
 	if c.text != nil {
 		err := c.text.Close()
 		c.text = nil
@@ -225,6 +263,8 @@ func (c *BambuFTPSClient) transfer(ctx context.Context, command string, consume 
 		return fmt.Errorf("connect Bambu FTPS data channel: %w", err)
 	}
 	defer func() { _ = raw.Close() }()
+	stop := context.AfterFunc(ctx, func() { _ = raw.Close() })
+	defer stop()
 	id, err := c.text.Cmd("%s", command)
 	if err != nil {
 		return err
@@ -235,7 +275,7 @@ func (c *BambuFTPSClient) transfer(ctx context.Context, command string, consume 
 		return fmt.Errorf("start Bambu FTPS transfer: %w", err)
 	}
 	// Bambu's server expects data-channel TLS only after the preliminary 150.
-	data := tls.Client(raw, c.tls.Clone())
+	data := tls.Client(idleDeadlineConn{Conn: raw, timeout: c.idleTimeout}, c.tls.Clone())
 	if err = data.HandshakeContext(ctx); err != nil {
 		return fmt.Errorf("negotiate Bambu FTPS data TLS: %w", err)
 	}
