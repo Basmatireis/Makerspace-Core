@@ -353,7 +353,7 @@ func (s *Store) HasArtifactTransfer(ctx context.Context, assignmentID, runID uui
 func (a *bambuH2DAdapter) runArtifactRetrievals(ctx context.Context, results chan<- error) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
-	retrievalFailed, consumptionFailed := false, false
+	retrievalFailed, consumptionFailed, timelapseFailed := false, false, false
 	send := func(err error) bool {
 		select {
 		case results <- err:
@@ -362,11 +362,14 @@ func (a *bambuH2DAdapter) runArtifactRetrievals(ctx context.Context, results cha
 			return false
 		}
 	}
+	watchdog := newStorageWatchdog(a.storageStallAfter())
+	go watchdog.watch(ctx, send)
 	if err := a.store.RetryPendingArtifactRetrievalsNow(ctx, a.assignmentID); err != nil && !send(err) {
 		return
 	}
 	for {
-		wasFailed := retrievalFailed || consumptionFailed
+		watchdog.passStarted()
+		wasFailed := retrievalFailed || consumptionFailed || timelapseFailed
 		consumptionErr := a.processArtifactConsumptions(ctx)
 		if consumptionErr != nil && !errors.Is(consumptionErr, context.Canceled) {
 			consumptionFailed = true
@@ -376,8 +379,19 @@ func (a *bambuH2DAdapter) runArtifactRetrievals(ctx context.Context, results cha
 		} else if consumptionErr == nil {
 			consumptionFailed = false
 		}
-		// Timelapse problems are recorded per run and never degrade the assignment.
-		_ = a.processTimelapses(ctx)
+		// Timelapse problems are recorded per run; only a printer storage that
+		// cannot be reached degrades the assignment.
+		timelapseErr := a.processTimelapses(ctx)
+		var storageErr *timelapseStorageError
+		switch {
+		case errors.As(timelapseErr, &storageErr) && !errors.Is(timelapseErr, context.Canceled):
+			timelapseFailed = true
+			if !send(storageErr.err) {
+				return
+			}
+		case timelapseErr == nil:
+			timelapseFailed = false
+		}
 		succeeded, err := a.retrieveOneArtifact(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			retrievalFailed = true
@@ -387,7 +401,11 @@ func (a *bambuH2DAdapter) runArtifactRetrievals(ctx context.Context, results cha
 		} else if succeeded {
 			retrievalFailed = false
 		}
-		if wasFailed && !retrievalFailed && !consumptionFailed {
+		if watchdog.passEnded() {
+			// The watchdog reported this pass as stalled; it has finished after all.
+			wasFailed = true
+		}
+		if wasFailed && !retrievalFailed && !consumptionFailed && !timelapseFailed {
 			if !send(nil) {
 				return
 			}

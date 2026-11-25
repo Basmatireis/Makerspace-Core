@@ -280,7 +280,7 @@ func (c *BambuFTPSClient) transfer(ctx context.Context, command string, consume 
 		return fmt.Errorf("negotiate Bambu FTPS data TLS: %w", err)
 	}
 	if err = consume(data); err != nil {
-		return err
+		return fmt.Errorf("read Bambu FTPS data: %w", err)
 	}
 	if err = data.Close(); err != nil {
 		return err

@@ -584,6 +584,12 @@ func classifyAdapterError(err error) string {
 	switch {
 	case strings.Contains(message, "serial mismatch"):
 		return "tls_serial_mismatch"
+	case errors.Is(err, errStorageWorkerStalled):
+		return "storage_worker_stalled"
+	case strings.Contains(message, "ftps") &&
+		(strings.Contains(message, "i/o timeout") || strings.Contains(message, "deadline exceeded")):
+		// The printer accepted the connection but stopped answering.
+		return "ftps_timeout"
 	case strings.Contains(message, "expired") || strings.Contains(message, "not yet valid"):
 		return "tls_certificate_expired"
 	case strings.Contains(message, "unknown authority"):

@@ -117,6 +117,8 @@ type bambuH2DAdapter struct {
 	features recordingFeatureSource
 	// newFTPS replaces the FTPS client in tests.
 	newFTPS func(context.Context) (bambuFTPS, error)
+	// stallAfter replaces storageWorkerStallAfter in tests.
+	stallAfter time.Duration
 }
 
 func NewBambuH2D(
