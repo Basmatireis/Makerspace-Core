@@ -980,6 +980,24 @@ func (q *Queries) UpdateSentMessage(ctx context.Context, arg UpdateSentMessagePa
 	return err
 }
 
+const upsertAccountDevicePresence = `-- name: UpsertAccountDevicePresence :exec
+INSERT INTO account_device_presence (account_id, managed_device_id, last_visible_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (account_id, managed_device_id) DO UPDATE SET last_visible_at = EXCLUDED.last_visible_at
+`
+
+type UpsertAccountDevicePresenceParams struct {
+	AccountID       uuid.UUID
+	ManagedDeviceID uuid.UUID
+	Now             time.Time
+}
+
+// Only the latest moment the account had the application open in a visible tab on the managed device is kept.
+func (q *Queries) UpsertAccountDevicePresence(ctx context.Context, arg UpsertAccountDevicePresenceParams) error {
+	_, err := q.db.Exec(ctx, upsertAccountDevicePresence, arg.AccountID, arg.ManagedDeviceID, arg.Now)
+	return err
+}
+
 const upsertAccountPresence = `-- name: UpsertAccountPresence :exec
 INSERT INTO account_presence (account_id, last_visible_at) VALUES ($1, $2)
 ON CONFLICT (account_id) DO UPDATE SET last_visible_at = EXCLUDED.last_visible_at

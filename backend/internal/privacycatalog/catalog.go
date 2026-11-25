@@ -529,7 +529,7 @@ func declarations() []privacy.Definition {
 			Description:    "Which rule fired, who it was delivered to over which channel, and what became of each delivery.",
 			Contains:       "Firing time, rule name, a short summary, and per recipient the channel and outcome",
 			ErasureOutcome: privacy.ErasureErased,
-			Fields:         []string{"notification_firings.*", "notification_firing_recipients.*", "notification_pending_actions.*", "kiosk_rule_notices.*", "signage_rule_notices.*"},
+			Fields:         []string{"notification_firings.*", "notification_firing_recipients.*", "notification_pending_actions.*", "notification_presence_waits.*", "kiosk_rule_notices.*", "signage_rule_notices.*"},
 			Triggers:       []privacy.Trigger{privacy.TriggerCreatedAt},
 			Actions:        []privacy.Action{privacy.ActionDelete},
 			Subject:        privacy.SubjectPerson,

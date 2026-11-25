@@ -171,6 +171,9 @@ SELECT id FROM signage_displays WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) AN
 -- name: ListExistingDeviceIDs :many
 SELECT id FROM managed_devices WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]);
 
+-- name: ListExistingDeviceTypeIDs :many
+SELECT id FROM device_types WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]);
+
 -- name: DeleteFiringsCreatedBefore :execrows
 -- Retention of the delivery log; recipients and pending actions cascade.
 DELETE FROM notification_firings WHERE created_at < sqlc.arg(cutoff);
@@ -285,6 +288,14 @@ VALUES (sqlc.arg(id), 'rule', sqlc.arg(title), sqlc.arg(body), sqlc.narg(link), 
 -- Accounts that had the application open in a visible tab since the given moment.
 SELECT account_id FROM account_presence
 WHERE account_id = ANY(sqlc.arg(account_ids)::text[]::uuid[]) AND last_visible_at > sqlc.arg(since);
+
+-- name: ListOnlineAccountsAtDevices :many
+-- Accounts that had the application open in a visible tab since the given moment on one of the managed devices, or
+-- on a device of one of the device types.
+SELECT DISTINCT p.account_id FROM account_device_presence p
+JOIN managed_devices d ON d.id = p.managed_device_id
+WHERE p.account_id = ANY(sqlc.arg(account_ids)::text[]::uuid[]) AND p.last_visible_at > sqlc.arg(since)
+  AND (d.id = ANY(sqlc.arg(device_ids)::text[]::uuid[]) OR d.device_type_id = ANY(sqlc.arg(device_type_ids)::text[]::uuid[]));
 
 -- name: InsertRuleNotificationRecipients :exec
 INSERT INTO inbox_recipients (notification_id, account_id)
@@ -1003,3 +1014,49 @@ WHERE c.basis = 'consent'
       SELECT 1 FROM notification_consents n
       WHERE n.person_id = sqlc.arg(person_id) AND n.category_id = c.id AND n.text_version = c.text_version)
 ORDER BY c.position, c.id;
+
+-- name: InsertFiringRecipientReturningID :one
+INSERT INTO notification_firing_recipients (id, firing_id, person_id, channel, step, status, notification_id, sent_at)
+VALUES (sqlc.arg(id), sqlc.arg(firing_id), sqlc.narg(person_id), sqlc.arg(channel), sqlc.arg(step), sqlc.arg(status),
+        sqlc.narg(notification_id), sqlc.arg(sent_at))
+RETURNING id;
+
+-- name: InsertPresenceWait :exec
+INSERT INTO notification_presence_waits (id, firing_id, person_id, step, action, item, log_id, expires_at, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(firing_id), sqlc.arg(person_id), sqlc.arg(step), sqlc.arg(action)::text::jsonb,
+        sqlc.narg(item)::text::jsonb, sqlc.narg(log_id), sqlc.arg(expires_at), sqlc.arg(created_at));
+
+-- name: ClaimPresenceWaits :many
+-- The person's waiting in-app notifications that may still be delivered: unexpired, of an unresolved firing, oldest
+-- first. The rows stay locked until the caller's transaction ends; rows another poll holds are skipped.
+SELECT w.id, w.firing_id, w.step, w.action, w.item, w.log_id,
+       f.rule_id, r.enabled AS rule_enabled, r.name AS rule_name, r.mandatory, r.category_id, r.definition,
+       r.owner_account_id, c.basis AS category_basis, c.text_version AS category_text_version
+FROM notification_presence_waits w
+JOIN notification_firings f ON f.id = w.firing_id
+JOIN notification_rules r ON r.id = f.rule_id
+LEFT JOIN notification_categories c ON c.id = r.category_id
+WHERE w.person_id = sqlc.arg(person_id) AND w.expires_at > sqlc.arg(now) AND f.resolved_at IS NULL
+ORDER BY w.created_at, w.id
+LIMIT sqlc.arg(max_rows)
+FOR UPDATE OF w SKIP LOCKED;
+
+-- name: DeletePresenceWait :exec
+DELETE FROM notification_presence_waits WHERE id = sqlc.arg(id);
+
+-- name: DeleteFiringRecipient :exec
+DELETE FROM notification_firing_recipients WHERE id = sqlc.arg(id);
+
+-- name: MarkFiringRecipientOffline :exec
+UPDATE notification_firing_recipients SET status = 'skipped_offline' WHERE id = sqlc.arg(id) AND status = 'waiting';
+
+-- name: ExpirePresenceWaits :execrows
+-- Ends the waits that expired or whose firing was resolved: their log line says the person was not online.
+WITH ended AS (
+    DELETE FROM notification_presence_waits w
+    USING notification_firings f
+    WHERE f.id = w.firing_id AND (w.expires_at <= sqlc.arg(now) OR f.resolved_at IS NOT NULL)
+    RETURNING w.log_id
+)
+UPDATE notification_firing_recipients r SET status = 'skipped_offline'
+FROM ended WHERE r.id = ended.log_id AND r.status = 'waiting';

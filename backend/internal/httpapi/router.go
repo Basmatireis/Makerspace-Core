@@ -198,7 +198,11 @@ func NewApplicationWithRelay(
 		ID: "notifyrules.pending", Interval: notifyrules.PendingInterval, RunAtStart: true,
 		Run: func(ctx context.Context) (scheduler.Summary, error) {
 			handled, err := server.notifyDispatcher.RunPending(ctx, notifyrules.PendingBatch)
-			return scheduler.Summary{"handled": handled}, err
+			if err != nil {
+				return scheduler.Summary{"handled": handled}, err
+			}
+			expired, err := server.notifyDispatcher.ExpireWaiting(ctx)
+			return scheduler.Summary{"handled": handled, "expired": int(expired)}, err
 		},
 	})
 	jobs.Add(scheduler.Job{

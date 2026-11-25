@@ -5,6 +5,8 @@ import {
   ListItem,
   MultiSelect,
   NumberInput,
+  RadioButton,
+  RadioButtonGroup,
   RadioTile,
   Select,
   SelectItem,
@@ -20,11 +22,18 @@ import type {
   NotificationRuleInAppOptions,
   NotificationRuleSignageShownOn,
 } from '../../../api/generated/models';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { listManagedDeviceTypes } from '../../../api/generated/managed-devices/managed-devices';
+import { keys } from '../../devices/components/deviceShared';
 import { useAllManagedDevices } from '../../devices/queries';
 import { signagePaths } from '../../signage/paths';
 import {
   appearances,
+  audienceMode,
+  defaultLaterMinutes,
+  maxLaterMinutes,
+  withAudience,
   buttonKinds,
   channelLabel,
   delayOptions,
@@ -34,6 +43,7 @@ import {
   tabletModes,
   toastSecondsOptions,
   type Action,
+  type AudienceMode,
   type Definition,
 } from '../ruleModel';
 import type { NameLookup } from '../ruleText';
@@ -189,13 +199,7 @@ function InAppOptions({
           onChange={(_event, { checked }) => set({ allowLater: checked })}
         />
       )}
-      <Checkbox
-        id={`${id}-online`}
-        labelText="Only to people who have the app open right now"
-        helperText="Everyone else does not get it at all, not even later."
-        checked={Boolean(options.onlineOnly)}
-        onChange={(_event, { checked }) => set({ onlineOnly: checked })}
-      />
+      <Audience id={id} options={options} onChange={onChange} />
       <div className="nc-fallback">
         <Checkbox
           id={`${id}-fallback`}
@@ -217,6 +221,112 @@ function InAppOptions({
         </div>
         <span>min, send it by e-mail instead</span>
       </div>
+    </div>
+  );
+}
+
+/** Who gets an in-app notification: everyone, or only people with the app open (on certain devices, for a while). */
+function Audience({
+  id,
+  options,
+  onChange,
+}: {
+  id: string;
+  options: NotificationRuleInAppOptions;
+  onChange: (next: NotificationRuleInAppOptions) => void;
+}) {
+  const mode = audienceMode(options);
+  const devices = options.devices;
+  return (
+    <>
+      <RadioButtonGroup
+        legendText="Who gets it"
+        name={`${id}-audience`}
+        orientation="vertical"
+        valueSelected={mode}
+        onChange={(value) => onChange(withAudience(options, value as AudienceMode))}
+      >
+        <RadioButton id={`${id}-audience-everyone`} value="everyone" labelText="Everyone, also later in the bell" />
+        <RadioButton id={`${id}-audience-online`} value="online" labelText="Only people with the app open right now" />
+        <RadioButton
+          id={`${id}-audience-later`}
+          value="later"
+          labelText="People with the app open now or who open it within …"
+        />
+      </RadioButtonGroup>
+      {mode === 'later' && (
+        <div className="nc-fallback">
+          <div className="nc-fallback__minutes">
+            <NumberInput
+              id={`${id}-later-minutes`}
+              label="Minutes people may open the app later"
+              hideLabel
+              min={1}
+              max={maxLaterMinutes}
+              value={options.laterMinutes ?? defaultLaterMinutes}
+              onChange={(_event, state) => onChange({ ...options, laterMinutes: Number(state.value) || 1 })}
+            />
+          </div>
+          <span>min. Until the cause is resolved, e.g. the error is cleared.</span>
+        </div>
+      )}
+      {mode !== 'everyone' && (
+        <>
+          <Checkbox
+            id={`${id}-devices-only`}
+            labelText="Only on certain devices"
+            checked={devices != null}
+            onChange={(_event, { checked }) =>
+              onChange({ ...options, devices: checked ? { deviceIds: [], deviceTypeIds: [] } : undefined })
+            }
+          />
+          {devices && (
+            <DeviceFilter id={id} devices={devices} onChange={(next) => onChange({ ...options, devices: next })} />
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+function DeviceFilter({
+  id,
+  devices,
+  onChange,
+}: {
+  id: string;
+  devices: NonNullable<NotificationRuleInAppOptions['devices']>;
+  onChange: (next: NonNullable<NotificationRuleInAppOptions['devices']>) => void;
+}) {
+  const { devices: managed } = useAllManagedDevices();
+  const typesQuery = useQuery({ queryKey: keys.types, queryFn: ({ signal }) => listManagedDeviceTypes({ signal }) });
+  const deviceItems: Option[] = (managed ?? []).map((device) => ({ id: device.id, label: device.name }));
+  const typeItems: Option[] = (typesQuery.data?.items ?? []).map((type) => ({ id: type.id, label: type.name }));
+  return (
+    <div className="nc-row">
+      <MultiSelect<Option>
+        id={`${id}-filter-devices`}
+        titleText="Devices"
+        label="Choose devices"
+        helperText="People signed in on one of these devices or device types."
+        items={deviceItems}
+        itemToString={(item) => item?.label ?? ''}
+        selectedItems={deviceItems.filter((item) => devices.deviceIds.includes(item.id))}
+        onChange={({ selectedItems }) =>
+          onChange({ ...devices, deviceIds: (selectedItems ?? []).map((item) => item.id) })
+        }
+      />
+      <MultiSelect<Option>
+        id={`${id}-filter-types`}
+        titleText="Device types"
+        label="Choose device types"
+        items={typeItems}
+        itemToString={(item) => item?.label ?? ''}
+        selectedItems={typeItems.filter((item) => devices.deviceTypeIds.includes(item.id))}
+        onChange={({ selectedItems }) =>
+          onChange({ ...devices, deviceTypeIds: (selectedItems ?? []).map((item) => item.id) })
+        }
+      />
     </div>
   );
 }

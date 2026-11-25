@@ -30,6 +30,7 @@ const (
 	MaxDelayMinutes      = 7 * 24 * 60
 	MaxEscalationMinutes = 30 * 24 * 60
 	MaxFallbackMinutes   = 1440
+	MaxLaterMinutes      = 7 * 24 * 60
 	MaxDurationMinutes   = 1440
 	MaxMachines          = 50
 )
@@ -249,14 +250,38 @@ type Action struct {
 
 // InAppOptions shape an in-app notification.
 type InAppOptions struct {
-	Appearance           Appearance `json:"appearance"`
-	Level                Level      `json:"level"`
-	ToastSeconds         int        `json:"toastSeconds"`
-	Button               *Button    `json:"button,omitempty"`
-	OnlyButtonCloses     bool       `json:"onlyButtonCloses"`
-	AllowLater           bool       `json:"allowLater"`
-	OnlineOnly           bool       `json:"onlineOnly"`
-	EmailFallbackMinutes *int       `json:"emailFallbackMinutes,omitempty"`
+	Appearance       Appearance `json:"appearance"`
+	Level            Level      `json:"level"`
+	ToastSeconds     int        `json:"toastSeconds"`
+	Button           *Button    `json:"button,omitempty"`
+	OnlyButtonCloses bool       `json:"onlyButtonCloses"`
+	AllowLater       bool       `json:"allowLater"`
+	// OnlineOnly limits the notification to people who have the application open (on the chosen devices, if any).
+	OnlineOnly bool `json:"onlineOnly"`
+	// LaterMinutes lets an online-only notification wait for everybody else: whoever opens the application within
+	// this many minutes gets it, as long as the firing is not resolved.
+	LaterMinutes *int `json:"laterMinutes,omitempty"`
+	// Devices limits an online-only notification to people signed in on these managed devices or device types.
+	Devices              *DeviceFilter `json:"devices,omitempty"`
+	EmailFallbackMinutes *int          `json:"emailFallbackMinutes,omitempty"`
+}
+
+// DeviceFilter names managed devices and device types; a session on any of them matches.
+type DeviceFilter struct {
+	DeviceIDs     []uuid.UUID `json:"deviceIds"`
+	DeviceTypeIDs []uuid.UUID `json:"deviceTypeIds"`
+}
+
+// Matches reports whether a session on the device (nil: not a managed device) passes the filter. Without a filter
+// every session does.
+func (f *DeviceFilter) Matches(deviceID, deviceTypeID *uuid.UUID) bool {
+	if f == nil {
+		return true
+	}
+	if deviceID == nil {
+		return false
+	}
+	return slices.Contains(f.DeviceIDs, *deviceID) || (deviceTypeID != nil && slices.Contains(f.DeviceTypeIDs, *deviceTypeID))
 }
 
 // Button is the button of an in-app notification.

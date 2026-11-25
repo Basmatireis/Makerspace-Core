@@ -2,6 +2,7 @@ package notifyrules
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -19,6 +20,9 @@ const onlineWindow = 2 * time.Minute
 
 const statusSkippedOffline = "skipped_offline"
 
+// statusWaiting marks a person whose in-app notification waits until the person opens the application.
+const statusWaiting = "waiting"
+
 // deliveryInput is one action ready to go out: its texts are filled and its recipients are resolved.
 type deliveryInput struct {
 	FiringID uuid.UUID
@@ -31,6 +35,11 @@ type deliveryInput struct {
 	// Fallback marks the e-mail that follows an in-app notification nobody read: it goes only to people who did not
 	// read it, and it skips the checks the notification already passed.
 	Fallback bool
+	// Item is what a wait remembers about the event to check the rule's conditions again on late delivery.
+	Item pendingItem
+	// Late marks the delivery of a waiting in-app notification to a person who just opened the application: the
+	// per-person throttle was claimed when it started waiting, added channels went out then, and it never waits again.
+	Late bool
 }
 
 // target is how a person can be reached.
@@ -157,24 +166,15 @@ func (d *Dispatcher) deliver(
 		return mailEnabled, nil
 	}
 
-	// An online-only notification reaches only accounts that had the application open in a visible tab just now.
-	online := map[uuid.UUID]bool{}
+	// An online-only notification reaches only accounts that had the application open in a visible tab just now, on
+	// one of the chosen devices if it names any. With a waiting time the others get it when they open it later.
 	onlineOnly := channel == ChannelInApp && !in.Fallback && in.Action.InApp != nil && in.Action.InApp.OnlineOnly
-	if onlineOnly {
-		var accounts []uuid.UUID
-		for _, reach := range targets {
-			accounts = append(accounts, reach.accounts...)
-		}
-		found, err := q.ListOnlineAccounts(ctx, notifyrulesdb.ListOnlineAccountsParams{
-			AccountIds: uuidStrings(accounts), Since: now.Add(-onlineWindow),
-		})
-		if err != nil {
-			return fmt.Errorf("load online accounts: %w", err)
-		}
-		for _, account := range found {
-			online[account] = true
-		}
+	waits := onlineOnly && !in.Late && in.Action.InApp.LaterMinutes != nil && *in.Action.InApp.LaterMinutes > 0
+	online, err := onlineAccounts(ctx, q, in.Action.InApp, onlineOnly, targets, now)
+	if err != nil {
+		return err
 	}
+	var waiting []uuid.UUID
 	inAppAccounts := map[uuid.UUID][]uuid.UUID{}
 
 	var rows []recipientRow
@@ -196,13 +196,13 @@ func (d *Dispatcher) deliver(
 		} else {
 			rows = append(rows, recipientRow{person: person, channel: channel, status: status})
 		}
-		if status != statusSkippedConsent && !in.Fallback {
+		if status != statusSkippedConsent && !in.Fallback && !in.Late {
 			channels = append(channels, addedChannels(pref, runtime.Mandatory, channel, runtime.Channels)...)
 		}
 		if len(channels) == 0 {
 			continue
 		}
-		if runtime.PersonThrottle != nil && !in.Fallback {
+		if runtime.PersonThrottle != nil && !in.Fallback && !in.Late {
 			claimed, err := q.ClaimThrottle(ctx, notifyrulesdb.ClaimThrottleParams{
 				RuleID: runtime.ID, SubjectKey: "person:" + person.String(), Now: now,
 				WindowStart: now.Add(-*runtime.PersonThrottle),
@@ -222,7 +222,11 @@ func (d *Dispatcher) deliver(
 				if onlineOnly && len(accounts) > 0 {
 					accounts = slices.DeleteFunc(slices.Clone(accounts), func(account uuid.UUID) bool { return !online[account] })
 					if len(accounts) == 0 {
-						rows = append(rows, recipientRow{person: person, channel: ChannelInApp, status: statusSkippedOffline})
+						if waits {
+							waiting = append(waiting, person)
+						} else {
+							rows = append(rows, recipientRow{person: person, channel: ChannelInApp, status: statusSkippedOffline})
+						}
 						continue
 					}
 				}
@@ -281,9 +285,14 @@ func (d *Dispatcher) deliver(
 		for _, person := range inAppPeople {
 			rows = append(rows, recipientRow{person: person, channel: ChannelInApp, status: sentStatus, inApp: true})
 		}
-		if err = d.scheduleFallback(ctx, q, in, inAppPeople, id, now); err != nil {
-			return err
+		if !in.Late {
+			if err = d.scheduleFallback(ctx, q, in, inAppPeople, id, now); err != nil {
+				return err
+			}
 		}
+	}
+	if err = d.startWaiting(ctx, q, in, waiting, now); err != nil {
+		return err
 	}
 	mail := d.newMailTexts(in.Action, in.Link, runtime.Name)
 	signIn, err := d.passwordHolders(ctx, q, mail, mailPeople)
@@ -331,6 +340,87 @@ func (d *Dispatcher) deliver(
 			Status: row.status, NotificationID: notification, SentAt: now,
 		}); err != nil {
 			return fmt.Errorf("log recipient: %w", err)
+		}
+	}
+	return nil
+}
+
+// onlineAccounts returns the accounts that count as online for an online-only notification: a visible poll within
+// the online window, on one of the chosen devices or device types if the notification names any.
+func onlineAccounts(
+	ctx context.Context,
+	q *store,
+	options *InAppOptions,
+	onlineOnly bool,
+	targets map[uuid.UUID]*target,
+	now time.Time,
+) (map[uuid.UUID]bool, error) {
+	online := map[uuid.UUID]bool{}
+	if !onlineOnly {
+		return online, nil
+	}
+	var accounts []uuid.UUID
+	for _, reach := range targets {
+		accounts = append(accounts, reach.accounts...)
+	}
+	if len(accounts) == 0 {
+		return online, nil
+	}
+	var found []uuid.UUID
+	var err error
+	if f := options.Devices; f != nil {
+		found, err = q.ListOnlineAccountsAtDevices(ctx, notifyrulesdb.ListOnlineAccountsAtDevicesParams{
+			AccountIds: uuidStrings(accounts), Since: now.Add(-onlineWindow),
+			DeviceIds: uuidStrings(f.DeviceIDs), DeviceTypeIds: uuidStrings(f.DeviceTypeIDs),
+		})
+	} else {
+		found, err = q.ListOnlineAccounts(ctx, notifyrulesdb.ListOnlineAccountsParams{
+			AccountIds: uuidStrings(accounts), Since: now.Add(-onlineWindow),
+		})
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load online accounts: %w", err)
+	}
+	for _, account := range found {
+		online[account] = true
+	}
+	return online, nil
+}
+
+// startWaiting keeps an in-app notification for each person who is not online yet: the person's next visible poll
+// (on a chosen device, if the action names any) delivers it while the firing is unresolved and the wait has not
+// expired. The delivery log says "waiting" until then.
+func (d *Dispatcher) startWaiting(ctx context.Context, q *store, in deliveryInput, people []uuid.UUID, now time.Time) error {
+	if len(people) == 0 {
+		return nil
+	}
+	action := in.Action
+	actionJSON, err := json.Marshal(action)
+	if err != nil {
+		return fmt.Errorf("encode waiting action: %w", err)
+	}
+	item := in.Item
+	item.Link, item.Fallback, item.NotificationID, item.Organizations = in.Link, false, nil, nil
+	itemJSON, err := json.Marshal(item)
+	if err != nil {
+		return fmt.Errorf("encode waiting item: %w", err)
+	}
+	items := string(itemJSON)
+	expires := now.Add(time.Duration(*action.InApp.LaterMinutes) * time.Minute)
+	for _, person := range people {
+		person := person
+		logID, err := q.InsertFiringRecipientReturningID(ctx, notifyrulesdb.InsertFiringRecipientReturningIDParams{
+			ID: ids.New(), FiringID: in.FiringID, PersonID: &person, Channel: string(ChannelInApp), Step: int32(in.Step),
+			Status: statusWaiting, SentAt: now,
+		})
+		if err != nil {
+			return fmt.Errorf("log waiting recipient: %w", err)
+		}
+		if err = q.InsertPresenceWait(ctx, notifyrulesdb.InsertPresenceWaitParams{
+			ID: ids.New(), FiringID: in.FiringID, PersonID: person, Step: int32(in.Step), Action: string(actionJSON),
+			Item: &items, LogID: &logID, ExpiresAt: expires, CreatedAt: now,
+		}); err != nil {
+			return fmt.Errorf("store waiting notification: %w", err)
 		}
 	}
 	return nil

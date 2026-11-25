@@ -444,6 +444,7 @@ func (d *Dispatcher) fireOccurrence(
 		} else {
 			err = d.deliver(ctx, q, runtime, deliveryInput{
 				FiringID: firingID, Action: item.action, Link: item.link, People: item.people, Organizations: item.orgs,
+				Item: pendingItem{Values: storedValues(occ.Values), ItemKey: occ.ItemKey, Collection: occ.Collection},
 			}, now)
 		}
 		if err != nil {

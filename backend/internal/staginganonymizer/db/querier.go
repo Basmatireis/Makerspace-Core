@@ -50,6 +50,7 @@ type Querier interface {
 	ClearTrainingRecordNotes(ctx context.Context) error
 	ClearVisitCorrectionReasons(ctx context.Context) error
 	CreatePasswordIdentity(ctx context.Context, arg CreatePasswordIdentityParams) error
+	DeleteAccountDevicePresence(ctx context.Context) error
 	DeleteAccountPresence(ctx context.Context) error
 	DeleteAuditEvents(ctx context.Context) error
 	DeleteAuthChallenges(ctx context.Context) error
@@ -67,6 +68,7 @@ type Querier interface {
 	DeleteNotificationFirings(ctx context.Context) error
 	DeleteNotificationMailOutbox(ctx context.Context) error
 	DeleteNotificationPendingActions(ctx context.Context) error
+	DeleteNotificationPresenceWaits(ctx context.Context) error
 	DeleteNotificationRuleRuns(ctx context.Context) error
 	DeleteNotificationThrottle(ctx context.Context) error
 	DeleteOIDCFlows(ctx context.Context) error

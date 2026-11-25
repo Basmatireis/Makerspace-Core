@@ -20,6 +20,9 @@ type Querier interface {
 	ClaimDuePendingAction(ctx context.Context, now time.Time) (ClaimDuePendingActionRow, error)
 	// Takes one enabled schedule rule that is due, or has no next run yet, and keeps it locked until the transaction ends.
 	ClaimDueScheduleRule(ctx context.Context, now pgtype.Timestamptz) (ClaimDueScheduleRuleRow, error)
+	// The person's waiting in-app notifications that may still be delivered: unexpired, of an unresolved firing, oldest
+	// first. The rows stay locked until the caller's transaction ends; rows another poll holds are skipped.
+	ClaimPresenceWaits(ctx context.Context, arg ClaimPresenceWaitsParams) ([]ClaimPresenceWaitsRow, error)
 	// Zero rows mean the run was handled before.
 	ClaimRuleRun(ctx context.Context, arg ClaimRuleRunParams) (int64, error)
 	// Starts the throttle window for a subject unless an earlier one still runs. Zero rows mean the firing is throttled.
@@ -56,6 +59,7 @@ type Querier interface {
 	DeferPendingAction(ctx context.Context, arg DeferPendingActionParams) error
 	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) (int64, error)
 	DeleteConsentsWithdrawnBefore(ctx context.Context, cutoff pgtype.Timestamptz) (int64, error)
+	DeleteFiringRecipient(ctx context.Context, id uuid.UUID) error
 	// Retention of the delivery log; recipients and pending actions cascade.
 	DeleteFiringsCreatedBefore(ctx context.Context, cutoff time.Time) (int64, error)
 	DeleteKioskRuleNoticesBefore(ctx context.Context, cutoff time.Time) (int64, error)
@@ -63,11 +67,14 @@ type Querier interface {
 	DeletePendingActionsOfFiring(ctx context.Context, firingID uuid.UUID) error
 	// Escalation steps and e-mail fallbacks wait for a reaction; delayed first actions do not.
 	DeletePendingEscalations(ctx context.Context, firingIds []string) (int64, error)
+	DeletePresenceWait(ctx context.Context, id uuid.UUID) error
 	DeleteRule(ctx context.Context, arg DeleteRuleParams) (int64, error)
 	DeleteRuleRunsBefore(ctx context.Context, cutoff time.Time) (int64, error)
 	DeleteSignageRuleNoticesBefore(ctx context.Context, cutoff time.Time) (int64, error)
 	EndSignageRuleNoticesOfFirings(ctx context.Context, arg EndSignageRuleNoticesOfFiringsParams) error
 	ExpireKioskRuleNoticesOfFirings(ctx context.Context, arg ExpireKioskRuleNoticesOfFiringsParams) error
+	// Ends the waits that expired or whose firing was resolved: their log line says the person was not online.
+	ExpirePresenceWaits(ctx context.Context, now time.Time) (int64, error)
 	// Whether a recipient of an in-app notification of the firing did what stops the escalation: opened it, saw it (opening
 	// also counts) or acknowledged it.
 	FiringStopReached(ctx context.Context, arg FiringStopReachedParams) (bool, error)
@@ -114,8 +121,10 @@ type Querier interface {
 	InsertCategory(ctx context.Context, arg InsertCategoryParams) error
 	InsertFiring(ctx context.Context, arg InsertFiringParams) error
 	InsertFiringRecipient(ctx context.Context, arg InsertFiringRecipientParams) error
+	InsertFiringRecipientReturningID(ctx context.Context, arg InsertFiringRecipientReturningIDParams) (uuid.UUID, error)
 	InsertKioskRuleNotice(ctx context.Context, arg InsertKioskRuleNoticeParams) (int64, error)
 	InsertPendingAction(ctx context.Context, arg InsertPendingActionParams) error
+	InsertPresenceWait(ctx context.Context, arg InsertPresenceWaitParams) error
 	InsertRule(ctx context.Context, arg InsertRuleParams) error
 	InsertRuleMail(ctx context.Context, arg InsertRuleMailParams) error
 	InsertRuleNotification(ctx context.Context, arg InsertRuleNotificationParams) error
@@ -139,6 +148,7 @@ type Querier interface {
 	// Enabled central and personal rules that fire on one event. Personal rules have no category and carry their owner.
 	ListEnabledEventRules(ctx context.Context, triggerEvent *string) ([]ListEnabledEventRulesRow, error)
 	ListExistingDeviceIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
+	ListExistingDeviceTypeIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	// Only screens with a device take rule notices; web embeds show public information only.
 	ListExistingDisplayIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListExistingPersonIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
@@ -160,6 +170,9 @@ type Querier interface {
 	ListMembershipsOfPeople(ctx context.Context, personIds []string) ([]ListMembershipsOfPeopleRow, error)
 	// Accounts that had the application open in a visible tab since the given moment.
 	ListOnlineAccounts(ctx context.Context, arg ListOnlineAccountsParams) ([]uuid.UUID, error)
+	// Accounts that had the application open in a visible tab since the given moment on one of the managed devices, or
+	// on a device of one of the device types.
+	ListOnlineAccountsAtDevices(ctx context.Context, arg ListOnlineAccountsAtDevicesParams) ([]uuid.UUID, error)
 	ListOpenDayTeam(ctx context.Context, openDayID uuid.UUID) ([]uuid.UUID, error)
 	// Everyone signed up for the open days, with the kind of place they hold.
 	ListOpenDayTeams(ctx context.Context, openDayIds []string) ([]ListOpenDayTeamsRow, error)
@@ -212,6 +225,7 @@ type Querier interface {
 	LoadSpoolItems(ctx context.Context, maxItems int32) ([]LoadSpoolItemsRow, error)
 	LoadTrainingItems(ctx context.Context, maxItems int32) ([]LoadTrainingItemsRow, error)
 	MailDeliveryEnabled(ctx context.Context) (bool, error)
+	MarkFiringRecipientOffline(ctx context.Context, id uuid.UUID) error
 	MarkKioskNoticesShown(ctx context.Context, arg MarkKioskNoticesShownParams) error
 	// The notifications that announced new Lab Rules, written by the "lab_rules_published" rule (or, before the rules
 	// existed, as their own kind), are read once the person confirmed.

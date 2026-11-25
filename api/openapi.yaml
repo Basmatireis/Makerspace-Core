@@ -15865,8 +15865,24 @@ components:
         button: {$ref: "#/components/schemas/NotificationRuleButton"}
         onlyButtonCloses: {type: boolean}
         allowLater: {type: boolean}
-        onlineOnly: {type: boolean}
+        onlineOnly: {type: boolean, description: "Only people who have the application open in a visible tab (on the chosen devices, if `devices` is set)."}
+        laterMinutes:
+          type: integer
+          minimum: 1
+          maximum: 10080
+          nullable: true
+          description: "Online-only notifications: people who open the application within this many minutes still get it while the firing is unresolved. Needs `onlineOnly`."
+        devices: {$ref: "#/components/schemas/NotificationRuleDeviceFilter"}
         emailFallbackMinutes: {type: integer, minimum: 1, maximum: 1440, nullable: true}
+
+    NotificationRuleDeviceFilter:
+      type: object
+      additionalProperties: false
+      description: "Limits an online-only in-app notification to people signed in on one of these managed devices or on a device of one of these types. Needs `onlineOnly`; at least one entry."
+      required: [deviceIds, deviceTypeIds]
+      properties:
+        deviceIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
+        deviceTypeIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
 
     NotificationRuleSignageTarget:
       type: object
@@ -16114,7 +16130,7 @@ components:
         name: {type: string}
         channel: {type: string, enum: [in_app, email, signage, tablet]}
         step: {type: integer, minimum: 0, description: "0 is the rule's first actions, 1.. are escalation steps."}
-        status: {type: string, enum: [sent, skipped_consent, skipped_muted, skipped_condition, throttled, fallback, skipped_offline]}
+        status: {type: string, enum: [sent, skipped_consent, skipped_muted, skipped_condition, throttled, fallback, skipped_offline, waiting]}
         sentAt: {type: string, format: date-time}
         readAt: {type: string, format: date-time, nullable: true}
         deliveredAt: {type: string, format: date-time, nullable: true, description: "In-app only: when the poll first handed the notification to the person's account."}

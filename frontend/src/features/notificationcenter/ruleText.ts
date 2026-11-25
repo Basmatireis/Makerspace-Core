@@ -3,6 +3,7 @@ import type {
   NotificationCondition,
   NotificationConditionItem,
   NotificationConditionSet,
+  NotificationRuleInAppOptions,
   NotificationRuleSchedule,
 } from '../../api/generated/models';
 import {
@@ -134,6 +135,25 @@ const withArticle = (adjective: string, thing: string) => {
   return `${/^[aeiou]/i.test(first) ? 'an' : 'a'} ${adjective ? `${adjective} ` : ''}${thing}`;
 };
 
+const countText = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
+
+function laterText(minutes: number): string {
+  if (minutes % 1440 === 0) return `${minutes / 1440} d`;
+  if (minutes % 60 === 0) return `${minutes / 60} h`;
+  return `${minutes} min`;
+}
+
+/** The online-only restriction of an in-app action as a trailing phrase. */
+function audienceText(options: NotificationRuleInAppOptions | undefined): string {
+  if (!options?.onlineOnly) return '';
+  const later = options.laterMinutes ? ` (or opening it within ${laterText(options.laterMinutes)})` : '';
+  const parts = [
+    options.devices?.deviceIds.length ? countText(options.devices.deviceIds.length, 'device') : '',
+    options.devices?.deviceTypeIds.length ? countText(options.devices.deviceTypeIds.length, 'device type') : '',
+  ].filter(Boolean);
+  return ` only to people with the app open${later}${parts.length ? ` on ${parts.join(' and ')}` : ''}`;
+}
+
 function actionText(catalog: NotificationCatalog, definition: Definition, action: Action, lookup: NameLookup): string {
   const who =
     joinList(action.recipients.map((key) => recipientPhrase(key, catalog, definition, lookup))) || 'nobody yet';
@@ -154,7 +174,7 @@ function actionText(catalog: NotificationCatalog, definition: Definition, action
     const fallback = options?.emailFallbackMinutes
       ? ` (by e-mail instead if it hasn't reached them after ${options.emailFallbackMinutes} min)`
       : '';
-    return `${phrase.verb} ${withArticle(level, phrase.thing)}${buttonText}${closes} for ${who}${when}${options?.onlineOnly ? ' if they have it open' : ''}${fallback}`;
+    return `${phrase.verb} ${withArticle(level, phrase.thing)}${buttonText}${closes} for ${who}${when}${audienceText(options)}${fallback}`;
   }
   if (action.channel === 'email') return `e-mail ${who}${when}`;
   if (action.channel === 'signage') {

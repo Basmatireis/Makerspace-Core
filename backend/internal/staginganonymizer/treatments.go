@@ -48,6 +48,7 @@ type Table struct {
 var Tables = []Table{
 	{Name: "account_guide_progress", Columns: map[string]Treatment{"guide_id": System, "status": System}},
 	{Name: "account_preferences", Columns: map[string]Treatment{"key": System, "value": System}},
+	{Name: "account_device_presence", Emptied: EmptiedSignInState},
 	{Name: "account_presence", Emptied: EmptiedSignInState},
 	{Name: "accounts", Columns: map[string]Treatment{"status": System, "provisioning_source": System}},
 	{Name: "attendance_daily_statistics"},
@@ -330,6 +331,7 @@ var Tables = []Table{
 	{Name: "notification_firings", Emptied: EmptiedHistory},
 	{Name: "notification_mail_outbox", Emptied: EmptiedHistory},
 	{Name: "notification_pending_actions", Emptied: EmptiedHistory},
+	{Name: "notification_presence_waits", Emptied: EmptiedHistory},
 	{Name: "notification_rule_preferences"},
 	{Name: "notification_rule_runs", Emptied: EmptiedHistory},
 	{Name: "notification_rules", Columns: map[string]Treatment{

@@ -296,7 +296,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		branding:           brandingService,
 		signage:            signageService,
 		surveys:            surveyService,
-		inbox:              inbox.NewService(pool),
+		inbox:              inbox.NewService(pool).WithWaitingDelivery(notifyDispatcher),
 		notifyRules:        notifyRulesService,
 		notifyDispatcher:   notifyDispatcher,
 		guides:             guides.NewService(pool),

@@ -737,7 +737,48 @@ func (v *validator) inApp(path string, a *Action) error {
 	if o.EmailFallbackMinutes != nil && (*o.EmailFallbackMinutes < 1 || *o.EmailFallbackMinutes > MaxFallbackMinutes) {
 		return fail(path+".emailFallbackMinutes", "must be between 1 and 1440")
 	}
-	return nil
+	return v.audience(path, o)
+}
+
+// audience checks who an in-app notification reaches by presence: people with the application open now, optionally
+// also those who open it later, optionally only on chosen managed devices or device types.
+func (v *validator) audience(path string, o *InAppOptions) error {
+	if o.LaterMinutes != nil {
+		if !o.OnlineOnly {
+			return fail(path+".laterMinutes", "only a notification for people with the app open can wait for the others")
+		}
+		if *o.LaterMinutes < 1 || *o.LaterMinutes > MaxLaterMinutes {
+			return fail(path+".laterMinutes", fmt.Sprintf("must be between 1 and %d", MaxLaterMinutes))
+		}
+	}
+	f := o.Devices
+	if f == nil {
+		return nil
+	}
+	if !o.OnlineOnly {
+		return fail(path+".devices", "only a notification for people with the app open can be limited to devices")
+	}
+	if len(f.DeviceIDs)+len(f.DeviceTypeIDs) == 0 {
+		return fail(path+".devices", "choose at least one device or device type")
+	}
+	if len(f.DeviceIDs) > MaxTargets || len(f.DeviceTypeIDs) > MaxTargets {
+		return fail(path+".devices", fmt.Sprintf("choose at most %d devices and %d device types", MaxTargets, MaxTargets))
+	}
+	if hasDuplicate(f.DeviceIDs) || hasDuplicate(f.DeviceTypeIDs) {
+		return fail(path+".devices", "lists a device or device type twice")
+	}
+	return v.existing(path+".devices", IDDevices, f.DeviceIDs, "device", IDDeviceTypes, f.DeviceTypeIDs, "device type")
+}
+
+func hasDuplicate(ids []uuid.UUID) bool {
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			return true
+		}
+		seen[id] = struct{}{}
+	}
+	return false
 }
 
 func (v *validator) escalation(d *Definition) error {

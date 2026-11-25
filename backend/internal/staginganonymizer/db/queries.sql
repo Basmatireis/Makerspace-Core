@@ -126,6 +126,9 @@ DELETE FROM visitor_enrollment_contexts;
 -- name: DeleteAccountPresence :exec
 DELETE FROM account_presence;
 
+-- name: DeleteAccountDevicePresence :exec
+DELETE FROM account_device_presence;
+
 -- name: DeletePrinterConnectorEnrollments :exec
 DELETE FROM printer_connector_enrollments;
 
@@ -152,6 +155,9 @@ UPDATE printer_connector_assignments SET encrypted_secrets = NULL WHERE encrypte
 
 -- name: DeleteAuditEvents :exec
 DELETE FROM audit_events;
+
+-- name: DeleteNotificationPresenceWaits :exec
+DELETE FROM notification_presence_waits;
 
 -- name: DeleteNotificationPendingActions :exec
 DELETE FROM notification_pending_actions;

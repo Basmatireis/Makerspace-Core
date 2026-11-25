@@ -34,7 +34,19 @@ type Service struct {
 	pool        *pgxpool.Pool
 	now         func() time.Time
 	sendLimiter *ratelimit.Limiter // manual messages sent per sender account
+	waiting     WaitingDelivery
+}
 
+// WaitingDelivery delivers the notifications that waited for the polling person to open the application. It runs in
+// the poll's transaction, after the presence was recorded, so the poll hands over what it creates.
+type WaitingDelivery interface {
+	DeliverWaiting(ctx context.Context, tx pgx.Tx, principal authorization.Principal, now time.Time) error
+}
+
+// WithWaitingDelivery lets the poll deliver waiting notifications.
+func (s *Service) WithWaitingDelivery(waiting WaitingDelivery) *Service {
+	s.waiting = waiting
+	return s
 }
 
 // NewService builds the service.
@@ -124,6 +136,18 @@ func (s *Service) Poll(ctx context.Context, principal authorization.Principal) (
 		AccountID: principal.AccountID, Now: now,
 	}); err != nil {
 		return Poll{}, fmt.Errorf("record presence: %w", err)
+	}
+	if device := principal.Device; device != nil {
+		if err := queries.UpsertAccountDevicePresence(ctx, inboxdb.UpsertAccountDevicePresenceParams{
+			AccountID: principal.AccountID, ManagedDeviceID: device.ID, Now: now,
+		}); err != nil {
+			return Poll{}, fmt.Errorf("record device presence: %w", err)
+		}
+	}
+	if s.waiting != nil {
+		if err := s.waiting.DeliverWaiting(ctx, tx, principal, now); err != nil {
+			return Poll{}, fmt.Errorf("deliver waiting notifications: %w", err)
+		}
 	}
 	fresh, err := queries.ClaimUndeliveredNotifications(ctx, inboxdb.ClaimUndeliveredNotificationsParams{
 		Now: pgtype.Timestamptz{Time: now, Valid: true}, AccountID: principal.AccountID,

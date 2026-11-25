@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { balanceRule, catalogFixture, printerRule } from '../../test/notificationCenter';
 import {
+  audienceMode,
   blankDefinition,
   defaultCondition,
   fieldGroups,
   normalizeCondition,
   pruneDefinition,
   validateDraft,
+  withAudience,
   type RuleDraft,
 } from './ruleModel';
 import { fillPlaceholders, scheduleText, splitPlaceholders, summaryText } from './ruleText';
@@ -22,6 +24,21 @@ describe('summaryText', () => {
     expect(summaryText(catalogFixture, balanceRule.definition)).toBe(
       'Monthly on day 1 at 09:00, for every person where unpaid amount is more than 0 €: e-mail the person itself.',
     );
+  });
+
+  it('describes who an online-only in-app action reaches', () => {
+    const definition = structuredClone(printerRule.definition);
+    const inApp = definition.actions[0].inApp!;
+    Object.assign(inApp, {
+      onlineOnly: true,
+      laterMinutes: 120,
+      devices: { deviceIds: ['a', 'b'], deviceTypeIds: ['t'] },
+    });
+    expect(summaryText(catalogFixture, definition)).toContain(
+      'for supervisors of the machine only to people with the app open (or opening it within 2 h) on 2 devices and 1 device type.',
+    );
+    Object.assign(inApp, { laterMinutes: null, devices: undefined });
+    expect(summaryText(catalogFixture, definition)).toContain('machine only to people with the app open.');
   });
 
   it('says so while nothing is sent yet', () => {
@@ -126,6 +143,30 @@ describe('validateDraft', () => {
       'Choose a category.',
       'Add at least one action under Then.',
     ]);
+  });
+
+  it('checks the online-only options of an in-app action', () => {
+    const definition = structuredClone(printerRule.definition);
+    Object.assign(definition.actions[0].inApp!, {
+      onlineOnly: true,
+      laterMinutes: 20000,
+      devices: { deviceIds: [], deviceTypeIds: [] },
+    });
+    expect(validateDraft(catalogFixture, draft({ definition }))).toEqual([
+      'Then › In-app notification 1: choose between 1 and 10080 minutes for people who open the app later.',
+      'Then › In-app notification 1: choose a device or device type, or turn “Only on certain devices” off.',
+    ]);
+  });
+
+  it('switches the audience and drops what only online-only allows', () => {
+    const base = { appearance: 'toast', level: 'info' };
+    const later = withAudience({ ...base, devices: { deviceIds: ['a'], deviceTypeIds: [] } }, 'later');
+    expect(later).toMatchObject({ onlineOnly: true, laterMinutes: 120 });
+    expect(audienceMode(later)).toBe('later');
+    expect(audienceMode(withAudience(later, 'online'))).toBe('online');
+    const everyone = withAudience(later, 'everyone');
+    expect(everyone).toMatchObject({ onlineOnly: false, laterMinutes: null, devices: undefined });
+    expect(audienceMode(everyone)).toBe('everyone');
   });
 
   it('asks for a recipient and a title on every action', () => {

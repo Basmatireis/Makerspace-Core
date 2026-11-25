@@ -10,6 +10,7 @@ import type {
   NotificationConditionSet,
   NotificationRule,
   NotificationRuleAction,
+  NotificationRuleInAppOptions,
   NotificationRuleDefinition,
   NotificationRuleInput,
 } from '../../api/generated/models';
@@ -411,6 +412,24 @@ export function pruneDefinition(catalog: NotificationCatalog, definition: Defini
 
 /* ---------- actions and drafts ---------- */
 
+export const maxLaterMinutes = 10080;
+export const defaultLaterMinutes = 120;
+
+/** Who an in-app action reaches: everyone, the people online now, or those online now or within some minutes. */
+export type AudienceMode = 'everyone' | 'online' | 'later';
+
+export function audienceMode(options: NotificationRuleInAppOptions): AudienceMode {
+  if (!options.onlineOnly) return 'everyone';
+  return options.laterMinutes != null ? 'later' : 'online';
+}
+
+/** The options for a chosen audience; leaving "online" behaviour behind also drops the settings only it allows. */
+export function withAudience(options: NotificationRuleInAppOptions, mode: AudienceMode): NotificationRuleInAppOptions {
+  if (mode === 'everyone') return { ...options, onlineOnly: false, laterMinutes: null, devices: undefined };
+  if (mode === 'online') return { ...options, onlineOnly: true, laterMinutes: null };
+  return { ...options, onlineOnly: true, laterMinutes: options.laterMinutes ?? defaultLaterMinutes };
+}
+
 /** Channels a personal subscription may use; signage and tablets address displays, not a person. */
 export const personalChannels: readonly Channel[] = ['in_app', 'email'];
 
@@ -429,6 +448,7 @@ export function newAction(channel: Channel, personal = false): Action {
           onlyButtonCloses: false,
           allowLater: false,
           onlineOnly: false,
+          laterMinutes: null,
           emailFallbackMinutes: null,
         },
       };
@@ -504,6 +524,15 @@ export function validateDraft(
       problems.push(`${where}: add a recipient.`);
     }
     if (action.channel === 'tablet' && !action.tablet?.deviceIds.length) problems.push(`${where}: choose a tablet.`);
+    const inApp = action.channel === 'in_app' ? action.inApp : undefined;
+    if (inApp?.onlineOnly) {
+      if (inApp.laterMinutes != null && !(inApp.laterMinutes >= 1 && inApp.laterMinutes <= maxLaterMinutes)) {
+        problems.push(`${where}: choose between 1 and ${maxLaterMinutes} minutes for people who open the app later.`);
+      }
+      if (inApp.devices && !inApp.devices.deviceIds.length && !inApp.devices.deviceTypeIds.length) {
+        problems.push(`${where}: choose a device or device type, or turn “Only on certain devices” off.`);
+      }
+    }
     if (!action.title.trim()) problems.push(`${where}: write a ${action.channel === 'email' ? 'subject' : 'title'}.`);
   };
   definition.actions.forEach((action, index) => check(action, `Then › ${channelLabel(action.channel)} ${index + 1}`));
