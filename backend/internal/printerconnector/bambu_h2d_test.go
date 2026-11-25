@@ -1063,6 +1063,48 @@ func TestClientUploadsQueuedArtifactWithIntegrityHeaders(t *testing.T) {
 	}
 }
 
+func TestArtifactUploadOutlastsTheShortAPITimeout(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	assignmentID, runID := ids.New(), ids.New()
+	transfer, err := store.StageArtifact(
+		ctx, assignmentID, runID, 1, "/cache/large.3mf", "large.3mf",
+		bytes.NewReader(syntheticZIP(t, "3D/3dmodel.model", "model")), time.Now().UTC().Add(time.Hour),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient("http://core.test", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A large archive through the public proxy takes far longer than an API call.
+	client.http.Timeout = 20 * time.Millisecond
+	client.http.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		select {
+		case <-time.After(100 * time.Millisecond):
+		case <-request.Context().Done():
+			return nil, request.Context().Err()
+		}
+		_, _ = io.Copy(io.Discard, request.Body)
+		response := `{"artifact":{"id":"artifact"},"disposition":"created","runId":"` + runID.String() + `","autoAttachedJobId":null}`
+		return &http.Response{
+			StatusCode: http.StatusCreated,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(response)),
+			Request:    request,
+		}, nil
+	})
+	if receipt, err := client.UploadArtifact(ctx, "connector-token", transfer); err != nil || receipt.Disposition != "created" {
+		t.Fatalf("slow artifact upload failed: %#v %v", receipt, err)
+	}
+}
+
 func TestBuildBambuConsumptionPayloadUsesTerminalMethod(t *testing.T) {
 	t.Parallel()
 	archive := syntheticBambuConsumptionZIP(t)
