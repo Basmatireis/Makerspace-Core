@@ -251,23 +251,20 @@ function Audience({
         <RadioButton
           id={`${id}-audience-later`}
           value="later"
-          labelText="People with the app open now or who open it within …"
+          labelText="People with the app open now, or who open it later"
         />
       </RadioButtonGroup>
       {mode === 'later' && (
-        <div className="nc-fallback">
-          <div className="nc-fallback__minutes">
-            <NumberInput
-              id={`${id}-later-minutes`}
-              label="Minutes people may open the app later"
-              hideLabel
-              min={1}
-              max={maxLaterMinutes}
-              value={options.laterMinutes ?? defaultLaterMinutes}
-              onChange={(_event, state) => onChange({ ...options, laterMinutes: Number(state.value) || 1 })}
-            />
-          </div>
-          <span>min. Until the cause is resolved, e.g. the error is cleared.</span>
+        <div className="nc-later">
+          <NumberInput
+            id={`${id}-later-minutes`}
+            label="Keep waiting for up to (minutes)"
+            helperText="Whoever opens the app within this time still gets it, unless the cause is gone by then (for example the printer error was cleared)."
+            min={1}
+            max={maxLaterMinutes}
+            value={options.laterMinutes ?? defaultLaterMinutes}
+            onChange={(_event, state) => onChange({ ...options, laterMinutes: Number(state.value) || 1 })}
+          />
         </div>
       )}
       {mode !== 'everyone' && (
