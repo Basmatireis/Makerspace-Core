@@ -275,6 +275,7 @@ function Audience({
           <Checkbox
             id={`${id}-devices-only`}
             labelText="Only on certain devices"
+            helperText="People signed in on one of these devices or on a device of these types."
             checked={devices != null}
             onChange={(_event, { checked }) =>
               onChange({ ...options, devices: checked ? { deviceIds: [], deviceTypeIds: [] } : undefined })
@@ -308,7 +309,6 @@ function DeviceFilter({
         id={`${id}-filter-devices`}
         titleText="Devices"
         label="Choose devices"
-        helperText="People signed in on one of these devices or device types."
         items={deviceItems}
         itemToString={(item) => item?.label ?? ''}
         selectedItems={deviceItems.filter((item) => devices.deviceIds.includes(item.id))}
