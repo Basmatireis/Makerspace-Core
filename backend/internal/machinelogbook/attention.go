@@ -219,19 +219,21 @@ func machineAttentionFrom(row machinelogbookdb.ListMachineAttentionFactsRow, now
 		return result
 	}
 	if row.HasConnector {
-		stale := !row.LastHeartbeatAt.Valid || now.Sub(row.LastHeartbeatAt.Time) > ConnectorHeartbeatStale
-		state := ""
-		if row.RuntimeState != nil {
-			state = *row.RuntimeState
+		facts := ConnectorFacts{
+			RuntimeState: row.RuntimeState, RuntimeErrorCode: row.RuntimeErrorCode, HealthState: row.HealthState,
 		}
-		switch {
-		case stale || state == "disconnected":
-			result = append(result, Attention{Code: AttentionConnectorOffline, Message: "The printer connector is offline."})
-		case state == "degraded" || row.RuntimeErrorCode != nil || (row.HealthState != nil && *row.HealthState == "degraded"):
-			message := "The printer connector reports a problem."
-			if row.RuntimeErrorCode != nil {
-				message = "The printer connector reports " + *row.RuntimeErrorCode + "."
-			}
+		if row.LastHeartbeatAt.Valid {
+			facts.LastHeartbeatAt = &row.LastHeartbeatAt.Time
+		}
+		problem, code := ClassifyConnectorProblem(facts, now)
+		message := ConnectorProblemMessage(problem, code)
+		switch problem {
+		case ConnectorProblemNone:
+		case ConnectorProblemOffline:
+			result = append(result, Attention{Code: AttentionConnectorOffline, Message: message})
+		case ConnectorProblemStorage:
+			result = append(result, Attention{Code: AttentionPrinterStorageUnavailable, Message: message})
+		default:
 			result = append(result, Attention{Code: AttentionConnectorError, Message: message})
 		}
 	}

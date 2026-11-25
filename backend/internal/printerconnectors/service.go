@@ -48,6 +48,10 @@ type NotificationEmitter interface {
 	PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, family, code string, severity *string) error
 	// PrinterErrorCleared tells that the printer no longer reports the error, which ends its escalation.
 	PrinterErrorCleared(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, code string) error
+	// PrinterConnectorProblem raises printer_connector_problem for a machine whose connector problem lasts.
+	PrinterConnectorProblem(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, problem, code, message string) error
+	// PrinterConnectorProblemCleared ends the escalation of a notified connector problem.
+	PrinterConnectorProblemCleared(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, problem string) error
 	FilamentChange(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, change notifyrules.FilamentChange) error
 }
 

@@ -607,3 +607,19 @@ DELETE FROM printer_connector_activity WHERE occurred_at < sqlc.arg(before_time)
 DELETE FROM printer_events e
 WHERE e.occurred_at < sqlc.arg(before_time)
   AND NOT EXISTS (SELECT 1 FROM machine_run_reported_usage_items u WHERE u.source_printer_event_id = e.id);
+
+-- name: ListAssignmentProblemFacts :many
+-- Active assignments with the facts their connector problem is derived from, and ended or disabled assignments
+-- whose problem was notified (so the notification is resolved). Locked for the problem watch; a concurrent run skips them.
+SELECT a.id, a.machine_id, a.runtime_state, a.runtime_error_code, c.health_state, c.last_heartbeat_at,
+       a.problem_kind, a.problem_code, a.problem_since, a.problem_notified_at,
+       (a.ended_at IS NULL AND a.enabled AND c.lifecycle = 'active')::boolean AS active
+FROM printer_connector_assignments a JOIN printer_connectors c ON c.id = a.connector_id
+WHERE (a.ended_at IS NULL AND a.enabled AND c.lifecycle = 'active') OR a.problem_kind IS NOT NULL
+ORDER BY a.id
+FOR UPDATE OF a SKIP LOCKED;
+
+-- name: SetAssignmentProblem :exec
+UPDATE printer_connector_assignments SET problem_kind=sqlc.narg(problem_kind), problem_code=sqlc.narg(problem_code),
+    problem_since=sqlc.narg(problem_since), problem_notified_at=sqlc.narg(problem_notified_at)
+WHERE id=sqlc.arg(id);

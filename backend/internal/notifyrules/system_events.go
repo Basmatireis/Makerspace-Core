@@ -276,6 +276,64 @@ func (e *SystemEvents) PrinterError(ctx context.Context, tx pgx.Tx, machineID uu
 	})
 }
 
+// connectorProblemLabels name the kinds of printer_connector_problem for people.
+var connectorProblemLabels = map[string]string{
+	"offline":    "The connector is offline",
+	"storage":    "Print files and timelapses cannot be fetched",
+	"connection": "The connector cannot talk to the printer",
+	"other":      "Another connector problem",
+}
+
+// PrinterConnectorProblem raises printer_connector_problem when a machine's connector problem has lasted long enough.
+// The printerconnectors problem watch calls it once per problem; it resolves the firing when the problem clears.
+func (e *SystemEvents) PrinterConnectorProblem(
+	ctx context.Context, tx pgx.Tx, machineID uuid.UUID, problem, code, message string,
+) error {
+	q := notifyrulesdb.New(tx)
+	machine, err := q.GetMachineEventFacts(ctx, machineID)
+	if err != nil {
+		return fmt.Errorf("load machine: %w", err)
+	}
+	fields := map[string]any{"machine": machineID.String(), "problem": problem, "printing": machine.RunID != nil}
+	if code != "" {
+		fields["code"] = code
+	}
+	placeholders := map[string]string{
+		"machine": machine.MachineName, "problem": connectorProblemLabels[problem], "message": message,
+		"code": code, "codeNote": "", "run": "", "runNote": "",
+	}
+	if code != "" {
+		placeholders["codeNote"] = " (" + code + ")"
+	}
+	if machine.RunDisplayID != nil {
+		placeholders["run"] = *machine.RunDisplayID
+		placeholders["runNote"] = " during run " + *machine.RunDisplayID
+	}
+	recipients, err := e.printerRecipients(ctx, q, machine.OperatorPersonID, nil)
+	if err != nil {
+		return err
+	}
+	delete(recipients, "recipient")
+	return e.emit(ctx, tx, Event{
+		Trigger:      "printer_connector_problem",
+		Fields:       fields,
+		Placeholders: placeholders,
+		Recipients:   recipients,
+		Subjects:     map[string]string{"machine": machineID.String(), "problem": problem},
+		ResolveToken: connectorProblemToken(machineID, problem),
+		Link:         machinePrinterLink(machineID),
+	})
+}
+
+// PrinterConnectorProblemCleared ends the waiting escalations of a notified connector problem.
+func (e *SystemEvents) PrinterConnectorProblemCleared(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, problem string) error {
+	return e.dispatcher.Resolve(ctx, tx, connectorProblemToken(machineID, problem), "problem_cleared")
+}
+
+func connectorProblemToken(machineID uuid.UUID, problem string) string {
+	return "printer_connector_problem:" + machineID.String() + ":" + problem
+}
+
 // FilamentChangeKind is what happened in a printer slot.
 type FilamentChangeKind string
 

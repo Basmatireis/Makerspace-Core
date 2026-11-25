@@ -159,6 +159,17 @@ func NewApplicationWithRelay(
 			}, err
 		},
 	})
+	jobs.Add(scheduler.Job{
+		ID: "printerconnectors.problems", Interval: printerconnectors.ProblemWatchInterval,
+		Run: func(ctx context.Context) (scheduler.Summary, error) {
+			raised, resolved, err := server.printerConnectors.WatchProblems(ctx, time.Now())
+			if raised == 0 && resolved == 0 {
+				// Most runs change nothing; only changes are worth a log line.
+				return scheduler.Summary{}, err
+			}
+			return scheduler.Summary{"raised": raised, "resolved": resolved}, err
+		},
+	})
 	if cfg.PrinterErrorCodeSourceURL != "" {
 		jobs.Add(scheduler.Job{
 			ID: "printererrors.sync", Interval: printerconnectors.ErrorCodeSyncInterval, RunAtStart: true,
