@@ -49,6 +49,8 @@ type NotificationEmitter interface {
 	// PrinterErrorCleared tells that the printer no longer reports the error, which ends its escalation.
 	PrinterErrorCleared(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, code string) error
 	FilamentChange(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, change notifyrules.FilamentChange) error
+	// FilamentSlotSorted tells that the slot no longer holds material without a known spool.
+	FilamentSlotSorted(ctx context.Context, tx pgx.Tx, slotID uuid.UUID) error
 }
 
 func NewService(

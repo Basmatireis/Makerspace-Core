@@ -95,7 +95,8 @@ func trayMaterial(trayType, productName, color string) string {
 //   - a tag no spool carries: new material without a spool;
 //   - material without a readable tag: a spool must be loaded by hand.
 //
-// The emitter itself decides whether anyone is told.
+// The emitter itself decides whether anyone is told. Any other state of the slot (a known spool, a mount made by
+// hand, an empty tray) sorts out material without a known spool that was reported for it before.
 func notifyFilamentChange(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -107,7 +108,8 @@ func notifyFilamentChange(
 		return nil
 	}
 	q := db.New(tx)
-	change := notifyrules.FilamentChange{Slot: slot.name, Material: slot.material}
+	change := notifyrules.FilamentChange{Slot: slot.name, Material: slot.material, SlotID: slot.slotID}
+	sorted := func() error { return emitter.FilamentSlotSorted(ctx, tx, slot.slotID) }
 	switch {
 	case slot.tagUID != "" || slot.trayUUID != "":
 		known, err := findActiveSpoolByTag(ctx, q, slot.trayUUID, slot.tagUID)
@@ -116,6 +118,9 @@ func notifyFilamentChange(
 		} else if err != nil {
 			return err
 		} else {
+			if err = sorted(); err != nil {
+				return err
+			}
 			if slot.before != nil && *slot.before == known {
 				return nil
 			}
@@ -124,10 +129,13 @@ func notifyFilamentChange(
 	case slot.empty && slot.material != "":
 		if slot.mounted {
 			// A manual mount stays in Core; the printer only cannot read the tag of what is in the tray.
-			return nil
+			return sorted()
 		}
 		change.Kind = notifyrules.FilamentNoTag
 	case slot.empty:
+		if err := sorted(); err != nil {
+			return err
+		}
 		if !slot.mounted {
 			return nil
 		}

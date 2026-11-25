@@ -39,6 +39,9 @@ func NewSystemEvents(dispatcher *Dispatcher) *SystemEvents {
 }
 
 func (e *SystemEvents) emit(ctx context.Context, tx pgx.Tx, ev Event) error {
+	if e.dispatcher == nil {
+		return nil
+	}
 	return e.dispatcher.Emit(ctx, tx, ev)
 }
 
@@ -299,23 +302,43 @@ type FilamentChange struct {
 	SpoolID *uuid.UUID
 	// Material is what the printer read from the tray (type and colour), when it knows.
 	Material string
+	// SlotID identifies the slot; material without a known spool stays open until the slot is sorted out.
+	SlotID uuid.UUID
 }
 
-// FilamentChange raises filament_change when material in one of a machine's slots changed while a recorded run is
-// printing. Without a running recorded run nobody is told; the printer page shows the change to whoever has it open.
+// filamentSlotToken is the resolve token of material without a known spool in a slot.
+func filamentSlotToken(slotID uuid.UUID) string {
+	return "filament_slot:" + slotID.String()
+}
+
+// FilamentChange raises filament_change when material in one of a machine's slots changed. A known spool loaded or
+// removed is told only while a recorded run is printing; material without a known spool (an unknown or missing tag)
+// is told whether or not the printer prints, and stays open until the slot is sorted out (FilamentSlotSorted).
 func (e *SystemEvents) FilamentChange(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, change FilamentChange) error {
 	q := notifyrulesdb.New(tx)
 	machine, err := q.GetMachineEventFacts(ctx, machineID)
 	if err != nil {
 		return fmt.Errorf("load machine: %w", err)
 	}
-	if machine.RunID == nil {
-		return nil
-	}
+	unknown := false
 	switch change.Kind {
-	case FilamentLoaded, FilamentUnloaded, FilamentUnknownTag, FilamentNoTag:
+	case FilamentLoaded, FilamentUnloaded:
+	case FilamentUnknownTag, FilamentNoTag:
+		unknown = true
 	default:
 		return nil
+	}
+	printing := machine.RunID != nil
+	if !printing && !unknown {
+		return nil
+	}
+	run := ""
+	if machine.RunDisplayID != nil {
+		run = *machine.RunDisplayID
+	}
+	token := ""
+	if unknown && change.SlotID != uuid.Nil {
+		token = filamentSlotToken(change.SlotID)
 	}
 	spool := ""
 	if change.SpoolID != nil {
@@ -343,16 +366,28 @@ func (e *SystemEvents) FilamentChange(ctx context.Context, tx pgx.Tx, machineID 
 	}
 	return e.emit(ctx, tx, Event{
 		Trigger: "filament_change",
-		Fields:  map[string]any{"change": string(change.Kind), "machine": machineID.String()},
+		Fields: map[string]any{
+			"change": string(change.Kind), "machine": machineID.String(), "printing": printing,
+		},
 		Placeholders: map[string]string{
 			"machine": machine.MachineName, "slot": strings.TrimSpace(change.Slot), "spool": spool, "material": material,
-			"materialNote": materialNote, "run": *machine.RunDisplayID,
+			"materialNote": materialNote, "run": run,
 		},
+		ResolveToken:  token,
 		Recipients:    recipients,
 		Organizations: map[string][]uuid.UUID{"recipient": uuidPtrList(machine.CustomerOrganizationID)},
 		Subjects:      map[string]string{"machine": machineID.String()},
 		Link:          machinePrinterLink(machineID),
 	})
+}
+
+// FilamentSlotSorted ends the firings about material without a known spool in the slot: a spool or customer filament
+// is mounted there now, or the slot is empty. Waiting notifications and escalations about it stop.
+func (e *SystemEvents) FilamentSlotSorted(ctx context.Context, tx pgx.Tx, slotID uuid.UUID) error {
+	if e.dispatcher == nil {
+		return nil
+	}
+	return e.dispatcher.Resolve(ctx, tx, filamentSlotToken(slotID), ResolutionFilamentSorted)
 }
 
 // machinePrinterLink opens the machine's printer setup, where slots and errors are shown.

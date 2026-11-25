@@ -188,7 +188,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		notificationEmitter,
 		machinelogbook.WithTimeZone(cfg.MakerspaceTimeZone),
 	)
-	printingService := printing.NewService(pool)
+	printingService := printing.NewService(pool).WithNotifications(notificationEmitter)
 	printerConnectorService, err := printerconnectors.NewService(
 		pool, notificationEmitter, printingService, cfg.EncryptionKeys,
 	)
