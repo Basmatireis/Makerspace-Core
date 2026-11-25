@@ -21,7 +21,7 @@ type deliveryEnv struct {
 func newDeliveryEnv(t *testing.T) *deliveryEnv {
 	t.Helper()
 	env := newDispatchEnv(t)
-	return &deliveryEnv{dispatchEnv: env, inbox: inbox.NewService(env.pool)}
+	return &deliveryEnv{dispatchEnv: env, inbox: inbox.NewService(env.pool).WithWaitingDelivery(env.dispatcher)}
 }
 
 func (e *deliveryEnv) poll(p authorization.Principal) inbox.Poll {

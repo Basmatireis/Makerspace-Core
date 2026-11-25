@@ -153,6 +153,82 @@ func (q *Queries) ClaimDueScheduleRule(ctx context.Context, now pgtype.Timestamp
 	return i, err
 }
 
+const claimPresenceWaits = `-- name: ClaimPresenceWaits :many
+SELECT w.id, w.firing_id, w.step, w.action, w.item, w.log_id,
+       f.rule_id, r.enabled AS rule_enabled, r.name AS rule_name, r.mandatory, r.category_id, r.definition,
+       r.owner_account_id, c.basis AS category_basis, c.text_version AS category_text_version
+FROM notification_presence_waits w
+JOIN notification_firings f ON f.id = w.firing_id
+JOIN notification_rules r ON r.id = f.rule_id
+LEFT JOIN notification_categories c ON c.id = r.category_id
+WHERE w.person_id = $1 AND w.expires_at > $2 AND f.resolved_at IS NULL
+ORDER BY w.created_at, w.id
+LIMIT $3
+FOR UPDATE OF w SKIP LOCKED
+`
+
+type ClaimPresenceWaitsParams struct {
+	PersonID uuid.UUID
+	Now      time.Time
+	MaxRows  int32
+}
+
+type ClaimPresenceWaitsRow struct {
+	ID                  uuid.UUID
+	FiringID            uuid.UUID
+	Step                int32
+	Action              []byte
+	Item                []byte
+	LogID               *uuid.UUID
+	RuleID              uuid.UUID
+	RuleEnabled         bool
+	RuleName            string
+	Mandatory           bool
+	CategoryID          *uuid.UUID
+	Definition          []byte
+	OwnerAccountID      *uuid.UUID
+	CategoryBasis       *string
+	CategoryTextVersion *int32
+}
+
+// The person's waiting in-app notifications that may still be delivered: unexpired, of an unresolved firing, oldest
+// first. The rows stay locked until the caller's transaction ends; rows another poll holds are skipped.
+func (q *Queries) ClaimPresenceWaits(ctx context.Context, arg ClaimPresenceWaitsParams) ([]ClaimPresenceWaitsRow, error) {
+	rows, err := q.db.Query(ctx, claimPresenceWaits, arg.PersonID, arg.Now, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ClaimPresenceWaitsRow{}
+	for rows.Next() {
+		var i ClaimPresenceWaitsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FiringID,
+			&i.Step,
+			&i.Action,
+			&i.Item,
+			&i.LogID,
+			&i.RuleID,
+			&i.RuleEnabled,
+			&i.RuleName,
+			&i.Mandatory,
+			&i.CategoryID,
+			&i.Definition,
+			&i.OwnerAccountID,
+			&i.CategoryBasis,
+			&i.CategoryTextVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const claimRuleRun = `-- name: ClaimRuleRun :execrows
 INSERT INTO notification_rule_runs (rule_id, run_key, ran_at)
 VALUES ($1, $2, $3)
@@ -548,6 +624,15 @@ func (q *Queries) DeleteConsentsWithdrawnBefore(ctx context.Context, cutoff pgty
 	return result.RowsAffected(), nil
 }
 
+const deleteFiringRecipient = `-- name: DeleteFiringRecipient :exec
+DELETE FROM notification_firing_recipients WHERE id = $1
+`
+
+func (q *Queries) DeleteFiringRecipient(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteFiringRecipient, id)
+	return err
+}
+
 const deleteFiringsCreatedBefore = `-- name: DeleteFiringsCreatedBefore :execrows
 DELETE FROM notification_firings WHERE created_at < $1
 `
@@ -603,6 +688,15 @@ func (q *Queries) DeletePendingEscalations(ctx context.Context, firingIds []stri
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deletePresenceWait = `-- name: DeletePresenceWait :exec
+DELETE FROM notification_presence_waits WHERE id = $1
+`
+
+func (q *Queries) DeletePresenceWait(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePresenceWait, id)
+	return err
 }
 
 const deleteRule = `-- name: DeleteRule :execrows
@@ -674,6 +768,26 @@ type ExpireKioskRuleNoticesOfFiringsParams struct {
 func (q *Queries) ExpireKioskRuleNoticesOfFirings(ctx context.Context, arg ExpireKioskRuleNoticesOfFiringsParams) error {
 	_, err := q.db.Exec(ctx, expireKioskRuleNoticesOfFirings, arg.Now, arg.FiringIds)
 	return err
+}
+
+const expirePresenceWaits = `-- name: ExpirePresenceWaits :execrows
+WITH ended AS (
+    DELETE FROM notification_presence_waits w
+    USING notification_firings f
+    WHERE f.id = w.firing_id AND (w.expires_at <= $1 OR f.resolved_at IS NOT NULL)
+    RETURNING w.log_id
+)
+UPDATE notification_firing_recipients r SET status = 'skipped_offline'
+FROM ended WHERE r.id = ended.log_id AND r.status = 'waiting'
+`
+
+// Ends the waits that expired or whose firing was resolved: their log line says the person was not online.
+func (q *Queries) ExpirePresenceWaits(ctx context.Context, now time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, expirePresenceWaits, now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const firingStopReached = `-- name: FiringStopReached :one
@@ -1551,6 +1665,40 @@ func (q *Queries) InsertFiringRecipient(ctx context.Context, arg InsertFiringRec
 	return err
 }
 
+const insertFiringRecipientReturningID = `-- name: InsertFiringRecipientReturningID :one
+INSERT INTO notification_firing_recipients (id, firing_id, person_id, channel, step, status, notification_id, sent_at)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8)
+RETURNING id
+`
+
+type InsertFiringRecipientReturningIDParams struct {
+	ID             uuid.UUID
+	FiringID       uuid.UUID
+	PersonID       *uuid.UUID
+	Channel        string
+	Step           int32
+	Status         string
+	NotificationID *uuid.UUID
+	SentAt         time.Time
+}
+
+func (q *Queries) InsertFiringRecipientReturningID(ctx context.Context, arg InsertFiringRecipientReturningIDParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, insertFiringRecipientReturningID,
+		arg.ID,
+		arg.FiringID,
+		arg.PersonID,
+		arg.Channel,
+		arg.Step,
+		arg.Status,
+		arg.NotificationID,
+		arg.SentAt,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const insertKioskRuleNotice = `-- name: InsertKioskRuleNotice :execrows
 INSERT INTO kiosk_rule_notices (id, group_id, firing_id, device_id, mode, person_id, title, body, level, must_tap,
                                 created_at, expires_at)
@@ -1620,6 +1768,39 @@ func (q *Queries) InsertPendingAction(ctx context.Context, arg InsertPendingActi
 		arg.Action,
 		arg.Item,
 		arg.Recipients,
+	)
+	return err
+}
+
+const insertPresenceWait = `-- name: InsertPresenceWait :exec
+INSERT INTO notification_presence_waits (id, firing_id, person_id, step, action, item, log_id, expires_at, created_at)
+VALUES ($1, $2, $3, $4, $5::text::jsonb,
+        $6::text::jsonb, $7, $8, $9)
+`
+
+type InsertPresenceWaitParams struct {
+	ID        uuid.UUID
+	FiringID  uuid.UUID
+	PersonID  uuid.UUID
+	Step      int32
+	Action    string
+	Item      *string
+	LogID     *uuid.UUID
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+func (q *Queries) InsertPresenceWait(ctx context.Context, arg InsertPresenceWaitParams) error {
+	_, err := q.db.Exec(ctx, insertPresenceWait,
+		arg.ID,
+		arg.FiringID,
+		arg.PersonID,
+		arg.Step,
+		arg.Action,
+		arg.Item,
+		arg.LogID,
+		arg.ExpiresAt,
+		arg.CreatedAt,
 	)
 	return err
 }
@@ -2342,6 +2523,30 @@ func (q *Queries) ListExistingDeviceIDs(ctx context.Context, ids []string) ([]uu
 	return items, nil
 }
 
+const listExistingDeviceTypeIDs = `-- name: ListExistingDeviceTypeIDs :many
+SELECT id FROM device_types WHERE id = ANY($1::text[]::uuid[])
+`
+
+func (q *Queries) ListExistingDeviceTypeIDs(ctx context.Context, ids []string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listExistingDeviceTypeIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listExistingDisplayIDs = `-- name: ListExistingDisplayIDs :many
 SELECT id FROM signage_displays WHERE id = ANY($1::text[]::uuid[]) AND kind = 'device'
 `
@@ -2786,6 +2991,47 @@ type ListOnlineAccountsParams struct {
 // Accounts that had the application open in a visible tab since the given moment.
 func (q *Queries) ListOnlineAccounts(ctx context.Context, arg ListOnlineAccountsParams) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listOnlineAccounts, arg.AccountIds, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var account_id uuid.UUID
+		if err := rows.Scan(&account_id); err != nil {
+			return nil, err
+		}
+		items = append(items, account_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOnlineAccountsAtDevices = `-- name: ListOnlineAccountsAtDevices :many
+SELECT DISTINCT p.account_id FROM account_device_presence p
+JOIN managed_devices d ON d.id = p.managed_device_id
+WHERE p.account_id = ANY($1::text[]::uuid[]) AND p.last_visible_at > $2
+  AND (d.id = ANY($3::text[]::uuid[]) OR d.device_type_id = ANY($4::text[]::uuid[]))
+`
+
+type ListOnlineAccountsAtDevicesParams struct {
+	AccountIds    []string
+	Since         time.Time
+	DeviceIds     []string
+	DeviceTypeIds []string
+}
+
+// Accounts that had the application open in a visible tab since the given moment on one of the managed devices, or
+// on a device of one of the device types.
+func (q *Queries) ListOnlineAccountsAtDevices(ctx context.Context, arg ListOnlineAccountsAtDevicesParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listOnlineAccountsAtDevices,
+		arg.AccountIds,
+		arg.Since,
+		arg.DeviceIds,
+		arg.DeviceTypeIds,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -4250,6 +4496,15 @@ func (q *Queries) MailDeliveryEnabled(ctx context.Context) (bool, error) {
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const markFiringRecipientOffline = `-- name: MarkFiringRecipientOffline :exec
+UPDATE notification_firing_recipients SET status = 'skipped_offline' WHERE id = $1 AND status = 'waiting'
+`
+
+func (q *Queries) MarkFiringRecipientOffline(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markFiringRecipientOffline, id)
+	return err
 }
 
 const markKioskNoticesShown = `-- name: MarkKioskNoticesShown :exec

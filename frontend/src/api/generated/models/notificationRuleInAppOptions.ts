@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { NotificationRuleButton } from './notificationRuleButton';
+import type { NotificationRuleDeviceFilter } from './notificationRuleDeviceFilter';
 import type { NotificationRuleInAppOptionsToastSeconds } from './notificationRuleInAppOptionsToastSeconds';
 
 export interface NotificationRuleInAppOptions {
@@ -37,7 +38,16 @@ export interface NotificationRuleInAppOptions {
   button?: NotificationRuleButton;
   onlyButtonCloses?: boolean;
   allowLater?: boolean;
+  /** Only people who have the application open in a visible tab (on the chosen devices, if `devices` is set). */
   onlineOnly?: boolean;
+  /**
+     * Online-only notifications: people who open the application within this many minutes still get it while the firing is unresolved. Needs `onlineOnly`.
+     * @minimum 1
+     * @maximum 10080
+     * @nullable
+     */
+  laterMinutes?: number | null;
+  devices?: NotificationRuleDeviceFilter;
   /**
      * @minimum 1
      * @maximum 1440

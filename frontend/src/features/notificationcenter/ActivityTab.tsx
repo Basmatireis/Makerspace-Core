@@ -52,6 +52,7 @@ const recipientStatusTags: Record<NotificationActivityRecipientStatus, { label: 
   skipped_consent: { label: 'Skipped: did not allow it', type: 'cool-gray' },
   skipped_muted: { label: 'Skipped: muted', type: 'cool-gray' },
   skipped_condition: { label: 'Skipped: conditions not met', type: 'cool-gray' },
+  waiting: { label: 'Waiting for app', type: 'blue' },
   skipped_offline: { label: 'Skipped: not online', type: 'cool-gray' },
 };
 

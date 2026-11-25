@@ -138,6 +138,9 @@ const (
 	ResolutionItemNoLongerMatches = "item_no_longer_matches"
 )
 
+// ResolutionFilamentSorted: material without a known spool was sorted out (a spool is mounted or the slot is empty).
+const ResolutionFilamentSorted = "filament_sorted"
+
 // GenericResolutions are the escalation stop conditions available for every rule.
 func GenericResolutions() []Choice {
 	return []Choice{
@@ -450,8 +453,9 @@ var coreTriggers = []Trigger{
 	},
 	{
 		Key: "filament_change", Area: "Workshop", Label: "Filament changes in a printer",
-		Help: "Fires on a live slot change reported by a printer connector while a run is printing: a known spool is " +
-			"loaded or removed, or the slot holds material without a known spool.",
+		Help: "Fires on a live slot change reported by a printer connector: a known spool is loaded or removed while a " +
+			"run is printing, or a slot holds material without a known spool (also when nothing prints). Material " +
+			"without a known spool stays open until a spool or customer filament is mounted in the slot or it is empty.",
 		Subject: SubjectLab, Permission: authorization.MachinesRead,
 		Fields: []Field{
 			{Key: "change", Label: "Change", Type: FieldEnum, Options: options(
@@ -459,6 +463,7 @@ var coreTriggers = []Trigger{
 				"unknown_tag", "Unknown tag", "no_tag", "Material without a tag",
 			)},
 			{Key: "machine", Label: "Machine", Type: FieldEnum, OptionsFrom: SourcePrinters},
+			{Key: "printing", Label: "A run is printing", Type: FieldBool},
 		},
 		Recipients: triggerSubjects(
 			"operator", "Operator of the print", "recipient", "Job's recipient", "present", "Everyone checked in right now",
@@ -471,6 +476,7 @@ var coreTriggers = []Trigger{
 			{"run", "Run being printed", "R-2026-000418"},
 			{"materialNote", "Material in brackets, empty when unknown", " (PETG, Black)"},
 		},
+		Resolutions:      []Choice{{ResolutionFilamentSorted, "A spool is mounted in the slot or it is empty"}},
 		ThrottleSubjects: triggerSubjects("machine", "machine"),
 	},
 	{

@@ -186,6 +186,12 @@ DELETE FROM notification_mail_outbox WHERE created_at < sqlc.arg(before_time);
 INSERT INTO account_presence (account_id, last_visible_at) VALUES (sqlc.arg(account_id), sqlc.arg(now))
 ON CONFLICT (account_id) DO UPDATE SET last_visible_at = EXCLUDED.last_visible_at;
 
+-- name: UpsertAccountDevicePresence :exec
+-- Only the latest moment the account had the application open in a visible tab on the managed device is kept.
+INSERT INTO account_device_presence (account_id, managed_device_id, last_visible_at)
+VALUES (sqlc.arg(account_id), sqlc.arg(managed_device_id), sqlc.arg(now))
+ON CONFLICT (account_id, managed_device_id) DO UPDATE SET last_visible_at = EXCLUDED.last_visible_at;
+
 -- name: ClaimUndeliveredNotifications :many
 -- Marks everything not yet delivered to the account as delivered and returns the notifications that need to appear
 -- on screen: banners and dialogs always, toasts only while they are recent (an account that was away for days does not

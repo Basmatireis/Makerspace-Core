@@ -361,6 +361,15 @@ func (q *Queries) CreatePasswordIdentity(ctx context.Context, arg CreatePassword
 	return err
 }
 
+const deleteAccountDevicePresence = `-- name: DeleteAccountDevicePresence :exec
+DELETE FROM account_device_presence
+`
+
+func (q *Queries) DeleteAccountDevicePresence(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteAccountDevicePresence)
+	return err
+}
+
 const deleteAccountPresence = `-- name: DeleteAccountPresence :exec
 DELETE FROM account_presence
 `
@@ -495,6 +504,15 @@ DELETE FROM notification_pending_actions
 
 func (q *Queries) DeleteNotificationPendingActions(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, deleteNotificationPendingActions)
+	return err
+}
+
+const deleteNotificationPresenceWaits = `-- name: DeleteNotificationPresenceWaits :exec
+DELETE FROM notification_presence_waits
+`
+
+func (q *Queries) DeleteNotificationPresenceWaits(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteNotificationPresenceWaits)
 	return err
 }
 

@@ -23,6 +23,12 @@ type Account struct {
 	AdministrativelyDisabledAt pgtype.Timestamptz
 }
 
+type AccountDevicePresence struct {
+	AccountID       uuid.UUID
+	ManagedDeviceID uuid.UUID
+	LastVisibleAt   time.Time
+}
+
 type AccountGuideProgress struct {
 	AccountID uuid.UUID
 	GuideID   string
@@ -1037,6 +1043,18 @@ type NotificationPendingAction struct {
 	Recipients []byte
 	Attempts   int32
 	CreatedAt  time.Time
+}
+
+type NotificationPresenceWait struct {
+	ID        uuid.UUID
+	FiringID  uuid.UUID
+	PersonID  uuid.UUID
+	Step      int32
+	Action    []byte
+	Item      []byte
+	LogID     *uuid.UUID
+	ExpiresAt time.Time
+	CreatedAt time.Time
 }
 
 type NotificationRule struct {

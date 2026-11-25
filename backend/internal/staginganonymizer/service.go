@@ -92,6 +92,7 @@ func (s *Service) Anonymize(ctx context.Context, baseURL string) (Result, error)
 		{"delete calendar feeds", q.DeleteCalendarFeeds},
 		{"delete visitor enrollment contexts", q.DeleteVisitorEnrollmentContexts},
 		{"delete account presence", q.DeleteAccountPresence},
+		{"delete account device presence", q.DeleteAccountDevicePresence},
 		{"delete connector enrollments", q.DeletePrinterConnectorEnrollments},
 		{"delete connector credentials", q.DeletePrinterConnectorCredentials},
 		{"delete signage pairing requests", q.DeleteSignagePairingRequests},
@@ -100,6 +101,7 @@ func (s *Service) Anonymize(ctx context.Context, baseURL string) (Result, error)
 		{"clear printer secrets", q.ClearPrinterConnectorSecrets},
 
 		{"delete audit events", q.DeleteAuditEvents},
+		{"delete notification presence waits", q.DeleteNotificationPresenceWaits},
 		{"delete notification pending actions", q.DeleteNotificationPendingActions},
 		{"delete notification recipients", q.DeleteNotificationFiringRecipients},
 		{"delete notification mail outbox", q.DeleteNotificationMailOutbox},

@@ -10,6 +10,8 @@ const (
 	IDPeople   IDKind = "people"
 	IDDisplays IDKind = "displays"
 	IDDevices  IDKind = "devices"
+	// IDDeviceTypes are the types of managed devices.
+	IDDeviceTypes IDKind = "device_types"
 )
 
 // Lookups answers the questions about stored data a definition's validation needs. The service implements it with

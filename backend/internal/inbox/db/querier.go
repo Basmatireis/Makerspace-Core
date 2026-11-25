@@ -63,6 +63,8 @@ type Querier interface {
 	MarkOwnNotificationSeen(ctx context.Context, arg MarkOwnNotificationSeenParams) (int64, error)
 	PostponeOwnNotification(ctx context.Context, arg PostponeOwnNotificationParams) (int64, error)
 	UpdateSentMessage(ctx context.Context, arg UpdateSentMessageParams) error
+	// Only the latest moment the account had the application open in a visible tab on the managed device is kept.
+	UpsertAccountDevicePresence(ctx context.Context, arg UpsertAccountDevicePresenceParams) error
 	// Only the latest moment the account had the application open in a visible tab is kept.
 	UpsertAccountPresence(ctx context.Context, arg UpsertAccountPresenceParams) error
 }

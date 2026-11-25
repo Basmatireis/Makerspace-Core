@@ -576,6 +576,7 @@ export * from './notificationRule';
 export * from './notificationRuleAction';
 export * from './notificationRuleButton';
 export * from './notificationRuleDefinition';
+export * from './notificationRuleDeviceFilter';
 export * from './notificationRuleDryRun';
 export * from './notificationRuleDryRunItemsItem';
 export * from './notificationRuleDryRunItemsItemValues';

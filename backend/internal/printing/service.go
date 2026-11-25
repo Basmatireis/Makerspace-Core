@@ -27,11 +27,31 @@ import (
 )
 
 type Service struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	notices SlotNotifier
+}
+
+// SlotNotifier is told, in the transaction of a mount, that a slot holds a spool or customer filament now, which
+// sorts out material without a known spool reported for it.
+type SlotNotifier interface {
+	FilamentSlotSorted(ctx context.Context, tx pgx.Tx, slotID uuid.UUID) error
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
 	return &Service{pool: pool}
+}
+
+// WithNotifications makes mounts end the notifications about material without a known spool in the slot.
+func (s *Service) WithNotifications(notices SlotNotifier) *Service {
+	s.notices = notices
+	return s
+}
+
+func (s *Service) slotSorted(ctx context.Context, tx pgx.Tx, slotID uuid.UUID) error {
+	if s.notices == nil {
+		return nil
+	}
+	return s.notices.FilamentSlotSorted(ctx, tx, slotID)
 }
 
 type InputUnit struct {
@@ -670,6 +690,9 @@ func (s *Service) Mount(
 	); err != nil {
 		return Slot{}, err
 	}
+	if err = s.slotSorted(ctx, tx, slotID); err != nil {
+		return Slot{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return Slot{}, err
 	}
@@ -754,6 +777,9 @@ func (s *Service) MountCustomerFilament(
 		requestID,
 		[]string{"assignment", "materialTypeId", "colorName"},
 	); err != nil {
+		return Slot{}, err
+	}
+	if err = s.slotSorted(ctx, tx, slotID); err != nil {
 		return Slot{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

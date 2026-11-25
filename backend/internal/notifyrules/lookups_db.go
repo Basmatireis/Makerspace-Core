@@ -107,6 +107,8 @@ func (l *dbLookups) ExistingIDs(kind IDKind, ids []uuid.UUID) (map[uuid.UUID]str
 		found, err = l.queries.ListExistingDisplayIDs(l.ctx, texts)
 	case IDDevices:
 		found, err = l.queries.ListExistingDeviceIDs(l.ctx, texts)
+	case IDDeviceTypes:
+		found, err = l.queries.ListExistingDeviceTypeIDs(l.ctx, texts)
 	default:
 		return nil, fmt.Errorf("unknown identifier kind %q", kind)
 	}

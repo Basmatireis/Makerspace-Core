@@ -326,8 +326,13 @@
   }
 }
 
+.nc-later {
+  max-inline-size: 24rem;
+}
+
 .nc-fallback__minutes {
-  inline-size: 8rem;
+  flex: 0 0 auto;
+  inline-size: 10rem;
 }
 
 .nc-conds {
