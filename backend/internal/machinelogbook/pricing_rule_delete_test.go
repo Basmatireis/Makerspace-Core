@@ -71,7 +71,7 @@ func TestDeletedPricingRuleKeepsItsSnapshotRate(t *testing.T) {
 	f := newVariantFixture(t)
 	ctx := t.Context()
 	input := f.input(-3*time.Hour, time.Hour, "successful")
-	input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: "10"}}
+	input.Usages = []UsageInput{f.use("10")}
 	job := f.create(t, input)
 	if price(job.CalculatedPrice) != "11" {
 		t.Fatalf("created price %s", price(job.CalculatedPrice))
@@ -118,7 +118,7 @@ func TestDeletedPricingRuleKeepsItsSnapshotRate(t *testing.T) {
 	// A recalculation from the snapshot (usage change) still charges the copied rate.
 	run := after.Runs[0]
 	result, err := f.s.ReplaceRunUsages(ctx, f.p, run.ID, run.Version, []UsageInput{
-		{MaterialID: f.material.ID, Quantity: "20"},
+		f.use("20"),
 	}, &f.request)
 	if err != nil || result.Job == nil {
 		t.Fatalf("usage change: %v", err)

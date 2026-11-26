@@ -21,7 +21,7 @@ import {
 import { UsageRowsEditor } from './UsageFormModal';
 
 /**
- * Books one unresolved machine-report line: a stock article (optionally its spool) or the recipient's own material,
+ * Books one unresolved machine-report line: a stock article (filament from one of its spools) or the recipient's own material,
  * chosen in the same catalog picker as the usage editor. The connector's estimate is prefilled.
  */
 export function ResolveReportedUsageModal({
@@ -112,7 +112,7 @@ function ResolveForm({
               The printer reported{' '}
               {reportedQuantity === '' ? 'an unknown quantity' : `${formatQuantity(reportedQuantity)} g`} for{' '}
               {reportedLineName(item)}, but could not identify the material. Choose what was actually used: an article
-              from stock, optionally with its spool, or the recipient’s own material.
+              from stock (filament from one of its spools), or the recipient’s own material.
             </p>
             <InlineNotification
               kind="info"

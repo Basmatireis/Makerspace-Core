@@ -24,7 +24,7 @@ import type { QuantityBasis } from './quantityBasis';
 import type { UUIDv7 } from './uUIDv7';
 
 /**
- * Makerspace material needs materialId and may name a spool; materialTypeId and label are refused. Material the recipient brought (ownership external) is never consumed from stock or charged: materialId, materialTypeId and label are all optional, so "PLA, recipient's own, Prusament Galaxy Black" is the materialTypeId of PLA plus that label. An external materialId whose type differs from materialTypeId answers 422 validation_failed.
+ * Makerspace material needs materialId; filament of the stock also needs spoolId (422 validation_failed otherwise, except up to what the run already booked from loose stock when its usage is replaced), other articles take no spool. materialTypeId and label are refused. Material the recipient brought (ownership external) is never consumed from stock or charged: materialId, materialTypeId and label are all optional, so "PLA, recipient's own, Prusament Galaxy Black" is the materialTypeId of PLA plus that label. An external materialId whose type differs from materialTypeId answers 422 validation_failed.
  */
 export interface MachineJobUsageInput {
   ownership: FilamentOwnership;

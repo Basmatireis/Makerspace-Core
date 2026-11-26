@@ -262,6 +262,42 @@ func TestFinalizationConsumesLooseStockAtAverageCost(t *testing.T) {
 	}
 }
 
+// Runs must book filament on a spool, but an order still sells loose filament stock.
+func TestFinalizationSellsLooseFilamentStockNextToSpools(t *testing.T) {
+	f := newFixture(t)
+	ctx := t.Context()
+	material := f.stockedMaterial(t, "PLA loose sale")
+	if _, e := f.jobs.CreateStockArticlePricingRule(ctx, f.p, f.group, material, "0.5", nil); e != nil {
+		t.Fatal(e)
+	}
+	m, e := f.jobs.GetMaterial(ctx, f.p, material)
+	if e != nil {
+		t.Fatal(e)
+	}
+	spool, e := f.jobs.CreateFilamentSpool(ctx, f.p, machinelogbook.FilamentSpoolInput{
+		MaterialID:               material,
+		InitialNetWeightG:        "400",
+		StockMode:                machinelogbook.StockModeExistingStock,
+		OccurredAt:               time.Now().UTC(),
+		ExpectedInventoryVersion: m.InventoryVersion,
+	}, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	o := f.emptyDraft(t)
+	o = f.addArticle(t, o, material, "100", "")
+	if _, e = f.s.Command(ctx, f.p, o.ID, cmd(o), OrderActionFinalize, nil); e != nil {
+		t.Fatal(e)
+	}
+	if q, _ := f.balance(t, material); q != "900.000000" || f.ledger(t, material, "order_sale") != 1 {
+		t.Fatalf("balance after the loose sale: %s", q)
+	}
+	after, e := f.jobs.GetFilamentSpool(ctx, f.p, spool.ID)
+	if e != nil || after.RemainingQuantity != "400" {
+		t.Fatalf("the sale touched the spool: %+v %v", after, e)
+	}
+}
+
 func TestFinalizeNeedsOnlyOrderPermissions(t *testing.T) {
 	f := newFixture(t)
 	ctx := t.Context()
@@ -461,7 +497,7 @@ func TestMixedOrderTotals(t *testing.T) {
 			Customer:         machinelogbook.PartyReference{Kind: "organization", ID: f.organization},
 			OperatorPersonID: f.person,
 			Outcome:          "successful",
-			Usages:           []machinelogbook.UsageInput{{MaterialID: filament, Quantity: "30"}},
+			Usages:           []machinelogbook.UsageInput{f.use(t, filament, "30")},
 		},
 		nil,
 	)

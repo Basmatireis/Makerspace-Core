@@ -331,7 +331,7 @@ func TestCashbookOrderContentsFromTheItems(t *testing.T) {
 		Customer:         machinelogbook.PartyReference{Kind: "organization", ID: f.organization},
 		OperatorPersonID: f.person,
 		Outcome:          "successful",
-		Usages:           []machinelogbook.UsageInput{{MaterialID: material, Quantity: "20"}},
+		Usages:           []machinelogbook.UsageInput{f.use(t, material, "20")},
 	}, nil)
 	if e != nil {
 		t.Fatal(e)

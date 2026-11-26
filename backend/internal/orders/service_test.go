@@ -57,6 +57,7 @@ type fixture struct {
 	person, organization uuid.UUID
 	request              uuid.UUID
 	machine, group       uuid.UUID
+	spools               map[uuid.UUID]uuid.UUID // material -> spool holding its stock
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -64,7 +65,7 @@ func newFixture(t *testing.T) *fixture {
 	ctx := t.Context()
 	pool := testdb.NewPool(t, pgx.QueryExecModeCacheStatement)
 	var e error
-	f := &fixture{pool: pool, person: ids.New(), organization: ids.New(), request: ids.New()}
+	f := &fixture{pool: pool, person: ids.New(), organization: ids.New(), request: ids.New(), spools: map[uuid.UUID]uuid.UUID{}}
 	account := ids.New()
 	if _, e = pool.Exec(
 		ctx,

@@ -93,7 +93,7 @@ func (s *Service) replaceRunUsages(
 			return err
 		}
 	}
-	if err := s.resolveUsageSpools(ctx, q, parsed); err != nil {
+	if err := s.resolveUsageSpools(ctx, q, parsed, looseUsageQuantities(old)); err != nil {
 		return err
 	}
 	if err := s.insertUsages(ctx, q, runID, parsed); err != nil {

@@ -16,7 +16,7 @@ import { resolveQuantityText } from '../../../app/quantityExpression';
 import { machineLogbookKeys } from '../queries';
 
 export type UsageRow = {
-  /** Makerspace stock (an article, optionally a spool) or material the recipient brought. Set by the material picker. */
+  /** Makerspace stock (an article; filament always from a spool) or material the recipient brought. Set by the picker. */
   ownership: FilamentOwnership;
   materialId: string;
   spoolId: string;
@@ -32,6 +32,11 @@ export type UsageRow = {
   materialTypeLabel?: string;
   spoolLabel?: string;
   unit?: MaterialUnit;
+  /**
+   * Booked from loose stock before runs required a spool, or its spool was deleted since. The row may stay as it is;
+   * picking another material clears it.
+   */
+  looseBooked?: boolean;
 };
 export type UsagesValues = { usages: UsageRow[]; measures?: Record<string, string> };
 export type PartyValues = { customer: BillingParty | null; operator: Operator | null; notes: string };
@@ -59,6 +64,7 @@ export const usageRowsFromUsages = (usages: MachineJobUsage[]): UsageRow[] =>
     materialTypeLabel: usage.materialTypeName,
     spoolLabel: usage.spoolDisplayId ?? undefined,
     unit: usage.unit,
+    looseBooked: usage.ownership === 'makerspace' && !usage.spoolId,
   }));
 
 /** Whether the row names a material: an article of the stock, or the recipient's own material by label or type. */

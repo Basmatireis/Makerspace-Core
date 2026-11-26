@@ -349,7 +349,7 @@ func TestAttachRunReplacingManualRunsReversesTheirMaterial(t *testing.T) {
 	h.finish(t, runID, "finished", *ended)
 
 	input := h.input(-8*time.Hour, time.Hour, "unknown")
-	input.Usages = []UsageInput{{MaterialID: h.jobFixture.material.ID, Quantity: "30"}}
+	input.Usages = []UsageInput{h.jobFixture.use("30")}
 	job := h.create(t, input)
 	job = h.adjust(t, job, "discount_percent", "50")
 	if price(job.CalculatedPrice) != "13" {

@@ -79,7 +79,7 @@ func (f *fixture) personJob(
 		Outcome:          outcome,
 	}
 	if material != uuid.Nil {
-		input.Usages = []machinelogbook.UsageInput{{MaterialID: material, Quantity: grams}}
+		input.Usages = []machinelogbook.UsageInput{f.use(t, material, grams)}
 	}
 	job, e := f.jobs.CreateManualJob(t.Context(), f.p, input, nil)
 	if e != nil {

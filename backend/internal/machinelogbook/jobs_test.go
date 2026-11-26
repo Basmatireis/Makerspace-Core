@@ -32,6 +32,7 @@ type jobFixture struct {
 	group        PricingGroup
 	materialType MaterialType
 	material     Material
+	spool        FilamentSpool // holds all of material's stock; runs book filament on it
 	request      uuid.UUID
 	now          time.Time
 }
@@ -88,6 +89,8 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 			_, _ = pool.Exec(cleanup, `DELETE FROM machines WHERE id = $1`, id)
 		}
 		if f.material.ID != uuid.Nil {
+			_, _ = pool.Exec(cleanup, `DELETE FROM machine_run_usages WHERE material_id = $1`, f.material.ID)
+			_, _ = pool.Exec(cleanup, `DELETE FROM filament_spools WHERE material_id = $1`, f.material.ID)
 			_, _ = pool.Exec(cleanup, `DELETE FROM materials WHERE id = $1`, f.material.ID)
 		}
 		if f.materialType.ID != uuid.Nil {
@@ -158,6 +161,14 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 	)
 	must(err)
 	f.material = purchase.Material
+	f.spool, err = f.s.CreateFilamentSpool(ctx, f.p, FilamentSpoolInput{
+		MaterialID:               f.material.ID,
+		InitialNetWeightG:        "1000",
+		StockMode:                StockModeExistingStock,
+		OccurredAt:               f.now,
+		ExpectedInventoryVersion: f.material.InventoryVersion,
+	}, &f.request)
+	must(err)
 	f.group, err = f.s.CreatePricingGroup(ctx, f.p, "Jobs pricing "+suffix, nil, false, &f.request)
 	must(err)
 	_, err = f.s.CreatePricingRule(ctx, f.p, f.group.ID, "machine_runtime", &typ.ID, nil, nil, "10", &f.request)
@@ -165,6 +176,51 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 	_, err = f.s.CreatePricingRule(ctx, f.p, f.group.ID, "material", nil, &f.materialType.ID, nil, "0.1", &f.request)
 	must(err)
 	return f
+}
+
+// use books quantity of the fixture's filament from its spool; filament used by a run must come from a spool.
+func (f *jobFixture) use(quantity string) UsageInput {
+	return UsageInput{MaterialID: f.material.ID, SpoolID: &f.spool.ID, Quantity: quantity}
+}
+
+// spoolFor puts all current stock of an article onto a new spool, so runs can book it.
+func (f *jobFixture) spoolFor(t *testing.T, m Material) FilamentSpool {
+	t.Helper()
+	return stockSpool(t, f.s, f.p, f.request, m.ID, f.now)
+}
+
+// stockSpool turns all loose stock of an article into one spool.
+func stockSpool(
+	t *testing.T,
+	s *Service,
+	p authorization.Principal,
+	request uuid.UUID,
+	materialID uuid.UUID,
+	now time.Time,
+) FilamentSpool {
+	t.Helper()
+	m, err := s.GetMaterial(t.Context(), p, materialID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spool, err := s.CreateFilamentSpool(t.Context(), p, FilamentSpoolInput{
+		MaterialID:               m.ID,
+		InitialNetWeightG:        m.Quantity,
+		StockMode:                StockModeExistingStock,
+		OccurredAt:               now,
+		ExpectedInventoryVersion: m.InventoryVersion,
+	}, &request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, _ = s.pool.Exec(cleanup, `DELETE FROM inventory_transactions WHERE spool_id = $1`, spool.ID)
+		_, _ = s.pool.Exec(cleanup, `DELETE FROM machine_run_usages WHERE spool_id = $1`, spool.ID)
+		_, _ = s.pool.Exec(cleanup, `DELETE FROM filament_spools WHERE id = $1`, spool.ID)
+	})
+	return spool
 }
 
 func (f *jobFixture) input(startOffset, duration time.Duration, outcome JobOutcome) JobInput {
@@ -479,7 +535,7 @@ func TestCancelManualRun(t *testing.T) {
 func TestAdditionalRunsSumUpAndDeriveTheOutcome(t *testing.T) {
 	f := newJobFixture(t)
 	input := f.input(-10*time.Hour, time.Hour, "successful")
-	input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: "50"}}
+	input.Usages = []UsageInput{f.use("50")}
 	job := f.create(t, input)
 	if job.Outcome != "successful" || job.Status != "successful" || job.DurationSeconds != 3600 ||
 		price(job.CalculatedPrice) != "15" ||
@@ -496,7 +552,7 @@ func TestAdditionalRunsSumUpAndDeriveTheOutcome(t *testing.T) {
 		-5*time.Hour,
 		2*time.Hour,
 		outcomePtr("failed"),
-		UsageInput{MaterialID: f.material.ID, Quantity: "20"},
+		f.use("20"),
 	)
 	if len(job.Runs) != 2 || job.DurationSeconds != 3*3600 || job.Outcome != "partial_failure" ||
 		job.Status != "partial_failure" {
@@ -714,7 +770,7 @@ func TestReplaceRunUsagesCompensatesInventory(t *testing.T) {
 	f := newJobFixture(t)
 	ctx := t.Context()
 	input := f.input(-10*time.Hour, time.Hour, "successful")
-	input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: "50"}}
+	input.Usages = []UsageInput{f.use("50")}
 	job := f.create(t, input)
 	run := job.Runs[0]
 	if _, err := f.s.ReplaceRunUsages(
@@ -741,7 +797,7 @@ func TestReplaceRunUsagesCompensatesInventory(t *testing.T) {
 		f.p,
 		run.ID,
 		run.Version,
-		[]UsageInput{{MaterialID: f.material.ID, Quantity: "80"}},
+		[]UsageInput{f.use("80")},
 		&f.request,
 	)
 	if err != nil {
@@ -759,7 +815,7 @@ func TestReplaceRunUsagesCompensatesInventory(t *testing.T) {
 		f.p,
 		run.ID,
 		result.Run.Version,
-		[]UsageInput{{MaterialID: f.material.ID, Quantity: "0"}},
+		[]UsageInput{f.use("0")},
 		&f.request,
 	); !apperror.IsCode(
 		err,
@@ -900,7 +956,7 @@ func TestPriceAdjustmentKinds(t *testing.T) {
 func TestPriceAdjustmentIsReappliedWhenThePriceIsRecalculated(t *testing.T) {
 	f := newJobFixture(t)
 	input := f.input(-3*time.Hour, time.Hour, "successful")
-	input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: "50"}}
+	input.Usages = []UsageInput{f.use("50")}
 	job := f.create(t, input)
 	// 1 h at 10 plus 50 g at 0.1.
 	if price(job.CalculatedPrice) != "15" {
@@ -950,7 +1006,7 @@ func TestPriceAdjustmentIsReappliedWhenThePriceIsRecalculated(t *testing.T) {
 		f.p,
 		run.ID,
 		run.Version,
-		[]UsageInput{{MaterialID: f.material.ID, Quantity: "100"}},
+		[]UsageInput{f.use("100")},
 		&f.request,
 	)
 	if err != nil || price(result.Job.CalculatedPrice) != "30" || price(result.Job.EffectivePrice) != "60" {

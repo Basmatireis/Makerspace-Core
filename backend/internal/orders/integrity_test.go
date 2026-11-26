@@ -335,8 +335,8 @@ func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 			Outcome:          "successful",
 			PricingGroupID:   &f.group,
 			Usages: []machinelogbook.UsageInput{
-				{MaterialID: materials[0], Quantity: "10"},
-				{MaterialID: materials[1], Quantity: "20"},
+				f.use(t, materials[0], "10"),
+				f.use(t, materials[1], "20"),
 			},
 		},
 		nil,
@@ -394,8 +394,8 @@ func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 		runResult.Run.ID,
 		runResult.Run.Version,
 		[]machinelogbook.UsageInput{
-			{MaterialID: materials[0], Quantity: "5"},
-			{MaterialID: materials[1], Quantity: "20"},
+			f.use(t, materials[0], "5"),
+			f.use(t, materials[1], "20"),
 		},
 		nil,
 	)

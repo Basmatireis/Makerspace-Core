@@ -87,7 +87,7 @@ func (f *jobFixture) manualJob(t *testing.T, offset time.Duration, grams string)
 	t.Helper()
 	input := f.input(offset, time.Hour, "successful")
 	if grams != "" {
-		input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: grams}}
+		input.Usages = []UsageInput{f.use(grams)}
 	}
 	return f.create(t, input)
 }
