@@ -46,7 +46,7 @@ func TestOrderItemIsOutdatedOnlyByBillingRelevantJobChanges(t *testing.T) {
 			OperatorPersonID: f.person,
 			Outcome:          "successful",
 			PricingGroupID:   &f.group,
-			Usages:           []machinelogbook.UsageInput{{MaterialID: material.ID, Quantity: "10"}},
+			Usages:           []machinelogbook.UsageInput{f.use(t, material.ID, "10")},
 		},
 		nil,
 	)
@@ -155,7 +155,7 @@ func TestOrderItemIsOutdatedOnlyByBillingRelevantJobChanges(t *testing.T) {
 		f.p,
 		current.Runs[0].ID,
 		current.Runs[0].Version,
-		[]machinelogbook.UsageInput{{MaterialID: material.ID, Quantity: "5"}},
+		[]machinelogbook.UsageInput{f.use(t, material.ID, "5")},
 		nil,
 	); err != nil {
 		t.Fatal(err)

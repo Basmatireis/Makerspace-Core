@@ -550,10 +550,11 @@ func TestJobPricingUsesArticleThenVariantThenTypeRates(t *testing.T) {
 	ctx := t.Context()
 	matte, own, plain := f.pricedArticles(t)
 	input := f.input(-10*time.Hour, time.Hour, "successful")
+	plainSpool, matteSpool, ownSpool := f.spoolFor(t, plain), f.spoolFor(t, matte), f.spoolFor(t, own)
 	input.Usages = []UsageInput{
-		{MaterialID: plain.ID, Quantity: "10"},
-		{MaterialID: matte.ID, Quantity: "10"},
-		{MaterialID: own.ID, Quantity: "10"},
+		{MaterialID: plain.ID, SpoolID: &plainSpool.ID, Quantity: "10"},
+		{MaterialID: matte.ID, SpoolID: &matteSpool.ID, Quantity: "10"},
+		{MaterialID: own.ID, SpoolID: &ownSpool.ID, Quantity: "10"},
 	}
 	job := f.create(t, input)
 	// 1 h at 10, 10 g at the type rate 0.1, 10 g at the variant rate 0.2, 10 g at the article's own 3.
@@ -570,9 +571,9 @@ func TestJobPricingUsesArticleThenVariantThenTypeRates(t *testing.T) {
 	// Changing usages reprices from the snapshot; each usage keeps its own level.
 	run := job.Runs[0]
 	result, err := f.s.ReplaceRunUsages(ctx, f.p, run.ID, run.Version, []UsageInput{
-		{MaterialID: plain.ID, Quantity: "10"},
-		{MaterialID: matte.ID, Quantity: "20"},
-		{MaterialID: own.ID, Quantity: "10"},
+		{MaterialID: plain.ID, SpoolID: &plainSpool.ID, Quantity: "10"},
+		{MaterialID: matte.ID, SpoolID: &matteSpool.ID, Quantity: "20"},
+		{MaterialID: own.ID, SpoolID: &ownSpool.ID, Quantity: "10"},
 	}, &f.request)
 	if err != nil {
 		t.Fatal(err)

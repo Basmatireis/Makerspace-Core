@@ -378,8 +378,9 @@ func TestPricingPerMaterialTypeIncompleteZeroAndSnapshotStability(t *testing.T) 
 	_, err = f.s.AddPurchase(ctx, f.p, tpu.ID, tpu.InventoryVersion, "500", "20", f.now, nil, nil, nil, &f.request)
 	must(err)
 
+	tpuSpool := f.spoolFor(t, tpu)
 	input := f.input(-3*time.Hour, time.Hour, "successful")
-	input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: "100"}, {MaterialID: tpu.ID, Quantity: "50"}}
+	input.Usages = []UsageInput{f.use("100"), {MaterialID: tpu.ID, SpoolID: &tpuSpool.ID, Quantity: "50"}}
 	job := f.create(t, input)
 	if job.PricingStatus != "incomplete" || job.CalculatedPrice != nil {
 		t.Fatalf(
@@ -492,7 +493,7 @@ func TestPricingPerMaterialTypeIncompleteZeroAndSnapshotStability(t *testing.T) 
 		f.p,
 		run.ID,
 		run.Version,
-		[]UsageInput{{MaterialID: f.material.ID, Quantity: "100"}, {MaterialID: tpu.ID, Quantity: "80"}},
+		[]UsageInput{f.use("100"), {MaterialID: tpu.ID, SpoolID: &tpuSpool.ID, Quantity: "80"}},
 		&f.request,
 	)
 	must(err)

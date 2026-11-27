@@ -2866,6 +2866,17 @@ func (q *Queries) GetMaterialForUpdate(ctx context.Context, id uuid.UUID) (GetMa
 	return i, err
 }
 
+const getMaterialKindOfMaterial = `-- name: GetMaterialKindOfMaterial :one
+SELECT mt.kind FROM materials m JOIN material_types mt ON mt.id = m.material_type_id WHERE m.id = $1
+`
+
+func (q *Queries) GetMaterialKindOfMaterial(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getMaterialKindOfMaterial, id)
+	var kind string
+	err := row.Scan(&kind)
+	return kind, err
+}
+
 const getMaterialType = `-- name: GetMaterialType :one
 SELECT t.id, t.name, t.unit, t.active, t.version, t.created_at, t.updated_at, t.kind, t.code, t.machine_use,
        (SELECT count(*) FROM materials m WHERE m.material_type_id = t.id)::bigint AS material_count,

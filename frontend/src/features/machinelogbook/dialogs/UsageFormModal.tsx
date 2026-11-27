@@ -99,7 +99,10 @@ function UsageRowFields({
   const types = useQuery({ ...materialTypesQuery(), enabled: canReadInventory });
   const stockRow = row.ownership === 'makerspace' && !!row.materialId;
   const material = stockRow ? (materials.data?.items ?? []).find((item) => item.id === row.materialId) : undefined;
-  const showSpools = stockRow && (!process || isFdm(process)) && (material ? material.kind === 'filament' : true);
+  // Filament of the stock always comes from a spool; loose filament is only sold or corrected in the inventory.
+  const spoolRequired = stockRow && material?.kind === 'filament' && !row.looseBooked;
+  const showSpools =
+    spoolRequired || (stockRow && (!process || isFdm(process)) && (material ? material.kind === 'filament' : true));
   const spools = useQuery({
     ...spoolsQuery({ consumable: true, materialId: row.materialId, page: 1, pageSize: 100 }),
     enabled: canReadInventory && showSpools,
@@ -113,6 +116,7 @@ function UsageRowFields({
   if (row.spoolId && !spoolOptions.some((option) => option.id === row.spoolId))
     spoolOptions.unshift({ id: row.spoolId, label: row.spoolLabel ?? 'Current spool' });
   const chosen = hasMaterial(row);
+  const spoolField = showSpools && (spoolRequired || spoolOptions.length > 0);
   return (
     <div className="jobs-usage__row">
       <div className="jobs-usage__head">
@@ -123,11 +127,7 @@ function UsageRowFields({
           </IconButton>
         )}
       </div>
-      <div
-        className={
-          showSpools && spoolOptions.length > 0 ? 'jobs-usage__line jobs-usage__line--spool' : 'jobs-usage__line'
-        }
-      >
+      <div className={spoolField ? 'jobs-usage__line jobs-usage__line--spool' : 'jobs-usage__line'}>
         <div className="jobs-usage__field">
           <FormLabel id={`${idPrefix}-material-label`}>Material</FormLabel>
           {chosen ? (
@@ -151,17 +151,27 @@ function UsageRowFields({
             </Button>
           )}
         </div>
-        {showSpools && spoolOptions.length > 0 && (
+        {spoolField && (
           <Controller
             control={control}
             name={`usages.${index}.spoolId`}
-            render={({ field }) => (
+            rules={{
+              validate: (value) => !spoolRequired || Boolean(value) || 'Select the spool the filament came from.',
+            }}
+            render={({ field, fieldState }) => (
               <FuzzySelectField
                 id={`${idPrefix}-spool`}
-                titleText="Spool (optional)"
-                placeholder="Loose stock"
+                titleText={spoolRequired ? 'Spool' : 'Spool (optional)'}
+                placeholder={spoolRequired ? 'Select a spool' : 'Loose stock'}
                 options={spoolOptions}
                 value={field.value || null}
+                invalid={fieldState.invalid}
+                invalidText={fieldState.error?.message}
+                helperText={
+                  spoolRequired && !spools.isPending && spoolOptions.length === 0
+                    ? 'This filament has no spool yet. Register one in the inventory first.'
+                    : undefined
+                }
                 onChange={(id) => {
                   field.onChange(id ?? '');
                   setValue(`usages.${index}.spoolLabel`, spoolOptions.find((option) => option.id === id)?.label, {
@@ -221,7 +231,7 @@ function UsageRowFields({
 }
 
 /**
- * Material rows of a run. Each row picks its material in the catalog picker (stock article, optionally a spool, or
+ * Material rows of a run. Each row picks its material in the catalog picker (stock article, filament from a spool, or
  * the recipient's own material) and takes the quantity here, also as a calculation such as 20*30*2.
  * `process` limits the catalog to the machine's process. `onPickingChange` tells the dialog to hide while the picker
  * is open. `single` edits exactly one row: no adding or removing.

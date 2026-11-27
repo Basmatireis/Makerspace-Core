@@ -151,6 +151,7 @@ type Querier interface {
 	GetMachineProcess(ctx context.Context, machineID uuid.UUID) (GetMachineProcessRow, error)
 	GetMaterial(ctx context.Context, id uuid.UUID) (GetMaterialRow, error)
 	GetMaterialForUpdate(ctx context.Context, id uuid.UUID) (GetMaterialForUpdateRow, error)
+	GetMaterialKindOfMaterial(ctx context.Context, id uuid.UUID) (string, error)
 	GetMaterialType(ctx context.Context, id uuid.UUID) (GetMaterialTypeRow, error)
 	GetMaterialTypeForShare(ctx context.Context, id uuid.UUID) (MaterialType, error)
 	GetMaterialTypeForUpdate(ctx context.Context, id uuid.UUID) (MaterialType, error)

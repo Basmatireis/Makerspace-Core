@@ -2061,6 +2061,9 @@ SELECT EXISTS (SELECT 1 FROM material_types WHERE id = sqlc.arg(id))::boolean;
 -- name: GetMaterialTypeOfMaterial :one
 SELECT material_type_id FROM materials WHERE id = sqlc.arg(id);
 
+-- name: GetMaterialKindOfMaterial :one
+SELECT mt.kind FROM materials m JOIN material_types mt ON mt.id = m.material_type_id WHERE m.id = sqlc.arg(id);
+
 -- name: ListJobAttentionFacts :many
 -- Whether an order item refers to each job (claimed, or an item that was not removed) and whether the claiming
 -- order's snapshot is older than the job.

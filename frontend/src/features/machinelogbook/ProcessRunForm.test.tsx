@@ -261,6 +261,78 @@ describe('process driven run form', () => {
   });
 });
 
+describe('filament spool', () => {
+  const spool = {
+    id: t(21),
+    displayId: 'S-PLA-01',
+    kind: 'standard',
+    label: null,
+    status: 'in_stock',
+    fillNumber: 1,
+    materialId: t(11),
+    materialName: 'PLA Black',
+    remainingQuantity: '80',
+    unit: 'g',
+    mounted: false,
+    lifecycle: 'active',
+    identifiers: [],
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  it('requires the spool a new filament usage comes from and sends it', async () => {
+    let body: AddManualMachineRunRequest | undefined;
+    server.use(
+      ...lookups,
+      http.get('*/api/v1/filament-spools', () =>
+        HttpResponse.json({ items: [spool], page: 1, pageSize: 100, total: 1 }),
+      ),
+      http.post(`*/api/v1/machine-jobs/${ids.job}/runs`, async ({ request }) => {
+        body = (await request.json()) as AddManualMachineRunRequest;
+        return HttpResponse.json(jobOn(fdm), { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(
+      <ToastProvider>
+        <AddToJobModal open job={jobOn(fdm)} onClose={() => undefined} />
+      </ToastProvider>,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Add to job' });
+    await pickMaterial(user, dialog, 'PLA Black');
+    const spoolField = await within(dialog).findByRole('combobox', { name: 'Spool' });
+    await user.type(await within(dialog).findByLabelText('Quantity (g)'), '12');
+    await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
+    expect(await within(dialog).findByText('Select the spool the filament came from.')).toBeInTheDocument();
+    expect(body).toBeUndefined();
+
+    await user.click(spoolField);
+    await user.click(await screen.findByRole('option', { name: /S-PLA-01/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body?.run.usages).toEqual([expect.objectContaining({ materialId: t(11), spoolId: t(21), quantity: '12' })]);
+  });
+
+  it('says so when the filament has no spool to book from', async () => {
+    server.use(
+      ...lookups,
+      http.get('*/api/v1/filament-spools', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
+    );
+    const user = userEvent.setup();
+    renderRoute(
+      <ToastProvider>
+        <AddToJobModal open job={jobOn(fdm)} onClose={() => undefined} />
+      </ToastProvider>,
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Add to job' });
+    await pickMaterial(user, dialog, 'PLA Black');
+    expect(
+      await within(dialog).findByText('This filament has no spool yet. Register one in the inventory first.'),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('measures from the process', () => {
   it('renders one input per measure of the process and sends them as a map', async () => {
     const sewing = processOf(9, 'Sewing', 'none', [

@@ -150,8 +150,19 @@ func usageSortKey(item parsedUsage) string {
 }
 
 // resolveUsageSpools locks the spool of every spool usage in id order.
-// Archived spools cannot be used.
-func (s *Service) resolveUsageSpools(ctx context.Context, q *machinelogbookdb.Queries, items []parsedUsage) error {
+// Archived spools cannot be used. Filament from the makerspace's stock is
+// always booked on a spool; loose filament stock is only for orders and
+// inventory corrections. `loose` is what the run already booked from loose
+// stock per article, which a correction may keep.
+func (s *Service) resolveUsageSpools(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	items []parsedUsage,
+	loose map[uuid.UUID]decimal.Decimal,
+) error {
+	if err := requireUsageSpools(ctx, q, items, loose); err != nil {
+		return err
+	}
 	order := make([]int, 0, len(items))
 	for i := range items {
 		if UsageOwnership(items[i].Ownership) != OwnershipExternal && items[i].SpoolID != nil {
@@ -172,6 +183,54 @@ func (s *Service) resolveUsageSpools(ctx context.Context, q *machinelogbookdb.Qu
 		items[i].Spool = &ref
 	}
 	return nil
+}
+
+// requireUsageSpools refuses makerspace filament without a spool, except up to
+// what the run already booked from loose stock before spools were required.
+func requireUsageSpools(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	items []parsedUsage,
+	loose map[uuid.UUID]decimal.Decimal,
+) error {
+	allowance := map[uuid.UUID]decimal.Decimal{}
+	for materialID, quantity := range loose {
+		allowance[materialID] = quantity
+	}
+	for _, item := range items {
+		if UsageOwnership(item.Ownership) == OwnershipExternal || item.MaterialID == nil || item.SpoolID != nil {
+			continue
+		}
+		kind, err := q.GetMaterialKindOfMaterial(ctx, *item.MaterialID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperror.Invalid("unknown material")
+		}
+		if err != nil {
+			return err
+		}
+		if MaterialKind(kind) != KindFilament {
+			continue
+		}
+		left := allowance[*item.MaterialID]
+		if item.Quantity.GreaterThan(left) {
+			return apperror.Invalid("filament used by a run must come from a spool")
+		}
+		allowance[*item.MaterialID] = left.Sub(item.Quantity)
+	}
+	return nil
+}
+
+// looseUsageQuantities sums what the given usages booked from loose makerspace stock, per article.
+func looseUsageQuantities(usages []machinelogbookdb.MachineRunUsage) map[uuid.UUID]decimal.Decimal {
+	loose := map[uuid.UUID]decimal.Decimal{}
+	for _, u := range usages {
+		// A usage whose spool was deleted has no spool any more either; it stays correctable like a loose one.
+		if UsageOwnership(u.Ownership) != OwnershipMakerspace || u.MaterialID == nil || u.SpoolID != nil {
+			continue
+		}
+		loose[*u.MaterialID] = loose[*u.MaterialID].Add(decimalFromNumeric(u.Quantity))
+	}
+	return loose
 }
 
 // usageSpoolRef rebuilds the spool reference stored on a recorded usage.

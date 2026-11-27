@@ -95,6 +95,17 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
     'purchase material',
   );
   material = purchase.material;
+  // Filament used by a run is always booked on a spool; the purchase is moved onto one.
+  const spool = await parse<Identified>(
+    await post('/filament-spools', {
+      materialId: material.id,
+      initialNetWeightG: '1000',
+      stockMode: 'existing_stock',
+      occurredAt: new Date().toISOString(),
+      expectedInventoryVersion: material.inventoryVersion,
+    }),
+    'register spool',
+  );
 
   const organization = await parse<Identified & { pricingGroupAssignmentVersion: number }>(
     await post('/organizations', { name: 'E2E partner institute', kind: 'institute' }),
@@ -146,7 +157,15 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
         startsAt,
         endsAt,
         outcome: 'successful',
-        usages: [{ ownership: 'makerspace', materialId: material.id, quantity: '50', quantityBasis: 'actual' }],
+        usages: [
+          {
+            ownership: 'makerspace',
+            materialId: material.id,
+            spoolId: spool.id,
+            quantity: '50',
+            quantityBasis: 'actual',
+          },
+        ],
       },
     }),
     'create finished manual job',
@@ -172,7 +191,15 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
         startsAt: new Date(second - 10 * 60_000).toISOString(),
         endsAt: new Date(second + 110 * 60_000).toISOString(),
         outcome: null,
-        usages: [{ ownership: 'makerspace', materialId: material.id, quantity: '10', quantityBasis: 'actual' }],
+        usages: [
+          {
+            ownership: 'makerspace',
+            materialId: material.id,
+            spoolId: spool.id,
+            quantity: '10',
+            quantityBasis: 'actual',
+          },
+        ],
       },
     }),
     'create running manual job',

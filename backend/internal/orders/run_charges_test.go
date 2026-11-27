@@ -11,6 +11,32 @@ import (
 	"github.com/google/uuid"
 )
 
+// use books grams of the material from a spool; filament used by a run must come from one. The first use puts
+// all of the material's current stock onto a spool.
+func (f *fixture) use(t *testing.T, material uuid.UUID, grams string) machinelogbook.UsageInput {
+	t.Helper()
+	spool, ok := f.spools[material]
+	if !ok {
+		m, e := f.jobs.GetMaterial(t.Context(), f.p, material)
+		if e != nil {
+			t.Fatal(e)
+		}
+		created, e := f.jobs.CreateFilamentSpool(t.Context(), f.p, machinelogbook.FilamentSpoolInput{
+			MaterialID:               material,
+			InitialNetWeightG:        m.Quantity,
+			StockMode:                machinelogbook.StockModeExistingStock,
+			OccurredAt:               time.Now().UTC(),
+			ExpectedInventoryVersion: m.InventoryVersion,
+		}, nil)
+		if e != nil {
+			t.Fatal(e)
+		}
+		spool = created.ID
+		f.spools[material] = spool
+	}
+	return machinelogbook.UsageInput{MaterialID: material, SpoolID: &spool, Quantity: grams}
+}
+
 func (f *fixture) stockedMaterial(t *testing.T, name string) uuid.UUID {
 	t.Helper()
 	materialType, e := f.jobs.CreateMaterialType(
@@ -80,7 +106,7 @@ func TestOrderItemSnapshotIsBuiltFromAllRuns(t *testing.T) {
 			Customer:         machinelogbook.PartyReference{Kind: "organization", ID: f.organization},
 			OperatorPersonID: f.person,
 			Outcome:          "failed",
-			Usages:           []machinelogbook.UsageInput{{MaterialID: material, Quantity: "30"}},
+			Usages:           []machinelogbook.UsageInput{f.use(t, material, "30")},
 		},
 		nil,
 	)
@@ -99,7 +125,7 @@ func TestOrderItemSnapshotIsBuiltFromAllRuns(t *testing.T) {
 			StartsAt: reprintStart,
 			EndsAt:   reprintEnd,
 			Outcome:  &outcome,
-			Usages:   []machinelogbook.UsageInput{{MaterialID: material, Quantity: "45"}},
+			Usages:   []machinelogbook.UsageInput{f.use(t, material, "45")},
 		},
 		nil,
 	)

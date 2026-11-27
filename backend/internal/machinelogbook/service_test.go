@@ -447,6 +447,24 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	if afterExternalJob.Quantity != "2000" {
 		t.Fatalf("external filament changed inventory: %+v", afterExternalJob)
 	}
+	// Filament of a run is booked on a spool; the other thousand grams stay loose stock.
+	spool, err := s.CreateFilamentSpool(ctx, p, FilamentSpoolInput{
+		MaterialID:               material.ID,
+		InitialNetWeightG:        "1000",
+		StockMode:                StockModeExistingStock,
+		OccurredAt:               time.Now().UTC(),
+		ExpectedInventoryVersion: afterExternalJob.InventoryVersion,
+	}, &requestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM machine_run_usages WHERE spool_id = $1`, spool.ID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM inventory_transactions WHERE spool_id = $1`, spool.ID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM filament_spools WHERE id = $1`, spool.ID)
+	})
 
 	organization, err := s.CreateOrganization(
 		ctx,
@@ -486,7 +504,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 			Customer:         PartyReference{Kind: "organization", ID: organization.ID},
 			OperatorPersonID: personID,
 			Outcome:          "successful",
-			Usages:           []UsageInput{{MaterialID: material.ID, Quantity: "183"}},
+			Usages:           []UsageInput{{MaterialID: material.ID, SpoolID: &spool.ID, Quantity: "183"}},
 		},
 		&requestID,
 	)
@@ -519,7 +537,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		p,
 		confirmed.Runs[0].ID,
 		confirmed.Runs[0].Version,
-		[]UsageInput{{MaterialID: material.ID, Quantity: "180"}},
+		[]UsageInput{{MaterialID: material.ID, SpoolID: &spool.ID, Quantity: "180"}},
 		&requestID,
 	)
 	if err != nil {
@@ -541,7 +559,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 			OperatorPersonID: personID,
 			Outcome:          "failed",
 			PricingGroupID:   &group.ID,
-			Usages:           []UsageInput{{MaterialID: material.ID, Quantity: "17"}},
+			Usages:           []UsageInput{{MaterialID: material.ID, SpoolID: &spool.ID, Quantity: "17"}},
 		},
 		&requestID,
 	)
@@ -714,7 +732,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	reason := "disposed"
-	disposed, err := s.RecordConsumption(
+	_, err = s.RecordConsumption(
 		ctx,
 		p,
 		material.ID,
@@ -729,11 +747,23 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Emptying an article needs its spools gone first; retiring discards what is left on them.
+	currentSpool, err := s.GetFilamentSpool(ctx, p, spool.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.RetireFilamentSpool(ctx, p, spool.ID, currentSpool.Version, SpoolRetiredDiscarded, &requestID); err != nil {
+		t.Fatal(err)
+	}
+	afterRetire, err := s.GetMaterial(ctx, p, material.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	empty, err := s.MarkEmpty(
 		ctx,
 		p,
 		material.ID,
-		disposed.Material.InventoryVersion,
+		afterRetire.InventoryVersion,
 		time.Now().UTC(),
 		nil,
 		&requestID,
@@ -748,7 +778,8 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total != 10 || len(transactions) != 10 {
+	// Two more than without spool: moving the stock onto the spool and discarding what is left of it.
+	if total != 12 || len(transactions) != 12 {
 		t.Fatalf("transaction history total=%d len=%d", total, len(transactions))
 	}
 	if transactions[0].AdjustmentReason == nil || *transactions[0].AdjustmentReason != "mark_empty" {

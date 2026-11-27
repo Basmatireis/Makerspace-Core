@@ -45,7 +45,7 @@ func TestDeleteRunGuardsAndConsumptionChoice(t *testing.T) {
 	f := newJobFixture(t)
 	ctx := t.Context()
 	input := f.input(-10*time.Hour, time.Hour, "successful")
-	input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: "50"}}
+	input.Usages = []UsageInput{f.use("50")}
 	job := f.create(t, input)
 	only := job.Runs[0]
 	if err := f.s.DeleteRun(ctx, f.p, only.ID, only.Version, true, &f.request); !apperror.IsCode(err, "last_run") {
@@ -57,7 +57,7 @@ func TestDeleteRunGuardsAndConsumptionChoice(t *testing.T) {
 		-8*time.Hour,
 		time.Hour,
 		outcomePtr("successful"),
-		UsageInput{MaterialID: f.material.ID, Quantity: "20"},
+		f.use("20"),
 	)
 	job = f.addRun(t, job, -6*time.Hour, time.Hour, outcomePtr("failed"))
 	job = f.addRun(
@@ -66,7 +66,7 @@ func TestDeleteRunGuardsAndConsumptionChoice(t *testing.T) {
 		-4*time.Hour,
 		time.Hour,
 		outcomePtr("successful"),
-		UsageInput{MaterialID: f.material.ID, Quantity: "10"},
+		f.use("10"),
 	)
 	if len(job.Runs) != 4 || f.quantity(t, f.material.ID) != "920" {
 		t.Fatalf("setup: runs=%d quantity=%s", len(job.Runs), f.quantity(t, f.material.ID))
@@ -207,7 +207,7 @@ func TestDeleteJobReversesOrKeepsConsumption(t *testing.T) {
 	ctx := t.Context()
 	build := func(grams string) MachineJob {
 		input := f.input(-10*time.Hour, time.Hour, "successful")
-		input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: grams}}
+		input.Usages = []UsageInput{f.use(grams)}
 		job := f.create(t, input)
 		return f.addRun(
 			t,
@@ -215,7 +215,7 @@ func TestDeleteJobReversesOrKeepsConsumption(t *testing.T) {
 			-8*time.Hour,
 			time.Hour,
 			outcomePtr("successful"),
-			UsageInput{MaterialID: f.material.ID, Quantity: "20"},
+			f.use("20"),
 		)
 	}
 	reverse, keep := build("50"), build("30")
@@ -701,7 +701,7 @@ func TestDeletedJobsLeaveStatistics(t *testing.T) {
 			PricingGroupID:   &f.group.ID,
 		}
 		if grams != "" {
-			input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: grams}}
+			input.Usages = []UsageInput{f.use(grams)}
 		}
 		return f.create(t, input)
 	}
