@@ -90,7 +90,7 @@ func newWorkItemFixture(t *testing.T) *workItemFixture {
 	w.needsOutcome = h.create(t, needs)
 	recorded := h.input(-10*time.Hour, time.Hour, "successful")
 	recorded.Title = &gearUnderscore
-	recorded.Usages = []UsageInput{h.jobFixture.use("30")}
+	recorded.Usages = []UsageInput{h.use("30")}
 	w.recorded = h.create(t, recorded)
 
 	w.linkedRun = h.insertRun(
